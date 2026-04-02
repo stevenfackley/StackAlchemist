@@ -11,32 +11,16 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Placeholder to Test Server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.TEST_SSH_HOST }}
-          username: ${{ secrets.TEST_SSH_USER }}
-          key: ${{ secrets.TEST_SSH_KEY }}
-          port: ${{ secrets.TEST_SSH_PORT || 22 }}
-          script: |
-            set -e
-
-            echo "📦 Pulling latest changes from develop..."
-            cd ${{ secrets.TEST_REPO_PATH || '~/StackAlchemist' }}
-            git fetch origin develop
-            git checkout develop
-            git pull origin develop
-
-            echo "🐳 Restarting placeholder service..."
-            cd src/StackAlchemist.Placeholder
-            docker compose down --remove-orphans
-            docker compose up -d
-
-            echo "✅ Deploy complete."
-            docker compose ps
+      - name: Restart placeholder service
+        working-directory: src/StackAlchemist.Placeholder
+        run: |
+          docker compose down --remove-orphans
+          docker compose up -d
+          echo "✅ Deploy complete."
+          docker compose ps
