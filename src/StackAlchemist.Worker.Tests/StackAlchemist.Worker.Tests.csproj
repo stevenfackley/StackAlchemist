@@ -29,11 +29,9 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Reference the Worker project under test -->
-  <!-- Uncomment when StackAlchemist.Worker project exists:
   <ItemGroup>
     <ProjectReference Include="..\StackAlchemist.Worker\StackAlchemist.Worker.csproj" />
+    <ProjectReference Include="..\StackAlchemist.Engine\StackAlchemist.Engine.csproj" />
   </ItemGroup>
-  -->
 
 </Project>

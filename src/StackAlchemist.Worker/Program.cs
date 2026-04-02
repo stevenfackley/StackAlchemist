@@ -1,20 +1,22 @@
-// StackAlchemist Worker Service
-// Compile-Guarantee Worker: takes generated code from the queue,
-// runs dotnet build + npm build, and retries with error context on failure.
-// Stub — full implementation in a future phase.
+using System.Threading.Channels;
+using StackAlchemist.Engine.Models;
+using StackAlchemist.Engine.Services;
+using StackAlchemist.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddHostedService<WorkerHeartbeatService>();
+
+// Job queue — shared Channel with Engine (in-process for Phase 3)
+var channel = Channel.CreateUnbounded<GenerationContext>();
+builder.Services.AddSingleton(channel.Reader);
+builder.Services.AddSingleton(channel.Writer);
+
+// Services
+builder.Services.AddSingleton<ICompileService, CompileService>();
+builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
+builder.Services.AddSingleton<IReconstructionService, ReconstructionService>();
+
+// Background worker
+builder.Services.AddHostedService<CompileWorkerService>();
 
 var host = builder.Build();
 host.Run();
-
-sealed class WorkerHeartbeatService(ILogger<WorkerHeartbeatService> logger) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        logger.LogInformation("StackAlchemist worker started in stub mode.");
-
-        await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
-    }
-}

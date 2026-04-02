@@ -1,5 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/StackAlchemist.Engine/StackAlchemist.Engine.csproj" />
+    <Project Path="src/StackAlchemist.Worker/StackAlchemist.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="src/StackAlchemist.Engine.Tests/StackAlchemist.Engine.Tests.csproj" />
+    <Project Path="src/StackAlchemist.Worker.Tests/StackAlchemist.Worker.Tests.csproj" />
   </Folder>
 </Solution>
