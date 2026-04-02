@@ -50,13 +50,13 @@ public class RetryLogicTests
             RetryCount = 0,
         };
 
-        // Simulate 3 build failures
-        for (var i = 0; i < 3; i++)
+        // Simulate 4 build failures: MaxRetries=3, so the 4th failure (retryCount reaches 3) → Failed
+        for (var i = 0; i < 4; i++)
         {
             var state = GenerationStateMachine.Transition(
                 GenerationState.Building, GenerationEvent.BuildFailed, ctx);
 
-            if (i < 2)
+            if (i < 3)
             {
                 state.Should().Be(GenerationState.Generating);
                 // Transition back to building for next iteration
@@ -65,7 +65,7 @@ public class RetryLogicTests
             }
             else
             {
-                // Third failure at retryCount=3 → failed
+                // Fourth failure: retryCount already at 3 (MaxRetries) → Failed
                 state.Should().Be(GenerationState.Failed);
             }
         }

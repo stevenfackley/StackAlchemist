@@ -12,12 +12,13 @@ public class ProductsController : ControllerBase
     [HttpGet]
     public IActionResult GetAll() => Ok(new[] { "Product1" });
 }
+[[END_FILE]]
 
 Note: I've also created the repository file below:
 
 [[FILE:src/Repositories/ProductRepository.cs]]
 public class ProductRepository
 {
-    // This file is missing its [[END_FILE]] delimiter
-    // The parser should detect this and throw MalformedLlmOutputException
+    // This file is intentionally missing its closing delimiter
+    // The parser should detect this as malformed and throw an exception
 }
