@@ -13,7 +13,20 @@ The platform utilizes a strict 3-tier environment structure. Secrets are managed
 * **Test / Staging (`.env.test`):** Runs in a Proxmox LXC container routed via Cloudflare Tunnels (`test.stackalchemist.app`). Secrets are injected dynamically via GitHub Actions or Docker Compose.
 * **Production (`.env.production`):** Hosted on AWS. Secrets are injected at build time via GitHub Actions Secrets. Connects to the live Stripe integration and production Supabase project.
 
-**3. Core Workflows and Technical Pipelines**
+**3. Optimal CI/CD Flow**
+The project utilizes GitHub Actions for automated testing and deployment.
+
+* **Stage 1: Continuous Integration (CI)**
+    * **Trigger:** Pull Requests to `main` or Pushes to `main`.
+    * **Actions:** Run `dotnet build`, `npm run lint`, `npm run build`, and all unit/integration tests.
+* **Stage 2: Staging Deployment (Test)**
+    * **Trigger:** Successful completion of CI on the `main` branch.
+    * **Actions:** Build Docker images for Web, Engine, and Worker. Push to GitHub Container Registry (GHCR). Deploy to the Proxmox staging server via SSH/Docker Compose.
+* **Stage 3: Production Deployment (Prod)**
+    * **Trigger:** Creation of a GitHub Release or Version Tag (e.g., `v1.0.0`).
+    * **Actions:** Re-tag images from GHCR and deploy to the AWS production environment.
+
+**4. Core Workflows and Technical Pipelines**
 
 **A. Dual Mode Intake Pipeline**
 * **Simple Mode:** User submits text prompt. Next.js server action calls LLM to generate a structured JSON schema. The frontend renders this JSON into an editable node based UI.
