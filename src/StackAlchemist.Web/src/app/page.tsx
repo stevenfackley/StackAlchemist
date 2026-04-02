@@ -368,108 +368,173 @@ export default function HomePage() {
       )}
 
       {/* ─── Hero Section ───────────────────────────────────────────── */}
-      <section className="relative z-10 flex min-h-[calc(100vh-72px)] flex-col items-start justify-center px-6 sm:px-8 lg:px-16 py-16 lg:py-0">
-        <div className="w-full max-w-4xl lg:ml-[5%]">
-
-          {/* Eyebrow */}
-          <div className="mb-6 flex items-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-            <span className="font-mono text-xs tracking-[0.3em] text-slate-400 uppercase">
-              Architecture Synthesis Engine · V1 · 100% Build-Guaranteed
-            </span>
-          </div>
-
-          {/* Hero headline */}
-          <h1 className="mb-6 font-bold tracking-tight leading-[0.95] text-white">
-            <span className="block" style={{ fontSize: "clamp(2.8rem, 9vw, 6.5rem)" }}>SYNTHESIZE</span>
-            <span className="block mt-1" style={{ fontSize: "clamp(2.8rem, 9vw, 6.5rem)" }}>
-              YOUR <span className="text-blue-400">PLATFORM.</span>
-            </span>
-          </h1>
-
-          {/* Subtext */}
-          <p className="mb-8 max-w-xl text-lg leading-relaxed text-slate-300">
-            Transform natural language into deployable software repositories.
-            PostgreSQL schema, .NET backend, Next.js frontend — all with a{" "}
-            <span className="text-blue-400 font-medium">compile guarantee</span>.
-          </p>
-
-          {/* Mode Toggle */}
-          <div className="mb-5 flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setMode("simple")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                mode === "simple"
-                  ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                  : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Simple Mode
-            </button>
-            <button
-              onClick={() => setMode("advanced")}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                mode === "advanced"
-                  ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                  : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Advanced Mode
-            </button>
-            <span className="ml-1 text-xs text-slate-500 font-mono">
-              {mode === "simple" ? "Natural language prompt" : "Visual entity wizard"}
-            </span>
-          </div>
-
-          {/* Alchemy Input */}
-          {mode === "simple" ? (
-            <AlchemyInput
-              value={prompt}
-              onChange={setPrompt}
-              onSubmit={handleSubmit}
-            />
-          ) : (
-            <div className="max-w-2xl">
-              <div className="rounded-2xl border border-blue-500/35 bg-slate-700/60 p-6 backdrop-blur-md">
-                <div className="flex items-center gap-3 mb-3">
-                  <Terminal className="h-5 w-5 text-blue-400" />
-                  <span className="font-mono text-xs tracking-wider text-slate-400 uppercase">Advanced Mode Active</span>
-                </div>
-                <p className="text-slate-300 text-sm leading-relaxed mb-4">
-                  Use the visual entity wizard to define your schema with precision — entities, relationships, API endpoints, and tier selection.
-                </p>
-                <button
-                  onClick={handleSubmit}
-                  className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
-                >
-                  Open Entity Wizard →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Keyboard shortcut hint */}
-          {mode === "simple" && (
-            <div className="mt-5 flex items-center gap-2">
-              <span className="text-xs text-slate-500">Press</span>
-              <kbd className="rounded border border-slate-500/40 bg-slate-700/50 px-2 py-0.5 font-mono text-xs text-slate-300">
-                Ctrl + Enter
-              </kbd>
-              <span className="text-xs text-slate-500">to synthesize</span>
-            </div>
-          )}
-
-          {/* V1 Stack badges */}
-          <div className="mt-7 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 font-mono uppercase tracking-wider">V1 Stack:</span>
-            {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper"].map((tech) => (
-              <span
-                key={tech}
-                className="rounded-full border border-slate-600/40 bg-slate-700/30 px-3 py-1 text-xs text-slate-400 font-mono"
-              >
-                {tech}
+      <section className="relative z-10 min-h-[calc(100vh-72px)] px-6 py-12 sm:px-8 sm:py-16 lg:px-16 lg:py-0">
+        <div className="mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] lg:gap-14">
+          <div className="max-w-3xl">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+              <span className="font-mono text-xs tracking-[0.3em] text-slate-400 uppercase">
+                Architecture Synthesis Engine · V1 · 100% Build-Guaranteed
               </span>
-            ))}
+            </div>
+
+            <h1 className="mb-6 font-bold tracking-tight leading-[0.95] text-white">
+              <span className="block" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>SYNTHESIZE</span>
+              <span className="block mt-1" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>
+                YOUR <span className="text-blue-400">PLATFORM.</span>
+              </span>
+            </h1>
+
+            <p className="mb-8 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+              Transform natural language into deployable software repositories.
+              PostgreSQL schema, .NET backend, Next.js frontend, and a handoff path built around a{" "}
+              <span className="text-blue-400 font-medium">compile guarantee</span>.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { value: "90s", label: "Typical architecture synthesis" },
+                { value: "V1", label: ".NET 10 + Next.js 15 + Dapper" },
+                { value: "3x", label: "Auto-correction retry budget" },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl border border-slate-600/30 bg-slate-700/20 px-4 py-4 backdrop-blur-sm"
+                >
+                  <div className="font-mono text-2xl text-white">{stat.value}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-7 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 font-mono uppercase tracking-wider">V1 Stack:</span>
+              {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper"].map((tech) => (
+                <span
+                  key={tech}
+                  className="rounded-full border border-slate-600/40 bg-slate-700/30 px-3 py-1 text-xs text-slate-400 font-mono"
+                >
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-full">
+            <div className="rounded-[28px] border border-slate-600/30 bg-slate-800/60 p-4 shadow-[0_0_40px_rgba(15,23,42,0.35)] backdrop-blur-md sm:p-6 lg:p-7">
+              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
+                  <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
+                    Define the first shape of the product from the home screen.
+                  </h2>
+                </div>
+                <div className="rounded-2xl border border-slate-600/30 bg-slate-700/30 px-4 py-3 sm:max-w-[220px]">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">Mode Status</div>
+                  <div className="mt-1 text-sm text-slate-200">
+                    {mode === "simple" ? "Prompt-first synthesis path" : "Structured wizard path"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setMode("simple")}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                      mode === "simple"
+                        ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                        : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Simple Mode
+                  </button>
+                  <button
+                    onClick={() => setMode("advanced")}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                      mode === "advanced"
+                        ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                        : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Advanced Mode
+                  </button>
+                </div>
+                <span className="text-xs text-slate-500 font-mono md:text-right">
+                  {mode === "simple" ? "Natural language prompt" : "Visual entity wizard"}
+                </span>
+              </div>
+
+              {mode === "simple" ? (
+                <>
+                  <AlchemyInput
+                    value={prompt}
+                    onChange={setPrompt}
+                    onSubmit={handleSubmit}
+                    className="max-w-none"
+                  />
+                  <div className="mt-4 rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                      What The Customer Gets
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Blueprint</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          Schema design, API surface, and technical planning artifacts.
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Boilerplate</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          A generated .NET + Next.js codebase assembled from the approved architecture.
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Infrastructure</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          Deployment-ready extras like IaC templates, charts, and runbook guidance.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <span>Press</span>
+                      <kbd className="rounded border border-slate-500/40 bg-slate-700/50 px-2 py-0.5 font-mono text-xs text-slate-300">
+                        Ctrl + Enter
+                      </kbd>
+                      <span>to synthesize</span>
+                    </div>
+                    <div className="font-mono uppercase tracking-[0.2em] text-slate-600">
+                      Optimized for desktop review, compressed for mobile
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-2xl border border-blue-500/35 bg-slate-700/60 p-6 backdrop-blur-md">
+                  <div className="mb-3 flex items-center gap-3">
+                    <Terminal className="h-5 w-5 text-blue-400" />
+                    <span className="font-mono text-xs tracking-wider text-slate-400 uppercase">Advanced Mode Active</span>
+                  </div>
+                  <p className="mb-5 text-sm leading-relaxed text-slate-300 sm:text-base">
+                    Use the visual entity wizard to define your schema with precision across entities,
+                    relationships, API endpoints, and tier selection without leaving the main flow.
+                  </p>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Matches the `/advanced` workspace structure
+                    </div>
+                    <button
+                      onClick={handleSubmit}
+                      className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
+                    >
+                      Open Entity Wizard →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>

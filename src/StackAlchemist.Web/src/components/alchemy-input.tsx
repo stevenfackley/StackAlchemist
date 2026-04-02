@@ -2,15 +2,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Terminal, Layers, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AlchemyInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   disabled?: boolean;
+  className?: string;
 }
 
-export function AlchemyInput({ value, onChange, onSubmit, disabled }: AlchemyInputProps) {
+export function AlchemyInput({ value, onChange, onSubmit, disabled, className }: AlchemyInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -29,7 +31,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled }: AlchemyInp
   };
 
   return (
-    <div className="relative w-full max-w-2xl">
+    <div className={cn("relative w-full max-w-2xl", className)}>
       {/* Outer glow */}
       <div
         className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-blue-500/20 via-transparent to-blue-500/10 opacity-0 blur-xl transition-opacity duration-500 ${
