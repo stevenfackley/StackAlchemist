@@ -369,8 +369,8 @@ export default function HomePage() {
 
       {/* ─── Hero Section ───────────────────────────────────────────── */}
       <section className="relative z-10 min-h-[calc(100vh-72px)] px-6 py-12 sm:px-8 sm:py-16 lg:px-16 lg:py-0">
-        <div className="mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] lg:gap-14">
-          <div className="max-w-3xl">
+        <div className="mx-auto flex min-h-[calc(100vh-120px)] max-w-7xl items-center justify-center">
+          <div className="w-full max-w-5xl">
             <div className="mb-6 flex items-center gap-3">
               <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
               <span className="font-mono text-xs tracking-[0.3em] text-slate-400 uppercase">
@@ -391,18 +391,18 @@ export default function HomePage() {
               <span className="text-blue-400 font-medium">compile guarantee</span>.
             </p>
 
-            <div className="rounded-2xl border border-slate-600/30 bg-slate-700/20 px-4 py-4 backdrop-blur-sm">
-              <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-[28px] border border-slate-600/30 bg-slate-700/20 px-5 py-5 shadow-[0_0_40px_rgba(15,23,42,0.2)] backdrop-blur-sm sm:px-6 sm:py-6">
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr] lg:gap-8">
                 <div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-blue-400">
                     Built For Fast Handoffs
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
                     Start from a prompt or open the entity wizard, review the architecture shape, then choose
                     whether you want planning artifacts, a generated codebase, or the full infrastructure handoff.
                   </p>
                 </div>
-                <div className="flex flex-wrap content-start gap-2">
+                <div className="flex flex-wrap content-start gap-2 lg:justify-end">
                   {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper", "Compile Guarantee"].map((tech) => (
                     <span
                       key={tech}
@@ -415,137 +415,161 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="w-full">
-            <div className="rounded-[28px] border border-slate-600/30 bg-slate-800/60 p-4 shadow-[0_0_40px_rgba(15,23,42,0.35)] backdrop-blur-md sm:p-6 lg:p-7">
-              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
-                  <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
-                    Shape the product brief without leaving the front page.
-                  </h2>
-                </div>
-                <div className="text-xs text-slate-500 font-mono sm:max-w-[220px] sm:text-right">
-                  {mode === "simple" ? "Prompt-first synthesis path" : "Structured wizard path"}
-                </div>
-              </div>
-
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => setMode("simple")}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                      mode === "simple"
-                        ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                        : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    Simple Mode
-                  </button>
-                  <button
-                    onClick={() => setMode("advanced")}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                      mode === "advanced"
-                        ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                        : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    Advanced Mode
-                  </button>
-                </div>
-                <span className="text-xs text-slate-500 font-mono md:text-right">
-                  {mode === "simple" ? "Natural language prompt" : "Visual entity wizard"}
-                </span>
-              </div>
-
-              {mode === "simple" ? (
-                <>
-                  <AlchemyInput
-                    value={prompt}
-                    onChange={setPrompt}
-                    onSubmit={handleSubmit}
-                    className="max-w-none"
-                  />
-                  <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                      <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                        What You Walk Away With
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <div>
-                          <div className="text-sm font-semibold text-white">Blueprint</div>
-                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                            Schema, API surface, and planning artifacts.
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-white">Boilerplate</div>
-                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                            Generated .NET and Next.js application structure.
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-white">Infrastructure</div>
-                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                            IaC, charts, and deployment guidance.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                      <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                        Flow
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {[
-                          "1. Define the idea or model the entities",
-                          "2. Review the architecture shape",
-                          "3. Choose the handoff depth",
-                        ].map((step) => (
-                          <div key={step} className="text-xs leading-relaxed text-slate-400">
-                            {step}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-3 border-t border-slate-700/40 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2">
-                      <span>Press</span>
-                      <kbd className="rounded border border-slate-500/40 bg-slate-700/50 px-2 py-0.5 font-mono text-xs text-slate-300">
-                        Ctrl + Enter
-                      </kbd>
-                      <span>to synthesize</span>
-                    </div>
-                    <div className="font-mono uppercase tracking-[0.2em] text-slate-600">
-                      Prompt first, details second
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-2xl border border-blue-500/35 bg-slate-700/60 p-6 backdrop-blur-md">
-                  <div className="mb-3 flex items-center gap-3">
-                    <Terminal className="h-5 w-5 text-blue-400" />
-                    <span className="font-mono text-xs tracking-wider text-slate-400 uppercase">Advanced Mode Active</span>
-                  </div>
-                  <p className="mb-5 text-sm leading-relaxed text-slate-300 sm:text-base">
-                    Use the visual entity wizard to define your schema with precision across entities,
-                    relationships, API endpoints, and tier selection without leaving the main flow.
-                  </p>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Matches the `/advanced` workspace structure
-                    </div>
-                    <button
-                      onClick={handleSubmit}
-                      className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
-                    >
-                      Open Entity Wizard →
-                    </button>
-                  </div>
-                </div>
-              )}
+      {/* ─── Launch Console Section ─────────────────────────────────── */}
+      <section className="relative z-10 border-t border-slate-600/30 px-6 py-16 sm:px-8 sm:py-20 lg:px-16">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
+              <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
+                Shape the product brief after the value statement lands cleanly.
+              </h2>
             </div>
+            <div className="max-w-md text-sm leading-relaxed text-slate-400 lg:text-right">
+              Start with a prompt or switch into the entity wizard. The console now sits below the hero so the first
+              screen can breathe before the workspace takes over.
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-slate-600/30 bg-slate-800/60 p-4 shadow-[0_0_40px_rgba(15,23,42,0.35)] backdrop-blur-md sm:p-6 lg:p-7">
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Workspace Mode</div>
+                <h3 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
+                  Move from idea to architecture without leaving the main flow.
+                </h3>
+              </div>
+              <div className="text-xs text-slate-500 font-mono sm:max-w-[220px] sm:text-right">
+                {mode === "simple" ? "Prompt-first synthesis path" : "Structured wizard path"}
+              </div>
+            </div>
+
+            <div className="mb-5 grid gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/35 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div>
+                <div className="text-sm font-semibold text-white">Choose how you want to start</div>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400 sm:text-sm">
+                  Use plain language when the brief is still fuzzy, or switch to the wizard when you already know
+                  your entities, relationships, and API shape.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <button
+                  onClick={() => setMode("simple")}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                    mode === "simple"
+                      ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                      : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Simple Mode
+                </button>
+                <button
+                  onClick={() => setMode("advanced")}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                    mode === "advanced"
+                      ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                      : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Advanced Mode
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-5 text-xs text-slate-500 font-mono">
+              {mode === "simple" ? "Natural language prompt" : "Visual entity wizard"}
+            </div>
+
+            {mode === "simple" ? (
+              <>
+                <AlchemyInput
+                  value={prompt}
+                  onChange={setPrompt}
+                  onSubmit={handleSubmit}
+                  className="max-w-none"
+                />
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+                  <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                      What You Walk Away With
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Blueprint</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          Schema, API surface, and planning artifacts.
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Boilerplate</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          Generated .NET and Next.js application structure.
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">Infrastructure</div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                          IaC, charts, and deployment guidance.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                      Flow
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {[
+                        "1. Define the idea or model the entities",
+                        "2. Review the architecture shape",
+                        "3. Choose the handoff depth",
+                      ].map((step) => (
+                        <div key={step} className="text-xs leading-relaxed text-slate-400">
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-3 border-t border-slate-700/40 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span>Press</span>
+                    <kbd className="rounded border border-slate-500/40 bg-slate-700/50 px-2 py-0.5 font-mono text-xs text-slate-300">
+                      Ctrl + Enter
+                    </kbd>
+                    <span>to synthesize</span>
+                  </div>
+                  <div className="font-mono uppercase tracking-[0.2em] text-slate-600">
+                    Prompt first, details second
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-blue-500/35 bg-slate-700/60 p-6 backdrop-blur-md">
+                <div className="mb-3 flex items-center gap-3">
+                  <Terminal className="h-5 w-5 text-blue-400" />
+                  <span className="font-mono text-xs tracking-wider text-slate-400 uppercase">Advanced Mode Active</span>
+                </div>
+                <p className="mb-5 text-sm leading-relaxed text-slate-300 sm:text-base">
+                  Use the visual entity wizard to define your schema with precision across entities,
+                  relationships, API endpoints, and tier selection without leaving the main flow.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Matches the `/advanced` workspace structure
+                  </div>
+                  <button
+                    onClick={handleSubmit}
+                    className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
+                  >
+                    Open Entity Wizard →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>

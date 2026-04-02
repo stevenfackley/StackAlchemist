@@ -6,10 +6,12 @@
 StackAlchemist orchestrates code generation by connecting a Next.js frontend with a Supabase backend. It uses a dual mode intake flow and a hybrid template generation engine to compile custom business logic into a highly optimized .NET/Next.js repository, guaranteeing successful compilation before user delivery.
 
 **2. UI/UX Design Specifications**
-* **Theme:** Dark mode default. Slate gray backgrounds with electric blue interactive elements.
+* **Theme:** Dark mode default. The implemented UI uses an elevated-slate palette: `#0F172A` and `#1E293B` as the deepest layers, `#334155` / `#475569` for cards and support surfaces, and `#4DA6FF` as the primary accent for active states, glows, and emphasis.
 * **Component Library:** `shadcn/ui` styled with Tailwind CSS.
-* **Simple Mode UI:** A large, focused text area resembling a command line interface. Upon submission, it transitions to a visual entity mapping canvas.
+* **Landing Page:** The current landing page opens with a full-height hero focused on positioning copy and stack confidence, followed by a dedicated "Launch Console" section that contains mode switching, the prompt builder, and handoff guidance.
+* **Simple Mode UI:** The home page uses a terminal-style prompt control with a prompt-builder layer that appends common architecture requirements. Upon submission, it transitions to a visual entity mapping canvas.
 * **Advanced Mode UI:** A horizontal stepper wizard. Users define entity properties using structured dropdowns and text inputs, with real time relationship mapping visualization.
+* **Pricing UI:** The pricing page now uses the shared logo treatment and includes an explicit header path back to the home page.
 * **Generation State UI:** A real time progress indicator utilizing Supabase WebSockets. It displays detailed logs including "Injecting Handlebars Templates," "Generating C# Controllers," and "Running Compile Guarantee CI Check."
 
 **3. API and Orchestration Design**

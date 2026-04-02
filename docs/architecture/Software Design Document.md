@@ -2,6 +2,8 @@
 
 > Implementation status note (2026-04-02): the repository currently contains the Phase 1 UI scaffold, a minimal .NET engine host, and a stub worker host. The generation pipeline, live LLM orchestration, R2 uploads, and production database integration described below are planned architecture, not yet implemented in the audited codebase.
 
+> Current implementation note: the marketing UI now includes a full-height home hero, a dedicated launch-console section with prompt-builder interactions, a compact delivery-flow summary, and a pricing header with clearer home navigation. These are presentational and navigation improvements only; they do not change the underlying Phase 3 handoff status.
+
 **1. System Architecture**
 * **Frontend and API Gateway:** Next.js application (App Router) handling user intake and checkout.
 * **State and Identity:** Supabase PostgreSQL for relational data and Auth. Row Level Security restricts generation history access.
@@ -23,8 +25,8 @@ StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows
     * **Trigger:** Pull Requests.
     * **Actions:** Run tests and verify Supabase migrations using `supabase db test`.
 * **Stage 2: Staging Deployment (Test)**
-    * **Trigger:** Push to `main` branch.
-    * **Actions:** Deploy to **Supabase `develop` branch** and push Docker images to GHCR for Proxmox.
+    * **Trigger:** Push to `develop` branch.
+    * **Actions:** Build and replace the `sa-web` container on the test host for the public test site.
 * **Stage 3: Production Deployment (Prod)**
     * **Trigger:** GitHub Release/Tag.
     * **Actions:** 

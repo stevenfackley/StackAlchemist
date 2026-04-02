@@ -24,11 +24,11 @@ docs/
 
 ### [DESIGN SYSTEM MANDATE]
 All UI must follow the design language in `docs/branding/Branding Guidelines.md`. Key constraints:
-- **Dark mode only.** Base: `#0F172A` (void), surfaces: `#1E293B` (slate), accents: `#3B82F6` (electric blue).
+- **Dark mode only.** Base layers use `#0F172A` and `#1E293B`, supported by `#334155` / `#475569` slate surfaces. The primary accent is `#4DA6FF`, used for active states, glows, and feature emphasis rather than broad fills.
 - **Typography:** Inter for all UI text. JetBrains Mono for code blocks, terminal prompt, and generation logs.
-- **Borders:** Sharp (0px) or small (4px) radius only. Thin 1px borders in electric blue or slate gray. No heavy shadows.
+- **Borders:** Thin 1px borders in electric blue or slate gray. The app now uses a mix of 4px, 12px, 16px, and larger 24px to 28px hero panel radii on marketing surfaces; do not force every surface back to sharp corners.
 - **Glassmorphism:** Subtle `backdrop-blur-md` on modals and floating toolbars only.
-- **Aesthetic:** "Technical alchemy" — precise, dark, electric. Not generic. Not rounded. Not friendly SaaS pastel.
+- **Aesthetic:** "Technical alchemy" — precise, dark, electric, but not sterile. The current home flow uses a full-screen narrative hero first, then a separate launch console section with prompt-builder actions and handoff summaries. Preserve that direction instead of collapsing everything into one crowded viewport.
 
 ---
 
@@ -279,12 +279,13 @@ Begin Phase 3 now. Do not rewrite completed Phase 1 or Phase 2 work. First read 
 **What was done:**
 - Next.js 15.5 App Router initialized in `src/StackAlchemist.Web/` (Tailwind 3, Inter + JetBrains Mono, dark-only design system)
 - .NET 10 Web API scaffolded in `src/StackAlchemist.Engine/`
-- Landing page built: hero section, prompt input, mode selector (Simple/Advanced), features section, pricing teaser CTA
+- Landing page built and refined: split hero layout, "Launch Console", home prompt builder, clearer delivery summary, and responsive desktop/mobile treatment
 - Simple Mode (`/simple`): CLI-style generation animation with progress bar + log stream, then editable React Flow entity-relationship canvas with mock entities (User, Plan, Subscription, CheckIn)
 - Advanced Mode (`/advanced`): 3-step horizontal stepper wizard (Define Entities → Configure API Endpoints → Select Tier & Pay) with live React Flow visualization, entity/field/relationship CRUD, endpoint config, tier selection
-- Full pricing details live only in Advanced Mode Step 3 (not on landing page — owner preference)
+- Pricing page built with full tier comparison and explicit header navigation back to home
 - npm cache relocated from F:\ to G:\ drive
 - Audit hardening applied: Next production build no longer ignores lint/type failures; Supabase env handling now fails closed; realtime subscription lifecycle bugs fixed; engine host exposes `/healthz`; analyzers enabled for Engine and Worker
+- Branding drift resolved in code: the live UI uses an elevated-slate palette with `#4DA6FF` accenting rather than the earlier `#3B82F6`-centric docs wording
 
 **Validation:**
 - `npm run lint` → zero errors
@@ -295,7 +296,7 @@ Begin Phase 3 now. Do not rewrite completed Phase 1 or Phase 2 work. First read 
 **Decisions / Deviations:**
 - Used Tailwind 3 (not 4) due to existing project constraints
 - React 19 stable + Next.js 15.3+ (upgraded from RC versions that had peer dep conflicts)
-- Removed full pricing grid from landing page per owner feedback; replaced with teaser linking to wizard Step 3
+- Restored a richer pricing presence through the dedicated `/pricing` page while keeping the landing hero focused on the prompt flow
 - npm_config_cache env var overrides .npmrc — commands may still need `npm_config_cache="G:/packages/npm"` or a permanent shell fix
 - `docs/product/*` and `docs/architecture/*` were synced to distinguish implemented Phase 1 behavior from planned later-phase architecture
 

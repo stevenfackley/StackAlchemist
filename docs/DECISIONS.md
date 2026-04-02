@@ -17,7 +17,14 @@ Reference this file instead of re-reading source files when possible.
 ### Design System
 - Dark-only. No light mode toggle. `dark` class forced on `<html>`.
 - Color tokens defined as Tailwind `extend.colors`: `void`, `slate-surface`, `electric`, `emerald`, `rose`, `slate-border`
-- 0px/4px border radius only. No shadows.
+- Marketing surfaces now use softer radii and restrained shadows. Do not regress them back to a flat sharp-corner treatment.
+
+### Marketing UI refinements
+- The live palette shifted toward an elevated-slate look: `#1E293B` base, `#334155` / `#475569` support surfaces, and `#4DA6FF` as the main accent.
+- The landing page now uses a full-height narrative hero first, with the "Launch Console" moved into its own section directly below.
+- The home prompt includes a prompt-builder layer with grouped preset chips so visitors can compose an architecture brief quickly.
+- Supporting content on the home page is attached to the launch console instead of competing with the opening hero.
+- The pricing page header now uses the shared logo treatment and an explicit `Home` link.
 
 ### Routing
 - `/` — Landing page (hero, features, pricing teaser)

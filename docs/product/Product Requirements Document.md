@@ -10,8 +10,11 @@ StackAlchemist converts user requirements into deployable software repositories.
 **User Intake and Authentication**
 * Secure login and session management via Supabase Auth.
 * **Dual Mode Intake UX:**
-    * **Simple Mode:** A text area for natural language prompts. The system calls the LLM to generate a JSON schema, which is rendered visually for user review and editing.
+    * **Simple Mode:** The current app presents a terminal-style prompt control on the landing page with prompt-builder presets that help visitors compose a usable brief quickly. The target flow remains: call the LLM to generate a JSON schema, then render it visually for review and editing.
     * **Advanced Mode:** A dynamic UI wizard to manually define entity models, relationships, and API endpoints.
+* **Marketing Conversion UX:**
+    * The home screen must clearly communicate the three delivery depths: architecture artifacts, generated codebase, and infrastructure handoff.
+    * The pricing page must provide a clear path back to the home page via the top logo/header navigation.
 
 **Billing and Tier Access**
 * Stripe integration for payment processing.
@@ -36,3 +39,4 @@ StackAlchemist converts user requirements into deployable software repositories.
 * **Performance:** The UI must display real time generation progress using Supabase WebSockets.
 * **Security:** All user prompts must be sanitized. BYOK API keys must be encrypted at rest in Supabase.
 * **Staging:** The staging environment runs locally within a Proxmox LXC, utilizing Cloudflare Tunnels for secure external DNS resolution.
+* **Design Consistency:** Marketing pages must share the elevated-slate dark palette and electric-blue accent system defined in `docs/branding/Branding Guidelines.md`.

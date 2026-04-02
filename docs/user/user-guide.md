@@ -34,7 +34,7 @@ There are two ways to describe your project:
 ## Getting Started
 
 1. Navigate to the StackAlchemist homepage (`/`).
-2. Choose your input mode using the **SIMPLE / ADVANCED** toggle in the hero section.
+2. Scroll to the **Launch Console** section and choose your input mode using the **SIMPLE / ADVANCED** toggle.
 3. Describe or model your project.
 4. Select a generation tier (Blueprint, Boilerplate, or Infrastructure).
 5. Complete checkout — your generation begins immediately.

@@ -6,20 +6,28 @@ This document provides a visual representation of the StackAlchemist user interf
 
 ## 1. Landing Page (Hero)
 ```text
-+-------------------------------------------------------------+
-|  [Logo] StackAlchemist        [Features] [Pricing] [Login]  |
-+-------------------------------------------------------------+
-|                                                             |
-|           TRANSMUTE PROMPTS INTO ARCHITECTURE               |
-|         The 100% Build-Guaranteed SaaS Scaffolder           |
-|                                                             |
-|      [ Enter natural language prompt...            ] [GO]   |
-|                                                             |
-|      ( ) Simple Mode (AI-First)  ( ) Advanced Mode (Manual) |
-|                                                             |
-+-------------------------------------------------------------+
-|  [ V1 Stack: .NET + Next.js + PostgreSQL + Supabase ]       |
-+-------------------------------------------------------------+
++----------------------------------------------------------------------------------+
+| [Logo] StackAlchemist        [About] [Pricing] [Story] [Docs] [Sign In]          |
++----------------------------------------------------------------------------------+
+|                                                                                  |
+|                              SYNTHESIZE YOUR PLATFORM.                           |
+|                Transform natural language into deployable architecture           |
+|                           with a compile guarantee.                              |
+|                                                                                  |
+|                     [ Built for fast handoffs summary panel ]                    |
+|                                                                                  |
+|               [.NET 10] [Next.js 15] [PostgreSQL] [Supabase] [Dapper]           |
++----------------------------------------------------------------------------------+
+|                                                                                  |
+|  LAUNCH CONSOLE                                                                  |
+|  [ Simple Mode ] [ Advanced Mode ]                                               |
+|                                                                                  |
+|  [ Prompt textarea ]                                                             |
+|  [ Prompt Builder ]                                                              |
+|  [ Synthesize ]                                                                  |
+|                                                                                  |
+|  [ What You Walk Away With ]      [ Flow / Next Steps ]                          |
++----------------------------------------------------------------------------------+
 ```
 
 ---
@@ -92,6 +100,13 @@ This document provides a visual representation of the StackAlchemist user interf
 |                                                             |
 +-------------------------------------------------------------+
 |  [ PROCEED TO STRIPE CHECKOUT ]                             |
++-------------------------------------------------------------+
+```
+
+## 4A. Standalone Pricing Page Header
+```text
++-------------------------------------------------------------+
+| [Logo] StackAlchemist   [Home] [About] [Story] [Build]     |
 +-------------------------------------------------------------+
 ```
 
