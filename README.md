@@ -32,7 +32,7 @@ The platform is designed to bypass the traditional "boilerplate" phase of softwa
 - **The "Swiss Cheese" Engine:** We do not rely on open-ended LLM agents that hallucinate folder structures. We utilize a highly-opinionated template library, injecting AI-generated business logic (C# Controllers, Dapper Queries) into rigid, deterministic Handlebars templates.
 - **The Compile Guarantee:** Every generated repository is physically reconstructed in a secure LXC container and subjected to a rigorous `dotnet build` and `npm run build` process. If it doesn't compile, it doesn't ship.
 - **Dual Mode Intake:** Teams can utilize "Simple Mode" for rapid AI-first prototyping or "Advanced Mode" for granular, manual schema definition.
-- **Infrastructure as Code (IaC):** Tier 3 generates custom AWS CDK scripts, Docker Compose files, and automated deployment runbooks alongside the application code.
+- **Infrastructure as Code (IaC):** Tier 3 generates custom AWS CDK scripts, Docker Compose files, **Helm Charts**, and automated deployment runbooks alongside the application code.
 
 ---
 
@@ -71,6 +71,7 @@ Detailed specifications and runbooks are available in the `/docs` directory.
 
 ### For Engineering & DevOps
 - [Software Design Document](docs/architecture/Software%20Design%20Document.md)
+- [Dev Environment Setup](docs/architecture/Dev%20Environment%20Setup.md)
 - [Data Flow Diagram (Mermaid)](docs/architecture/Data%20Flow%20Diagram.md)
 - [System Sequence Diagram](docs/architecture/Sequence%20Diagram.md)
 - [Database ERD](docs/architecture/Database%20ERD.md)
@@ -79,6 +80,7 @@ Detailed specifications and runbooks are available in the `/docs` directory.
 ### For Product & Business
 - [Business Requirements Document (BRD)](docs/product/Business%20Requirements%20Document.md)
 - [Product Requirements Document (PRD)](docs/product/Product%20Requirements%20Document.md)
+- [Product Use Cases](docs/product/Use%20Cases.md)
 - [UI/UX Wireframes](docs/product/wireframes.md)
 
 ### For End-Users

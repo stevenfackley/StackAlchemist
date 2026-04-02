@@ -25,9 +25,11 @@ StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows
     * **Actions:** Deploy to **Supabase `develop` branch** and push Docker images to GHCR for Proxmox.
 * **Stage 3: Production Deployment (Prod)**
     * **Trigger:** GitHub Release/Tag.
-    * **Actions:** Merge **Supabase `develop` -> `main`** and deploy images to AWS.
+    * **Actions:** 
+        * **git-cliff:** Automatically generate `CHANGELOG.md` and create a GitHub Release.
+        * **AWS Deploy:** Merge **Supabase `develop` -> `main`** and deploy verified images to AWS.
 
-**4. Core Workflows and Technical Pipelines**
+**5. Core Workflows and Technical Pipelines**
 
 **A. Dual Mode Intake Pipeline**
 * **Simple Mode:** User submits text prompt. Next.js server action calls LLM to generate a structured JSON schema. The frontend renders this JSON into an editable node based UI.
@@ -46,9 +48,9 @@ The system maintains a library of master templates (starting with the V1 .NET/Ne
 3.  If exit code `1` is returned, the standard error output is captured and sent back to the LLM with the context of the broken file for an automated fix. Maximum retry limit is set to 3.
 
 **D. Tier 3 IaC Export Pipeline**
-For Tier 3 transactions, the system utilizes Handlebars to inject the user's specific environment variables and project naming conventions into pre written AWS CDK scripts, Terraform providers, and Helm Charts. A markdown runbook is generated and included in the final root directory of the zip archive.
+For Tier 3 transactions, the system utilizes Handlebars to inject the user's specific environment variables and project naming conventions into pre written AWS CDK scripts, Terraform providers, and **Helm Charts**. A markdown runbook is generated and included in the final root directory of the zip archive.
 
-**3. Supabase Data Schema**
+**6. Supabase Data Schema**
 * `profiles`: `id` (UUID, PK), `api_key_override` (Encrypted string), `preferred_model` (String), `created_at` (Timestamp).
 * `transactions`: `id` (UUID, PK), `user_id` (UUID, FK), `stripe_session_id` (String), `tier` (Integer), `status` (String).
 * `generations`: `id` (UUID, PK), `user_id` (UUID, FK), `transaction_id` (UUID, FK), `payload_json` (JSONB), `r2_object_key` (String), `status` (String).

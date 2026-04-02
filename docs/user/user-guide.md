@@ -28,7 +28,7 @@ One of StackAlchemist's unique features is the **Compile Guarantee**. Before you
 
 - **Tier 1 (Blueprint - $299):** Receive the architectural blueprints (JSON Schema, API Specs, and SQL scripts).
 - **Tier 2 (Boilerplate - $599):** Receive the full source code for the .NET Backend, Next.js Frontend, and PostgreSQL Database.
-- **Tier 3 (Infrastructure - $999):** Everything in Tier 2, plus AWS CDK scripts, Docker Compose files, and a step-by-step deployment runbook.
+- **Tier 3 (Infrastructure - $999):** Everything in Tier 2, plus AWS CDK scripts, **Helm Charts for Kubernetes**, Docker Compose files, and a step-by-step deployment runbook.
 
 ## 4. Post-Generation Steps
 
