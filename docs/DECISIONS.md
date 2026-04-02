@@ -43,6 +43,53 @@ Reference this file instead of re-reading source files when possible.
 
 ---
 
+## Phase 3 — Engine Services & Test Coverage (2026-04-02)
+
+### New Services
+Three pure-logic services added to `StackAlchemist.Engine`:
+
+| Service | Interface | Responsibility |
+|---|---|---|
+| `TierGatingService` | `ITierGatingService` | Maps tier (1/2/3) to `TierDeliverables` record; guards invalid values with `InvalidTierException` |
+| `SchemaExtractionService` | `ISchemaExtractionService` | Parses raw LLM JSON (possibly markdown-fenced) into `GenerationSchema`; validates relationship references |
+| `PromptBuilderService` | `IPromptBuilderService` | Builds generation, retry, and schema-extraction prompts for Claude 3.5 Sonnet |
+
+### New Models
+- `TierDeliverables` positional record in `Models/TierModels.cs` — immutable struct of bool flags per deliverable type.
+
+### New Exceptions
+Three new typed exceptions added to `Models/Exceptions.cs`:
+- `SchemaExtractionException` — malformed / unparseable LLM JSON response
+- `SchemaValidationException` — valid JSON but references non-existent entity in a relationship
+- `InvalidTierException` — tier value outside 1–3 range
+
+### Stripe Webhook
+- `Stripe.net` **51.0.0** added to `StackAlchemist.Engine.csproj`
+- `POST /api/webhooks/stripe` endpoint in `Program.cs`
+  - Reads raw body, calls `EventUtility.ConstructEvent()` with `Stripe-Signature` header
+  - Returns `401 Unauthorized` on signature failure
+  - Handles `checkout.session.completed` → enqueues `GenerateRequest` with tier + prompt from session metadata
+  - Idempotency key is `stripeEvent.Id` (logged; downstream dedup in Phase 4)
+- `appsettings.json` gains `Stripe:{ PublishableKey, SecretKey, WebhookSecret }` keys (empty defaults; populated via user-secrets / env in deployment)
+
+### DI Registration
+`Program.cs` now registers all three Phase 3 services as singletons alongside the existing pipeline.
+
+### Test Coverage
+Scaffold tests (`Assert.True(true, "Scaffold: ...")`) were promoted to real xUnit tests:
+- `TierGatingServiceTests` — 7 tests (3 tier deliverables, 4 invalid tier variations, 2 code-gen gating)
+- `SchemaExtractionServiceTests` — 4 tests (happy path, malformed JSON, markdown-fenced JSON, bad relationship reference)
+- `PromptBuilderTests` — 6 tests (entity inclusion, delimiter instructions, retry with errors, accumulated errors, extraction prompt content, token-budget guard)
+
+### Test Results
+```
+Engine.Tests:  52 passed, 5 skipped (Docker integration — intentional)
+Worker.Tests:  22 passed, 3 skipped (.NET SDK integration — intentional)
+```
+Zero failures across both suites.
+
+---
+
 ## Phase 2 — Master Template Construction (2026-04-02)
 
 ### Template Structure

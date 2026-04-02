@@ -1,5 +1,6 @@
 using System.IO.Abstractions;
 using System.Threading.Channels;
+using Stripe;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
@@ -29,6 +30,11 @@ builder.Services.AddSingleton<IReconstructionService, ReconstructionService>();
 
 // LLM client — mock for Phase 3, swap to real Anthropic SDK in Phase 4
 builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
+
+// ── Phase 3 services ──────────────────────────────────────────────────────────
+builder.Services.AddSingleton<ITierGatingService, TierGatingService>();
+builder.Services.AddSingleton<ISchemaExtractionService, SchemaExtractionService>();
+builder.Services.AddSingleton<IPromptBuilderService, PromptBuilderService>();
 
 // Job queue — in-process Channel for Phase 3, swap to persistent queue in Phase 4
 var channel = Channel.CreateUnbounded<GenerationContext>();
@@ -72,6 +78,69 @@ app.MapPost("/api/generate", async (
 })
 .WithName("Generate")
 .WithSummary("Enqueue a code generation job.");
+
+// ── Stripe webhook ────────────────────────────────────────────────────────────
+// Reads the raw body before routing so Stripe signature verification always
+// receives the unmodified bytes.
+app.MapPost("/api/webhooks/stripe", async (
+    HttpRequest req,
+    IGenerationOrchestrator orchestrator,
+    IConfiguration config,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    var webhookSecret = config["Stripe:WebhookSecret"] ?? string.Empty;
+    var signature = req.Headers["Stripe-Signature"].FirstOrDefault() ?? string.Empty;
+
+    string json;
+    using (var reader = new StreamReader(req.Body))
+        json = await reader.ReadToEndAsync(ct);
+
+    Stripe.Event stripeEvent;
+    try
+    {
+        stripeEvent = EventUtility.ConstructEvent(
+            json,
+            signature,
+            webhookSecret,
+            throwOnApiVersionMismatch: false);
+    }
+    catch (StripeException ex)
+    {
+        logger.LogWarning("Stripe webhook signature verification failed: {Msg}", ex.Message);
+        return Results.Unauthorized();
+    }
+
+    // Idempotency — downstream logic should deduplicate on stripeEvent.Id
+    logger.LogInformation("Stripe event received: {Type} / {Id}", stripeEvent.Type, stripeEvent.Id);
+
+    if (stripeEvent.Type == "checkout.session.completed"
+        && stripeEvent.Data.Object is Stripe.Checkout.Session session)
+    {
+        if (!int.TryParse(
+            session.Metadata?.GetValueOrDefault("tier") ?? "2",
+            out var tier))
+        {
+            tier = 2;
+        }
+
+        var prompt        = session.Metadata?.GetValueOrDefault("prompt");
+        var generationId  = session.Metadata?.GetValueOrDefault("generationId")
+                            ?? Guid.NewGuid().ToString();
+
+        await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = generationId,
+            Mode         = prompt is not null ? "simple" : "advanced",
+            Tier         = tier,
+            Prompt       = prompt,
+        }, ct);
+    }
+
+    return Results.Ok();
+})
+.WithName("StripeWebhook")
+.WithSummary("Handles Stripe checkout.session.completed events and enqueues generation jobs.");
 
 app.Run();
 

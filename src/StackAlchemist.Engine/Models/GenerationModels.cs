@@ -1,0 +1,151 @@
+namespace StackAlchemist.Engine.Models;
+
+/// <summary>
+/// State machine for the generation pipeline.
+/// pending → generating → building → success | failed
+/// </summary>
+public enum GenerationState
+{
+    Pending,
+    Generating,
+    Building,
+    Packing,
+    Uploading,
+    Success,
+    Failed,
+}
+
+public enum GenerationEvent
+{
+    EnginePickedUp,
+    CodeReconstructed,
+    BuildPassed,
+    BuildFailed,
+    ZipCreated,
+    UploadedToR2,
+}
+
+/// <summary>
+/// Mutable context carried through the generation pipeline.
+/// </summary>
+public sealed class GenerationContext
+{
+    public required string GenerationId { get; init; }
+    public required string Mode { get; init; } // "simple" | "advanced"
+    public required int Tier { get; init; }
+    public string? Prompt { get; init; }
+    public GenerationSchema? Schema { get; init; }
+    public GenerationState State { get; set; } = GenerationState.Pending;
+    public int RetryCount { get; set; }
+    public List<string> BuildErrorHistory { get; } = [];
+    public string? OutputDirectory { get; set; }
+    public string? DownloadUrl { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Mirrors the frontend GenerationSchema type.
+/// </summary>
+public sealed class GenerationSchema
+{
+    public List<SchemaEntity> Entities { get; init; } = [];
+    public List<SchemaRelationship> Relationships { get; init; } = [];
+    public List<SchemaEndpoint> Endpoints { get; init; } = [];
+}
+
+public sealed class SchemaEntity
+{
+    public required string Name { get; init; }
+    public List<SchemaField> Fields { get; init; } = [];
+}
+
+public sealed class SchemaField
+{
+    public required string Name { get; init; }
+    public required string Type { get; init; }
+    public bool Pk { get; init; }
+    public bool Nullable { get; init; }
+    public string? Default { get; init; }
+}
+
+public sealed class SchemaRelationship
+{
+    public required string From { get; init; }
+    public required string Type { get; init; }
+    public required string To { get; init; }
+}
+
+public sealed class SchemaEndpoint
+{
+    public required string Method { get; init; }
+    public required string Path { get; init; }
+    public required string Entity { get; init; }
+    public string? Description { get; init; }
+}
+
+/// <summary>
+/// A single file block parsed from LLM output.
+/// </summary>
+public sealed record LlmOutputBlock(string FilePath, string Content);
+
+/// <summary>
+/// Variables for Handlebars template rendering.
+/// </summary>
+public sealed class TemplateVariables
+{
+    public required string ProjectName { get; init; }
+    public required string ProjectNameKebab { get; init; }
+    public required string ProjectNameLower { get; init; }
+    public required string DbConnectionString { get; init; }
+    public required string FrontendUrl { get; init; }
+    public List<TemplateEntity> Entities { get; init; } = [];
+}
+
+public sealed class TemplateEntity
+{
+    public required string Name { get; init; }
+    public required string NameLower { get; init; }
+    public required string TableName { get; init; }
+    public List<TemplateField> Fields { get; init; } = [];
+}
+
+public sealed class TemplateField
+{
+    public required string Name { get; init; }
+    public required string NameLower { get; init; }
+    public required string Type { get; init; }
+    public required string SqlType { get; init; }
+    public bool IsPrimaryKey { get; init; }
+}
+
+/// <summary>
+/// Request to the Engine /api/generate endpoint.
+/// </summary>
+public sealed class GenerateRequest
+{
+    public required string GenerationId { get; init; }
+    public required string Mode { get; init; }
+    public required int Tier { get; init; }
+    public string? Prompt { get; init; }
+    public GenerationSchema? Schema { get; init; }
+}
+
+/// <summary>
+/// Response from the Engine /api/generate endpoint.
+/// </summary>
+public sealed class GenerateResponse
+{
+    public required string JobId { get; init; }
+    public required string Status { get; init; }
+}
+
+/// <summary>
+/// Result of running a build command.
+/// </summary>
+public sealed class BuildResult
+{
+    public required int ExitCode { get; init; }
+    public required string StandardOutput { get; init; }
+    public required string ErrorOutput { get; init; }
+    public bool IsSuccess => ExitCode == 0;
+}

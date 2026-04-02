@@ -1,0 +1,4 @@
+id,Name,Type,Date (UTC),Description,Statement Descriptor,Unit Label,Url,Tax Code
+prod_UGMRBs56gX8Iih,The Deployed Instance (Setup),service,2026-04-02 18:11,"The turnkey solution. Includes the codebase, custom AWS CDK/Terraform scripts, Docker Compose files, and deployment runbooks.",,,,
+prod_UGMRcLklAbQN4b,The Boilerplate,service,2026-04-02 18:11,"The complete generated repository zip archive (.NET backend, Next.js frontend, and PostgreSQL database initialization scripts).",,,,
+prod_UGMQKTbut3Zpur,The Blueprint,service,2026-04-02 18:11,"Database schema, API documentation, and architecture strategy.",,,,
