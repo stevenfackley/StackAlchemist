@@ -1,0 +1,24 @@
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetAll() => Ok(new[] { "Product1" });
+}
+[[END_FILE]]
+[[FILE:src/placeholder.cs]]
+[[END_FILE]]
+[[FILE:src/Models/Product.cs]]
+namespace GeneratedApp.Models;
+
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+[[END_FILE]]

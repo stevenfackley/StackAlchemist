@@ -1,0 +1,99 @@
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    private readonly IProductRepository _repository;
+
+    public ProductsController(IProductRepository repository)
+    {
+        _repository = repository;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var products = await _repository.GetAllAsync();
+        return Ok(products);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var product = await _repository.GetByIdAsync(id);
+        if (product is null) return NotFound();
+        return Ok(product);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateProductRequest request)
+    {
+        var product = await _repository.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/ProductRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface IProductRepository
+{
+    Task<IEnumerable<Product>> GetAllAsync();
+    Task<Product?> GetByIdAsync(Guid id);
+    Task<Product> CreateAsync(CreateProductRequest request);
+}
+
+public class ProductRepository : IProductRepository
+{
+    private readonly IDbConnection _connection;
+
+    public ProductRepository(IDbConnection connection)
+    {
+        _connection = connection;
+    }
+
+    public async Task<IEnumerable<Product>> GetAllAsync()
+    {
+        return await _connection.QueryAsync<Product>("SELECT * FROM products ORDER BY created_at DESC");
+    }
+
+    public async Task<Product?> GetByIdAsync(Guid id)
+    {
+        return await _connection.QueryFirstOrDefaultAsync<Product>(
+            "SELECT * FROM products WHERE id = @Id", new { Id = id });
+    }
+
+    public async Task<Product> CreateAsync(CreateProductRequest request)
+    {
+        var id = Guid.NewGuid();
+        await _connection.ExecuteAsync(
+            "INSERT INTO products (id, name, price, created_at) VALUES (@Id, @Name, @Price, @CreatedAt)",
+            new { Id = id, request.Name, request.Price, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+}
+[[END_FILE]]
+[[FILE:src/Models/Product.cs]]
+namespace GeneratedApp.Models;
+
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class CreateProductRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+[[END_FILE]]

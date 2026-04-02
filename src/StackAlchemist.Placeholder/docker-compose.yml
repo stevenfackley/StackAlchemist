@@ -1,0 +1,18 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: sa-web
+    ports:
+      - "80:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./favicon.svg:/usr/share/nginx/html/favicon.svg:ro
+    restart: always
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: sa-tunnel
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    restart: always

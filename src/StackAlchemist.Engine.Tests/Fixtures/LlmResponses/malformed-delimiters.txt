@@ -1,0 +1,23 @@
+Here is the generated code for your project:
+
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetAll() => Ok(new[] { "Product1" });
+}
+
+Note: I've also created the repository file below:
+
+[[FILE:src/Repositories/ProductRepository.cs]]
+public class ProductRepository
+{
+    // This file is missing its [[END_FILE]] delimiter
+    // The parser should detect this and throw MalformedLlmOutputException
+}

@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '20'
+
+jobs:
+  # ─── Frontend Gates ──────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (Lint, Typecheck, Unit Tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/StackAlchemist.Web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npx tsc --noEmit
+
+      - name: Unit & Integration Tests
+        run: npx vitest run --reporter=junit --outputFile=test-results/junit.xml
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: src/StackAlchemist.Web/test-results/
+          retention-days: 7
+
+      - name: Upload Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: src/StackAlchemist.Web/coverage/
+          retention-days: 7
+
+  # ─── Backend Gates ───────────────────────────────────────────────────────────
+  backend:
+    name: Backend (.NET Build & Test)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: stackalchemist_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore Dependencies
+        run: dotnet restore
+
+      - name: Build Engine
+        run: dotnet build src/StackAlchemist.Engine/ --no-restore --configuration Release
+        continue-on-error: true  # Engine project may not exist yet
+
+      - name: Build Worker
+        run: dotnet build src/StackAlchemist.Worker/ --no-restore --configuration Release
+        continue-on-error: true  # Worker project may not exist yet
+
+      - name: Build Engine Tests
+        run: dotnet build src/StackAlchemist.Engine.Tests/ --no-restore --configuration Release
+
+      - name: Build Worker Tests
+        run: dotnet build src/StackAlchemist.Worker.Tests/ --no-restore --configuration Release
+
+      - name: Run Engine Tests
+        run: dotnet test src/StackAlchemist.Engine.Tests/ --no-build --configuration Release --logger "trx;LogFileName=engine-test-results.trx" --collect:"XPlat Code Coverage"
+        env:
+          ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
+
+      - name: Run Worker Tests
+        run: dotnet test src/StackAlchemist.Worker.Tests/ --no-build --configuration Release --logger "trx;LogFileName=worker-test-results.trx" --collect:"XPlat Code Coverage"
+        env:
+          ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: '**/TestResults/'
+          retention-days: 7
+
+  # ─── Docker Build Validation ─────────────────────────────────────────────────
+  docker:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [web, engine, worker]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: stackalchemist/${{ matrix.target }}:ci
+
+  # ─── E2E Tests (runs on merge to main only) ─────────────────────────────────
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [frontend, backend, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: src/StackAlchemist.Web
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: src/StackAlchemist.Web
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Test Environment
+        run: docker compose -f docker/docker-compose.test.yml up -d
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        continue-on-error: true  # May not have images built yet
+
+      - name: Wait for Services
+        run: |
+          echo "Waiting for services to be ready..."
+          sleep 15
+        continue-on-error: true
+
+      - name: Run Playwright Tests
+        working-directory: src/StackAlchemist.Web
+        run: npx playwright test --project=chromium
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: src/StackAlchemist.Web/playwright-report/
+          retention-days: 7
+
+      - name: Upload Playwright Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: src/StackAlchemist.Web/e2e-results/
+          retention-days: 7
+
+      - name: Teardown Test Environment
+        if: always()
+        run: docker compose -f docker/docker-compose.test.yml down -v
+        continue-on-error: true
+
+  # ─── Quality Gate (all checks must pass) ─────────────────────────────────────
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [frontend, backend, docker]
+    if: always()
+
+    steps:
+      - name: Check Results
+        run: |
+          echo "Frontend: ${{ needs.frontend.result }}"
+          echo "Backend: ${{ needs.backend.result }}"
+          echo "Docker: ${{ needs.docker.result }}"
+
+          if [ "${{ needs.frontend.result }}" != "success" ]; then
+            echo "❌ Frontend checks failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.backend.result }}" != "success" ]; then
+            echo "❌ Backend checks failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.docker.result }}" != "success" ]; then
+            echo "❌ Docker build checks failed"
+            exit 1
+          fi
+
+          echo "✅ All quality gates passed"

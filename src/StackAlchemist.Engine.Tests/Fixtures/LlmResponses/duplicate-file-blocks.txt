@@ -1,0 +1,38 @@
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+// First version — has a bug
+public class ProductsController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetAll() => Ok();
+}
+[[END_FILE]]
+[[FILE:src/Models/Product.cs]]
+namespace GeneratedApp.Models;
+
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+[[END_FILE]]
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+// Second version — corrected, should be the one used
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        return Ok(new[] { "Product1", "Product2" });
+    }
+}
+[[END_FILE]]

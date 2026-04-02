@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StackAlchemist - Under Construction</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="shortcut icon" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deep-void: #0F172A;
+            --slate-gray: #1E293B;
+            --electric-blue: #3B82F6;
+            --pure-white: #FFFFFF;
+            --test-orange: #F59E0B;
+        }
+        * { box-sizing: border-box; }
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: var(--deep-void);
+            color: var(--pure-white);
+            font-family: "Inter", sans-serif;
+            overflow-x: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.5));
+        }
+        h1 {
+            font-size: clamp(2.5rem, 8vw, 4rem);
+            margin: 0;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, var(--pure-white), var(--electric-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+        .test-badge {
+            display: none; /* Hidden by default */
+            background: var(--test-orange);
+            color: var(--deep-void);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 800;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: clamp(1rem, 4vw, 1.25rem);
+            color: #94A3B8;
+            margin: 15px 0;
+            line-height: 1.5;
+            max-width: 500px;
+        }
+        .attribution {
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #64748B;
+        }
+        .attribution a {
+            color: var(--electric-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .status {
+            margin-bottom: 40px;
+            display: inline-flex;
+            align-items: center;
+            background: var(--slate-gray);
+            padding: 8px 16px;
+            border-radius: 99px;
+            border: 1px solid var(--electric-blue);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--electric-blue);
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+        }
+        .gh-card {
+            background: var(--slate-gray);
+            border: 1px solid var(--electric-blue);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, background 0.2s;
+        }
+        @media (min-width: 640px) {
+            .gh-card {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                padding: 30px;
+            }
+        }
+        .gh-card:hover {
+            transform: translateY(-3px);
+            background: #2D3748;
+        }
+        .gh-info h3 {
+            margin: 0;
+            color: var(--electric-blue);
+            font-family: "JetBrains Mono", monospace;
+            font-size: 1.1rem;
+            word-break: break-all;
+        }
+        .gh-info p {
+            font-size: 0.85rem;
+            margin: 5px 0 0 0;
+            color: #94A3B8;
+        }
+        .gh-btn {
+            background: var(--electric-blue);
+            color: var(--deep-void);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-align: center;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="test-badge" class="test-badge">Staging / Test</div>
+        <svg class="logo" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M256 40L450.861 148v216L256 472L61.1385 364V148L256 40Z" fill="#0F172A" stroke="#3B82F6" stroke-width="12"/>
+            <path d="M160 320L256 360L352 320L256 280L160 320Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+            <path d="M160 260L256 300L352 260L256 220L160 260Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+            <path d="M160 200L256 240L352 200L256 160L160 200Z" fill="#3B82F6" fill-opacity="0.2" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+            <path d="M256 70C256 70 260 110 300 110C260 110 256 150 256 150C256 150 252 110 212 110C252 110 256 70 256 70Z" fill="#3B82F6"/>
+            <circle cx="256" cy="110" r="4" fill="white" />
+        </svg>
+        <h1>StackAlchemist</h1>
+        <p>Transmuting raw ideas into production-ready software architectures.</p>
+        
+        <div class="attribution">
+            Brought to you by <a href="https://steveackley.org" target="_blank">Steve Ackley</a>
+        </div>
+
+        <div class="status">
+            <div class="pulse"></div>
+            TRANSMUTATION IN PROGRESS
+        </div>
+
+        <a href="https://github.com/stevenfackley/StackAlchemist/tree/develop" target="_blank" class="gh-card">
+            <div class="gh-info">
+                <h3>stevenfackley/StackAlchemist (develop)</h3>
+                <p>Track the progress of the Great Work live on GitHub.</p>
+            </div>
+            <div class="gh-btn">VIEW REPOSITORY</div>
+        </a>
+    </div>
+
+    <script>
+        // Check if we are on the test domain and show the badge
+        if (window.location.hostname.includes('test.')) {
+            document.getElementById('test-badge').style.display = 'inline-block';
+        }
+    </script>
+</body>
+</html>

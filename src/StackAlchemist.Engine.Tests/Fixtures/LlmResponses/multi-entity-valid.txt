@@ -1,0 +1,367 @@
+[[FILE:src/Controllers/ProductsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    private readonly IProductRepository _repository;
+    public ProductsController(IProductRepository repository) => _repository = repository;
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll() => Ok(await _repository.GetAllAsync());
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var item = await _repository.GetByIdAsync(id);
+        return item is null ? NotFound() : Ok(item);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateProductRequest request)
+    {
+        var item = await _repository.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Controllers/CategoriesController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class CategoriesController : ControllerBase
+{
+    private readonly ICategoryRepository _repository;
+    public CategoriesController(ICategoryRepository repository) => _repository = repository;
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll() => Ok(await _repository.GetAllAsync());
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var item = await _repository.GetByIdAsync(id);
+        return item is null ? NotFound() : Ok(item);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateCategoryRequest request)
+    {
+        var item = await _repository.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Controllers/OrdersController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    private readonly IOrderRepository _repository;
+    public OrdersController(IOrderRepository repository) => _repository = repository;
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll() => Ok(await _repository.GetAllAsync());
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var item = await _repository.GetByIdAsync(id);
+        return item is null ? NotFound() : Ok(item);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateOrderRequest request)
+    {
+        var item = await _repository.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Controllers/OrderItemsController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/orders/{orderId:guid}/items")]
+public class OrderItemsController : ControllerBase
+{
+    private readonly IOrderItemRepository _repository;
+    public OrderItemsController(IOrderItemRepository repository) => _repository = repository;
+
+    [HttpGet]
+    public async Task<IActionResult> GetByOrder(Guid orderId) => Ok(await _repository.GetByOrderIdAsync(orderId));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(Guid orderId, [FromBody] CreateOrderItemRequest request)
+    {
+        var item = await _repository.CreateAsync(orderId, request);
+        return Created($"/api/orders/{orderId}/items/{item.Id}", item);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Controllers/UsersController.cs]]
+using Microsoft.AspNetCore.Mvc;
+
+namespace GeneratedApp.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class UsersController : ControllerBase
+{
+    private readonly IUserRepository _repository;
+    public UsersController(IUserRepository repository) => _repository = repository;
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var item = await _repository.GetByIdAsync(id);
+        return item is null ? NotFound() : Ok(item);
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/ProductRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface IProductRepository
+{
+    Task<IEnumerable<Product>> GetAllAsync();
+    Task<Product?> GetByIdAsync(Guid id);
+    Task<Product> CreateAsync(CreateProductRequest request);
+}
+
+public class ProductRepository : IProductRepository
+{
+    private readonly IDbConnection _db;
+    public ProductRepository(IDbConnection db) => _db = db;
+
+    public async Task<IEnumerable<Product>> GetAllAsync() =>
+        await _db.QueryAsync<Product>("SELECT * FROM products ORDER BY created_at DESC");
+
+    public async Task<Product?> GetByIdAsync(Guid id) =>
+        await _db.QueryFirstOrDefaultAsync<Product>("SELECT * FROM products WHERE id = @Id", new { Id = id });
+
+    public async Task<Product> CreateAsync(CreateProductRequest request)
+    {
+        var id = Guid.NewGuid();
+        await _db.ExecuteAsync(
+            "INSERT INTO products (id, name, price, category_id, created_at) VALUES (@Id, @Name, @Price, @CategoryId, @CreatedAt)",
+            new { Id = id, request.Name, request.Price, request.CategoryId, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/CategoryRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface ICategoryRepository
+{
+    Task<IEnumerable<Category>> GetAllAsync();
+    Task<Category?> GetByIdAsync(Guid id);
+    Task<Category> CreateAsync(CreateCategoryRequest request);
+}
+
+public class CategoryRepository : ICategoryRepository
+{
+    private readonly IDbConnection _db;
+    public CategoryRepository(IDbConnection db) => _db = db;
+
+    public async Task<IEnumerable<Category>> GetAllAsync() =>
+        await _db.QueryAsync<Category>("SELECT * FROM categories ORDER BY name");
+
+    public async Task<Category?> GetByIdAsync(Guid id) =>
+        await _db.QueryFirstOrDefaultAsync<Category>("SELECT * FROM categories WHERE id = @Id", new { Id = id });
+
+    public async Task<Category> CreateAsync(CreateCategoryRequest request)
+    {
+        var id = Guid.NewGuid();
+        await _db.ExecuteAsync(
+            "INSERT INTO categories (id, name, slug) VALUES (@Id, @Name, @Slug)",
+            new { Id = id, request.Name, request.Slug });
+        return (await GetByIdAsync(id))!;
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/OrderRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface IOrderRepository
+{
+    Task<IEnumerable<Order>> GetAllAsync();
+    Task<Order?> GetByIdAsync(Guid id);
+    Task<Order> CreateAsync(CreateOrderRequest request);
+}
+
+public class OrderRepository : IOrderRepository
+{
+    private readonly IDbConnection _db;
+    public OrderRepository(IDbConnection db) => _db = db;
+
+    public async Task<IEnumerable<Order>> GetAllAsync() =>
+        await _db.QueryAsync<Order>("SELECT * FROM orders ORDER BY created_at DESC");
+
+    public async Task<Order?> GetByIdAsync(Guid id) =>
+        await _db.QueryFirstOrDefaultAsync<Order>("SELECT * FROM orders WHERE id = @Id", new { Id = id });
+
+    public async Task<Order> CreateAsync(CreateOrderRequest request)
+    {
+        var id = Guid.NewGuid();
+        await _db.ExecuteAsync(
+            "INSERT INTO orders (id, user_id, status, total_amount, created_at) VALUES (@Id, @UserId, 'pending', @TotalAmount, @CreatedAt)",
+            new { Id = id, request.UserId, request.TotalAmount, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/OrderItemRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface IOrderItemRepository
+{
+    Task<IEnumerable<OrderItem>> GetByOrderIdAsync(Guid orderId);
+    Task<OrderItem> CreateAsync(Guid orderId, CreateOrderItemRequest request);
+}
+
+public class OrderItemRepository : IOrderItemRepository
+{
+    private readonly IDbConnection _db;
+    public OrderItemRepository(IDbConnection db) => _db = db;
+
+    public async Task<IEnumerable<OrderItem>> GetByOrderIdAsync(Guid orderId) =>
+        await _db.QueryAsync<OrderItem>("SELECT * FROM order_items WHERE order_id = @OrderId", new { OrderId = orderId });
+
+    public async Task<OrderItem> CreateAsync(Guid orderId, CreateOrderItemRequest request)
+    {
+        var id = Guid.NewGuid();
+        await _db.ExecuteAsync(
+            "INSERT INTO order_items (id, order_id, product_id, quantity, unit_price) VALUES (@Id, @OrderId, @ProductId, @Quantity, @UnitPrice)",
+            new { Id = id, OrderId = orderId, request.ProductId, request.Quantity, request.UnitPrice });
+        return (await _db.QueryFirstAsync<OrderItem>("SELECT * FROM order_items WHERE id = @Id", new { Id = id }));
+    }
+}
+[[END_FILE]]
+[[FILE:src/Repositories/UserRepository.cs]]
+using Dapper;
+using System.Data;
+
+namespace GeneratedApp.Repositories;
+
+public interface IUserRepository
+{
+    Task<User?> GetByIdAsync(Guid id);
+}
+
+public class UserRepository : IUserRepository
+{
+    private readonly IDbConnection _db;
+    public UserRepository(IDbConnection db) => _db = db;
+
+    public async Task<User?> GetByIdAsync(Guid id) =>
+        await _db.QueryFirstOrDefaultAsync<User>("SELECT * FROM users WHERE id = @Id", new { Id = id });
+}
+[[END_FILE]]
+[[FILE:src/Models/Models.cs]]
+namespace GeneratedApp.Models;
+
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public Guid CategoryId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class Category
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
+}
+
+public class Order
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string Status { get; set; } = "pending";
+    public decimal TotalAmount { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class OrderItem
+{
+    public Guid Id { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid ProductId { get; set; }
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
+public class User
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+}
+
+// Request DTOs
+public record CreateProductRequest(string Name, decimal Price, Guid CategoryId);
+public record CreateCategoryRequest(string Name, string Slug);
+public record CreateOrderRequest(Guid UserId, decimal TotalAmount);
+public record CreateOrderItemRequest(Guid ProductId, int Quantity, decimal UnitPrice);
+[[END_FILE]]
+[[FILE:src/Pages/products.tsx]]
+import { useEffect, useState } from 'react';
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  categoryId: string;
+  createdAt: string;
+}
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(setProducts);
+  }, []);
+
+  return (
+    <div>
+      <h1>Products</h1>
+      <ul>
+        {products.map(p => (
+          <li key={p.id}>{p.name} — ${p.price}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+[[END_FILE]]
