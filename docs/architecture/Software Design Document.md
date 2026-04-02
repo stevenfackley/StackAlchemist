@@ -7,31 +7,25 @@
 * **Storage Layer:** Cloudflare R2 provides zero egress temporary storage for compiled archives.
 
 **2. DevOps & Environment Strategy**
-The platform utilizes a strict 3-tier environment structure using GitHub Actions **Environments** (Test and Prod).
+The platform utilizes a **Single Project + Branching** model in Supabase, synchronized with GitHub Actions **Environments** (Test and Prod).
 
-* **Development (`.env.development`):** Local runs. Keys are stored in the local file.
-* **Test (`.env.test`):** Scoped to the "Test" environment in GitHub. Secrets are injected via GitHub Actions without prefixes.
-* **Prod (`.env.production`):** Scoped to the "Prod" environment in GitHub. Secrets are injected via GitHub Actions without prefixes.
+* **Development (`.env.development`):** Local development using the Supabase CLI (`supabase start`).
+* **Test (`.env.test`):** Scoped to the "Test" environment in GitHub. Connects to the **Supabase `develop` branch**.
+* **Prod (`.env.production`):** Scoped to the "Prod" environment in GitHub. Connects to the **Supabase `main` project**.
 
 **3. Containerization Strategy**
-StackAlchemist uses a multi-stage, multi-target Docker architecture defined in a root `Dockerfile`.
-
-* **sa-web Target:** Builds the Next.js frontend.
-* **sa-engine Target:** Builds the .NET 10 API.
-* **sa-worker Target:** Builds the .NET 10 Worker (includes .NET SDK and Node.js for repo validation).
+StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows a single `Dockerfile` to serve all environments by targeting specific build stages (`web`, `engine`, `worker`).
 
 **4. Optimal CI/CD Flow**
-The project utilizes GitHub Actions for automated testing and deployment.
-
 * **Stage 1: Continuous Integration (CI)**
-    * **Trigger:** Pull Requests to `main` or Pushes to `main`.
-    * **Actions:** Run `dotnet build`, `npm run lint`, `npm run build`, and all unit/integration tests.
+    * **Trigger:** Pull Requests.
+    * **Actions:** Run tests and verify Supabase migrations using `supabase db test`.
 * **Stage 2: Staging Deployment (Test)**
-    * **Trigger:** Successful completion of CI on the `main` branch.
-    * **Actions:** Build Docker images for Web, Engine, and Worker. Push to GitHub Container Registry (GHCR). Deploy to the Proxmox staging server via SSH/Docker Compose.
+    * **Trigger:** Push to `main` branch.
+    * **Actions:** Deploy to **Supabase `develop` branch** and push Docker images to GHCR for Proxmox.
 * **Stage 3: Production Deployment (Prod)**
-    * **Trigger:** Creation of a GitHub Release or Version Tag (e.g., `v1.0.0`).
-    * **Actions:** Re-tag images from GHCR and deploy to the AWS production environment.
+    * **Trigger:** GitHub Release/Tag.
+    * **Actions:** Merge **Supabase `develop` -> `main`** and deploy images to AWS.
 
 **4. Core Workflows and Technical Pipelines**
 
