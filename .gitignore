@@ -42,4 +42,4 @@ supabase/functions/.env
 
 # AI Agent Specific
 claude.md
-docs/planning/DEV_PROMPT.md
+docs/DEV_PROMPT.md

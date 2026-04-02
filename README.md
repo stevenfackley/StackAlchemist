@@ -71,22 +71,22 @@ Please see the [LICENSE](LICENSE) file for full details.
 ## 📖 Documentation
 
 ### User & Support
-- [User Guide](docs/user-guide.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [ASCII Wireframes](docs/wireframes.md)
+- [User Guide](docs/user/user-guide.md)
+- [Troubleshooting](docs/user/troubleshooting.md)
 
-### Project Planning & Architecture
-- [Business Requirements Document](docs/planning/Business%20Requirements%20Document.md)
-- [Market Requirements Document](docs/planning/Market%20Requirements%20Document.md)
-- [Product Requirements Document](docs/planning/Product%20Requirements%20Document.md)
-- [Product Design Document](docs/planning/Product%20Design%20Document.md)
-- [Software Design Document](docs/planning/Software%20Design%20Document.md)
+### Product & Business
+- [Business Requirements Document](docs/product/Business%20Requirements%20Document.md)
+- [Market Requirements Document](docs/product/Market%20Requirements%20Document.md)
+- [Product Requirements Document](docs/product/Product%20Requirements%20Document.md)
+- [Product Design Document](docs/product/Product%20Design%20Document.md)
+- [ASCII Wireframes](docs/product/wireframes.md)
 
-### Technical Diagrams
-- [Data Flow Diagram](docs/planning/Data%20Flow%20Diagram.md)
-- [Sequence Diagram](docs/planning/Sequence%20Diagram.md)
-- [Database ERD](docs/planning/Database%20ERD.md)
-- [Generation State Machine](docs/planning/Generation%20State%20Machine.md)
+### Engineering & Architecture
+- [Software Design Document](docs/architecture/Software%20Design%20Document.md)
+- [Data Flow Diagram](docs/architecture/Data%20Flow%20Diagram.md)
+- [Sequence Diagram](docs/architecture/Sequence%20Diagram.md)
+- [Database ERD](docs/architecture/Database%20ERD.md)
+- [Generation State Machine](docs/architecture/Generation%20State%20Machine.md)
 
 ## 🤝 Contributing
 
