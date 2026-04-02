@@ -5,9 +5,15 @@
 * **State and Identity:** Supabase PostgreSQL for relational data and Auth. Row Level Security restricts generation history access.
 * **Generation Engine:** Claude 3.5 Sonnet API. Local testing utilizes a Proxmox environment running Ollama.
 * **Storage Layer:** Cloudflare R2 provides zero egress temporary storage for compiled archives.
-* **Staging Environment:** Debian LXC on Proxmox routed via Cloudflare Tunnels.
 
-**2. Core Workflows and Technical Pipelines**
+**2. DevOps & Environment Strategy**
+The platform utilizes a strict 3-tier environment structure. Secrets are managed via dedicated `.env` files which are never committed to version control.
+
+* **Development (`.env.development`):** Runs locally on Windows/Linux hybrid machines. Uses local Supabase instances, mocked Stripe endpoints, and a dev-specific Cloudflare R2 bucket.
+* **Test / Staging (`.env.test`):** Runs in a Proxmox LXC container routed via Cloudflare Tunnels (`test.stackalchemist.app`). Secrets are injected dynamically via GitHub Actions or Docker Compose.
+* **Production (`.env.production`):** Hosted on AWS. Secrets are injected at build time via GitHub Actions Secrets. Connects to the live Stripe integration and production Supabase project.
+
+**3. Core Workflows and Technical Pipelines**
 
 **A. Dual Mode Intake Pipeline**
 * **Simple Mode:** User submits text prompt. Next.js server action calls LLM to generate a structured JSON schema. The frontend renders this JSON into an editable node based UI.
