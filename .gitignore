@@ -43,6 +43,7 @@ supabase/.temp/
 supabase/functions/.env
 
 # AI Agent Specific
+AGENTS.md
 claude.md
 docs/DEV_PROMPT.md
 .claude/
