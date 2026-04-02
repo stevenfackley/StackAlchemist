@@ -16,3 +16,19 @@ services:
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     restart: always
+
+  runner:
+    image: myoung34/github-runner:latest
+    container_name: sa-runner
+    restart: always
+    environment:
+      - REPO_URL=https://github.com/stevenfackley/StackAlchemist
+      - RUNNER_NAME=test-server
+      - RUNNER_TOKEN=${RUNNER_TOKEN}
+      - RUNNER_WORKDIR=/tmp/runner/work
+      - RUNNER_SCOPE=repo
+      - LABELS=self-hosted
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/runner:/tmp/runner
+      - /home/${USER:-runner}/StackAlchemist:/home/runner/StackAlchemist

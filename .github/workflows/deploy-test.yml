@@ -17,10 +17,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restart placeholder service
-        working-directory: src/StackAlchemist.Placeholder
+      - name: Push updated files into running nginx container
         run: |
-          docker compose down --remove-orphans
-          docker compose up -d
-          echo "✅ Deploy complete."
-          docker compose ps
+          docker cp src/StackAlchemist.Placeholder/index.html sa-web:/usr/share/nginx/html/index.html
+          echo "✅ Deploy complete — nginx serving new content immediately."
+          docker exec sa-web nginx -t
