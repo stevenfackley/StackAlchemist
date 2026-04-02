@@ -323,13 +323,13 @@ export default function HomePage() {
           <Image
             src="/logo.svg"
             alt="Stack Alchemist"
-            width={36}
-            height={36}
-            className="drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+            width={34}
+            height={34}
+            className="drop-shadow-[0_0_10px_rgba(77,166,255,0.5)]"
             priority
           />
-          <span className="font-mono text-sm font-medium tracking-widest text-slate-200">
-            STACK <span className="text-blue-400">AL</span>CHEMIST
+          <span className="text-sm font-semibold tracking-[0.18em] text-slate-100 uppercase">
+            Stack&nbsp;&nbsp;<span className="text-[#4da6ff]">Al</span>chemist
           </span>
         </Link>
 

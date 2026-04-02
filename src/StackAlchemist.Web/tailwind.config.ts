@@ -6,7 +6,6 @@ const config: Config = {
     "./src/components/**/*.{ts,tsx}",
     "./src/lib/**/*.{ts,tsx}",
   ],
-  darkMode: "class",
   theme: {
     extend: {
       colors: {
@@ -17,8 +16,8 @@ const config: Config = {
         "slate-surface": "#334155",
         "slate-panel": "#475569",
         /* Accents */
-        electric: "#3b82f6",
-        neon: "#00A3FF",
+        electric: "#4da6ff",
+        neon: "#4da6ff",
         emerald: "#10b981",
         rose: "#f43f5e",
         /* Borders */
