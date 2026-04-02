@@ -44,3 +44,6 @@ supabase/functions/.env
 claude.md
 docs/DEV_PROMPT.md
 .claude/
+
+# Design reference extracts
+style-extracted/
