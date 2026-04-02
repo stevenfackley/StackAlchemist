@@ -43,6 +43,61 @@ Reference this file instead of re-reading source files when possible.
 
 ---
 
+## Phase 4 — Live LLM Orchestration, R2 Upload & Delivery (2026-04-02)
+
+### Architecture Change: Combined-Process Pipeline
+The Engine and Worker are now a **single deployable process**. `CompileWorkerService` (and the compile pipeline interfaces) were promoted from `StackAlchemist.Worker.Services` → `StackAlchemist.Engine.Services` so they can be registered as `IHostedService` inside the Engine, sharing the same in-process `Channel<GenerationContext>`.
+
+The Worker project is preserved as a standalone host option for future scale-out (replace Channel with Redis Streams / RabbitMQ + separate Worker deployment).
+
+### New Services
+
+| Service | Interface | Responsibility |
+|---|---|---|
+| `AnthropicLlmClient` | `ILlmClient` | Calls the Anthropic Messages API (Claude 3.5 Sonnet) via `IHttpClientFactory`. Named client `"Anthropic"`, base URL pre-configured at registration. |
+| `CloudflareR2UploadService` | `IR2UploadService` | Zips generated project directory in-memory (`ZipFile.CreateFromDirectory`), uploads via AWSSDK.S3 with R2 endpoint override, returns presigned GET URL. |
+| `SupabaseDeliveryService` | `IDeliveryService` | PATCHes the `generations` row in Supabase PostgREST after every state transition so the frontend receives real-time status via Supabase Realtime. No-ops silently if `Supabase:Url` / `Supabase:ServiceRoleKey` are not configured. |
+| `CompileService` | `ICompileService` | Moved to Engine namespace from Worker. |
+| `CompileWorkerService` | `BackgroundService` | Moved to Engine namespace; extended with `IR2UploadService` + `IDeliveryService` constructor params. Replaced Phase 3 fake `ZipCreated`/`UploadedToR2` skip with real R2 upload + Supabase delivery. |
+
+### Config-Based LLM Switching
+`Program.cs` registers `AnthropicLlmClient` when `Anthropic:ApiKey` is non-empty; falls back to `MockLlmClient` otherwise. No code change required to switch from mock to live.
+
+### New Configuration Sections
+`appsettings.json` gains three new sections (populated via user-secrets / env in deployment):
+
+```json
+"Anthropic":    { "ApiKey": "", "Model": "claude-3-5-sonnet-20241022", "MaxTokens": "8192" }
+"CloudflareR2": { "AccountId": "", "AccessKeyId": "", "SecretAccessKey": "",
+                  "BucketName": "stackalchemist-builds", "PresignedUrlExpiryHours": "168" }
+"Supabase":     { "Url": "", "ServiceRoleKey": "" }
+```
+
+### ProjectName Derivation
+`GenerationOrchestrator.BuildVariables` now derives a PascalCase project name automatically:
+1. Schema entities present → `"{Entity0}{Entity1}"` (or `"{Entity0}App"` for single-entity schemas)
+2. Simple Mode prompt → first two non-stop-word words PascalCased
+3. Fallback → `"GeneratedApp"`
+
+### New NuGet Packages
+- `AWSSDK.S3` `3.7.*` added to Engine (R2 is S3-compatible; `ForcePathStyle = true`, `AuthenticationRegion = "auto"`)
+- `UserSecretsId` `"stackalchemist-engine"` added to Engine.csproj
+
+### Test Coverage
+New unit tests added to `Engine.Tests`:
+- `AnthropicLlmClientTests` — 5 tests (happy path, missing key, 429 error, empty content block, header verification)
+- `SupabaseDeliveryServiceTests` — 6 tests (PATCH sent, status body, download URL, no-op when unconfigured, non-throw on 5xx, auth headers)
+- `CloudflareR2UploadServiceTests` — 3 unit tests (missing AccountId / AccessKeyId / SecretAccessKey config), 1 skipped integration test
+
+### Test Results
+```
+Engine.Tests:  66 passed, 6 skipped (Docker integration + R2 integration — intentional)
+Worker.Tests:  22 passed, 3 skipped (.NET SDK integration — intentional)
+```
+Zero failures across both suites.
+
+---
+
 ## Phase 3 — Engine Services & Test Coverage (2026-04-02)
 
 ### New Services

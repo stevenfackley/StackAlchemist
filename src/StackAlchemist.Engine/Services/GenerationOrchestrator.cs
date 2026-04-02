@@ -95,13 +95,14 @@ public sealed class GenerationOrchestrator(
 
     private static TemplateVariables BuildVariables(GenerateRequest request)
     {
-        var projectName = "GeneratedApp"; // TODO: derive from user input in Phase 4
+        var projectName = DeriveProjectName(request);
+        var kebab = ToKebabCase(projectName);
         return new TemplateVariables
         {
             ProjectName = projectName,
-            ProjectNameKebab = "generated-app",
-            ProjectNameLower = "generatedapp",
-            DbConnectionString = "Host=localhost;Port=5432;Database=generatedapp;Username=postgres;Password=postgres",
+            ProjectNameKebab = kebab,
+            ProjectNameLower = projectName.ToLowerInvariant(),
+            DbConnectionString = $"Host=localhost;Port=5432;Database={projectName.ToLowerInvariant()};Username=postgres;Password=postgres",
             FrontendUrl = "http://localhost:3000",
             Entities = request.Schema?.Entities.Select(e => new TemplateEntity
             {
@@ -118,6 +119,61 @@ public sealed class GenerationOrchestrator(
                 }).ToList(),
             }).ToList() ?? [],
         };
+    }
+
+    /// <summary>
+    /// Derives a PascalCase project name from the schema entities (preferred) or
+    /// the natural-language prompt (Simple Mode fallback).
+    /// </summary>
+    private static string DeriveProjectName(GenerateRequest request)
+    {
+        // 1. Schema entities — most reliable signal
+        var entities = request.Schema?.Entities;
+        if (entities is { Count: > 0 })
+        {
+            return entities.Count == 1
+                ? $"{entities[0].Name}App"
+                : $"{entities[0].Name}{entities[1].Name}";
+        }
+
+        // 2. Natural-language prompt (Simple Mode)
+        if (!string.IsNullOrWhiteSpace(request.Prompt))
+            return ExtractProjectNameFromPrompt(request.Prompt);
+
+        return "GeneratedApp";
+    }
+
+    private static readonly HashSet<string> StopWords =
+        ["a", "an", "the", "for", "and", "or", "of", "to", "in", "on", "with",
+         "that", "is", "are", "app", "application", "system", "platform", "tool",
+         "build", "create", "generate", "make", "i", "want", "need", "my"];
+
+    private static string ExtractProjectNameFromPrompt(string prompt)
+    {
+        var words = prompt
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 2)
+            .Where(w => !StopWords.Contains(w.ToLowerInvariant()))
+            .Take(2)
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant())
+            .ToArray();
+
+        return words.Length > 0 ? string.Join("", words) : "GeneratedApp";
+    }
+
+    private static string ToKebabCase(string pascal)
+    {
+        if (string.IsNullOrEmpty(pascal))
+            return pascal;
+
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < pascal.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(pascal[i]))
+                sb.Append('-');
+            sb.Append(char.ToLowerInvariant(pascal[i]));
+        }
+        return sb.ToString();
     }
 
     private string LoadPromptTemplate(GenerateRequest request)

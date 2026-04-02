@@ -1,9 +1,13 @@
 using FluentAssertions;
-using StackAlchemist.Worker.Services;
+using StackAlchemist.Engine.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace StackAlchemist.Worker.Tests;
 
+/// <summary>
+/// Unit tests for <see cref="CompileService"/> — error extraction and retry-context building.
+/// CompileService has been promoted to StackAlchemist.Engine.Services in Phase 4.
+/// </summary>
 public class CompileWorkerTests
 {
     private readonly CompileService _sut = new(NullLogger<CompileService>.Instance);
@@ -81,7 +85,7 @@ public class CompileWorkerTests
         var context = _sut.BuildRetryContext("Generate code", longHistory, retryAttempt: 3);
 
         // Should be under the token budget (~8000 chars)
-        context.Length.Should().BeLessThan(10000);
+        context.Length.Should().BeLessThan(10_000);
         // Should contain the most recent errors, not necessarily the oldest
         context.Should().Contain("Generate code");
     }

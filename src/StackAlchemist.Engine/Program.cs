@@ -9,39 +9,68 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
-// File system abstraction
+// ── HTTP clients ──────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri("https://api.anthropic.com");
+    client.Timeout = TimeSpan.FromMinutes(5); // LLM calls can be long
+});
+
+builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
+
+// ── File system abstraction ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
 
-// Template provider — resolve templates relative to the solution's Templates directory
+// ── Template provider ────────────────────────────────────────────────────────
+// Resolve templates relative to the solution's Templates directory.
 var templatesRoot = Path.GetFullPath(
     Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "StackAlchemist.Templates"));
 if (!Directory.Exists(templatesRoot))
 {
     // Fallback for running from project root
-    templatesRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(),
-        "..", "StackAlchemist.Templates"));
+    templatesRoot = Path.GetFullPath(Path.Combine(
+        Directory.GetCurrentDirectory(), "..", "StackAlchemist.Templates"));
 }
 
 builder.Services.AddSingleton<ITemplateProvider>(sp =>
     new TemplateProvider(sp.GetRequiredService<IFileSystem>(), templatesRoot));
 
-// Reconstruction service
+// ── Core engine services ─────────────────────────────────────────────────────
 builder.Services.AddSingleton<IReconstructionService, ReconstructionService>();
-
-// LLM client — mock for Phase 3, swap to real Anthropic SDK in Phase 4
-builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
-
-// ── Phase 3 services ──────────────────────────────────────────────────────────
 builder.Services.AddSingleton<ITierGatingService, TierGatingService>();
 builder.Services.AddSingleton<ISchemaExtractionService, SchemaExtractionService>();
 builder.Services.AddSingleton<IPromptBuilderService, PromptBuilderService>();
 
-// Job queue — in-process Channel for Phase 3, swap to persistent queue in Phase 4
+// ── LLM client — AnthropicLlmClient when API key is set, MockLlmClient otherwise ──
+var anthropicApiKey = builder.Configuration["Anthropic:ApiKey"];
+if (!string.IsNullOrWhiteSpace(anthropicApiKey))
+{
+    builder.Services.AddSingleton<ILlmClient, AnthropicLlmClient>();
+}
+else
+{
+    builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
+}
+
+// ── Phase 4 delivery services ─────────────────────────────────────────────────
+builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
+builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+
+// ── Compile service ───────────────────────────────────────────────────────────
+builder.Services.AddSingleton<ICompileService, CompileService>();
+
+// ── In-process job queue (Channel) + background compile worker ───────────────
+// Phase 4: Engine and Worker run in the same process sharing this Channel.
+// Future: swap Channel for a persistent queue (Redis Streams, RabbitMQ) and
+//         deploy the Worker as a separate host.
 var channel = Channel.CreateUnbounded<GenerationContext>();
 builder.Services.AddSingleton(channel.Writer);
 builder.Services.AddSingleton(channel.Reader);
 
-// Orchestrator
+// Register the compile worker as an in-process background service.
+builder.Services.AddHostedService<CompileWorkerService>();
+
+// ── Orchestrator ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
 
 var app = builder.Build();
@@ -58,7 +87,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// ─── Endpoints ──────────────────────────────────────────────────────────────
+// ─── Endpoints ────────────────────────────────────────────────────────────────
 
 app.MapGet("/healthz", () => Results.Ok(new
 {
@@ -111,7 +140,7 @@ app.MapPost("/api/webhooks/stripe", async (
         return Results.Unauthorized();
     }
 
-    // Idempotency — downstream logic should deduplicate on stripeEvent.Id
+    // Idempotency — the Supabase generations table deduplicates on generationId.
     logger.LogInformation("Stripe event received: {Type} / {Id}", stripeEvent.Type, stripeEvent.Id);
 
     if (stripeEvent.Type == "checkout.session.completed"
@@ -124,9 +153,9 @@ app.MapPost("/api/webhooks/stripe", async (
             tier = 2;
         }
 
-        var prompt        = session.Metadata?.GetValueOrDefault("prompt");
-        var generationId  = session.Metadata?.GetValueOrDefault("generationId")
-                            ?? Guid.NewGuid().ToString();
+        var prompt = session.Metadata?.GetValueOrDefault("prompt");
+        var generationId = session.Metadata?.GetValueOrDefault("generationId")
+                           ?? Guid.NewGuid().ToString();
 
         await orchestrator.EnqueueAsync(new GenerateRequest
         {
