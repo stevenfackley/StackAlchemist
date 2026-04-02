@@ -428,8 +428,8 @@ export default function AdvancedModePage() {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [selectedTier, setSelectedTier] = useState(2);
 
-  const [, , onNodesChange] = useNodesState([]);
-  const [, setEdges, onEdgesChange] = useEdgesState([]);
+  const [, , onNodesChange] = useNodesState<Node>([]);
+  const [, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
