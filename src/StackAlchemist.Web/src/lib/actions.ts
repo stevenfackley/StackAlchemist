@@ -8,7 +8,18 @@ import type {
   EngineGenerateRequest,
 } from "./types";
 
-const ENGINE_URL = process.env.ENGINE_API_URL ?? "http://localhost:5000";
+function resolveEngineUrl() {
+  const configuredUrl = process.env.ENGINE_API_URL;
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return "http://localhost:5000";
+  }
+
+  throw new Error("ENGINE_API_URL must be configured in production.");
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    submitSimpleGeneration
@@ -25,7 +36,14 @@ export async function submitSimpleGeneration(
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
   }
 
-  const db = createServerClient();
+  let db;
+
+  try {
+    db = createServerClient();
+  } catch (error) {
+    console.error("[submitSimpleGeneration] Supabase configuration error:", error);
+    return { success: false, error: "Server configuration is incomplete. Please contact support." };
+  }
 
   // 1. Insert generation record
   const { data, error } = await db
@@ -61,7 +79,8 @@ export async function submitSimpleGeneration(
       prompt: prompt.trim(),
     };
 
-    const engineRes = await fetch(`${ENGINE_URL}/api/generate`, {
+    const engineUrl = resolveEngineUrl();
+    const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(enginePayload),
@@ -105,7 +124,14 @@ export async function submitAdvancedGeneration(
     }
   }
 
-  const db = createServerClient();
+  let db;
+
+  try {
+    db = createServerClient();
+  } catch (error) {
+    console.error("[submitAdvancedGeneration] Supabase configuration error:", error);
+    return { success: false, error: "Server configuration is incomplete. Please contact support." };
+  }
 
   // Build a human-readable prompt summary from the schema
   const promptSummary =
@@ -146,7 +172,8 @@ export async function submitAdvancedGeneration(
       schema,
     };
 
-    const engineRes = await fetch(`${ENGINE_URL}/api/generate`, {
+    const engineUrl = resolveEngineUrl();
+    const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(enginePayload),
@@ -173,7 +200,14 @@ export async function submitAdvancedGeneration(
    Safe to use in Server Components.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getGeneration(generationId: string) {
-  const db = createServerClient();
+  let db;
+
+  try {
+    db = createServerClient();
+  } catch (error) {
+    console.error("[getGeneration] Supabase configuration error:", error);
+    return null;
+  }
   const { data, error } = await db
     .from("generations")
     .select("*")
@@ -195,7 +229,14 @@ export async function getGeneration(generationId: string) {
 export async function retryGeneration(
   generationId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createServerClient();
+  let db;
+
+  try {
+    db = createServerClient();
+  } catch (error) {
+    console.error("[retryGeneration] Supabase configuration error:", error);
+    return { success: false, error: "Server configuration is incomplete. Please contact support." };
+  }
 
   const { data: gen, error: fetchErr } = await db
     .from("generations")
@@ -231,7 +272,8 @@ export async function retryGeneration(
       schema: gen.schema_json ?? undefined,
     };
 
-    await fetch(`${ENGINE_URL}/api/generate`, {
+    const engineUrl = resolveEngineUrl();
+    await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(enginePayload),

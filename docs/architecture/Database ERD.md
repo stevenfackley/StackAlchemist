@@ -1,5 +1,7 @@
 # StackAlchemist: Database ERD
 
+> Implementation status note (2026-04-02): this ERD is the planned Phase 4 Supabase schema. The audited application code currently uses a temporary `generations` record shape in TypeScript and does not yet include checked-in application migrations, foreign-key indexes, or RLS policies for these tables.
+
 This diagram illustrates the core relational structure within the Supabase PostgreSQL database.
 
 ```mermaid

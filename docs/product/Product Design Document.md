@@ -1,5 +1,7 @@
 ### Product Design Document (PDD): StackAlchemist
 
+> Implementation status note (2026-04-02): the current codebase implements the landing page, Simple Mode mock flow, and Advanced Mode wizard from Phase 1. The server actions, real-time generation pipeline, checkout, and file delivery behaviors below remain design intent and are not fully wired end to end yet.
+
 **1. System Overview**
 StackAlchemist orchestrates code generation by connecting a Next.js frontend with a Supabase backend. It uses a dual mode intake flow and a hybrid template generation engine to compile custom business logic into a highly optimized .NET/Next.js repository, guaranteeing successful compilation before user delivery.
 
@@ -21,11 +23,9 @@ Next.js Server Actions manage the core logic to keep secrets secure.
     * Calls the LLM for dynamic file generation.
     * Reconstructs the directory.
 * **Service: Build Validation**
-    * Utilizes Node.js `child_process.exec` to run the compiler toolchain locally on the Proxmox staging server or the production worker node.
+    * Planned service that will run the compiler toolchain locally on the Proxmox staging server or the production worker node.
 * **Service: File System & Storage**
-    * Compresses the validated directory using the `archiver` package.
-    * Uploads to Cloudflare R2 via the AWS SDK.
-    * Generates a 24 hour presigned URL.
+    * Planned service that will compress the validated directory, upload to Cloudflare R2, and generate a 24 hour presigned URL.
 
 **4. V1 to V2 Stack Matrix Management**
 The UI includes a configuration panel before generation begins.

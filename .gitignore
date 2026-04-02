@@ -13,6 +13,8 @@ node_modules/
 .next/
 dist/
 build/
+test-results/
+*.tsbuildinfo
 .env
 .env.local
 .env.development.local

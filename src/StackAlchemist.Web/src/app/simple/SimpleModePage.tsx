@@ -132,9 +132,10 @@ export default function SimpleModePage() {
 
   // ─── Supabase real-time subscription once generation is submitted ───────────
   useEffect(() => {
-    if (!generationId) return;
+    if (!generationId || !supabase) return;
+    const client = supabase;
 
-    const channel = supabase
+    const channel = client
       .channel(`generation:${generationId}`)
       .on(
         "postgres_changes",
@@ -155,7 +156,7 @@ export default function SimpleModePage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
     };
   }, [generationId, router]);
 

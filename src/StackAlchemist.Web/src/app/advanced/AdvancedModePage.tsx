@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -257,9 +257,10 @@ export default function AdvancedModePage() {
   );
 
   // Real-time subscription
-  useState(() => {
-    if (!generationId) return;
-    const channel = supabase
+  useEffect(() => {
+    if (!generationId || !supabase) return;
+    const client = supabase;
+    const channel = client
       .channel(`gen-adv:${generationId}`)
       .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
@@ -274,8 +275,8 @@ export default function AdvancedModePage() {
           }
         }
       ).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  });
+    return () => { client.removeChannel(channel); };
+  }, [generationId, router]);
 
   function handleCheckout() {
     startTransition(async () => {
