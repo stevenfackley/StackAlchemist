@@ -1,22 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 /**
  * Browser-side Supabase client (uses anon key).
- * Use this in Client Components for real-time subscriptions, auth, etc.
+ * Typed with Database for real-time subscription type safety in Client Components.
  */
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 /**
- * Helper to get the server-side Supabase client (service role).
- * Only use in Server Components / Server Actions — never expose to the browser.
+ * Server-side Supabase client (service role).
+ * Intentionally untyped — Supabase v2 generic inference is too strict for
+ * hand-written Database types; use explicit casts in server actions instead.
+ * Never expose this client to the browser.
  */
-export function createServerClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient<Database>(supabaseUrl, serviceRoleKey, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createServerClient(): ReturnType<typeof createClient<any>> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createClient<any>(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
