@@ -45,7 +45,7 @@ The system maintains a library of master templates (starting with the V1 .NET/Ne
 3.  If exit code `1` is returned, the standard error output is captured and sent back to the LLM with the context of the broken file for an automated fix. Maximum retry limit is set to 3.
 
 **D. Tier 3 IaC Export Pipeline**
-For Tier 3 transactions, the system utilizes Handlebars to inject the user's specific environment variables and project naming conventions into pre written AWS CDK scripts and Docker Compose files. A markdown runbook is generated and included in the final root directory of the zip archive.
+For Tier 3 transactions, the system utilizes Handlebars to inject the user's specific environment variables and project naming conventions into pre written AWS CDK scripts, Terraform providers, and Helm Charts. A markdown runbook is generated and included in the final root directory of the zip archive.
 
 **3. Supabase Data Schema**
 * `profiles`: `id` (UUID, PK), `api_key_override` (Encrypted string), `preferred_model` (String), `created_at` (Timestamp).

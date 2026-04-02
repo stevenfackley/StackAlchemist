@@ -15,7 +15,7 @@ StackAlchemist converts user requirements into deployable software repositories.
 * Stripe integration for payment processing.
 * **Tier 1:** Unlocks schema and API documentation downloads.
 * **Tier 2:** Unlocks the full downloadable zip archive of the codebase.
-* **Tier 3:** Unlocks the codebase plus customized AWS CDK/Terraform scripts, Docker Compose files, and step by step deployment runbooks.
+* **Tier 3:** Unlocks the codebase plus customized AWS CDK/Terraform scripts, Helm Charts for Kubernetes, Docker Compose files, and step by step deployment runbooks.
 
 **Generation Engine & Phased Rollout**
 * **V1 Stack:** The latest version of .NET Web API, Dapper micro ORM, Next.js frontend, and PostgreSQL.
