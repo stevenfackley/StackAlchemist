@@ -1,10 +1,43 @@
 using System.IO.Abstractions;
 using System.Threading.Channels;
+using DotNetEnv;
 using Stripe;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
+// ── Load .env file ────────────────────────────────────────────────────────────
+// TraversePath() walks up from cwd until it finds .env (e.g. solution root).
+// NoClobber() means already-set environment variables (e.g. Docker, CI) take priority.
+Env.NoClobber().TraversePath().Load();
+
+// ── Map flat .env names → nested IConfiguration paths ────────────────────────
+// The .env file uses SCREAMING_SNAKE_CASE; ASP.NET Core config uses Colon:Hierarchy.
+// We bridge them here so services can keep reading config["Anthropic:ApiKey"] etc.
+static string? Ev(string key)
+{
+    var v = Environment.GetEnvironmentVariable(key);
+    return string.IsNullOrWhiteSpace(v) ? null : v;
+}
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+{
+    // LLM
+    ["Anthropic:ApiKey"]              = Ev("ANTHROPIC_API_KEY"),
+    // Cloudflare R2
+    ["CloudflareR2:AccountId"]        = Ev("R2_ACCOUNT_ID"),
+    ["CloudflareR2:AccessKeyId"]      = Ev("R2_ACCESS_KEY_ID"),
+    ["CloudflareR2:SecretAccessKey"]  = Ev("R2_SECRET_ACCESS_KEY"),
+    ["CloudflareR2:BucketName"]       = Ev("R2_BUCKET_NAME"),
+    // Supabase
+    ["Supabase:Url"]                  = Ev("NEXT_PUBLIC_SUPABASE_URL"),
+    ["Supabase:ServiceRoleKey"]       = Ev("SUPABASE_SERVICE_ROLE_KEY"),
+    // Stripe
+    ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+    ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
+    ["Stripe:WebhookSecret"]          = Ev("STRIPE_WEBHOOK_SECRET"),
+}.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
