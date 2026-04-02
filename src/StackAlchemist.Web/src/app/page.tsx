@@ -138,7 +138,7 @@ export default function HomePage() {
             Three tiers. One-time payment. You own the architecture.
           </p>
           <a
-            href="/advanced?step=3"
+            href="/pricing"
             className="inline-block border border-electric text-electric hover:bg-electric hover:text-white font-mono text-xs tracking-widest uppercase py-2 px-6 transition-colors"
           >
             See Pricing &rarr;

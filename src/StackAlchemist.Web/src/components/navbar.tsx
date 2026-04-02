@@ -8,16 +8,22 @@ export function Navbar() {
         <Logo />
         <div className="flex items-center gap-6">
           <Link
-            href="#features"
+            href="/about"
             className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase"
           >
-            Features
+            About
           </Link>
           <Link
-            href="#pricing"
+            href="/pricing"
             className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase"
           >
             Pricing
+          </Link>
+          <Link
+            href="/story"
+            className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase"
+          >
+            Our Story
           </Link>
           <Link
             href="/login"
