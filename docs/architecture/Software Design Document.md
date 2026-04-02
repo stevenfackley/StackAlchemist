@@ -7,13 +7,20 @@
 * **Storage Layer:** Cloudflare R2 provides zero egress temporary storage for compiled archives.
 
 **2. DevOps & Environment Strategy**
-The platform utilizes a strict 3-tier environment structure. Secrets are managed via dedicated `.env` files which are never committed to version control.
+The platform utilizes a strict 3-tier environment structure using GitHub Actions **Environments** (Test and Prod).
 
-* **Development (`.env.development`):** Runs locally on Windows/Linux hybrid machines. Uses local Supabase instances, mocked Stripe endpoints, and a dev-specific Cloudflare R2 bucket.
-* **Test / Staging (`.env.test`):** Runs in a Proxmox LXC container routed via Cloudflare Tunnels (`test.stackalchemist.app`). Secrets are injected dynamically via GitHub Actions or Docker Compose.
-* **Production (`.env.production`):** Hosted on AWS. Secrets are injected at build time via GitHub Actions Secrets. Connects to the live Stripe integration and production Supabase project.
+* **Development (`.env.development`):** Local runs. Keys are stored in the local file.
+* **Test (`.env.test`):** Scoped to the "Test" environment in GitHub. Secrets are injected via GitHub Actions without prefixes.
+* **Prod (`.env.production`):** Scoped to the "Prod" environment in GitHub. Secrets are injected via GitHub Actions without prefixes.
 
-**3. Optimal CI/CD Flow**
+**3. Containerization Strategy**
+StackAlchemist uses a multi-stage, multi-target Docker architecture defined in a root `Dockerfile`.
+
+* **Web Target:** Builds the Next.js frontend.
+* **Engine Target:** Builds the .NET 10 API.
+* **Worker Target:** Builds the .NET 10 Worker (includes .NET SDK and Node.js for repo validation).
+
+**4. Optimal CI/CD Flow**
 The project utilizes GitHub Actions for automated testing and deployment.
 
 * **Stage 1: Continuous Integration (CI)**

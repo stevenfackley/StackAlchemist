@@ -1,0 +1,29 @@
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.development
+    depends_on:
+      - engine
+
+  engine:
+    build:
+      context: .
+      target: engine
+    ports:
+      - "5000:80"
+    env_file:
+      - .env.development
+
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file:
+      - .env.development
+    depends_on:
+      - engine
