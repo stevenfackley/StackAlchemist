@@ -66,21 +66,36 @@ export interface Generation {
 }
 
 // ─── Supabase Database Type (used for createClient<Database>) ────────────────
+// Supabase v2 TypeScript client requires Relationships[], CompositeTypes, etc.
+// Missing Relationships causes the Insert type to resolve to `never`.
 export interface Database {
   public: {
     Tables: {
       generations: {
         Row: Generation;
-        Insert: Omit<Generation, "id" | "created_at" | "updated_at">;
-        Update: Partial<Omit<Generation, "id" | "created_at">>;
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          status?: GenerationStatus;
+          mode: "simple" | "advanced";
+          tier: Tier;
+          prompt?: string | null;
+          schema_json?: GenerationSchema | null;
+          download_url?: string | null;
+          error_message?: string | null;
+          attempt_count?: number;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Update: Partial<Generation>;
+        Relationships: [];
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: {
-      generation_status: GenerationStatus;
-      tier: Tier;
-    };
+    Views: Record<never, never>;
+    Functions: Record<never, never>;
+    Enums: Record<never, never>;
+    CompositeTypes: Record<never, never>;
   };
 }
 
