@@ -207,9 +207,9 @@ public class ReconstructionServiceTests
     {
         // Arrange — UTF-8 BOM at start of content
         var bom = "\uFEFF";
-        var input = $"""
+        var input = $$"""
             [[FILE:src/Controllers/ProductsController.cs]]
-            {bom}public class ProductsController {{ }}
+            {{bom}}public class ProductsController { }
             [[END_FILE]]
             """;
 

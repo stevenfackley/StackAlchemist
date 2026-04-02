@@ -27,18 +27,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: src/StackAlchemist.Web/pnpm-lock.yaml
 
       - name: Install Dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Type Check
         run: npx tsc --noEmit
@@ -162,16 +167,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: src/StackAlchemist.Web/pnpm-lock.yaml
 
       - name: Install Dependencies
         working-directory: src/StackAlchemist.Web
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Browsers
         working-directory: src/StackAlchemist.Web
