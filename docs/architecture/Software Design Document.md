@@ -16,9 +16,9 @@ The platform utilizes a strict 3-tier environment structure using GitHub Actions
 **3. Containerization Strategy**
 StackAlchemist uses a multi-stage, multi-target Docker architecture defined in a root `Dockerfile`.
 
-* **Web Target:** Builds the Next.js frontend.
-* **Engine Target:** Builds the .NET 10 API.
-* **Worker Target:** Builds the .NET 10 Worker (includes .NET SDK and Node.js for repo validation).
+* **sa-web Target:** Builds the Next.js frontend.
+* **sa-engine Target:** Builds the .NET 10 API.
+* **sa-worker Target:** Builds the .NET 10 Worker (includes .NET SDK and Node.js for repo validation).
 
 **4. Optimal CI/CD Flow**
 The project utilizes GitHub Actions for automated testing and deployment.

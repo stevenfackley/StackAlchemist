@@ -1,5 +1,5 @@
 services:
-  web:
+  sa-web:
     build:
       context: .
       target: web
@@ -8,9 +8,9 @@ services:
     env_file:
       - .env.development
     depends_on:
-      - engine
+      - sa-engine
 
-  engine:
+  sa-engine:
     build:
       context: .
       target: engine
@@ -19,11 +19,11 @@ services:
     env_file:
       - .env.development
 
-  worker:
+  sa-worker:
     build:
       context: .
       target: worker
     env_file:
       - .env.development
     depends_on:
-      - engine
+      - sa-engine
