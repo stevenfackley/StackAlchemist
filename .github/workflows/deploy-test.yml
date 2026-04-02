@@ -10,14 +10,50 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Placeholder to Test Server
+    name: Deploy Web App to Test Server
     runs-on: self-hosted
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Update site files on host
+      - name: Build Next.js web image
         run: |
-          cp src/StackAlchemist.Placeholder/index.html /root/under-construction/index.html
-          echo "✅ Deploy complete — nginx reading new files from host immediately."
+          docker build \
+            --target web \
+            --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
+            -t sa-web-app:test \
+            .
+
+      - name: Swap web container
+        run: |
+          # Stop and remove the old container (nginx placeholder or previous web app)
+          docker stop sa-web 2>/dev/null || true
+          docker rm sa-web 2>/dev/null || true
+
+          # Start the new Next.js container on port 3000
+          docker run -d \
+            --name sa-web \
+            --restart unless-stopped \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
+            sa-web-app:test
+
+          echo "✅ Web app deployed."
+          docker ps --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Fallback to placeholder on failure
+        if: failure()
+        run: |
+          echo "⚠️ Deploy failed — restoring under-construction placeholder..."
+          docker stop sa-web 2>/dev/null || true
+          docker rm sa-web 2>/dev/null || true
+          docker run -d \
+            --name sa-web \
+            --restart unless-stopped \
+            -p 3000:80 \
+            -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro \
+            -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro \
+            nginx:alpine
+          echo "Placeholder restored."

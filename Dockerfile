@@ -6,6 +6,9 @@
 # ==========================================
 FROM node:20-alpine AS web-builder
 WORKDIR /app
+# Accept public env vars at build time so Next.js bakes them into the bundle
+ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 COPY src/StackAlchemist.Web/package*.json ./
 RUN npm install
 COPY src/StackAlchemist.Web/ .
@@ -13,12 +16,15 @@ RUN npm run build
 
 FROM node:20-alpine AS web
 WORKDIR /app
-COPY --from=web-builder /app/.next ./.next
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+# Standalone output bundles everything needed — no npm install required
+COPY --from=web-builder /app/.next/standalone ./
+COPY --from=web-builder /app/.next/static ./.next/static
 COPY --from=web-builder /app/public ./public
-COPY --from=web-builder /app/package*.json ./
-RUN npm install --production
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
 
 # ==========================================
 # STAGE 2: .NET ENGINE (API)
