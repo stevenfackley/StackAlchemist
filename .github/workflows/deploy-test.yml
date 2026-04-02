@@ -31,10 +31,11 @@ jobs:
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
 
-          # Start the new Next.js container on port 3000
+          # Start the new Next.js container on the shared tunnel network
           docker run -d \
             --name sa-web \
             --restart unless-stopped \
+            --network under-construction_default \
             -p 3000:3000 \
             -e NODE_ENV=production \
             -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
@@ -52,8 +53,10 @@ jobs:
           docker run -d \
             --name sa-web \
             --restart unless-stopped \
-            -p 3000:80 \
+            --network under-construction_default \
+            -p 3000:3000 \
             -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro \
             -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro \
+            -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro \
             nginx:alpine
           echo "Placeholder restored."
