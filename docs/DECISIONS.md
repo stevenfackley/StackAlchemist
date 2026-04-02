@@ -34,6 +34,43 @@ Reference this file instead of re-reading source files when possible.
 - `.npmrc` updated to `G:\packages\npm`. Must prefix npm commands with `npm_config_cache="G:/packages/npm"` or fix the shell env permanently.
 - `next.config.ts`: `outputFileTracingRoot: __dirname` set to suppress pnpm-lock.yaml workspace root warning.
 
+---
+
+## Phase 2 — Master Template Construction (2026-04-02)
+
+### Template Structure
+- Location: `src/StackAlchemist.Templates/V1-DotNet-NextJs/`
+- Three subdirs: `dotnet/`, `nextjs/`, `infra/`
+- Validation script: `src/StackAlchemist.Templates/validate.mjs` — run with `node validate.mjs`
+
+### Handlebars Variables
+| Variable | Usage |
+|---|---|
+| `{{ProjectName}}` | PascalCase project name (e.g. GymManager) |
+| `{{ProjectNameKebab}}` | kebab-case (e.g. gym-manager) for npm name |
+| `{{ProjectNameLower}}` | lowercase (e.g. gymmanager) for DB name, Docker |
+| `{{DbConnectionString}}` | Full Npgsql connection string |
+| `{{FrontendUrl}}` | CORS allowed origin |
+
+### LLM Injection Zones
+All zones use `{{!-- LLM_INJECTION_START: ZoneName --}}` / `{{!-- LLM_INJECTION_END: ZoneName --}}` comments.
+
+| Zone | File | Purpose |
+|---|---|---|
+| `RepositoryRegistrations` | `Program.cs` | DI registration for each repo |
+| `RouteRegistrations` | `Program.cs` | `app.MapGroup(...)` calls |
+| `Controllers` | `dotnet/Controllers/_placeholder.cs` | Minimal API endpoint groups |
+| `Repositories` | `dotnet/Repositories/_placeholder.cs` | Dapper repository classes |
+| `Models` | `dotnet/Models/_placeholder.cs` | C# records per entity |
+| `SqlSchema` | `dotnet/Migrations/001_initial_schema.sql` | CREATE TABLE + RLS |
+| `HomePageContent` | `nextjs/src/app/page.tsx` | Entity listing sections |
+| `ApiRouteHandlers` | `nextjs/src/lib/api.ts` | Typed fetch helpers per entity |
+| `TypeDefinitions` | `nextjs/src/types/index.ts` | TypeScript interfaces per entity |
+
+### Validation result
+- 22 templates rendered with mock data (GymManager project, User + Plan entities)
+- 0 failures — all Handlebars expressions resolved, no stray `{{` in output
+
 ### .NET Engine
 - `dotnet new webapi --no-https --use-controllers=false --framework net10.0`
 - Minimal API template. No controllers yet — Phase 3 will add services.
