@@ -1,0 +1,6 @@
+@StackAlchemist.Engine_HostAddress = http://localhost:5048
+
+GET {{StackAlchemist.Engine_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
