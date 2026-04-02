@@ -20,5 +20,4 @@ jobs:
       - name: Update site files on host
         run: |
           cp src/StackAlchemist.Placeholder/index.html /root/under-construction/index.html
-          cp src/StackAlchemist.Placeholder/favicon.svg /root/under-construction/favicon.svg
           echo "✅ Deploy complete — nginx reading new files from host immediately."
