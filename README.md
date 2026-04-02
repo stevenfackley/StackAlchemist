@@ -1,93 +1,96 @@
-# StackAlchemist: The Intelligent Software Architect
+<div align="center">
+  <img src="src/StackAlchemist.Web/public/logo.svg" alt="StackAlchemist Logo" width="200"/>
 
-![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)
-![Stack: .NET 10 | Next.js 15 | Supabase](https://img.shields.io/badge/Stack-.NET%2010%20%7C%20Next.js%2015%20%7C%20Supabase-blue)
+  # StackAlchemist
 
-StackAlchemist is an enterprise-grade micro SaaS platform that automates the scaffolding of production-ready software architectures. It transmutes natural language prompts or visual schemas into fully functional, build-guaranteed repositories.
+  **The Intelligent Software Architect**
+
+  [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+  [![Stack: .NET 10 | Next.js 15 | Supabase](https://img.shields.io/badge/Stack-.NET%2010%20%7C%20Next.js%2015%20%7C%20Supabase-blue)](#%EF%B8%8F-tech-stack)
+  [![Build Status](https://img.shields.io/badge/Compile_Guarantee-Passing-success)](#-the-compile-guarantee)
+
+  *StackAlchemist transmutes natural language into deployable SaaS architectures. We guarantee zero hallucinations by automatically executing a strict CI/CD build check before delivering a fully customized, production-ready backend.*
+</div>
 
 ---
 
-## ⚠️ License Notice
+## ⚠️ License Notice & Commercial Use
 
-StackAlchemist is a **Proprietary & Source Available** product. While the source code is public for transparency and community forks, commercial use is restricted to paid license holders. 
+StackAlchemist is a **Proprietary & Source Available** platform. The source code is publicly visible to guarantee architectural transparency, but commercial distribution is strictly governed.
 
-- **For Personal Use:** You are free to fork and explore the codebase.
-- **For Commercial Use:** You must purchase a tier from [StackAlchemist.app](https://stackalchemist.app).
+- **For Personal Use & Evaluation:** You are free to fork, explore, and run the engine locally for non-commercial purposes.
+- **For Commercial Production:** You must purchase a tier from [StackAlchemist.app](https://stackalchemist.app) to legally use the generated infrastructure in a production environment.
 
-Please see the [LICENSE](LICENSE) file for full details.
+Please review the full [LICENSE](LICENSE) agreement before cloning.
 
-## 🚀 Key Features
+---
 
-- **"Swiss Cheese" Generation:** Combines high-quality static templates with LLM-generated business logic for 100% reliable builds.
-- **Compile Guarantee:** Every generated repository is built locally before delivery, ensuring zero hallucinations.
-- **Dual Mode Intake:** Toggle between a natural language "Simple Mode" and a structured "Advanced Mode" schema builder.
-- **Tiered Delivery:** From simple blueprints (Tier 1) to full codebases (Tier 2) and production IaC runbooks (Tier 3).
+## 🚀 Enterprise Features
 
-## 🛠️ Tech Stack
+The platform is designed to bypass the traditional "boilerplate" phase of software development, saving engineering teams hundreds of billable hours per project.
 
-- **Frontend:** Next.js (App Router), Tailwind CSS, shadcn/ui.
-- **Backend:** .NET 10 Web API, Dapper Micro ORM.
-- **Database:** Supabase PostgreSQL.
-- **Intelligence:** Claude 3.5 Sonnet (via Anthropic API or BYOK).
-- **Storage:** Cloudflare R2 (Zero Egress).
+- **The "Swiss Cheese" Engine:** We do not rely on open-ended LLM agents that hallucinate folder structures. We utilize a highly-opinionated template library, injecting AI-generated business logic (C# Controllers, Dapper Queries) into rigid, deterministic Handlebars templates.
+- **The Compile Guarantee:** Every generated repository is physically reconstructed in a secure LXC container and subjected to a rigorous `dotnet build` and `npm run build` process. If it doesn't compile, it doesn't ship.
+- **Dual Mode Intake:** Teams can utilize "Simple Mode" for rapid AI-first prototyping or "Advanced Mode" for granular, manual schema definition.
+- **Infrastructure as Code (IaC):** Tier 3 generates custom AWS CDK scripts, Docker Compose files, and automated deployment runbooks alongside the application code.
 
-## 📂 Repository Structure
+---
 
-- `src/StackAlchemist.Web/`: Next.js frontend and API orchestration.
-- `src/StackAlchemist.Engine/`: The "Swiss Cheese" generation and reconstruction engine.
-- `src/StackAlchemist.Worker/`: Background service for build validation and archive packing.
-- `src/StackAlchemist.Templates/`: Master boilerplate library for the generation engine.
-- `docs/`: Comprehensive technical and user documentation.
+## 🛠️ Core Technology Stack
 
-## 🔧 Getting Started
+StackAlchemist is built using modern, highly-scalable primitives.
 
-### Prerequisites
+- **Frontend & Gateway:** Next.js 15 (App Router), Tailwind CSS, shadcn/ui.
+- **Generation Engine:** .NET 10 Web API, Handlebars.Net.
+- **Database & Identity:** Supabase PostgreSQL (Strict RLS enabled).
+- **Intelligence Layer:** Claude 3.5 Sonnet (via Anthropic API or BYOK).
+- **Storage & Delivery:** Cloudflare R2 (Zero Egress).
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js (v20+)](https://nodejs.org/)
-- [Supabase CLI](https://supabase.com/docs/guides/cli)
+---
 
-### Installation
+## 📂 System Architecture
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/steveackley/StackAlchemist.git
-   cd StackAlchemist
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   dotnet restore
-   ```
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
-4. Start development server:
-   ```bash
-   npm run dev
-   ```
+The repository is modularized into distinct operational layers:
 
-## 📖 Documentation
+```text
+StackAlchemist/
+├── src/
+│   ├── StackAlchemist.Web/       # User Intake UI & Orchestration API Gateway
+│   ├── StackAlchemist.Engine/    # The Core "Swiss Cheese" Parsing & Reconstruction Service
+│   ├── StackAlchemist.Worker/    # Background CLI Execution (The Compile Guarantee)
+│   └── StackAlchemist.Templates/ # Master structural boilerplates (V1: .NET/Next.js)
+├── docs/                         # Comprehensive engineering and product documentation
+└── .github/                      # Enterprise governance and contribution workflows
+```
 
-### User & Support
-- [User Guide](docs/user/user-guide.md)
-- [Troubleshooting](docs/user/troubleshooting.md)
+---
 
-### Product & Business
-- [Business Requirements Document](docs/product/Business%20Requirements%20Document.md)
-- [Market Requirements Document](docs/product/Market%20Requirements%20Document.md)
-- [Product Requirements Document](docs/product/Product%20Requirements%20Document.md)
-- [Product Design Document](docs/product/Product%20Design%20Document.md)
-- [ASCII Wireframes](docs/product/wireframes.md)
+## 📖 Official Documentation
 
-### Engineering & Architecture
+Detailed specifications and runbooks are available in the `/docs` directory.
+
+### For Engineering & DevOps
 - [Software Design Document](docs/architecture/Software%20Design%20Document.md)
-- [Data Flow Diagram](docs/architecture/Data%20Flow%20Diagram.md)
-- [Sequence Diagram](docs/architecture/Sequence%20Diagram.md)
+- [Data Flow Diagram (Mermaid)](docs/architecture/Data%20Flow%20Diagram.md)
+- [System Sequence Diagram](docs/architecture/Sequence%20Diagram.md)
 - [Database ERD](docs/architecture/Database%20ERD.md)
 - [Generation State Machine](docs/architecture/Generation%20State%20Machine.md)
 
-## 🤝 Contributing
+### For Product & Business
+- [Business Requirements Document (BRD)](docs/product/Business%20Requirements%20Document.md)
+- [Product Requirements Document (PRD)](docs/product/Product%20Requirements%20Document.md)
+- [UI/UX Wireframes](docs/product/wireframes.md)
 
-Please see our [Contributing Guide](.github/CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+### For End-Users
+- [Platform User Guide](docs/user/user-guide.md)
+- [Troubleshooting & FAQ](docs/user/troubleshooting.md)
+
+---
+
+## 🤝 Governance & Contributions
+
+We welcome feedback and non-commercial community contributions to our template libraries. Please see our [Contributing Guide](.github/CONTRIBUTING.md) for details on our strict SOLID/DRY coding standards and the process for submitting pull requests.
+
+<div align="center">
+  <sub>Built by StackAlchemist. All rights reserved.</sub>
+</div>
