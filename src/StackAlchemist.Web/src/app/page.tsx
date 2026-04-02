@@ -475,13 +475,13 @@ export default function HomePage() {
                   />
                   <div className="mt-4 rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
                     <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                      What The Customer Gets
+                      What You Walk Away With
                     </div>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
                       <div>
                         <div className="text-sm font-semibold text-white">Blueprint</div>
                         <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                          Schema design, API surface, and technical planning artifacts.
+                          Schema design, API surface, and planning artifacts you can review or hand off.
                         </div>
                       </div>
                       <div>
@@ -505,7 +505,7 @@ export default function HomePage() {
                           Next Step
                         </div>
                         <div className="mt-2 text-sm font-semibold text-white">
-                          Submit the idea, review the structure, then choose the delivery tier.
+                          Start with the idea, review the structure, then choose how complete the handoff should be.
                         </div>
                         <div className="mt-2 text-xs leading-relaxed text-slate-400">
                           Simple Mode starts with your prompt and moves into schema review. Advanced Mode

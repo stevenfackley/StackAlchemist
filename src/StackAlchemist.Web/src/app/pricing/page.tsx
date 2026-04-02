@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import Image from "next/image";
+import { Logo } from "@/components/logo";
 
 const tiers = [
   {
@@ -131,19 +132,9 @@ export default function PricingPage() {
       {/* Header */}
       <header className="relative z-50 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0">
         <nav className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-            <Image
-              src="/logo.svg"
-              alt="Stack Alchemist"
-              width={32}
-              height={32}
-              className="drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]"
-            />
-            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-blue-400">AL</span>CHEMIST
-            </span>
-          </Link>
+          <Logo className="shrink-0" />
           <div className="flex items-center gap-4 sm:gap-6">
+            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase">Home</Link>
             <Link href="/about" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">About</Link>
             <Link href="/story" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">Story</Link>
             <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase">Build</Link>
