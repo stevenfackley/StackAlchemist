@@ -437,7 +437,7 @@ export default function AdvancedModePage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-void">
+    <div className="h-screen flex flex-col bg-void overflow-hidden">
       <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
           <Logo />
@@ -465,7 +465,7 @@ export default function AdvancedModePage() {
         </div>
       </header>
 
-      <main className="flex-1 flex">
+      <main className="flex flex-1 min-h-0">
         <div className="w-1/2 border-r border-slate-surface overflow-y-auto p-6">
           {step === 1 && (
             <StepEntities
