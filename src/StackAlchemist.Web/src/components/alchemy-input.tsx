@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Terminal, Layers, Zap } from "lucide-react";
+import {
+  Sparkles,
+  Send,
+  Terminal,
+  Layers,
+  Zap,
+  Database,
+  Shield,
+  Workflow,
+  CreditCard,
+  Users,
+  Globe,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AlchemyInputProps {
@@ -11,6 +23,33 @@ interface AlchemyInputProps {
   disabled?: boolean;
   className?: string;
 }
+
+const BUILDER_GROUPS = [
+  {
+    title: "Start With",
+    items: [
+      { label: "SaaS Dashboard", icon: Users, text: "Build a SaaS dashboard with team workspaces, roles, settings, and analytics." },
+      { label: "Marketplace", icon: Globe, text: "Build a marketplace with buyer accounts, seller profiles, listings, orders, and payouts." },
+      { label: "Internal Tool", icon: Workflow, text: "Build an internal operations tool with approvals, audit logs, queues, and reporting." },
+    ],
+  },
+  {
+    title: "Architecture",
+    items: [
+      { label: "Microservices", icon: Layers, text: "Use a microservices architecture with clear service boundaries." },
+      { label: "Serverless", icon: Zap, text: "Include serverless functions for event-driven or background workloads." },
+      { label: "Postgres Core", icon: Database, text: "Use PostgreSQL as the source of truth with relational entities and admin reporting." },
+    ],
+  },
+  {
+    title: "Business Needs",
+    items: [
+      { label: "Auth + Roles", icon: Shield, text: "Include authentication, organization membership, and role-based access control." },
+      { label: "Billing", icon: CreditCard, text: "Include subscription billing, invoices, payment history, and plan management." },
+      { label: "Customer Portal", icon: Users, text: "Include a customer portal with profile management, notifications, and support history." },
+    ],
+  },
+] as const;
 
 export function AlchemyInput({ value, onChange, onSubmit, disabled, className }: AlchemyInputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -29,6 +68,15 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
       onSubmit();
     }
   };
+
+  function appendPrompt(text: string) {
+    const nextValue = value.trim()
+      ? `${value.trim()} ${text}`.replace(/\s+/g, " ")
+      : text;
+
+    onChange(nextValue);
+    textareaRef.current?.focus();
+  }
 
   return (
     <div className={cn("relative w-full max-w-2xl", className)}>
@@ -80,25 +128,69 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
           />
         </div>
 
+        <div className="border-t border-slate-500/25 px-4 py-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="font-mono text-[11px] tracking-[0.22em] text-slate-500 uppercase">
+              Prompt Builder
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Click to assemble a complete brief fast
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {BUILDER_GROUPS.map((group) => (
+              <div key={group.title}>
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-600">
+                  {group.title}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => appendPrompt(item.text)}
+                        className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/40 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
+                      >
+                        <Icon className="h-3 w-3" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Action bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-500/25 px-4 py-3">
-          {/* Quick action chips */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => onChange(value + (value ? " " : "") + "microservices architecture")}
+              onClick={() => appendPrompt("Also include an admin dashboard with operational metrics and activity logs.")}
               className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/50 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
             >
               <Layers className="h-3 w-3" />
-              <span>Microservices</span>
+              <span>Admin Dashboard</span>
             </button>
             <button
               type="button"
-              onClick={() => onChange(value + (value ? " " : "") + "with serverless functions")}
+              onClick={() => appendPrompt("Include real-time events, notifications, and activity updates where relevant.")}
               className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/50 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
             >
               <Zap className="h-3 w-3" />
-              <span>Serverless</span>
+              <span>Real-Time</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="rounded-full border border-slate-500/35 bg-transparent px-3 py-1.5 text-xs text-slate-500 transition-all duration-300 hover:border-rose-500/40 hover:text-rose-300"
+            >
+              Clear Prompt
             </button>
           </div>
 

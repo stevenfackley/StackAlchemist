@@ -498,6 +498,51 @@ export default function HomePage() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-4 rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                    <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                      <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-4">
+                        <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                          Next Step
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          Submit the idea, review the structure, then choose the delivery tier.
+                        </div>
+                        <div className="mt-2 text-xs leading-relaxed text-slate-400">
+                          Simple Mode starts with your prompt and moves into schema review. Advanced Mode
+                          starts inside the visual entity wizard.
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                          Phases
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          {[
+                            {
+                              title: "1. Define",
+                              text: "Describe the product or model the entities, relationships, and endpoints.",
+                            },
+                            {
+                              title: "2. Review",
+                              text: "Confirm the architecture shape and select the output tier that fits the handoff.",
+                            },
+                            {
+                              title: "3. Receive",
+                              text: "Get planning artifacts, generated codebase, or infrastructure package depending on the tier.",
+                            },
+                          ].map((phase) => (
+                            <div
+                              key={phase.title}
+                              className="rounded-2xl border border-slate-600/30 bg-slate-800/60 px-4 py-3"
+                            >
+                              <div className="text-sm font-semibold text-white">{phase.title}</div>
+                              <div className="mt-1 text-xs leading-relaxed text-slate-400">{phase.text}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-4 flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <span>Press</span>
