@@ -1,0 +1,31 @@
+# StackAlchemist Source Available License (v1.0)
+
+Copyright (c) 2026 StackAlchemist. All rights reserved.
+
+## 1. DEFINITIONS
+
+"Software" refers to the source code, documentation, and assets contained in this repository.
+"Commercial Use" refers to using the Software for direct or indirect financial gain, including but not limited to running a software-as-a-service (SaaS) platform, selling the Software, or using it to provide paid consulting services.
+
+## 2. GRANT OF LICENSE
+
+Subject to the terms and conditions of this License, StackAlchemist hereby grants you a non-exclusive, non-transferable, limited license to:
+- **View:** Read and study the source code.
+- **Fork:** Create a copy of the Software on GitHub for personal experimentation.
+- **Personal Use:** Use the Software for non-commercial, educational, or evaluation purposes.
+
+## 3. RESTRICTIONS
+
+You may NOT:
+- **Redistribute:** Sell, rent, lease, sublicense, or distribute the Software or any modified versions thereof for profit.
+- **Compete:** Use the Software to create a product or service that competes directly or indirectly with StackAlchemist.com.
+- **SaaS Use:** Host the Software as a public service or integrated platform.
+- **Remove Notices:** Remove or modify any copyright, trademark, or proprietary notices contained in the Software.
+
+## 4. COMMERCIAL USE
+
+If you wish to use StackAlchemist for commercial purposes, you must purchase a valid Commercial License from [https://stackalchemist.com](https://stackalchemist.com). Use of this source code to build a production application without a purchased tier (Tier 1, 2, or 3) is a violation of this license.
+
+## 5. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

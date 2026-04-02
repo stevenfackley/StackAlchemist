@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Hexagon -->
+  <path d="M256 40L450.861 148v216L256 472L61.1385 364V148L256 40Z" fill="#0F172A" stroke="#3B82F6" stroke-width="12"/>
+  
+  <!-- The Stack (Bottom Layer) -->
+  <path d="M160 320L256 360L352 320L256 280L160 320Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+  
+  <!-- The Stack (Middle Layer) -->
+  <path d="M160 260L256 300L352 260L256 220L160 260Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+  
+  <!-- The Stack (Top Layer) -->
+  <path d="M160 200L256 240L352 200L256 160L160 200Z" fill="#3B82F6" fill-opacity="0.2" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+  
+  <!-- The Alchemist's Spark (4-Point Diamond Star) -->
+  <path d="M256 70C256 70 260 110 300 110C260 110 256 150 256 150C256 150 252 110 212 110C252 110 256 70 256 70Z" fill="#3B82F6">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- Core Glow -->
+  <circle cx="256" cy="110" r="4" fill="white" />
+</svg>
