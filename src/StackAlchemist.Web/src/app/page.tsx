@@ -391,32 +391,28 @@ export default function HomePage() {
               <span className="text-blue-400 font-medium">compile guarantee</span>.
             </p>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { value: "90s", label: "Typical architecture synthesis" },
-                { value: "V1", label: ".NET 10 + Next.js 15 + Dapper" },
-                { value: "3x", label: "Auto-correction retry budget" },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-slate-600/30 bg-slate-700/20 px-4 py-4 backdrop-blur-sm"
-                >
-                  <div className="font-mono text-2xl text-white">{stat.value}</div>
-                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{stat.label}</div>
+            <div className="rounded-2xl border border-slate-600/30 bg-slate-700/20 px-4 py-4 backdrop-blur-sm">
+              <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-blue-400">
+                    Built For Fast Handoffs
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                    Start from a prompt or open the entity wizard, review the architecture shape, then choose
+                    whether you want planning artifacts, a generated codebase, or the full infrastructure handoff.
+                  </p>
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-7 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 font-mono uppercase tracking-wider">V1 Stack:</span>
-              {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper"].map((tech) => (
-                <span
-                  key={tech}
-                  className="rounded-full border border-slate-600/40 bg-slate-700/30 px-3 py-1 text-xs text-slate-400 font-mono"
-                >
-                  {tech}
-                </span>
-              ))}
+                <div className="flex flex-wrap content-start gap-2">
+                  {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper", "Compile Guarantee"].map((tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-full border border-slate-600/40 bg-slate-800/50 px-3 py-1 text-[11px] text-slate-400 font-mono"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -426,14 +422,11 @@ export default function HomePage() {
                 <div>
                   <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
                   <h2 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
-                    Define the first shape of the product from the home screen.
+                    Shape the product brief without leaving the front page.
                   </h2>
                 </div>
-                <div className="rounded-2xl border border-slate-600/30 bg-slate-700/30 px-4 py-3 sm:max-w-[220px]">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-500">Mode Status</div>
-                  <div className="mt-1 text-sm text-slate-200">
-                    {mode === "simple" ? "Prompt-first synthesis path" : "Structured wizard path"}
-                  </div>
+                <div className="text-xs text-slate-500 font-mono sm:max-w-[220px] sm:text-right">
+                  {mode === "simple" ? "Prompt-first synthesis path" : "Structured wizard path"}
                 </div>
               </div>
 
@@ -473,77 +466,50 @@ export default function HomePage() {
                     onSubmit={handleSubmit}
                     className="max-w-none"
                   />
-                  <div className="mt-4 rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                    <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                      What You Walk Away With
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                      <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                        What You Walk Away With
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <div className="text-sm font-semibold text-white">Blueprint</div>
+                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                            Schema, API surface, and planning artifacts.
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-white">Boilerplate</div>
+                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                            Generated .NET and Next.js application structure.
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-white">Infrastructure</div>
+                          <div className="mt-1 text-xs leading-relaxed text-slate-400">
+                            IaC, charts, and deployment guidance.
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                      <div>
-                        <div className="text-sm font-semibold text-white">Blueprint</div>
-                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                          Schema design, API surface, and planning artifacts you can review or hand off.
-                        </div>
+                    <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
+                      <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                        Flow
                       </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">Boilerplate</div>
-                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                          A generated .NET + Next.js codebase assembled from the approved architecture.
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">Infrastructure</div>
-                        <div className="mt-1 text-xs leading-relaxed text-slate-400">
-                          Deployment-ready extras like IaC templates, charts, and runbook guidance.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                    <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                      <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-4">
-                        <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                          Next Step
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          Start with the idea, review the structure, then choose how complete the handoff should be.
-                        </div>
-                        <div className="mt-2 text-xs leading-relaxed text-slate-400">
-                          Simple Mode starts with your prompt and moves into schema review. Advanced Mode
-                          starts inside the visual entity wizard.
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
-                          Phases
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                          {[
-                            {
-                              title: "1. Define",
-                              text: "Describe the product or model the entities, relationships, and endpoints.",
-                            },
-                            {
-                              title: "2. Review",
-                              text: "Confirm the architecture shape and select the output tier that fits the handoff.",
-                            },
-                            {
-                              title: "3. Receive",
-                              text: "Get planning artifacts, generated codebase, or infrastructure package depending on the tier.",
-                            },
-                          ].map((phase) => (
-                            <div
-                              key={phase.title}
-                              className="rounded-2xl border border-slate-600/30 bg-slate-800/60 px-4 py-3"
-                            >
-                              <div className="text-sm font-semibold text-white">{phase.title}</div>
-                              <div className="mt-1 text-xs leading-relaxed text-slate-400">{phase.text}</div>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="mt-3 space-y-2">
+                        {[
+                          "1. Define the idea or model the entities",
+                          "2. Review the architecture shape",
+                          "3. Choose the handoff depth",
+                        ].map((step) => (
+                          <div key={step} className="text-xs leading-relaxed text-slate-400">
+                            {step}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="mt-4 flex flex-col gap-3 border-t border-slate-700/40 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <span>Press</span>
                       <kbd className="rounded border border-slate-500/40 bg-slate-700/50 px-2 py-0.5 font-mono text-xs text-slate-300">
@@ -552,7 +518,7 @@ export default function HomePage() {
                       <span>to synthesize</span>
                     </div>
                     <div className="font-mono uppercase tracking-[0.2em] text-slate-600">
-                      Optimized for desktop review, compressed for mobile
+                      Prompt first, details second
                     </div>
                   </div>
                 </>
