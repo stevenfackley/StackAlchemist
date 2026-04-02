@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { Check } from "lucide-react";
+import Image from "next/image";
 
 const tiers = [
   {
@@ -8,7 +9,7 @@ const tiers = [
     tagline: "The Architecture",
     price: 299,
     description:
-      "Everything you need to understand the system before a single line of code is written. The full schema, API surface, and SQL scripts — delivered as a precise technical document.",
+      "Everything you need to understand the system before a single line of code is written. The full schema, API surface, and SQL scripts — delivered as precise technical documentation.",
     items: [
       "Entity-Relationship Schema (JSON)",
       "API Specification (OpenAPI 3.0)",
@@ -18,7 +19,7 @@ const tiers = [
     ],
     highlight: false,
     cta: "Get the Blueprint",
-    color: "electric",
+    href: "/advanced?step=3&tier=1",
   },
   {
     id: "boilerplate",
@@ -38,7 +39,7 @@ const tiers = [
     ],
     highlight: true,
     cta: "Get the Boilerplate",
-    color: "electric",
+    href: "/advanced?step=3&tier=2",
   },
   {
     id: "infrastructure",
@@ -58,7 +59,7 @@ const tiers = [
     ],
     highlight: false,
     cta: "Get the Infrastructure",
-    color: "electric",
+    href: "/advanced?step=3&tier=3",
   },
 ];
 
@@ -69,7 +70,7 @@ const faqs = [
   },
   {
     q: "What is the Compile Guarantee?",
-    a: "Your generated Boilerplate or Infrastructure package is run through dotnet build before delivery. If it fails, an automatic correction loop re-runs the LLM with the compiler output and retries — up to three times. If it still can't compile, you get a full refund.",
+    a: "Your generated Boilerplate or Infrastructure package is run through dotnet build before delivery. If it fails, an automatic correction loop re-runs the LLM with the compiler output and retries — up to three times. If it still fails, you get a full refund.",
   },
   {
     q: "What stack does V1 generate?",
@@ -77,11 +78,11 @@ const faqs = [
   },
   {
     q: "Can I use the generated code commercially?",
-    a: "Yes. The generated code is yours entirely. No attribution required, no licensing restrictions. Build your SaaS, sell it, scale it — it's your architecture.",
+    a: "Yes. The generated code is yours entirely. No attribution required, no licensing restrictions. Build your SaaS, sell it, scale it.",
   },
   {
     q: "How long does generation take?",
-    a: "Simple schemas generate in under 30 seconds. Complex multi-entity systems with many relationships typically take 60–90 seconds. You'll see real-time progress during generation.",
+    a: "Simple schemas generate in under 30 seconds. Complex multi-entity systems typically take 60–90 seconds. You see real-time progress throughout.",
   },
   {
     q: "What if my idea doesn't fit the V1 stack?",
@@ -89,103 +90,139 @@ const faqs = [
   },
 ];
 
+const comparison = [
+  { label: "Schema JSON + ER Diagram", bp: true, bb: true, infra: true },
+  { label: "OpenAPI Specification", bp: true, bb: true, infra: true },
+  { label: "SQL Migration Scripts", bp: true, bb: true, infra: true },
+  { label: ".NET 10 Web API Source", bp: false, bb: true, infra: true },
+  { label: "Next.js 15 Frontend Source", bp: false, bb: true, infra: true },
+  { label: "Supabase Auth Integration", bp: false, bb: true, infra: true },
+  { label: "Docker Compose Environment", bp: false, bb: true, infra: true },
+  { label: "Compile Guarantee (3-retry)", bp: false, bb: true, infra: true },
+  { label: "AWS CDK Infrastructure Stack", bp: false, bb: false, infra: true },
+  { label: "Helm Charts (Kubernetes)", bp: false, bb: false, infra: true },
+  { label: "GitHub Actions CI/CD", bp: false, bb: false, infra: true },
+  { label: "Deployment Runbook", bp: false, bb: false, infra: true },
+  { label: "Cost Estimation Report", bp: false, bb: false, infra: true },
+];
+
 export default function PricingPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-void">
+    <div className="min-h-screen flex flex-col bg-slate-800">
+      {/* Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
+        <div
+          className="absolute top-1/4 -right-1/4 h-[700px] w-[700px] rounded-full animate-pulse-glow"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.04) 45%, transparent 70%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)",
+            backgroundSize: "80px 80px",
+          }}
+        />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
-        <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo />
-          <div className="flex items-center gap-6">
-            <Link href="/about" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">About</Link>
-            <Link href="/story" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Our Story</Link>
-            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Build</Link>
-            <Link href="/login" className="text-xs font-mono tracking-widest border border-electric text-electric hover:bg-electric hover:text-white transition-colors px-3 py-1.5 uppercase">
+      <header className="relative z-50 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0">
+        <nav className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+            <Image
+              src="/logo.svg"
+              alt="Stack Alchemist"
+              width={32}
+              height={32}
+              className="drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+            />
+            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
+              STACK <span className="text-blue-400">AL</span>CHEMIST
+            </span>
+          </Link>
+          <div className="flex items-center gap-4 sm:gap-6">
+            <Link href="/about" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">About</Link>
+            <Link href="/story" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">Story</Link>
+            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase">Build</Link>
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-500/30 bg-slate-700/50 text-xs font-mono tracking-widest text-slate-300 hover:border-blue-500/40 hover:text-blue-400 transition-all px-3 py-1.5 uppercase"
+            >
               Login
             </Link>
           </div>
         </nav>
       </header>
 
-      <main className="flex-1">
+      <main className="relative z-10 flex-1">
         {/* Hero */}
-        <section className="border-b border-slate-surface py-20 px-4 text-center">
-          <div className="max-w-2xl mx-auto space-y-4">
-            <p className="font-mono text-xs tracking-[0.3em] text-electric uppercase">
-              Pricing
-            </p>
-            <h1 className="font-mono text-4xl md:text-5xl font-bold text-white tracking-tight">
+        <section className="py-20 px-4 sm:px-8 text-center border-b border-slate-700/50">
+          <div className="max-w-2xl mx-auto space-y-5">
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+              <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Pricing</span>
+              <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+            </div>
+            <h1 className="font-bold text-4xl md:text-5xl text-white tracking-tight leading-tight">
               ONE PAYMENT.
               <br />
-              <span className="text-electric">OWN IT FOREVER.</span>
+              <span className="text-blue-400">OWN IT FOREVER.</span>
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-lg mx-auto">
-              No subscriptions. No recurring fees. No seat licenses. You describe
-              your SaaS, we transmute it into architecture — yours to keep,
-              modify, and ship.
+              No subscriptions. No recurring fees. No seat licenses. You describe your SaaS,
+              we transmute it into architecture — yours to keep, modify, and ship.
             </p>
           </div>
         </section>
 
-        {/* Tiers */}
-        <section className="py-20 px-4">
+        {/* Tier Cards */}
+        <section className="py-20 px-4 sm:px-8">
           <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-slate-border">
-              {tiers.map((tier, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {tiers.map((tier) => (
                 <div
                   key={tier.id}
-                  className={`relative p-8 space-y-6 flex flex-col ${
-                    i < tiers.length - 1 ? "md:border-r border-b md:border-b-0 border-slate-border" : ""
-                  } ${tier.highlight ? "bg-slate-surface/40" : "bg-void"}`}
+                  className={`relative rounded-xl border p-8 flex flex-col transition-all duration-300 ${
+                    tier.highlight
+                      ? "border-blue-500/50 bg-slate-700/50 shadow-[0_0_40px_rgba(59,130,246,0.12)]"
+                      : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
+                  }`}
                 >
                   {tier.highlight && (
-                    <div className="absolute top-0 left-0 right-0 h-px bg-electric" />
+                    <>
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500 to-transparent rounded-t-xl" />
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-3 py-1 text-xs font-medium text-white whitespace-nowrap">
+                        Most Popular
+                      </div>
+                    </>
                   )}
-                  {tier.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-electric text-white font-mono text-[10px] tracking-widest uppercase px-3 py-0.5">
-                      Most Popular
-                    </span>
-                  )}
-
-                  <div>
-                    <p className="font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-1">
-                      {tier.tagline}
-                    </p>
-                    <h2 className="font-mono text-lg font-bold text-white uppercase tracking-widest">
-                      {tier.name}
-                    </h2>
-                    <div className="mt-3 flex items-baseline gap-1">
-                      <span className="font-mono text-4xl font-bold text-white">
-                        ${tier.price}
-                      </span>
-                      <span className="font-mono text-xs text-slate-500">
-                        one-time
-                      </span>
-                    </div>
+                  <div className="mb-1 font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase">{tier.tagline}</div>
+                  <div className="mb-4 text-2xl font-bold text-white">{tier.name}</div>
+                  <div className="mb-5">
+                    <span className="text-4xl font-bold text-white">${tier.price}</span>
+                    <span className="ml-2 text-slate-500 text-sm font-mono">one-time</span>
                   </div>
-
-                  <p className="text-slate-400 text-sm leading-relaxed">
-                    {tier.description}
-                  </p>
-
-                  <ul className="space-y-2 flex-1">
+                  <p className="text-slate-400 text-sm leading-relaxed mb-6">{tier.description}</p>
+                  <ul className="space-y-2.5 flex-1 mb-8">
                     {tier.items.map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <span className="text-electric font-mono text-xs mt-0.5 shrink-0">›</span>
-                        <span className="font-mono text-xs text-slate-300">{item}</span>
+                      <li key={item} className="flex items-start gap-2.5 text-sm text-slate-300">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                        {item}
                       </li>
                     ))}
                   </ul>
-
                   <Link
-                    href="/advanced?step=3"
-                    className={`block text-center font-mono text-xs tracking-widest uppercase py-2.5 px-4 transition-colors border ${
+                    href={tier.href}
+                    className={`block text-center rounded-full py-3 text-sm font-medium transition-all duration-300 ${
                       tier.highlight
-                        ? "bg-electric border-electric text-white hover:bg-blue-600"
-                        : "border-slate-border text-slate-300 hover:border-electric hover:text-electric"
+                        ? "bg-blue-500 text-white hover:bg-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
+                        : "border border-slate-500/30 bg-slate-700/30 text-slate-200 hover:border-blue-500/40 hover:bg-slate-700/50"
                     }`}
                   >
-                    {tier.cta} →
+                    {tier.cta} &rarr;
                   </Link>
                 </div>
               ))}
@@ -193,57 +230,45 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* Comparison table */}
-        <section className="border-t border-slate-surface py-20 px-4">
+        {/* Comparison Table */}
+        <section className="border-t border-slate-700/50 py-20 px-4 sm:px-8">
           <div className="max-w-4xl mx-auto">
-            <h2 className="font-mono text-xs tracking-[0.3em] text-electric uppercase mb-10 text-center">
-              Full Comparison
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse font-mono text-xs">
+            <div className="mb-10 text-center">
+              <div className="flex items-center justify-center gap-3">
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Full Comparison</span>
+                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-700/50">
+              <table className="w-full font-mono text-xs">
                 <thead>
-                  <tr className="border-b border-slate-border">
-                    <th className="text-left py-3 pr-6 text-slate-500 font-normal tracking-widest uppercase w-1/2">
-                      Feature
-                    </th>
-                    <th className="py-3 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Blueprint</th>
-                    <th className="py-3 px-4 text-center text-electric font-bold tracking-widest uppercase">Boilerplate</th>
-                    <th className="py-3 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Infra</th>
+                  <tr className="border-b border-slate-700/50 bg-slate-700/20">
+                    <th className="text-left py-4 px-6 text-slate-500 font-normal tracking-widest uppercase w-1/2">Feature</th>
+                    <th className="py-4 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Blueprint</th>
+                    <th className="py-4 px-4 text-center text-blue-400 font-bold tracking-widest uppercase bg-blue-500/5">Boilerplate</th>
+                    <th className="py-4 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Infra</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    ["Schema JSON + ER Diagram", true, true, true],
-                    ["OpenAPI Specification", true, true, true],
-                    ["SQL Migration Scripts", true, true, true],
-                    [".NET 10 Web API Source", false, true, true],
-                    ["Next.js 15 Frontend Source", false, true, true],
-                    ["Supabase Auth Integration", false, true, true],
-                    ["Docker Compose Environment", false, true, true],
-                    ["Compile Guarantee (3-retry)", false, true, true],
-                    ["AWS CDK Infrastructure Stack", false, false, true],
-                    ["Helm Charts (Kubernetes)", false, false, true],
-                    ["GitHub Actions CI/CD", false, false, true],
-                    ["Deployment Runbook", false, false, true],
-                    ["Cost Estimation Report", false, false, true],
-                  ].map(([label, bp, bb, infra]) => (
-                    <tr key={label as string} className="border-b border-slate-surface/60 hover:bg-slate-surface/20 transition-colors">
-                      <td className="py-3 pr-6 text-slate-300">{label as string}</td>
+                  {comparison.map((row) => (
+                    <tr key={row.label} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
+                      <td className="py-3 px-6 text-slate-300">{row.label}</td>
                       <td className="py-3 px-4 text-center">
-                        {bp ? <span className="text-emerald">✓</span> : <span className="text-slate-700">—</span>}
+                        {row.bp ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
                       </td>
-                      <td className="py-3 px-4 text-center bg-slate-surface/20">
-                        {bb ? <span className="text-emerald">✓</span> : <span className="text-slate-700">—</span>}
+                      <td className="py-3 px-4 text-center bg-blue-500/5">
+                        {row.bb ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        {infra ? <span className="text-emerald">✓</span> : <span className="text-slate-700">—</span>}
+                        {row.infra ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
                       </td>
                     </tr>
                   ))}
-                  <tr className="border-t border-slate-border">
-                    <td className="py-4 text-white font-bold">Price</td>
+                  <tr className="border-t-2 border-slate-600/50 bg-slate-700/10">
+                    <td className="py-4 px-6 text-white font-bold">Price</td>
                     <td className="py-4 px-4 text-center text-white font-bold">$299</td>
-                    <td className="py-4 px-4 text-center text-electric font-bold bg-slate-surface/20">$599</td>
+                    <td className="py-4 px-4 text-center text-blue-400 font-bold bg-blue-500/5">$599</td>
                     <td className="py-4 px-4 text-center text-white font-bold">$999</td>
                   </tr>
                 </tbody>
@@ -253,12 +278,16 @@ export default function PricingPage() {
         </section>
 
         {/* FAQ */}
-        <section className="border-t border-slate-surface py-20 px-4">
+        <section className="border-t border-slate-700/50 py-20 px-4 sm:px-8">
           <div className="max-w-3xl mx-auto">
-            <h2 className="font-mono text-xs tracking-[0.3em] text-electric uppercase mb-12 text-center">
-              Frequently Asked
-            </h2>
-            <div className="space-y-0 divide-y divide-slate-surface">
+            <div className="mb-12 text-center">
+              <div className="flex items-center justify-center gap-3">
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Frequently Asked</span>
+                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+              </div>
+            </div>
+            <div className="divide-y divide-slate-700/50">
               {faqs.map((faq) => (
                 <div key={faq.q} className="py-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="md:col-span-2">
@@ -274,24 +303,24 @@ export default function PricingPage() {
         </section>
 
         {/* CTA */}
-        <section className="border-t border-slate-surface py-20 px-4 text-center">
+        <section className="border-t border-slate-700/50 py-20 px-4 sm:px-8 text-center">
           <div className="max-w-lg mx-auto space-y-6">
-            <h2 className="font-mono text-2xl font-bold text-white tracking-tight">
+            <h2 className="text-2xl font-bold text-white tracking-tight">
               Ready to transmute your idea?
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
               Start with a prompt. StackAlchemist handles the architecture.
             </p>
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/"
-                className="font-mono text-xs bg-electric hover:bg-blue-600 text-white px-6 py-2.5 uppercase tracking-widest transition-colors"
+                className="w-full sm:w-auto rounded-full bg-blue-500 text-white px-6 py-2.5 text-sm font-medium hover:bg-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)] transition-all duration-300 text-center"
               >
-                Start Building →
+                Start Building &rarr;
               </Link>
               <Link
                 href="/about"
-                className="font-mono text-xs border border-slate-border text-slate-400 hover:border-electric hover:text-electric px-6 py-2.5 uppercase tracking-widest transition-colors"
+                className="w-full sm:w-auto rounded-full border border-slate-500/30 bg-slate-700/30 text-slate-300 hover:border-blue-500/40 hover:text-blue-400 px-6 py-2.5 text-sm font-medium transition-all duration-300 text-center"
               >
                 Learn More
               </Link>
@@ -300,15 +329,18 @@ export default function PricingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-surface py-6 px-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <p className="font-mono text-xs text-slate-600 tracking-widest uppercase">
-            StackAlchemist · Transmutation Engine v1.0
-          </p>
+      <footer className="relative z-10 border-t border-slate-700/50 py-8 px-4 sm:px-8">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.svg" alt="Stack Alchemist" width={24} height={24} className="opacity-50" />
+            <span className="font-mono text-xs tracking-widest text-slate-500">
+              STACK <span className="text-blue-400/60">AL</span>CHEMIST
+            </span>
+          </div>
           <div className="flex gap-6">
-            <Link href="/about" className="font-mono text-xs text-slate-600 hover:text-electric transition-colors uppercase tracking-widest">About</Link>
-            <Link href="/story" className="font-mono text-xs text-slate-600 hover:text-electric transition-colors uppercase tracking-widest">Story</Link>
-            <Link href="/" className="font-mono text-xs text-slate-600 hover:text-electric transition-colors uppercase tracking-widest">Build</Link>
+            <Link href="/about" className="font-mono text-xs text-slate-600 hover:text-slate-300 transition-colors uppercase tracking-widest">About</Link>
+            <Link href="/story" className="font-mono text-xs text-slate-600 hover:text-slate-300 transition-colors uppercase tracking-widest">Story</Link>
+            <Link href="/" className="font-mono text-xs text-slate-600 hover:text-slate-300 transition-colors uppercase tracking-widest">Build</Link>
           </div>
         </div>
       </footer>

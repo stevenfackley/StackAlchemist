@@ -1,18 +1,19 @@
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 
-export function Logo({ size = 32 }: { size?: number }) {
+export function Logo({ className }: { className?: string }) {
   return (
-    <Link href="/" className="flex items-center gap-2 group">
+    <Link href="/" className={`flex items-center gap-2.5 transition-opacity hover:opacity-80 ${className ?? ""}`}>
       <Image
         src="/logo.svg"
-        alt="StackAlchemist"
-        width={size}
-        height={size}
-        className="shrink-0"
+        alt="Stack Alchemist"
+        width={32}
+        height={32}
+        className="drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+        priority
       />
-      <span className="font-mono text-sm font-semibold tracking-wider text-white group-hover:text-electric transition-colors">
-        StackAlchemist
+      <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
+        STACK <span className="text-blue-400">AL</span>CHEMIST
       </span>
     </Link>
   );

@@ -3,8 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --color-void: #0f172a;
-  --color-slate: #1e293b;
+  /* Elevated Slate - matches v0 design */
+  --color-void: #1e293b;
+  --color-void-deep: #0f172a;
+  --color-slate: #334155;
+  --color-slate-light: #475569;
   --color-electric: #3b82f6;
   --color-emerald: #10b981;
   --color-rose: #f43f5e;
@@ -26,7 +29,7 @@ html {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-void);
+  background: var(--color-void-deep);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-slate-border);

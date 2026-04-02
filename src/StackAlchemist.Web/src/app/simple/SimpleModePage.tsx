@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ReactFlow,
   Background,
@@ -17,32 +18,26 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Logo } from "@/components/logo";
+import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { submitSimpleGeneration } from "@/lib/actions";
+import { supabase } from "@/lib/supabase";
+import type { Generation, Tier } from "@/lib/types";
 
-function EntityCard({
-  name,
-  fields,
-}: {
-  name: string;
-  fields: { name: string; type: string; pk?: boolean }[];
-}) {
+// ─── Entity Card Node ─────────────────────────────────────────────────────────
+function EntityCard({ name, fields }: { name: string; fields: { name: string; type: string; pk?: boolean }[] }) {
   return (
-    <div className="bg-slate-surface border border-electric/60 min-w-[160px] text-left">
-      <div className="bg-electric/10 border-b border-electric/60 px-3 py-1.5">
-        <span className="font-mono text-xs font-bold text-blue-400 tracking-widest uppercase">
-          {name}
-        </span>
+    <div className="bg-slate-700 border border-blue-500/60 min-w-[160px] text-left rounded-lg overflow-hidden">
+      <div className="bg-blue-500/10 border-b border-blue-500/60 px-3 py-1.5">
+        <span className="font-mono text-xs font-bold text-blue-400 tracking-widest uppercase">{name}</span>
       </div>
       <div className="px-3 py-2 space-y-0.5">
         {fields.map((f) => (
           <div key={f.name} className="flex items-center gap-2">
             {f.pk && (
-              <span className="font-mono text-[9px] text-yellow-400 border border-yellow-400/40 px-0.5">
-                PK
-              </span>
+              <span className="font-mono text-[9px] text-yellow-400 border border-yellow-400/40 px-0.5 rounded">PK</span>
             )}
             <span className="font-mono text-[11px] text-white">{f.name}</span>
-            <span className="font-mono text-[10px] text-slate-500">{f.type}</span>
+            <span className="font-mono text-[10px] text-slate-400">{f.type}</span>
           </div>
         ))}
       </div>
@@ -52,119 +47,47 @@ function EntityCard({
 
 const MOCK_NODES: Node[] = [
   {
-    id: "user",
-    position: { x: 80, y: 160 },
-    data: {
-      label: (
-        <EntityCard
-          name="User"
-          fields={[
-            { name: "id", type: "UUID", pk: true },
-            { name: "email", type: "String" },
-            { name: "name", type: "String" },
-            { name: "created_at", type: "Timestamp" },
-          ]}
-        />
-      ),
-    },
-    type: "default",
-    style: { background: "transparent", border: "none", padding: 0 },
+    id: "user", position: { x: 80, y: 160 },
+    data: { label: <EntityCard name="User" fields={[{ name: "id", type: "UUID", pk: true }, { name: "email", type: "String" }, { name: "name", type: "String" }, { name: "created_at", type: "Timestamp" }]} /> },
+    type: "default", style: { background: "transparent", border: "none", padding: 0 },
   },
   {
-    id: "plan",
-    position: { x: 400, y: 60 },
-    data: {
-      label: (
-        <EntityCard
-          name="Plan"
-          fields={[
-            { name: "id", type: "UUID", pk: true },
-            { name: "name", type: "String" },
-            { name: "price", type: "Decimal" },
-          ]}
-        />
-      ),
-    },
-    type: "default",
-    style: { background: "transparent", border: "none", padding: 0 },
+    id: "plan", position: { x: 400, y: 60 },
+    data: { label: <EntityCard name="Plan" fields={[{ name: "id", type: "UUID", pk: true }, { name: "name", type: "String" }, { name: "price", type: "Decimal" }]} /> },
+    type: "default", style: { background: "transparent", border: "none", padding: 0 },
   },
   {
-    id: "subscription",
-    position: { x: 400, y: 280 },
-    data: {
-      label: (
-        <EntityCard
-          name="Subscription"
-          fields={[
-            { name: "id", type: "UUID", pk: true },
-            { name: "user_id", type: "UUID" },
-            { name: "plan_id", type: "UUID" },
-            { name: "status", type: "String" },
-            { name: "started_at", type: "Timestamp" },
-          ]}
-        />
-      ),
-    },
-    type: "default",
-    style: { background: "transparent", border: "none", padding: 0 },
+    id: "subscription", position: { x: 400, y: 280 },
+    data: { label: <EntityCard name="Subscription" fields={[{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "plan_id", type: "UUID" }, { name: "status", type: "String" }, { name: "started_at", type: "Timestamp" }]} /> },
+    type: "default", style: { background: "transparent", border: "none", padding: 0 },
   },
   {
-    id: "checkin",
-    position: { x: 700, y: 200 },
-    data: {
-      label: (
-        <EntityCard
-          name="CheckIn"
-          fields={[
-            { name: "id", type: "UUID", pk: true },
-            { name: "user_id", type: "UUID" },
-            { name: "checked_at", type: "Timestamp" },
-          ]}
-        />
-      ),
-    },
-    type: "default",
-    style: { background: "transparent", border: "none", padding: 0 },
+    id: "checkin", position: { x: 700, y: 200 },
+    data: { label: <EntityCard name="CheckIn" fields={[{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "checked_at", type: "Timestamp" }]} /> },
+    type: "default", style: { background: "transparent", border: "none", padding: 0 },
   },
 ];
 
 const MOCK_EDGES: Edge[] = [
-  {
-    id: "u-s",
-    source: "user",
-    target: "subscription",
-    label: "1:M",
-    style: { stroke: "#3B82F6" },
-    labelStyle: { fill: "#94a3b8", fontFamily: "JetBrains Mono", fontSize: 10 },
-    labelBgStyle: { fill: "#1E293B" },
-  },
-  {
-    id: "p-s",
-    source: "plan",
-    target: "subscription",
-    label: "1:M",
-    style: { stroke: "#3B82F6" },
-    labelStyle: { fill: "#94a3b8", fontFamily: "JetBrains Mono", fontSize: 10 },
-    labelBgStyle: { fill: "#1E293B" },
-  },
-  {
-    id: "u-c",
-    source: "user",
-    target: "checkin",
-    label: "1:M",
-    style: { stroke: "#3B82F6" },
-    labelStyle: { fill: "#94a3b8", fontFamily: "JetBrains Mono", fontSize: 10 },
-    labelBgStyle: { fill: "#1E293B" },
-  },
+  { id: "u-s", source: "user", target: "subscription", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
+  { id: "p-s", source: "plan", target: "subscription", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
+  { id: "u-c", source: "user", target: "checkin", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
 ];
 
 const GEN_STEPS = [
   "Parsing natural language prompt...",
-  "Extracting Entities: User, Plan, Subscription, CheckIn",
-  "Mapping Relationships: User (1:M) Subscription",
-  "Mapping Relationships: Plan (1:M) Subscription",
-  "Mapping Relationships: User (1:M) CheckIn",
+  "Identifying domain entities...",
+  "Mapping relationships between entities...",
+  "Designing API surface area...",
+  "Validating schema consistency...",
   "Generating entity-relationship canvas...",
+];
+
+// ─── Tier Selector ─────────────────────────────────────────────────────────────
+const TIERS: { id: Tier; name: string; price: string; tagline: string }[] = [
+  { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs only" },
+  { id: 2, name: "Boilerplate", price: "$599", tagline: "Full source code + Compile Guarantee" },
+  { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
 ];
 
 export default function SimpleModePage() {
@@ -172,19 +95,27 @@ export default function SimpleModePage() {
   const router = useRouter();
   const prompt = searchParams.get("q") ?? "";
 
-  const [phase, setPhase] = useState<"generating" | "canvas">("generating");
+  // ─── UI State ───────────────────────────────────────────────────────────────
+  const [phase, setPhase] = useState<"generating" | "canvas" | "tier" | "submitting" | "submitted" | "error">("generating");
   const [progress, setProgress] = useState(0);
   const [logLines, setLogLines] = useState<string[]>([]);
+  const [selectedTier, setSelectedTier] = useState<Tier>(2);
+  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
+  // ─── ReactFlow State ────────────────────────────────────────────────────────
   const [nodes, , onNodesChange] = useNodesState(MOCK_NODES);
   const [edges, setEdges, onEdgesChange] = useEdgesState(MOCK_EDGES);
-
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
   );
 
+  // ─── Simulate parsing progress ─────────────────────────────────────────────
   useEffect(() => {
+    if (phase !== "generating") return;
     let step = 0;
     const interval = setInterval(() => {
       if (step < GEN_STEPS.length) {
@@ -197,57 +128,117 @@ export default function SimpleModePage() {
       }
     }, 450);
     return () => clearInterval(interval);
-  }, []);
+  }, [phase]);
+
+  // ─── Supabase real-time subscription once generation is submitted ───────────
+  useEffect(() => {
+    if (!generationId) return;
+
+    const channel = supabase
+      .channel(`generation:${generationId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
+        (payload) => {
+          const updated = payload.new as Generation;
+          setLiveStatus(updated.status);
+          if (updated.status === "success") {
+            if (updated.download_url) {
+              router.push(`/generate/${generationId}`);
+            }
+          } else if (updated.status === "failed") {
+            setErrorMsg(updated.error_message ?? "Generation failed. Please try again.");
+            setPhase("error");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [generationId, router]);
+
+  // ─── Submit to Supabase + Engine ────────────────────────────────────────────
+  function handleProceed() {
+    startTransition(async () => {
+      setPhase("submitting");
+      const result = await submitSimpleGeneration(prompt, selectedTier);
+      if (result.success) {
+        setGenerationId(result.generationId);
+        setPhase("submitted");
+      } else {
+        setErrorMsg(result.error);
+        setPhase("error");
+      }
+    });
+  }
+
+  // ─── Status label ───────────────────────────────────────────────────────────
+  function statusLabel(s: Generation["status"] | null) {
+    switch (s) {
+      case "pending": return "Queued — waiting to start...";
+      case "extracting_schema": return "Extracting schema from prompt...";
+      case "generating_code": return "Synthesizing code with Claude 3.5 Sonnet...";
+      case "building": return "Running dotnet build (Compile Guarantee)...";
+      case "success": return "Build verified! Preparing download...";
+      case "failed": return "Build failed — triggering auto-correction...";
+      default: return "Processing...";
+    }
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-void">
-      <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
+    <div className="min-h-screen flex flex-col bg-slate-800">
+      {/* Header */}
+      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Logo />
+          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
+            <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
+            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
+              STACK <span className="text-blue-400">AL</span>CHEMIST
+            </span>
+          </Link>
           <span className="text-slate-600 font-mono text-xs">|</span>
-          <Link
-            href="/"
-            className="font-mono text-xs text-slate-400 hover:text-electric transition-colors tracking-widest uppercase"
-          >
+          <Link href="/" className="font-mono text-xs text-slate-400 hover:text-blue-400 transition-colors tracking-widest uppercase">
             &larr; Back
           </Link>
         </div>
       </header>
 
-      <div className="border-b border-slate-surface bg-slate-surface/30 px-4 py-3">
+      {/* Prompt banner */}
+      <div className="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
         <div className="max-w-6xl mx-auto">
-          <p className="font-mono text-xs text-slate-500 tracking-widest uppercase mb-1">
-            Input
-          </p>
+          <p className="font-mono text-xs text-slate-500 tracking-widest uppercase mb-1">Prompt</p>
           <p className="font-mono text-sm text-white">{prompt || "No prompt provided."}</p>
         </div>
       </div>
 
       <main className="flex-1 flex flex-col">
+        {/* ── Phase: Generating ─────────────────────────────────────────────── */}
         {phase === "generating" && (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
             <div className="w-full max-w-xl space-y-2">
               <div className="flex items-center justify-between font-mono text-xs text-slate-400 uppercase tracking-widest">
-                <span>Generating Schema</span>
-                <span className="text-electric">{progress}%</span>
+                <span>Extracting Schema</span>
+                <span className="text-blue-400">{progress}%</span>
               </div>
-              <div className="h-1 bg-slate-surface w-full">
+              <div className="h-1 bg-slate-700 w-full rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-electric transition-all duration-300"
+                  className="h-full bg-blue-500 transition-all duration-300 rounded-full"
                   style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
 
-            <div className="w-full max-w-xl bg-slate-surface border border-slate-border p-4 space-y-1">
+            <div className="w-full max-w-xl rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1.5">
               {logLines.map((line, i) => (
-                <p key={i} className="font-mono text-xs text-emerald">
+                <p key={i} className="font-mono text-xs text-emerald-400">
                   <span className="text-slate-500 mr-2">&rsaquo;</span>
                   {line}
                 </p>
               ))}
               {progress < 100 && (
-                <p className="font-mono text-xs text-electric animate-pulse">
+                <p className="font-mono text-xs text-blue-400 animate-pulse">
                   <span className="mr-2">&rsaquo;</span>_
                 </p>
               )}
@@ -255,22 +246,26 @@ export default function SimpleModePage() {
           </div>
         )}
 
+        {/* ── Phase: Canvas ─────────────────────────────────────────────────── */}
         {phase === "canvas" && (
           <div className="flex-1 flex flex-col">
-            <div className="border-b border-slate-surface px-4 py-3 bg-void">
-              <div className="max-w-6xl mx-auto flex items-center justify-between">
-                <p className="font-mono text-xs text-emerald tracking-widest uppercase">
-                  &#10003; Schema extracted &mdash; review and edit before proceeding
-                </p>
-                <div className="flex gap-3">
-                  <button className="font-mono text-xs border border-slate-border text-slate-400 hover:border-electric hover:text-electric px-4 py-1.5 uppercase tracking-widest transition-colors">
+            <div className="border-b border-slate-700/50 px-4 py-3 bg-slate-800">
+              <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <p className="font-mono text-xs text-emerald-400 tracking-widest uppercase">
+                    Schema extracted — review and confirm before proceeding
+                  </p>
+                </div>
+                <div className="flex gap-3 shrink-0">
+                  <button className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
                     Edit Schema
                   </button>
                   <button
-                    onClick={() => router.push("/advanced?step=3")}
-                    className="font-mono text-xs bg-electric hover:bg-blue-600 text-white px-4 py-1.5 uppercase tracking-widest transition-colors"
+                    onClick={() => setPhase("tier")}
+                    className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors"
                   >
-                    Confirm &amp; Proceed &rarr;
+                    Confirm &amp; Select Tier &rarr;
                   </button>
                 </div>
               </div>
@@ -278,24 +273,140 @@ export default function SimpleModePage() {
 
             <div className="flex-1" style={{ minHeight: "500px" }}>
               <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
+                nodes={nodes} edges={edges}
+                onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                fitView
-                colorMode="dark"
-                style={{ background: "#0F172A" }}
+                fitView colorMode="dark"
+                style={{ background: "#1e293b" }}
               >
-                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1E293B" />
-                <Controls
-                  style={{ background: "#1E293B", border: "1px solid #334155", borderRadius: 0 }}
-                />
-                <MiniMap
-                  style={{ background: "#1E293B", border: "1px solid #334155", borderRadius: 0 }}
-                  nodeColor="#3B82F6"
-                />
+                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#334155" />
+                <Controls style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} />
+                <MiniMap style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} nodeColor="#3B82F6" />
               </ReactFlow>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase: Tier Selection ─────────────────────────────────────────── */}
+        {phase === "tier" && (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16">
+            <div className="w-full max-w-3xl space-y-6">
+              <div className="text-center mb-8">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+                  <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Step 2</span>
+                  <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Choose Your Tier</h2>
+                <p className="text-slate-400 text-sm">One-time payment. No subscriptions. You own the architecture forever.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {TIERS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTier(t.id)}
+                    className={`relative rounded-xl border p-5 text-left space-y-2 transition-all duration-300 ${
+                      selectedTier === t.id
+                        ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+                        : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
+                    }`}
+                  >
+                    {t.id === 2 && (
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
+                        Recommended
+                      </div>
+                    )}
+                    <div className="font-mono text-xs font-bold tracking-widest text-white uppercase">{t.name}</div>
+                    <div className="text-xl font-bold text-blue-400">{t.price}</div>
+                    <div className="text-xs text-slate-400">{t.tagline}</div>
+                    {selectedTier === t.id && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
+                        <span className="font-mono text-[10px] text-blue-400">Selected</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <button
+                  onClick={() => setPhase("canvas")}
+                  className="flex-1 font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 py-3 rounded-full uppercase tracking-widest transition-colors"
+                >
+                  &larr; Review Schema
+                </button>
+                <button
+                  onClick={handleProceed}
+                  disabled={isPending}
+                  className="flex-1 font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</> : "Proceed to Checkout \u2192"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase: Submitting / Submitted ─────────────────────────────────── */}
+        {(phase === "submitting" || phase === "submitted") && (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
+            <div className="w-full max-w-xl space-y-6 text-center">
+              <div className="flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+                </div>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">Synthesizing Your Platform</h2>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  {statusLabel(liveStatus)}
+                </p>
+              </div>
+
+              {generationId && (
+                <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 text-left space-y-2">
+                  <p className="font-mono text-xs text-slate-500 uppercase tracking-widest">Generation ID</p>
+                  <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
+                  <p className="font-mono text-xs text-slate-500">
+                    Keep this page open — we&apos;ll redirect you when your download is ready.
+                  </p>
+                </div>
+              )}
+
+              <div className="w-full bg-slate-700 rounded-full h-1 overflow-hidden">
+                <div className="h-full bg-blue-500 animate-pulse rounded-full" style={{ width: "60%" }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase: Error ──────────────────────────────────────────────────── */}
+        {phase === "error" && (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
+            <div className="w-full max-w-md text-center space-y-4">
+              <div className="flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
+                  <AlertCircle className="h-8 w-8 text-rose-400" />
+                </div>
+              </div>
+              <h2 className="text-xl font-bold text-white">Something went wrong</h2>
+              <p className="text-slate-400 text-sm leading-relaxed">{errorMsg ?? "An unexpected error occurred."}</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => { setPhase("tier"); setErrorMsg(null); }}
+                  className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors"
+                >
+                  &larr; Try Again
+                </button>
+                <Link
+                  href="/"
+                  className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors text-center"
+                >
+                  Start Over
+                </Link>
+              </div>
             </div>
           </div>
         )}
