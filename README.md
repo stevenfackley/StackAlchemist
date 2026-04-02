@@ -12,7 +12,7 @@ StackAlchemist is an enterprise-grade micro SaaS platform that automates the sca
 StackAlchemist is a **Proprietary & Source Available** product. While the source code is public for transparency and community forks, commercial use is restricted to paid license holders. 
 
 - **For Personal Use:** You are free to fork and explore the codebase.
-- **For Commercial Use:** You must purchase a tier from [StackAlchemist.com](https://stackalchemist.com).
+- **For Commercial Use:** You must purchase a tier from [StackAlchemist.app](https://stackalchemist.app).
 
 Please see the [LICENSE](LICENSE) file for full details.
 

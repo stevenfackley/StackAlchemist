@@ -16,7 +16,7 @@ If you expected an endpoint that wasn't generated:
 
 ### Payment Succeeded but Generation Didn't Start
 - **Possible Cause:** Stripe webhook delay or processing error.
-- **Resolution:** Please contact support@stackalchemist.com with your Stripe Session ID, and we will manually trigger the generation for you.
+- **Resolution:** Please contact support@stackalchemist.app with your Stripe Session ID, and we will manually trigger the generation for you.
 
 ### Download Link Expired
 - **Possible Cause:** For security reasons, Cloudflare R2 presigned URLs expire after 24 hours.
