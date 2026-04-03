@@ -198,6 +198,18 @@ StackAlchemist/
 
 ---
 
+## 🧪 Mascots
+
+### Auri — Main Mascot
+
+Auri is our resident alchemist: equal parts wise guide and chaotic builder energy. He represents what StackAlchemist is built for — turning rough ideas into shippable systems, without losing the magic of building.
+
+### Reto — Swiss Cheese Method
+
+Reto is the specialist behind the Swiss Cheese Method. He keeps structure solid, leaves room for intelligent variation, and reminds us that reliable software is equal parts discipline and craft.
+
+---
+
 <div align="center">
   <sub>Built by StackAlchemist · All rights reserved</sub>
 </div>
