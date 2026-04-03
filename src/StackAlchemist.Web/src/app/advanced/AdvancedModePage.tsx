@@ -289,7 +289,7 @@ export default function AdvancedModePage() {
         }
       ).subscribe();
     return () => { client.removeChannel(channel); };
-  }, [generationId, router]);
+  }, [generationId, router, selectedTier]);
 
   function handleCheckout() {
     startTransition(async () => {

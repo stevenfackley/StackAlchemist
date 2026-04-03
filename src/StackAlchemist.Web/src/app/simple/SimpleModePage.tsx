@@ -437,7 +437,7 @@ export default function SimpleModePage() {
     return () => {
       client.removeChannel(channel);
     };
-  }, [generationId, router]);
+  }, [generationId, router, selectedTier]);
 
   // ─── Submit to Supabase + Engine ────────────────────────────────────────────
   function handleProceed() {
