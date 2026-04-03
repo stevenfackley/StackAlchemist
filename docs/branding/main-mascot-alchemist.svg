@@ -1,0 +1,89 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Auri, the Mystical Alchemist Mascot</title>
+  <desc id="desc">Main StackAlchemist mascot redesigned as a classic wizard-like alchemist with hooded cloak, ornate staff, satchel, and glowing elixir flask.</desc>
+
+  <defs>
+    <linearGradient id="cloak" x1="324" y1="368" x2="694" y2="862" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="trim" x1="452" y1="488" x2="574" y2="846" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A"/>
+      <stop offset="1" stop-color="#D4A93A"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="430" y1="314" x2="592" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFDABD"/>
+      <stop offset="1" stop-color="#F1B98E"/>
+    </linearGradient>
+    <linearGradient id="bgOrb" x1="512" y1="90" x2="512" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4DA6FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#4DA6FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="flaskLiquid" x1="596" y1="650" x2="734" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BAE6FD"/>
+      <stop offset="1" stop-color="#4DA6FF"/>
+    </linearGradient>
+    <filter id="shadow" x="220" y="210" width="640" height="700" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#0F172A" flood-opacity="0.35"/>
+    </filter>
+    <filter id="glow" x="560" y="560" width="260" height="260" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#4DA6FF" flood-opacity="0.92"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#4DA6FF" flood-opacity="0.62"/>
+    </filter>
+  </defs>
+
+  <!-- soft magic aura -->
+  <ellipse cx="512" cy="210" rx="190" ry="130" fill="url(#bgOrb)"/>
+  <ellipse cx="512" cy="846" rx="210" ry="42" fill="#0F172A" opacity="0.22"/>
+
+  <g filter="url(#shadow)">
+    <!-- hood + mantle -->
+    <path d="M354 420C368 286 433 222 512 222C591 222 656 286 670 420L512 484L354 420Z" fill="#0B1220" stroke="#4DA6FF" stroke-width="9"/>
+    <path d="M318 504C360 468 423 448 512 448C601 448 664 468 706 504L752 846H272L318 504Z" fill="url(#cloak)" stroke="#334155" stroke-width="10"/>
+
+    <!-- face -->
+    <ellipse cx="512" cy="406" rx="92" ry="108" fill="url(#skin)"/>
+    <ellipse cx="470" cy="410" rx="14" ry="17" fill="#111827"/>
+    <ellipse cx="554" cy="410" rx="14" ry="17" fill="#111827"/>
+    <circle cx="475" cy="404" r="4" fill="#FFFFFF"/>
+    <circle cx="559" cy="404" r="4" fill="#FFFFFF"/>
+    <path d="M470 470C486 492 500 501 512 501C524 501 538 492 554 470" stroke="#7A3E1F" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- classic alchemist beard + brows -->
+    <path d="M450 372C463 360 478 356 492 362" stroke="#E5E7EB" stroke-width="6" stroke-linecap="round"/>
+    <path d="M532 362C546 356 561 360 574 372" stroke="#E5E7EB" stroke-width="6" stroke-linecap="round"/>
+    <path d="M456 494C474 560 492 610 512 638C532 610 550 560 568 494" fill="#F8FAFC"/>
+    <path d="M468 509C484 560 497 589 512 614C527 589 540 560 556 509" stroke="#CBD5E1" stroke-width="5"/>
+
+    <!-- shoulder mantle trim -->
+    <path d="M368 520C408 498 456 486 512 486C568 486 616 498 656 520" stroke="#D4A93A" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- torso trim -->
+    <path d="M448 520C469 508 490 502 512 502C534 502 555 508 576 520L556 846H468L448 520Z" fill="url(#trim)" opacity="0.95"/>
+
+    <!-- belt -->
+    <rect x="372" y="642" width="280" height="36" rx="18" fill="#0F172A" stroke="#4DA6FF" stroke-width="6"/>
+    <rect x="493" y="634" width="38" height="52" rx="9" fill="#D4A93A" stroke="#8B6B1F" stroke-width="5"/>
+
+    <!-- left hand + satchel -->
+    <circle cx="402" cy="670" r="34" fill="url(#skin)"/>
+    <path d="M290 696C290 670 311 649 337 649H379V755H337C311 755 290 734 290 708V696Z" fill="#8B5A2B" stroke="#6F451F" stroke-width="6"/>
+    <circle cx="365" cy="699" r="8" fill="#D4A93A"/>
+
+    <!-- right hand -->
+    <circle cx="652" cy="670" r="34" fill="url(#skin)"/>
+
+    <!-- staff -->
+    <rect x="730" y="474" width="14" height="330" rx="7" transform="rotate(14 730 474)" fill="#8B5A2B"/>
+    <path d="M775 500L793 461L811 500L850 518L811 536L793 575L775 536L736 518L775 500Z" fill="#4DA6FF"/>
+
+    <!-- flask -->
+    <path d="M640 618L682 618L676 652L676 673C705 684 726 710 726 742C726 778 697 808 661 808C625 808 596 778 596 742C596 710 617 684 646 673V652L640 618Z" fill="#E2E8F0" stroke="#64748B" stroke-width="8"/>
+    <path d="M607 744C608 714 632 690 661 690C690 690 714 714 715 744C714 773 690 797 661 797C632 797 608 773 607 744Z" fill="url(#flaskLiquid)"/>
+    <path d="M624 758C636 746 649 741 661 741C673 741 686 746 698 758" stroke="#E0F2FE" stroke-width="6" stroke-linecap="round"/>
+
+    <g filter="url(#glow)">
+      <path d="M693 676L705 649L717 676L744 688L717 700L705 727L693 700L666 688L693 676Z" fill="#4DA6FF"/>
+    </g>
+  </g>
+</svg>
