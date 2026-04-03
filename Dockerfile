@@ -11,6 +11,7 @@ RUN corepack enable && corepack prepare pnpm@10 --activate
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+COPY scripts/ /scripts/
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY src/StackAlchemist.Web/ .
