@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@stackblitz/sdk':
+        specifier: ^1.11.0
+        version: 1.11.0
       '@supabase/supabase-js':
         specifier: ^2.101.1
         version: 2.101.1
@@ -863,6 +866,9 @@ packages:
 
   '@rushstack/eslint-patch@1.16.1':
     resolution: {integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==}
+
+  '@stackblitz/sdk@1.11.0':
+    resolution: {integrity: sha512-DFQGANNkEZRzFk1/rDP6TcFdM82ycHE+zfl9C/M/jXlH68jiqHWHFMQURLELoD8koxvu/eW5uhg94NSAZlYrUQ==}
 
   '@supabase/auth-js@2.101.1':
     resolution: {integrity: sha512-Kd0Wey+RkFHgyVep7adS6UOE2pN6MJ3mZ32PAXSvfw6IjUkFRC7IQpdZZjUOcUe5pXr1ejufCRgF6lsGINe4Tw==}
@@ -3983,6 +3989,8 @@ snapshots:
   '@rtsao/scc@1.1.0': {}
 
   '@rushstack/eslint-patch@1.16.1': {}
+
+  '@stackblitz/sdk@1.11.0': {}
 
   '@supabase/auth-js@2.101.1':
     dependencies:

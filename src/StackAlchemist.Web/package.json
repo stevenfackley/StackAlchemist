@@ -11,6 +11,7 @@
     "postinstall": "node ../../scripts/setup-env.mjs"
   },
   "dependencies": {
+    "@stackblitz/sdk": "^1.11.0",
     "@supabase/supabase-js": "^2.101.1",
     "@xyflow/react": "^12.6.0",
     "class-variance-authority": "^0.7.1",
