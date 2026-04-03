@@ -266,69 +266,77 @@ All UI must follow the design language in `docs/branding/Branding Guidelines.md`
 - The generation pipeline (Phase 3+) must have integration tests that verify the full mock-to-compiled-output flow.
 - Run `dotnet test` and confirm all tests pass before declaring a phase complete.
 
-Begin Phase 3 now. Do not rewrite completed Phase 1 or Phase 2 work. First read the current docs and decisions log, then continue from the existing scaffold, template library, and audit hardening already in the repository.
+Begin from the highest incomplete phase shown in the Progress Tracker below. Do not rewrite already completed phase work. First read the current docs and decisions log, then continue from the existing scaffold and implemented services in the repository.
 
 ---
 
 ### [PROGRESS TRACKER]
 
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-03
 
 #### PHASE 1: PROJECT SCAFFOLDING & UI FOUNDATIONS — COMPLETE
 
-**What was done:**
-- Next.js 15.5 App Router initialized in `src/StackAlchemist.Web/` (Tailwind 3, Inter + JetBrains Mono, dark-only design system)
-- .NET 10 Web API scaffolded in `src/StackAlchemist.Engine/`
-- Landing page built and refined: split hero layout, "Launch Console", home prompt builder, clearer delivery summary, and responsive desktop/mobile treatment
-- Simple Mode (`/simple`): CLI-style generation animation with progress bar + log stream, then editable React Flow entity-relationship canvas with mock entities (User, Plan, Subscription, CheckIn)
-- Advanced Mode (`/advanced`): 3-step horizontal stepper wizard (Define Entities → Configure API Endpoints → Select Tier & Pay) with live React Flow visualization, entity/field/relationship CRUD, endpoint config, tier selection
-- Pricing page built with full tier comparison and explicit header navigation back to home
-- npm cache relocated from F:\ to G:\ drive
-- Audit hardening applied: Next production build no longer ignores lint/type failures; Supabase env handling now fails closed; realtime subscription lifecycle bugs fixed; engine host exposes `/healthz`; analyzers enabled for Engine and Worker
-- Branding drift resolved in code: the live UI uses an elevated-slate palette with `#4DA6FF` accenting rather than the earlier `#3B82F6`-centric docs wording
-
-**Validation:**
-- `npm run lint` → zero errors
-- `next build` → succeeds
-- `dotnet build StackAlchemist.slnx` → succeeds
-- Residual machine warning: `CS1668` from the host `LIB` environment variable points to a non-existent Visual Studio path
-
-**Decisions / Deviations:**
-- Used Tailwind 3 (not 4) due to existing project constraints
-- React 19 stable + Next.js 15.3+ (upgraded from RC versions that had peer dep conflicts)
-- Restored a richer pricing presence through the dedicated `/pricing` page while keeping the landing hero focused on the prompt flow
-- npm_config_cache env var overrides .npmrc — commands may still need `npm_config_cache="G:/packages/npm"` or a permanent shell fix
-- `docs/product/*` and `docs/architecture/*` were synced to distinguish implemented Phase 1 behavior from planned later-phase architecture
-
-**Where work stopped:**
-- Phase 1 and Phase 2 assets exist in-repo and compile/build cleanly
-- The repo is ready to start Phase 3 from the existing scaffold and template set
-- No Phase 3 generation pipeline, reconstruction service, or compile worker logic is implemented yet
+**Implemented and verified in repo:**
+- Next.js 15.5 App Router frontend in `src/StackAlchemist.Web/` (Tailwind 3, Inter + JetBrains Mono, dark-only styling)
+- .NET 10 Web API host in `src/StackAlchemist.Engine/`
+- Landing page with full-height hero + separate Launch Console section and prompt-builder UX
+- Simple Mode page and Advanced Mode 3-step wizard with React Flow entity tooling
+- Additional marketing/product pages now present: `/about`, `/story`, `/docs`, `/pricing`
+- Build/lint hardening from prior audit remains in place
 
 #### PHASE 2: MASTER TEMPLATE CONSTRUCTION — COMPLETE
 
-**What was done:**
-- Created `src/StackAlchemist.Templates/V1-DotNet-NextJs/` with `dotnet/`, `nextjs/`, and `infra/` template roots
-- Added Handlebars variables for project naming, database connection, and frontend configuration
-- Added LLM injection zones for repositories, controllers, models, SQL schema, page content, API handlers, and type definitions
-- Added `src/StackAlchemist.Templates/validate.mjs` and supporting package metadata to render templates against mock input
+**Implemented and verified in repo:**
+- `src/StackAlchemist.Templates/V1-DotNet-NextJs/` template set with `dotnet/`, `nextjs/`, `infra/`
+- Handlebars variables and LLM injection zones across backend/frontend/infra templates
+- Template validation utility (`validate.mjs`) for deterministic render checks
 
-**Validation:**
-- Template validation renders 22 files with mock data and reports 0 failures
+#### PHASE 3: GENERATION ENGINE & COMPILE WORKER — COMPLETE
 
-**Where work stopped:**
-- Templates are in place for Phase 3 consumption
-- TemplateProvider and reconstruction logic are still unimplemented
+**Implemented and verified in repo:**
+- `TemplateProvider` implemented (`LoadTemplate`, `Render`, injection zone helpers)
+- `ReconstructionService` implemented (`[[FILE:path]]...[[END_FILE]]` parsing + template zone reconstruction)
+- `GenerationOrchestrator` implemented: render templates → call LLM client → parse/reconstruct → write temp output → enqueue compile job
+- Compile state machine actively used in orchestration + worker transitions
+- `CompileWorkerService` implemented with retry loop (`MaxRetries = 3`), build error extraction, LLM repair pass, and state updates
+- Engine tests cover prompt building, schema extraction validation, tier gating, and integration-adjacent services
 
-#### PHASE 3: GENERATION ENGINE & COMPILE WORKER — NEXT
+#### PHASE 4: EXTERNAL INTEGRATIONS — IN PROGRESS (MAJOR PARTS IMPLEMENTED)
 
-**Recommended starting point:**
-- Implement `TemplateProvider` in `src/StackAlchemist.Engine/`
-- Implement `ReconstructionService` and malformed-block tests
-- Replace the worker stub with queued compile/retry orchestration
-- Add mocked end-to-end pipeline coverage before touching live integrations
+**Implemented now:**
+- Live/Mock LLM client switching in Engine based on config (`AnthropicLlmClient` vs `MockLlmClient`)
+- Cloudflare R2 zip upload service (`CloudflareR2UploadService`) with presigned URL return
+- Supabase delivery sync service (`SupabaseDeliveryService`) for generation status + download URL updates
+- In-process queue architecture (Engine + Worker combined process via Channel + hosted service)
+- Stripe webhook endpoint scaffolded at `/api/webhooks/stripe` with signature validation and enqueue behavior
+- Web frontend generation status route (`/generate/[id]`) with realtime subscription + status-step UI
+- Spark/free tier UX implemented in web app:
+  - `tier: 0` type support
+  - free preview path with `preview_files_json`
+  - embedded micro-IDE experience + paid upgrade CTAs
+- Pricing now explicitly documents Spark (free) + paid tiers in both cards and comparison matrix
 
-#### PHASE 4: EXTERNAL INTEGRATIONS — NOT STARTED
-#### PHASE 5: MONETIZATION & DASHBOARD — NOT STARTED
-#### PHASE 6: TIER 3 IaC & PLATFORM CI/CD — NOT STARTED
+**Still not fully complete for Phase 4 Definition of Done:**
+- End-to-end authenticated Supabase schema/RLS rollout for `profiles`/`transactions`/`generations` still documented as planned architecture
+- Fully wired schema-extraction LLM path for Simple Mode is only partially represented (service exists; complete integrated runtime flow still pending)
+- Confirmed production-grade WebSocket/build-log streaming semantics and full live API proof are not yet declared complete in docs
+
+#### PHASE 5: MONETIZATION & DASHBOARD — PARTIALLY STARTED
+
+**Implemented now:**
+- Pricing architecture and tier semantics are live in UI, including Spark free preview path
+- Stripe webhook receiver exists in Engine and can enqueue generation jobs
+
+**Pending:**
+- Full checkout/session lifecycle wiring from frontend
+- Authenticated dashboard with generation history/BYOK/model preference
+- Complete transaction persistence model and strict tier gating end-to-end
+
+#### PHASE 6: TIER 3 IaC & PLATFORM CI/CD — NOT STARTED (BEYOND TEMPLATE STUBS)
 #### PHASE 7: PRODUCTION HARDENING & LAUNCH — NOT STARTED
+
+#### RECOMMENDED CURRENT STARTING POINT
+
+1. Close Phase 4 gaps first (true live schema extraction flow, RLS-backed production schema, and verified end-to-end generation pipeline).
+2. Then complete Phase 5 (full Stripe checkout orchestration + authenticated dashboard + BYOK).
+3. Keep `docs/architecture/*` and `docs/product/*` synced as each integration milestone is finished.
