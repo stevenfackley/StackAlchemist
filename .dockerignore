@@ -34,8 +34,9 @@
 .DS_Store
 Thumbs.db
 
-# ─── Docs / docker config (not needed inside images) ─────────────────────────
+# ─── Docs / scripts / docker config (not needed inside images) ───────────────
 docs/
+scripts/
 docker/
 
 # ─── Misc project files ───────────────────────────────────────────────────────
