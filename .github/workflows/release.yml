@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write  # needed to push CHANGELOG.md and create GitHub Releases
+
 jobs:
   changelog:
     name: Generate Changelog

@@ -50,8 +50,12 @@ ENTRYPOINT ["dotnet", "StackAlchemist.Engine.dll"]
 # ==========================================
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS worker-builder
 WORKDIR /src
+# Worker references Engine — copy both .csproj files before restore so the
+# dependency graph can be resolved, then copy full source for both projects.
+COPY src/StackAlchemist.Engine/*.csproj ./StackAlchemist.Engine/
 COPY src/StackAlchemist.Worker/*.csproj ./StackAlchemist.Worker/
 RUN dotnet restore ./StackAlchemist.Worker/StackAlchemist.Worker.csproj
+COPY src/StackAlchemist.Engine/ ./StackAlchemist.Engine/
 COPY src/StackAlchemist.Worker/ ./StackAlchemist.Worker/
 RUN dotnet publish ./StackAlchemist.Worker/StackAlchemist.Worker.csproj -c Release -o /app/publish
 
