@@ -13,7 +13,8 @@ export type GenerationStatus =
   | "failed";
 
 // ─── Tier ────────────────────────────────────────────────────────────────────
-export type Tier = 1 | 2 | 3;
+// 0 = Spark (free): view-only micro IDE preview, no download
+export type Tier = 0 | 1 | 2 | 3;
 
 // ─── Schema Types ────────────────────────────────────────────────────────────
 export interface Field {
@@ -58,6 +59,11 @@ export interface Generation {
   prompt: string | null;
   schema_json: GenerationSchema | null;
   download_url: string | null;
+  /** Tier 0 (Spark/free) only: generated file contents keyed by relative path.
+   *  e.g. { "src/app/page.tsx": "...", "package.json": "..." }
+   *  Populated by the engine instead of uploading a zip to R2.
+   */
+  preview_files_json: Record<string, string> | null;
   error_message: string | null;
   attempt_count: number;
   created_at: string;
@@ -82,6 +88,7 @@ export interface Database {
           prompt?: string | null;
           schema_json?: GenerationSchema | null;
           download_url?: string | null;
+          preview_files_json?: Record<string, string> | null;
           error_message?: string | null;
           attempt_count?: number;
           created_at?: string;

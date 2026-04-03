@@ -343,7 +343,8 @@ const GEN_STEPS = [
 ];
 
 // ─── Tier Selector ─────────────────────────────────────────────────────────────
-const TIERS: { id: Tier; name: string; price: string; tagline: string }[] = [
+const TIERS: { id: Tier; name: string; price: string; tagline: string; isFree?: boolean }[] = [
+  { id: 0, name: "Spark", price: "Free", tagline: "Live micro IDE preview — view-only, no download", isFree: true },
   { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs only" },
   { id: 2, name: "Boilerplate", price: "$599", tagline: "Full source code + Compile Guarantee" },
   { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
@@ -420,7 +421,9 @@ export default function SimpleModePage() {
           const updated = payload.new as Generation;
           setLiveStatus(updated.status);
           if (updated.status === "success") {
-            if (updated.download_url) {
+            // Free tier (Spark): redirect when preview_files_json is ready.
+            // Paid tiers: redirect when download_url is ready.
+            if (updated.download_url || selectedTier === 0) {
               router.push(`/generate/${generationId}`);
             }
           } else if (updated.status === "failed") {
@@ -581,29 +584,36 @@ export default function SimpleModePage() {
                 <p className="text-slate-400 text-sm">One-time payment. No subscriptions. You own the architecture forever.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {TIERS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setSelectedTier(t.id)}
                     className={`relative rounded-xl border p-5 text-left space-y-2 transition-all duration-300 ${
                       selectedTier === t.id
-                        ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+                        ? t.isFree
+                          ? "border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                          : "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
                         : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
                     }`}
                   >
+                    {t.id === 0 && (
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
+                        Free
+                      </div>
+                    )}
                     {t.id === 2 && (
                       <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
                         Recommended
                       </div>
                     )}
                     <div className="font-mono text-xs font-bold tracking-widest text-white uppercase">{t.name}</div>
-                    <div className="text-xl font-bold text-blue-400">{t.price}</div>
+                    <div className={`text-xl font-bold ${t.isFree ? "text-emerald-400" : "text-blue-400"}`}>{t.price}</div>
                     <div className="text-xs text-slate-400">{t.tagline}</div>
                     {selectedTier === t.id && (
                       <div className="flex items-center gap-1.5 mt-1">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
-                        <span className="font-mono text-[10px] text-blue-400">Selected</span>
+                        <CheckCircle2 className={`h-3.5 w-3.5 ${t.isFree ? "text-emerald-400" : "text-blue-400"}`} />
+                        <span className={`font-mono text-[10px] ${t.isFree ? "text-emerald-400" : "text-blue-400"}`}>Selected</span>
                       </div>
                     )}
                   </button>
@@ -620,9 +630,19 @@ export default function SimpleModePage() {
                 <button
                   onClick={handleProceed}
                   disabled={isPending}
-                  className="flex-1 font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                  className={`flex-1 font-mono text-xs py-3 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center justify-center gap-2 ${
+                    selectedTier === 0
+                      ? "bg-emerald-500 hover:bg-emerald-400 text-white"
+                      : "bg-blue-500 hover:bg-blue-400 text-white"
+                  }`}
                 >
-                  {isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</> : "Proceed to Checkout \u2192"}
+                  {isPending ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
+                  ) : selectedTier === 0 ? (
+                    "Launch Free Preview \u2192"
+                  ) : (
+                    "Proceed to Checkout \u2192"
+                  )}
                 </button>
               </div>
             </div>
@@ -650,7 +670,9 @@ export default function SimpleModePage() {
                   <p className="font-mono text-xs text-slate-500 uppercase tracking-widest">Generation ID</p>
                   <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
                   <p className="font-mono text-xs text-slate-500">
-                    Keep this page open — we&apos;ll redirect you when your download is ready.
+                    {selectedTier === 0
+                      ? "Keep this page open — we\u2019ll launch your live preview when it\u2019s ready."
+                      : "Keep this page open — we\u2019ll redirect you when your download is ready."}
                   </p>
                 </div>
               )}

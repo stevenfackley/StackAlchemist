@@ -145,20 +145,31 @@ function StepEndpoints({ endpoints, setEndpoints, entityNames }: {
 
 // ─── Step 3: Tier ─────────────────────────────────────────────────────────────
 function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSelectedTier: (t: Tier) => void }) {
-  const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean }[] = [
+  const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
+    {
+      id: 0, name: "SPARK", price: "Free", isFree: true,
+      items: ["ER Canvas", "Generated Next.js UI (view-only)", "Live Micro IDE Preview"],
+    },
     { id: 1, name: "BLUEPRINT", price: "$299", items: ["Schema JSON", "API Specifications", "SQL Scripts"] },
     { id: 2, name: "BOILERPLATE", price: "$599", items: ["Blueprint features", "Full Source Code", "Compile Guarantee"], recommended: true },
     { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK Stack", "Helm Charts", "Deployment Runbook"] },
   ];
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {tiers.map((t) => (
         <button key={t.id} onClick={() => setSelectedTier(t.id)}
           className={cn("relative rounded-xl border p-5 text-left space-y-3 transition-all duration-300",
             selectedTier === t.id
-              ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+              ? t.isFree
+                ? "border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                : "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
               : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
           )}>
+          {t.isFree && (
+            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
+              Free
+            </div>
+          )}
           {t.recommended && (
             <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
               Recommended
@@ -166,19 +177,19 @@ function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSe
           )}
           <div>
             <h3 className="font-mono text-xs font-bold tracking-widest text-white uppercase">{t.name}</h3>
-            <p className="font-mono text-xl font-bold text-blue-400 mt-1">{t.price}</p>
+            <p className={cn("font-mono text-xl font-bold mt-1", t.isFree ? "text-emerald-400" : "text-blue-400")}>{t.price}</p>
           </div>
           <ul className="space-y-1">
             {t.items.map((item) => (
               <li key={item} className="font-mono text-[11px] text-slate-400 flex items-center gap-2">
-                <span className="text-emerald-400">›</span> {item}
+                <span className={t.isFree ? "text-emerald-400" : "text-emerald-400"}>›</span> {item}
               </li>
             ))}
           </ul>
           {selectedTier === t.id && (
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
-              <span className="font-mono text-[10px] text-blue-400">Selected</span>
+              <CheckCircle2 className={cn("h-3.5 w-3.5", t.isFree ? "text-emerald-400" : "text-blue-400")} />
+              <span className={cn("font-mono text-[10px]", t.isFree ? "text-emerald-400" : "text-blue-400")}>Selected</span>
             </div>
           )}
         </button>
@@ -267,7 +278,9 @@ export default function AdvancedModePage() {
         (payload) => {
           const updated = payload.new as Generation;
           setLiveStatus(updated.status);
-          if (updated.status === "success" && updated.download_url) {
+          if (updated.status === "success" && (updated.download_url || selectedTier === 0)) {
+            // Spark (free): redirect when preview_files_json is ready (no download_url).
+            // Paid tiers: redirect when download_url is ready.
             router.push(`/generate/${generationId}`);
           } else if (updated.status === "failed") {
             setErrorMsg(updated.error_message ?? "Generation failed.");
@@ -305,9 +318,14 @@ export default function AdvancedModePage() {
           <h2 className="text-xl font-bold text-white">Synthesizing Your Platform</h2>
           <p className="text-slate-400 text-sm">{liveStatus ? `Status: ${liveStatus}` : "Queued — starting shortly..."}</p>
           {generationId && (
-            <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 text-left">
-              <p className="font-mono text-xs text-slate-500 uppercase mb-1">Generation ID</p>
+            <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 text-left space-y-2">
+              <p className="font-mono text-xs text-slate-500 uppercase">Generation ID</p>
               <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
+              <p className="font-mono text-xs text-slate-500">
+                {selectedTier === 0
+                  ? "Keep this page open \u2014 we\u2019ll launch your live preview when it\u2019s ready."
+                  : "Keep this page open \u2014 we\u2019ll redirect you when your download is ready."}
+              </p>
             </div>
           )}
           <div className="w-full bg-slate-700 rounded-full h-1"><div className="h-full bg-blue-500 animate-pulse rounded-full w-3/5" /></div>
@@ -414,8 +432,17 @@ export default function AdvancedModePage() {
             </button>
           ) : (
             <button onClick={handleCheckout} disabled={isPending}
-              className="font-mono text-xs bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center gap-2">
-              {isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</> : "Proceed to Checkout →"}
+              className={cn(
+                "font-mono text-xs text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center gap-2",
+                selectedTier === 0
+                  ? "bg-emerald-500 hover:bg-emerald-400"
+                  : "bg-blue-500 hover:bg-blue-400"
+              )}>
+              {isPending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
+                : selectedTier === 0
+                  ? "Launch Free Preview →"
+                  : "Proceed to Checkout →"}
             </button>
           )}
         </div>

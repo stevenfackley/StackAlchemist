@@ -1,7 +1,27 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Eye, Lock } from "lucide-react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
+
+const freeTier = {
+  id: "spark",
+  name: "Spark",
+  tagline: "Try Before You Buy",
+  price: "Free",
+  description:
+    "Describe your SaaS, watch the architecture come alive, and explore the generated Next.js frontend in a live embedded IDE — all without spending a cent. Code is view-only; upgrade to download.",
+  items: [
+    "Entity-Relationship Canvas",
+    "AI Schema Extraction",
+    "Generated Next.js Frontend (view-only)",
+    "Live Preview in Micro IDE",
+    "Architecture Overview",
+  ],
+  highlight: false,
+  cta: "Start Free",
+  href: "/",
+  isFree: true,
+};
 
 const tiers = [
   {
@@ -21,6 +41,7 @@ const tiers = [
     highlight: false,
     cta: "Get the Blueprint",
     href: "/advanced?step=3&tier=1",
+    isFree: false,
   },
   {
     id: "boilerplate",
@@ -41,6 +62,7 @@ const tiers = [
     highlight: true,
     cta: "Get the Boilerplate",
     href: "/advanced?step=3&tier=2",
+    isFree: false,
   },
   {
     id: "infrastructure",
@@ -61,13 +83,18 @@ const tiers = [
     highlight: false,
     cta: "Get the Infrastructure",
     href: "/advanced?step=3&tier=3",
+    isFree: false,
   },
 ];
 
 const faqs = [
   {
+    q: "What does the free Spark tier include?",
+    a: "Spark generates the Next.js frontend for your described SaaS and opens it in a live embedded IDE so you can see the running app. The code is view-only — you can't download it — but you can explore every file and interact with the live preview. Upgrade to any paid tier to get the full downloadable codebase.",
+  },
+  {
     q: "Is this a subscription?",
-    a: "No. Every tier is a one-time payment. You pay once, you own the architecture forever. No monthly fees, no lock-in.",
+    a: "No. Every paid tier is a one-time payment. You pay once, you own the architecture forever. No monthly fees, no lock-in.",
   },
   {
     q: "What is the Compile Guarantee?",
@@ -92,20 +119,31 @@ const faqs = [
 ];
 
 const comparison = [
-  { label: "Schema JSON + ER Diagram", bp: true, bb: true, infra: true },
-  { label: "OpenAPI Specification", bp: true, bb: true, infra: true },
-  { label: "SQL Migration Scripts", bp: true, bb: true, infra: true },
-  { label: ".NET 10 Web API Source", bp: false, bb: true, infra: true },
-  { label: "Next.js 15 Frontend Source", bp: false, bb: true, infra: true },
-  { label: "Supabase Auth Integration", bp: false, bb: true, infra: true },
-  { label: "Docker Compose Environment", bp: false, bb: true, infra: true },
-  { label: "Compile Guarantee (3-retry)", bp: false, bb: true, infra: true },
-  { label: "AWS CDK Infrastructure Stack", bp: false, bb: false, infra: true },
-  { label: "Helm Charts (Kubernetes)", bp: false, bb: false, infra: true },
-  { label: "GitHub Actions CI/CD", bp: false, bb: false, infra: true },
-  { label: "Deployment Runbook", bp: false, bb: false, infra: true },
-  { label: "Cost Estimation Report", bp: false, bb: false, infra: true },
+  { label: "Schema JSON + ER Diagram",       spark: true,  bp: true,  bb: true,  infra: true },
+  { label: "AI Schema Extraction",           spark: true,  bp: true,  bb: true,  infra: true },
+  { label: "Generated Next.js Frontend",     spark: true,  bp: false, bb: true,  infra: true },
+  { label: "Live Micro IDE Preview",         spark: true,  bp: false, bb: false, infra: false },
+  { label: "Code Download",                  spark: false, bp: true,  bb: true,  infra: true },
+  { label: "OpenAPI Specification",          spark: false, bp: true,  bb: true,  infra: true },
+  { label: "SQL Migration Scripts",          spark: false, bp: true,  bb: true,  infra: true },
+  { label: ".NET 10 Web API Source",         spark: false, bp: false, bb: true,  infra: true },
+  { label: "Supabase Auth Integration",      spark: false, bp: false, bb: true,  infra: true },
+  { label: "Docker Compose Environment",     spark: false, bp: false, bb: true,  infra: true },
+  { label: "Compile Guarantee (3-retry)",    spark: false, bp: false, bb: true,  infra: true },
+  { label: "AWS CDK Infrastructure Stack",   spark: false, bp: false, bb: false, infra: true },
+  { label: "Helm Charts (Kubernetes)",       spark: false, bp: false, bb: false, infra: true },
+  { label: "GitHub Actions CI/CD",           spark: false, bp: false, bb: false, infra: true },
+  { label: "Deployment Runbook",             spark: false, bp: false, bb: false, infra: true },
+  { label: "Cost Estimation Report",         spark: false, bp: false, bb: false, infra: true },
 ];
+
+function CheckCell({ value }: { value: boolean }) {
+  return value ? (
+    <span className="text-emerald-400">✓</span>
+  ) : (
+    <span className="text-slate-700">—</span>
+  );
+}
 
 export default function PricingPage() {
   return (
@@ -158,20 +196,94 @@ export default function PricingPage() {
               <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
             </div>
             <h1 className="font-bold text-4xl md:text-5xl text-white tracking-tight leading-tight">
-              ONE PAYMENT.
+              TRY FREE.
               <br />
               <span className="text-blue-400">OWN IT FOREVER.</span>
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-lg mx-auto">
-              No subscriptions. No recurring fees. No seat licenses. You describe your SaaS,
-              we transmute it into architecture — yours to keep, modify, and ship.
+              Start with a free live preview in our micro IDE. No credit card required.
+              Upgrade to download the full codebase — yours to keep, modify, and ship.
             </p>
           </div>
         </section>
 
-        {/* Tier Cards */}
+        {/* Free Tier Banner */}
+        <section className="py-12 px-4 sm:px-8 border-b border-slate-700/50">
+          <div className="max-w-6xl mx-auto">
+            <div className="relative rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-slate-700/20 to-slate-700/10 p-8 overflow-hidden">
+              {/* Glow */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent" />
+              <div
+                className="absolute -top-20 -left-20 h-64 w-64 rounded-full pointer-events-none"
+                style={{ backgroundImage: "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)" }}
+              />
+
+              <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
+                {/* Left: info */}
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 flex items-center gap-1.5">
+                      <Eye className="h-3 w-3 text-emerald-400" />
+                      <span className="font-mono text-[10px] tracking-[0.3em] text-emerald-400 uppercase">Free • No Card Required</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-1">Spark</p>
+                    <h2 className="text-3xl font-bold text-white">
+                      Free Preview
+                      <span className="ml-3 font-mono text-lg text-emerald-400">$0</span>
+                    </h2>
+                  </div>
+                  <p className="text-slate-400 text-sm leading-relaxed max-w-xl">
+                    {freeTier.description}
+                  </p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {freeTier.items.map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-sm text-slate-300">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span className="font-mono text-xs text-slate-500">
+                      Code is view-only in the IDE. Download requires a paid tier.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right: CTA */}
+                <div className="shrink-0 flex flex-col items-center gap-4 text-center">
+                  <div>
+                    <p className="font-mono text-4xl font-bold text-white">$0</p>
+                    <p className="font-mono text-xs text-slate-500 mt-1">forever free</p>
+                  </div>
+                  <Link
+                    href="/"
+                    className="rounded-full bg-emerald-500 text-white px-8 py-3 text-sm font-medium hover:bg-emerald-400 hover:shadow-[0_0_24px_rgba(16,185,129,0.35)] transition-all duration-300 whitespace-nowrap"
+                  >
+                    Start Free &rarr;
+                  </Link>
+                  <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Select Spark in the tier chooser</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Paid Tier Cards */}
         <section className="py-20 px-4 sm:px-8">
           <div className="max-w-6xl mx-auto">
+            <div className="mb-10 text-center">
+              <div className="flex items-center justify-center gap-3">
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Paid Tiers</span>
+                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+              </div>
+              <p className="mt-3 text-slate-500 text-sm font-mono">One-time payment. Download and own your codebase forever.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {tiers.map((tier) => (
                 <div
@@ -223,7 +335,7 @@ export default function PricingPage() {
 
         {/* Comparison Table */}
         <section className="border-t border-slate-700/50 py-20 px-4 sm:px-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <div className="mb-10 text-center">
               <div className="flex items-center justify-center gap-3">
                 <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
@@ -235,32 +347,29 @@ export default function PricingPage() {
               <table className="w-full font-mono text-xs">
                 <thead>
                   <tr className="border-b border-slate-700/50 bg-slate-700/20">
-                    <th className="text-left py-4 px-6 text-slate-500 font-normal tracking-widest uppercase w-1/2">Feature</th>
-                    <th className="py-4 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Blueprint</th>
-                    <th className="py-4 px-4 text-center text-blue-400 font-bold tracking-widest uppercase bg-blue-500/5">Boilerplate</th>
-                    <th className="py-4 px-4 text-center text-slate-400 font-bold tracking-widest uppercase">Infra</th>
+                    <th className="text-left py-4 px-6 text-slate-500 font-normal tracking-widest uppercase w-2/5">Feature</th>
+                    <th className="py-4 px-3 text-center text-emerald-400 font-bold tracking-widest uppercase bg-emerald-500/5 whitespace-nowrap">Spark<br/><span className="text-[10px] font-normal text-slate-500">Free</span></th>
+                    <th className="py-4 px-3 text-center text-slate-400 font-bold tracking-widest uppercase">Blueprint</th>
+                    <th className="py-4 px-3 text-center text-blue-400 font-bold tracking-widest uppercase bg-blue-500/5">Boilerplate</th>
+                    <th className="py-4 px-3 text-center text-slate-400 font-bold tracking-widest uppercase">Infra</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparison.map((row) => (
                     <tr key={row.label} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
                       <td className="py-3 px-6 text-slate-300">{row.label}</td>
-                      <td className="py-3 px-4 text-center">
-                        {row.bp ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
-                      </td>
-                      <td className="py-3 px-4 text-center bg-blue-500/5">
-                        {row.bb ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {row.infra ? <span className="text-emerald-400">✓</span> : <span className="text-slate-700">—</span>}
-                      </td>
+                      <td className="py-3 px-3 text-center bg-emerald-500/5"><CheckCell value={row.spark} /></td>
+                      <td className="py-3 px-3 text-center"><CheckCell value={row.bp} /></td>
+                      <td className="py-3 px-3 text-center bg-blue-500/5"><CheckCell value={row.bb} /></td>
+                      <td className="py-3 px-3 text-center"><CheckCell value={row.infra} /></td>
                     </tr>
                   ))}
                   <tr className="border-t-2 border-slate-600/50 bg-slate-700/10">
                     <td className="py-4 px-6 text-white font-bold">Price</td>
-                    <td className="py-4 px-4 text-center text-white font-bold">$299</td>
-                    <td className="py-4 px-4 text-center text-blue-400 font-bold bg-blue-500/5">$599</td>
-                    <td className="py-4 px-4 text-center text-white font-bold">$999</td>
+                    <td className="py-4 px-3 text-center text-emerald-400 font-bold bg-emerald-500/5">Free</td>
+                    <td className="py-4 px-3 text-center text-white font-bold">$299</td>
+                    <td className="py-4 px-3 text-center text-blue-400 font-bold bg-blue-500/5">$599</td>
+                    <td className="py-4 px-3 text-center text-white font-bold">$999</td>
                   </tr>
                 </tbody>
               </table>
@@ -300,14 +409,14 @@ export default function PricingPage() {
               Ready to transmute your idea?
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Start with a prompt. StackAlchemist handles the architecture.
+              Start free with Spark — no credit card, no commitment. Upgrade when you&apos;re ready to own the code.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/"
-                className="w-full sm:w-auto rounded-full bg-blue-500 text-white px-6 py-2.5 text-sm font-medium hover:bg-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)] transition-all duration-300 text-center"
+                className="w-full sm:w-auto rounded-full bg-emerald-500 text-white px-6 py-2.5 text-sm font-medium hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all duration-300 text-center"
               >
-                Start Building &rarr;
+                Try Spark Free &rarr;
               </Link>
               <Link
                 href="/about"
