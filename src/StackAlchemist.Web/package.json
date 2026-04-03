@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup-env": "node ../../scripts/setup-env.mjs",
+    "postinstall": "node ../../scripts/setup-env.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
