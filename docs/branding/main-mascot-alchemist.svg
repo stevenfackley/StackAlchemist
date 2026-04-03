@@ -26,7 +26,7 @@
     <filter id="shadow" x="220" y="210" width="640" height="700" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#0F172A" flood-opacity="0.35"/>
     </filter>
-    <filter id="glow" x="560" y="560" width="260" height="260" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <filter id="glow" x="620" y="540" width="280" height="280" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#4DA6FF" flood-opacity="0.92"/>
       <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#4DA6FF" flood-opacity="0.62"/>
     </filter>
@@ -77,10 +77,10 @@
     <rect x="730" y="474" width="14" height="330" rx="7" transform="rotate(14 730 474)" fill="#8B5A2B"/>
     <path d="M775 500L793 461L811 500L850 518L811 536L793 575L775 536L736 518L775 500Z" fill="#4DA6FF"/>
 
-    <!-- flask -->
-    <path d="M640 618L682 618L676 652L676 673C705 684 726 710 726 742C726 778 697 808 661 808C625 808 596 778 596 742C596 710 617 684 646 673V652L640 618Z" fill="#E2E8F0" stroke="#64748B" stroke-width="8"/>
-    <path d="M607 744C608 714 632 690 661 690C690 690 714 714 715 744C714 773 690 797 661 797C632 797 608 773 607 744Z" fill="url(#flaskLiquid)"/>
-    <path d="M624 758C636 746 649 741 661 741C673 741 686 746 698 758" stroke="#E0F2FE" stroke-width="6" stroke-linecap="round"/>
+    <!-- flask (left hand) -->
+    <path d="M342 618L384 618L378 652L378 673C407 684 428 710 428 742C428 778 399 808 363 808C327 808 298 778 298 742C298 710 319 684 348 673V652L342 618Z" fill="#E2E8F0" stroke="#64748B" stroke-width="8"/>
+    <path d="M309 744C310 714 334 690 363 690C392 690 416 714 417 744C416 773 392 797 363 797C334 797 310 773 309 744Z" fill="url(#flaskLiquid)"/>
+    <path d="M326 758C338 746 351 741 363 741C375 741 388 746 400 758" stroke="#E0F2FE" stroke-width="6" stroke-linecap="round"/>
 
     <g filter="url(#glow)">
       <path d="M693 676L705 649L717 676L744 688L717 700L705 727L693 700L666 688L693 676Z" fill="#4DA6FF"/>

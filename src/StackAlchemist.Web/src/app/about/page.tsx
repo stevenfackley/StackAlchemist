@@ -287,6 +287,45 @@ export default function AboutPage() {
             </div>
           </div>
         </section>
+
+        {/* Mascot Bio */}
+        <section className="border-t border-slate-surface py-16 px-4">
+          <div className="max-w-4xl mx-auto">
+            <p className="font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-8">
+              Mascots
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-border">
+              <article className="bg-void p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-mono text-base font-bold text-white">Auri</h3>
+                  <span className="font-mono text-[10px] tracking-widest text-electric border border-electric/30 bg-electric/5 px-2 py-0.5 uppercase">
+                    Main Mascot
+                  </span>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Auri is our resident alchemist: equal parts wise guide and chaotic builder energy.
+                  He represents what StackAlchemist is built for — turning rough ideas into shippable systems,
+                  without losing the magic of building.
+                </p>
+              </article>
+
+              <article className="bg-void p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-mono text-base font-bold text-white">Reto</h3>
+                  <span className="font-mono text-[10px] tracking-widest text-emerald border border-emerald/30 bg-emerald/5 px-2 py-0.5 uppercase">
+                    Swiss Cheese Method
+                  </span>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Reto is the specialist behind the Swiss Cheese Method. He keeps structure solid,
+                  leaves room for intelligent variation, and reminds us that reliable software is equal
+                  parts discipline and craft.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-slate-surface py-6 px-4">
