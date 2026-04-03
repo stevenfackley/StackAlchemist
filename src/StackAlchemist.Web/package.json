@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "setup-env": "node ../../scripts/setup-env.mjs",
     "postinstall": "node ../../scripts/setup-env.mjs"
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,10 +18,77 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Plus, Trash2, X } from "lucide-react";
 import { submitSimpleGeneration } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
 import type { Generation, Tier } from "@/lib/types";
+
+// ─── Schema Data Model ───────────────────────────────────────────────────────
+interface SchemaField {
+  name: string;
+  type: string;
+  pk?: boolean;
+}
+
+interface SchemaEntity {
+  id: string;
+  name: string;
+  fields: SchemaField[];
+}
+
+interface SchemaRelation {
+  sourceId: string;
+  targetId: string;
+  label: string;
+}
+
+const FIELD_TYPES = ["UUID", "String", "Int", "Decimal", "Boolean", "Timestamp", "Text", "JSON"];
+
+const INITIAL_ENTITIES: SchemaEntity[] = [
+  { id: "user", name: "User", fields: [{ name: "id", type: "UUID", pk: true }, { name: "email", type: "String" }, { name: "name", type: "String" }, { name: "created_at", type: "Timestamp" }] },
+  { id: "plan", name: "Plan", fields: [{ name: "id", type: "UUID", pk: true }, { name: "name", type: "String" }, { name: "price", type: "Decimal" }] },
+  { id: "subscription", name: "Subscription", fields: [{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "plan_id", type: "UUID" }, { name: "status", type: "String" }, { name: "started_at", type: "Timestamp" }] },
+  { id: "checkin", name: "CheckIn", fields: [{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "checked_at", type: "Timestamp" }] },
+];
+
+const INITIAL_RELATIONS: SchemaRelation[] = [
+  { sourceId: "user", targetId: "subscription", label: "1:M" },
+  { sourceId: "plan", targetId: "subscription", label: "1:M" },
+  { sourceId: "user", targetId: "checkin", label: "1:M" },
+];
+
+const ENTITY_POSITIONS: Record<string, { x: number; y: number }> = {
+  user: { x: 80, y: 160 },
+  plan: { x: 400, y: 60 },
+  subscription: { x: 400, y: 280 },
+  checkin: { x: 700, y: 200 },
+};
+
+function buildNodes(entities: SchemaEntity[]): Node[] {
+  let nextX = 80;
+  return entities.map((e, i) => {
+    const pos = ENTITY_POSITIONS[e.id] ?? { x: nextX + i * 320, y: 160 };
+    return {
+      id: e.id,
+      position: pos,
+      data: { label: <EntityCard name={e.name} fields={e.fields} /> },
+      type: "default",
+      style: { background: "transparent", border: "none", padding: 0 },
+    };
+  });
+}
+
+function buildEdges(relations: SchemaRelation[]): Edge[] {
+  return relations.map((r) => ({
+    id: `${r.sourceId}-${r.targetId}`,
+    source: r.sourceId,
+    target: r.targetId,
+    label: r.label,
+    style: { stroke: "#3B82F6" },
+    labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 },
+    labelBgStyle: { fill: "#334155" },
+  }));
+}
 
 // ─── Entity Card Node ─────────────────────────────────────────────────────────
 function EntityCard({ name, fields }: { name: string; fields: { name: string; type: string; pk?: boolean }[] }) {
@@ -45,34 +112,226 @@ function EntityCard({ name, fields }: { name: string; fields: { name: string; ty
   );
 }
 
-const MOCK_NODES: Node[] = [
-  {
-    id: "user", position: { x: 80, y: 160 },
-    data: { label: <EntityCard name="User" fields={[{ name: "id", type: "UUID", pk: true }, { name: "email", type: "String" }, { name: "name", type: "String" }, { name: "created_at", type: "Timestamp" }]} /> },
-    type: "default", style: { background: "transparent", border: "none", padding: 0 },
-  },
-  {
-    id: "plan", position: { x: 400, y: 60 },
-    data: { label: <EntityCard name="Plan" fields={[{ name: "id", type: "UUID", pk: true }, { name: "name", type: "String" }, { name: "price", type: "Decimal" }]} /> },
-    type: "default", style: { background: "transparent", border: "none", padding: 0 },
-  },
-  {
-    id: "subscription", position: { x: 400, y: 280 },
-    data: { label: <EntityCard name="Subscription" fields={[{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "plan_id", type: "UUID" }, { name: "status", type: "String" }, { name: "started_at", type: "Timestamp" }]} /> },
-    type: "default", style: { background: "transparent", border: "none", padding: 0 },
-  },
-  {
-    id: "checkin", position: { x: 700, y: 200 },
-    data: { label: <EntityCard name="CheckIn" fields={[{ name: "id", type: "UUID", pk: true }, { name: "user_id", type: "UUID" }, { name: "checked_at", type: "Timestamp" }]} /> },
-    type: "default", style: { background: "transparent", border: "none", padding: 0 },
-  },
-];
+// ─── Schema Editor Modal ──────────────────────────────────────────────────────
+function SchemaEditorModal({
+  entities,
+  relations,
+  onSave,
+  onClose,
+}: {
+  entities: SchemaEntity[];
+  relations: SchemaRelation[];
+  onSave: (entities: SchemaEntity[], relations: SchemaRelation[]) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState<SchemaEntity[]>(() => JSON.parse(JSON.stringify(entities)));
+  const [draftRels, setDraftRels] = useState<SchemaRelation[]>(() => JSON.parse(JSON.stringify(relations)));
 
-const MOCK_EDGES: Edge[] = [
-  { id: "u-s", source: "user", target: "subscription", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
-  { id: "p-s", source: "plan", target: "subscription", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
-  { id: "u-c", source: "user", target: "checkin", label: "1:M", style: { stroke: "#3B82F6" }, labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 }, labelBgStyle: { fill: "#334155" } },
-];
+  function updateEntity(idx: number, patch: Partial<SchemaEntity>) {
+    setDraft((d) => d.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
+  }
+
+  function updateField(entityIdx: number, fieldIdx: number, patch: Partial<SchemaField>) {
+    setDraft((d) =>
+      d.map((e, i) =>
+        i === entityIdx
+          ? { ...e, fields: e.fields.map((f, j) => (j === fieldIdx ? { ...f, ...patch } : f)) }
+          : e
+      )
+    );
+  }
+
+  function addField(entityIdx: number) {
+    setDraft((d) =>
+      d.map((e, i) =>
+        i === entityIdx ? { ...e, fields: [...e.fields, { name: "new_field", type: "String" }] } : e
+      )
+    );
+  }
+
+  function removeField(entityIdx: number, fieldIdx: number) {
+    setDraft((d) =>
+      d.map((e, i) =>
+        i === entityIdx ? { ...e, fields: e.fields.filter((_, j) => j !== fieldIdx) } : e
+      )
+    );
+  }
+
+  function addEntity() {
+    const id = `entity_${Date.now()}`;
+    setDraft((d) => [...d, { id, name: "NewEntity", fields: [{ name: "id", type: "UUID", pk: true }] }]);
+  }
+
+  function removeEntity(idx: number) {
+    const removed = draft[idx];
+    setDraft((d) => d.filter((_, i) => i !== idx));
+    setDraftRels((r) => r.filter((rel) => rel.sourceId !== removed.id && rel.targetId !== removed.id));
+  }
+
+  function addRelation() {
+    if (draft.length < 2) return;
+    setDraftRels((r) => [...r, { sourceId: draft[0].id, targetId: draft[1].id, label: "1:M" }]);
+  }
+
+  function updateRelation(idx: number, patch: Partial<SchemaRelation>) {
+    setDraftRels((r) => r.map((rel, i) => (i === idx ? { ...rel, ...patch } : rel)));
+  }
+
+  function removeRelation(idx: number) {
+    setDraftRels((r) => r.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8">
+      <div className="w-full max-w-3xl bg-slate-800 border border-slate-600/50 rounded-2xl shadow-2xl mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-700/50 px-6 py-4">
+          <h2 className="font-mono text-sm font-bold text-white tracking-widest uppercase">Edit Schema</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Entities */}
+          {draft.map((entity, ei) => (
+            <div key={entity.id} className="rounded-xl border border-slate-600/40 bg-slate-700/30 overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-slate-700/50 border-b border-slate-600/30">
+                <input
+                  value={entity.name}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    const newId = newName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                    const oldId = entity.id;
+                    updateEntity(ei, { name: newName, id: newId });
+                    setDraftRels((r) =>
+                      r.map((rel) => ({
+                        ...rel,
+                        sourceId: rel.sourceId === oldId ? newId : rel.sourceId,
+                        targetId: rel.targetId === oldId ? newId : rel.targetId,
+                      }))
+                    );
+                  }}
+                  className="flex-1 bg-transparent font-mono text-sm font-bold text-blue-400 tracking-widest uppercase outline-none border-b border-transparent focus:border-blue-500/50"
+                />
+                <button onClick={() => removeEntity(ei)} className="text-slate-500 hover:text-rose-400 transition-colors" title="Remove entity">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="px-4 py-3 space-y-2">
+                {entity.fields.map((field, fi) => (
+                  <div key={fi} className="flex items-center gap-2">
+                    <label className="flex items-center gap-1 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={!!field.pk}
+                        onChange={(e) => updateField(ei, fi, { pk: e.target.checked })}
+                        className="accent-yellow-400 h-3 w-3"
+                      />
+                      <span className="font-mono text-[9px] text-yellow-400">PK</span>
+                    </label>
+                    <input
+                      value={field.name}
+                      onChange={(e) => updateField(ei, fi, { name: e.target.value })}
+                      className="flex-1 bg-slate-600/30 font-mono text-xs text-white px-2 py-1 rounded border border-slate-600/30 focus:border-blue-500/50 outline-none"
+                    />
+                    <select
+                      value={field.type}
+                      onChange={(e) => updateField(ei, fi, { type: e.target.value })}
+                      className="bg-slate-600/30 font-mono text-xs text-slate-300 px-2 py-1 rounded border border-slate-600/30 focus:border-blue-500/50 outline-none"
+                    >
+                      {FIELD_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => removeField(ei, fi)} className="text-slate-500 hover:text-rose-400 transition-colors" title="Remove field">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addField(ei)}
+                  className="flex items-center gap-1.5 font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors mt-1"
+                >
+                  <Plus className="h-3 w-3" /> Add Field
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={addEntity}
+            className="w-full flex items-center justify-center gap-2 font-mono text-xs text-blue-400 hover:text-blue-300 border border-dashed border-blue-500/30 hover:border-blue-500/50 rounded-xl py-3 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Add Entity
+          </button>
+
+          {/* Relations */}
+          <div className="space-y-3">
+            <h3 className="font-mono text-xs text-slate-400 tracking-widest uppercase">Relationships</h3>
+            {draftRels.map((rel, ri) => (
+              <div key={ri} className="flex items-center gap-2">
+                <select
+                  value={rel.sourceId}
+                  onChange={(e) => updateRelation(ri, { sourceId: e.target.value })}
+                  className="flex-1 bg-slate-600/30 font-mono text-xs text-slate-300 px-2 py-1.5 rounded border border-slate-600/30 outline-none"
+                >
+                  {draft.map((ent) => (
+                    <option key={ent.id} value={ent.id}>{ent.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={rel.label}
+                  onChange={(e) => updateRelation(ri, { label: e.target.value })}
+                  className="bg-slate-600/30 font-mono text-xs text-slate-300 px-2 py-1.5 rounded border border-slate-600/30 outline-none"
+                >
+                  <option value="1:1">1:1</option>
+                  <option value="1:M">1:M</option>
+                  <option value="M:M">M:M</option>
+                </select>
+                <select
+                  value={rel.targetId}
+                  onChange={(e) => updateRelation(ri, { targetId: e.target.value })}
+                  className="flex-1 bg-slate-600/30 font-mono text-xs text-slate-300 px-2 py-1.5 rounded border border-slate-600/30 outline-none"
+                >
+                  {draft.map((ent) => (
+                    <option key={ent.id} value={ent.id}>{ent.name}</option>
+                  ))}
+                </select>
+                <button onClick={() => removeRelation(ri)} className="text-slate-500 hover:text-rose-400 transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={addRelation}
+              disabled={draft.length < 2}
+              className="flex items-center gap-1.5 font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-40"
+            >
+              <Plus className="h-3 w-3" /> Add Relationship
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 border-t border-slate-700/50 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2 rounded-full uppercase tracking-widest transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(draft, draftRels)}
+            className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-5 py-2 rounded-full uppercase tracking-widest transition-colors"
+          >
+            Apply Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const GEN_STEPS = [
   "Parsing natural language prompt...",
@@ -104,14 +363,31 @@ export default function SimpleModePage() {
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [showSchemaEditor, setShowSchemaEditor] = useState(false);
 
-  // ─── ReactFlow State ────────────────────────────────────────────────────────
-  const [nodes, , onNodesChange] = useNodesState(MOCK_NODES);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(MOCK_EDGES);
+  // ─── Schema State ──────────────────────────────────────────────────────────
+  const [schemaEntities, setSchemaEntities] = useState<SchemaEntity[]>(INITIAL_ENTITIES);
+  const [schemaRelations, setSchemaRelations] = useState<SchemaRelation[]>(INITIAL_RELATIONS);
+
+  // ─── ReactFlow State (derived from schema) ─────────────────────────────────
+  const derivedNodes = useMemo(() => buildNodes(schemaEntities), [schemaEntities]);
+  const derivedEdges = useMemo(() => buildEdges(schemaRelations), [schemaRelations]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(derivedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(derivedEdges);
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
   );
+
+  // Sync ReactFlow when schema changes
+  useEffect(() => { setNodes(derivedNodes); }, [derivedNodes, setNodes]);
+  useEffect(() => { setEdges(derivedEdges); }, [derivedEdges, setEdges]);
+
+  function handleSchemaEditorSave(entities: SchemaEntity[], relations: SchemaRelation[]) {
+    setSchemaEntities(entities);
+    setSchemaRelations(relations);
+    setShowSchemaEditor(false);
+  }
 
   // ─── Simulate parsing progress ─────────────────────────────────────────────
   useEffect(() => {
@@ -259,7 +535,10 @@ export default function SimpleModePage() {
                   </p>
                 </div>
                 <div className="flex gap-3 shrink-0">
-                  <button className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
+                  <button
+                    onClick={() => setShowSchemaEditor(true)}
+                    className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors"
+                  >
                     Edit Schema
                   </button>
                   <button
@@ -412,6 +691,16 @@ export default function SimpleModePage() {
           </div>
         )}
       </main>
+
+      {/* Schema Editor Modal */}
+      {showSchemaEditor && (
+        <SchemaEditorModal
+          entities={schemaEntities}
+          relations={schemaRelations}
+          onSave={handleSchemaEditorSave}
+          onClose={() => setShowSchemaEditor(false)}
+        />
+      )}
     </div>
   );
 }
