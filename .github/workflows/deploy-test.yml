@@ -39,7 +39,11 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Build Next.js web image
+        env:
+          DOCKER_BUILDKIT: '0'
         run: |
+          # Work around intermittent BuildKit/containerd snapshot export failures
+          # seen on the self-hosted runner when loading the final image locally.
           docker build \
             --target web \
             --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
