@@ -72,30 +72,34 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       </header>
 
       {/* ── Body: Sidebar + Content ─────────────────────────────────── */}
-      <div className="flex flex-1 mx-auto w-full max-w-7xl">
+      <div className="flex flex-col flex-1">
 
-        {/* Sidebar — hidden on mobile, sticky on md+ */}
-        <aside className="hidden md:block w-60 lg:w-64 shrink-0 border-r border-slate-700/40">
-          <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto py-8 px-4">
-            {/* Docs label */}
-            <div className="mb-6 px-3">
-              <p className="font-mono text-[10px] tracking-[0.35em] text-slate-600 uppercase">
-                Documentation
-              </p>
-            </div>
-            <DocsSidebar />
-          </div>
-        </aside>
-
-        {/* Mobile: horizontal scrollable nav */}
-        <div className="md:hidden w-full border-b border-slate-700/40 bg-slate-800/80 px-4 py-3 overflow-x-auto">
+        {/* Mobile: horizontal scrollable nav — sits above content, hidden on md+ */}
+        <div className="md:hidden border-b border-slate-700/40 bg-slate-800/80 px-4 py-3 overflow-x-auto">
           <MobileDocNav />
         </div>
 
-        {/* Main content */}
-        <main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-12 py-10">
-          {children}
-        </main>
+        {/* Sidebar + main in a flex row */}
+        <div className="flex flex-1 mx-auto w-full max-w-7xl">
+
+          {/* Sidebar — hidden on mobile, sticky on md+ */}
+          <aside className="hidden md:flex w-60 lg:w-64 shrink-0 border-r border-slate-700/40">
+            <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto py-8 px-4 w-full">
+              {/* Docs label */}
+              <div className="mb-6 px-3">
+                <p className="font-mono text-[10px] tracking-[0.35em] text-slate-600 uppercase">
+                  Documentation
+                </p>
+              </div>
+              <DocsSidebar />
+            </div>
+          </aside>
+
+          {/* Main content */}
+          <main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-12 py-10">
+            {children}
+          </main>
+        </div>
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
