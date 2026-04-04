@@ -39,7 +39,20 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Docker pre-flight cleanup
-        run: bash ./scripts/docker-preflight-cleanup.sh
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [ -f ./scripts/docker-preflight-cleanup.sh ]; then
+            bash ./scripts/docker-preflight-cleanup.sh
+          else
+            echo "⚠️ scripts/docker-preflight-cleanup.sh missing; running inline cleanup fallback"
+            docker system df || true
+            docker builder prune -f || true
+            docker image prune -f || true
+            docker container prune -f || true
+            docker builder prune -af --filter "until=24h" || true
+            docker system df || true
+          fi
 
       - name: Build Next.js web image
         env:
