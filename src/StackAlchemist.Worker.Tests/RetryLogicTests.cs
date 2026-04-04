@@ -72,4 +72,15 @@ public class RetryLogicTests
 
         ctx.RetryCount.Should().Be(3);
     }
+
+    [Fact]
+    public void BuildFailed_WithNullContext_TransitionsToFailed()
+    {
+        var result = GenerationStateMachine.Transition(
+            GenerationState.Building,
+            GenerationEvent.BuildFailed,
+            context: null);
+
+        result.Should().Be(GenerationState.Failed);
+    }
 }

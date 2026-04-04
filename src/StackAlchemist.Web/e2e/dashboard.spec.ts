@@ -42,13 +42,15 @@ test.describe('Dashboard', () => {
     await expect(page.getByText(/passwords do not match/i)).toBeVisible();
   });
 
-  test('should allow downloading completed generations', async ({ page }) => {
-    await page.goto('/');
-    test.skip(true, 'Scaffold: implement when download flow is wired end-to-end');
+  test('generate page should show not-found state for unknown generation id', async ({ page }) => {
+    await page.goto('/generate/does-not-exist');
+    await expect(page.getByRole('heading', { name: /generation not found/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /start a new generation/i })).toBeVisible();
   });
 
-  test('should display BYOK settings panel when authenticated', async ({ page }) => {
-    await page.goto('/');
-    test.skip(true, 'Scaffold: implement with authenticated test user in Phase 7');
+  test('dashboard route should preserve returnTo when redirecting to login', async ({ page }) => {
+    await page.goto('/dashboard');
+    await page.waitForURL(/\/login\?returnTo=%2Fdashboard|\/login\?returnTo=\/dashboard/);
+    await expect(page).toHaveURL(/returnTo/);
   });
 });

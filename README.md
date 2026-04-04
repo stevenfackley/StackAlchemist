@@ -8,7 +8,7 @@
   [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
   [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com)
   [![Claude](https://img.shields.io/badge/Claude-3.5%20Sonnet-D97757?logo=anthropic)](https://anthropic.com)
-  [![Tests](https://img.shields.io/badge/Tests-88%20passing-success)](#-running-tests)
+  [![Tests](https://img.shields.io/badge/Tests-96%20passing-success)](#-running-tests)
 </div>
 
 ---
@@ -114,7 +114,7 @@ dotnet test StackAlchemist.slnx
 dotnet test StackAlchemist.slnx --logger "console;verbosity=quiet"
 ```
 
-Current test counts: **Engine.Tests — 66 passed / 6 skipped · Worker.Tests — 22 passed / 3 skipped · Zero failures.**
+Current test counts: **Engine.Tests — 73 passed / 6 skipped · Worker.Tests — 23 passed / 3 skipped · Zero failures.**
 
 ---
 

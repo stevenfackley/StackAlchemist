@@ -1,8 +1,6 @@
 ### Software Design Document (SDD): StackAlchemist
 
-> Implementation status note (2026-04-02): the repository currently contains the Phase 1 UI scaffold, a minimal .NET engine host, and a stub worker host. The generation pipeline, live LLM orchestration, R2 uploads, and production database integration described below are planned architecture, not yet implemented in the audited codebase.
-
-> Current implementation note: the marketing UI now includes a full-height home hero, a dedicated launch-console section with prompt-builder interactions, a compact delivery-flow summary, and a pricing header with clearer home navigation. These are presentational and navigation improvements only; they do not change the underlying Phase 3 handoff status.
+> Implementation status note (2026-04-04): this repository is now beyond Phase 1 scaffold status. The audited codebase includes a live .NET generation orchestrator, compile worker retry loop, Stripe webhook + checkout-session endpoint, Cloudflare R2 upload service, Supabase delivery/status sync, Supabase migrations for `profiles`/`transactions`/`generations`, and authenticated dashboard/login flows. Remaining gaps are primarily end-to-end checkout wiring polish, BYOK settings persistence UI, and the personalization wizard.
 
 **1. System Architecture**
 * **Frontend and API Gateway:** Next.js application (App Router) handling user intake and checkout.

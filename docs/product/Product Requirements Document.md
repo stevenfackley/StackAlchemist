@@ -1,6 +1,6 @@
 ### Product Requirements Document (PRD): StackAlchemist
 
-> Audit note (2026-04-02): this document captures target product requirements across later phases. The audited repository currently satisfies the Phase 1 scaffold and mock UI requirements only.
+> Audit note (2026-04-04): this document captures both implemented and target requirements. The audited repository now includes substantial Phase 3–6 implementation (generation orchestrator, compile worker, Stripe webhook/session backend, Supabase migrations, auth pages, dashboard shell), while personalization wizard and full BYOK management remain pending.
 
 **1. Executive Summary**
 StackAlchemist converts user requirements into deployable software repositories. The platform bypasses the boilerplate setup phase by dynamically injecting AI generated business logic into a heavily optimized master template, delivering a custom PostgreSQL database schema, backend, and Next.js frontend.

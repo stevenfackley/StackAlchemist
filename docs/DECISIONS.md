@@ -313,3 +313,42 @@ E2E:       4 live assertions, 2 intentional skips (Phase 7)
 - `hasStripeConfig()` — returns `true` when `STRIPE_SECRET_KEY` is set.
 
 ---
+
+## Audit + Test Suite Expansion Pass (2026-04-04)
+
+### Implementation Status Corrections
+- Re-audited current implementation claims against live code and corrected stale documentation that still described the repo as "Phase 1 only".
+- Updated status banners/notes in:
+  - `docs/architecture/Software Design Document.md`
+  - `docs/product/Product Design Document.md`
+  - `docs/product/Product Requirements Document.md`
+  - `docs/DEV_PROMPT.md` progress tracker
+- Confirmed current state: orchestration + compile pipeline + Stripe webhook/session backend + auth/dashboard shell + Supabase migrations are implemented; personalization wizard and BYOK persistence UX remain pending.
+
+### Test Coverage Additions
+- **Engine tests added:**
+  - `CompileServiceTests` (error extraction + retry-context composition)
+  - `MockLlmClientTests` (delimited output format + core artifact presence)
+  - `GenerationOrchestratorTests` already present and retained as part of expanded suite
+- **Worker tests expanded:**
+  - `RetryLogicTests` gained null-context BuildFailed transition coverage
+- **Web unit tests added (Vitest):**
+  - `__tests__/lib/runtime-config.test.ts`
+  - `__tests__/lib/demo-data.test.ts`
+- **Web E2E tests expanded (Playwright):**
+  - `checkout-flow.spec.ts` converted from scaffolded skips to concrete pricing/tier assertions
+  - `dashboard.spec.ts` gained generate-not-found and explicit `returnTo` redirect assertions
+
+### Verification Results
+- `dotnet test StackAlchemist.slnx --logger "console;verbosity=minimal"`
+  - **Engine.Tests:** 73 passed, 6 skipped
+  - **Worker.Tests:** 23 passed, 3 skipped
+  - 0 failures
+- `pnpm --dir "src/StackAlchemist.Web" exec vitest run __tests__/lib/runtime-config.test.ts __tests__/lib/demo-data.test.ts`
+  - 2 files, 5 tests passed, 0 failed
+
+### Documentation Sync
+- `README.md` test badge/counts updated to reflect verified test totals.
+- Progress guidance in `docs/DEV_PROMPT.md` updated so next implementation work starts from accurate current reality rather than stale phase assumptions.
+
+---

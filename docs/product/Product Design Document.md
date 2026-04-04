@@ -1,6 +1,6 @@
 ### Product Design Document (PDD): StackAlchemist
 
-> Implementation status note (2026-04-02): the current codebase implements the landing page, Simple Mode mock flow, and Advanced Mode wizard from Phase 1. The server actions, real-time generation pipeline, checkout, and file delivery behaviors below remain design intent and are not fully wired end to end yet.
+> Implementation status note (2026-04-04): the audited codebase now includes live generation orchestration (template render → LLM → reconstruction → compile queue), compile retry state transitions, Stripe webhook + checkout-session backend endpoint, R2 upload + Supabase delivery services, authenticated dashboard shell, and Supabase-backed schema/status persistence. Items still in design-intent territory are the multi-step personalization wizard and complete BYOK settings persistence UX.
 
 **1. System Overview**
 StackAlchemist orchestrates code generation by connecting a Next.js frontend with a Supabase backend. It uses a dual mode intake flow and a hybrid template generation engine to compile custom business logic into a highly optimized .NET/Next.js repository, guaranteeing successful compilation before user delivery.
