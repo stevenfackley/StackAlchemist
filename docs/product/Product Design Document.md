@@ -13,6 +13,12 @@ StackAlchemist orchestrates code generation by connecting a Next.js frontend wit
 * **Advanced Mode UI:** A horizontal stepper wizard. Users define entity properties using structured dropdowns and text inputs, with real time relationship mapping visualization.
 * **Pricing UI:** The pricing page now uses the shared logo treatment and includes an explicit header path back to the home page.
 * **Generation State UI:** A real time progress indicator utilizing Supabase WebSockets. It displays detailed logs including "Injecting Handlebars Templates," "Generating C# Controllers," and "Running Compile Guarantee CI Check."
+* **Personalization Wizard UI:** A multi-step guided flow inserted between schema confirmation and generation trigger. Uses the existing horizontal stepper pattern with 4 steps:
+  * Step 1 (Business Identity): Text inputs for business description, project name, and tagline. Clean card layout with helper copy explaining how the info will be used.
+  * Step 2 (Color Scheme): A grid of 5-6 curated palette preset cards, each showing a swatch strip preview of primary/secondary/accent/background colors. Selecting a card highlights it; a "Custom" card opens a set of color pickers. A live mini-preview shows how the chosen palette renders on a sample UI card.
+  * Step 3 (Domain Context): Dynamically rendered question cards — one per schema entity — with text inputs and example placeholder text. Questions adapt based on entity names from the confirmed schema.
+  * Step 4 (Feature Toggles): A compact toggle/switch grid for optional features (auth method selector, soft-delete, audit timestamps, Swagger, Docker Compose). Each toggle has a one-line description.
+  * A "Skip Personalization" link is visible on every step for users who prefer defaults. Progress indicator shows current step.
 
 **3. API and Orchestration Design**
 Next.js Server Actions manage the core logic to keep secrets secure.

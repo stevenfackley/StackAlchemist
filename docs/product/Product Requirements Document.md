@@ -10,8 +10,15 @@ StackAlchemist converts user requirements into deployable software repositories.
 **User Intake and Authentication**
 * Secure login and session management via Supabase Auth.
 * **Dual Mode Intake UX:**
-    * **Simple Mode:** The current app presents a terminal-style prompt control on the landing page with prompt-builder presets that help visitors compose a usable brief quickly. The target flow remains: call the LLM to generate a JSON schema, then render it visually for review and editing.
-    * **Advanced Mode:** A dynamic UI wizard to manually define entity models, relationships, and API endpoints.
+     * **Simple Mode:** The current app presents a terminal-style prompt control on the landing page with prompt-builder presets that help visitors compose a usable brief quickly. The target flow remains: call the LLM to generate a JSON schema, then render it visually for review and editing.
+     * **Advanced Mode:** A dynamic UI wizard to manually define entity models, relationships, and API endpoints.
+* **Multi-Step Personalization Wizard:**
+     * After schema confirmation (in either mode), users walk through a guided personalization flow that customizes the generated output so no two projects look or feel the same.
+     * **Business Identity:** Users describe their business (industry, audience, value prop), provide a project/company name and optional tagline. This context is injected into generated READMEs, code comments, environment configs, and seed data.
+     * **Color Scheme & Branding:** Users choose from curated color palette presets (e.g., "Corporate Blue," "Warm Startup," "Dark Hacker," "Earthy Minimal," "Bold SaaS") or define a fully custom palette. The selection maps to Tailwind CSS color tokens injected into the generated frontend theme.
+     * **Domain Vocabulary & Specifics:** Adaptive contextual questions based on the user's schema entities (e.g., "What does an 'Order' represent in your business?"). Responses enrich the LLM prompt so generated controllers, validation rules, seed data, and UI copy use realistic domain language.
+     * **Feature Preferences (Optional):** Toggles for cross-cutting concerns — authentication method, soft-delete, audit timestamps, Swagger/OpenAPI docs, Docker Compose inclusion. These map to Handlebars feature flags in the templates.
+     * The wizard is skippable (sensible defaults applied) but is the default recommended path.
 * **Marketing Conversion UX:**
     * The home screen must clearly communicate the three delivery depths: architecture artifacts, generated codebase, and infrastructure handoff.
     * The pricing page must provide a clear path back to the home page via the top logo/header navigation.
