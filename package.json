@@ -6,5 +6,23 @@
     "dev": "npm run dev --prefix src/StackAlchemist.Web",
     "build": "npm run build --prefix src/StackAlchemist.Web",
     "start": "npm run start --prefix src/StackAlchemist.Web"
-  }
+  },
+  "version": "1.0.0",
+  "description": "<div align=\"center\">   <img src=\"src/StackAlchemist.Web/public/logo_nebula.png\" alt=\"StackAlchemist\" width=\"480\"/>",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevenfackley/StackAlchemist.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/stevenfackley/StackAlchemist/issues"
+  },
+  "homepage": "https://github.com/stevenfackley/StackAlchemist#readme"
 }
