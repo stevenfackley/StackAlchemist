@@ -198,6 +198,8 @@ jobs:
           app_url: https://test.stackalchemist.app
           aspnetcore_environment: Staging
           api_port: '5000'
+          engine_api_url: http://sa-engine
+          is_test_site: 'true'
           supabase_url: ${{ secrets.SUPABASE_URL }}
           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

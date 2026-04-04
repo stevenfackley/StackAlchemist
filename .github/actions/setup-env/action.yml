@@ -20,6 +20,16 @@ inputs:
     required: false
     default: '5000'
 
+  engine_api_url:
+    description: 'Internal URL for the generation engine'
+    required: false
+    default: ''
+
+  is_test_site:
+    description: 'Whether to enable the staging/test banner'
+    required: false
+    default: 'false'
+
   # ─── Supabase ────────────────────────────────────────────────────────────────
   supabase_url:
     description: 'Supabase project URL'
@@ -88,6 +98,8 @@ runs:
         APP_URL: ${{ inputs.app_url }}
         ASPNETCORE_ENV: ${{ inputs.aspnetcore_environment }}
         API_PORT: ${{ inputs.api_port }}
+        ENGINE_API_URL: ${{ inputs.engine_api_url }}
+        IS_TEST_SITE: ${{ inputs.is_test_site }}
         SUPABASE_URL: ${{ inputs.supabase_url }}
         SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.supabase_service_role_key }}
@@ -108,6 +120,8 @@ runs:
 
         # Frontend (Next.js)
         NEXT_PUBLIC_APP_URL="${APP_URL}"
+        NEXT_PUBLIC_IS_TEST_SITE="${IS_TEST_SITE}"
+        ENGINE_API_URL="${ENGINE_API_URL}"
 
         # Backend (.NET API)
         ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENV}"
