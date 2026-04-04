@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { TestSiteBanner } from "@/components/test-site-banner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,9 +32,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark`}>
-      <body className="min-h-screen bg-void text-white font-sans antialiased">
-        {children}
-      </body>
+        <body className="min-h-screen bg-void text-white font-sans antialiased">
+          <TestSiteBanner />
+          {children}
+        </body>
     </html>
   );
 }
