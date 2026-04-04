@@ -50,7 +50,9 @@ jobs:
             docker builder prune -f || true
             docker image prune -f || true
             docker container prune -f || true
+            docker volume prune -f || true
             docker builder prune -af --filter "until=24h" || true
+            docker system prune -af --volumes || true
             docker system df || true
           fi
 
@@ -60,13 +62,24 @@ jobs:
         run: |
           # Work around intermittent BuildKit/containerd snapshot export failures
           # seen on the self-hosted runner when loading the final image locally.
-          docker image inspect sa-web-app:test >/dev/null 2>&1 || true
+          set -Eeuo pipefail
+
+          # Legacy builder cache metadata can become corrupted on this runner,
+          # causing failures such as:
+          # "failed to create cache image ... moby-dangling ... already exists"
+          # Prefer deterministic clean builds over flaky cache restores.
+          docker image rm -f sa-web-app:test >/dev/null 2>&1 || true
+
+          IMAGE_TAG="sa-web-app:${GITHUB_SHA::12}"
           docker build \
             --target web \
-            --cache-from sa-web-app:test \
+            --pull \
+            --no-cache \
             --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
-            -t sa-web-app:test \
+            -t "$IMAGE_TAG" \
             .
+
+          docker tag "$IMAGE_TAG" sa-web-app:test
 
       - name: Swap web container
         run: |
