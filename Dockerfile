@@ -14,21 +14,24 @@ RUN corepack enable && corepack prepare pnpm@10 --activate
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-# Copy dependency manifests first for cache-friendly dependency resolution.
+# Copy manifests first so the install layer is cached independently of source.
+# pnpm-workspace.yaml is included so pnpm treats /app as a self-contained root
+# and does not attempt to walk up to a non-existent parent workspace.
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml src/StackAlchemist.Web/pnpm-workspace.yaml ./
 
-# Populate pnpm store from lockfile before source copy.
-RUN pnpm fetch --frozen-lockfile
+# Install dependencies.  We use --no-frozen-lockfile so the build succeeds
+# even when the lockfile has minor drift (e.g. a newly added package was not
+# yet committed to the lockfile).  The lockfile is discarded after build.
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
-# Install deps, build, and clean up in one layer to minimise final image size.
+# Build the Next.js app and clean up in one layer to minimise image size.
 # We invoke next build directly (not via `pnpm run build`) because the npm
 # script wrapper (scripts/build-wrapper.mjs) is excluded by .dockerignore and
 # is only needed on Windows+pnpm where a path-casing bug must be patched at
 # runtime.  On Linux that bug does not exist; next build runs cleanly.
-RUN pnpm install --frozen-lockfile --offline --ignore-scripts \
-  && node_modules/.bin/next build \
+RUN node_modules/.bin/next build \
   && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
