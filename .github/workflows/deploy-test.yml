@@ -73,6 +73,20 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          dump_sa_web_diagnostics() {
+            echo "── docker ps (sa-web) ──"
+            docker ps -a --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+
+            echo "── docker inspect (sa-web) ──"
+            docker inspect sa-web || true
+
+            echo "── docker logs (sa-web) ──"
+            docker logs --tail 200 sa-web || true
+
+            echo "── in-container probe (sa-web) ──"
+            docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then((res) => { console.log('status=' + res.status); process.exit(res.ok ? 0 : 1); }).catch((err) => { console.error(err); process.exit(1); })" || true
+          }
+
           # Stop and remove the old container (nginx placeholder or previous web app)
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
@@ -92,7 +106,7 @@ jobs:
           for i in {1..20}; do
             if [ "$(docker inspect -f '{{.State.Running}}' sa-web 2>/dev/null || echo false)" != "true" ]; then
               echo "❌ sa-web exited during startup"
-              docker logs --tail 200 sa-web 2>/dev/null || true
+              dump_sa_web_diagnostics
               exit 1
             fi
 
@@ -103,7 +117,7 @@ jobs:
 
             if [ "$i" -eq 20 ]; then
               echo "❌ sa-web did not become healthy in time"
-              docker logs --tail 200 sa-web 2>/dev/null || true
+              dump_sa_web_diagnostics
               exit 1
             fi
 
