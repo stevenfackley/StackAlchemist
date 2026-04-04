@@ -25,7 +25,5 @@
     "url": "https://github.com/stevenfackley/StackAlchemist/issues"
   },
   "homepage": "https://github.com/stevenfackley/StackAlchemist#readme",
-  "dependencies": {
-    "@supabase/ssr": "^0.10.0"
-  }
+  "dependencies": {}
 }
