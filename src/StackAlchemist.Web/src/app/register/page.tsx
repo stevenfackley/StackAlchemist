@@ -49,7 +49,7 @@ function RegisterPageContent() {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}${returnTo}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`,
         },
       });
 

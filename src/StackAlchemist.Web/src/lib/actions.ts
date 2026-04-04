@@ -2,9 +2,11 @@
 
 import { headers } from "next/headers";
 import { createServerClient } from "./supabase";
+import { getServerUser } from "./supabase-server";
 import { buildDemoGeneration } from "./demo-data";
 import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
+  Generation,
   Tier,
   GenerationSchema,
   SubmitGenerationResponse,
@@ -57,6 +59,9 @@ export async function submitSimpleGeneration(
     return { success: false, error: "Server configuration is incomplete. Please contact support." };
   }
 
+  // Attach the authenticated user's ID if they are signed in.
+  const user = await getServerUser();
+
   // 1. Insert generation record
   const { data, error } = await db
     .from("generations")
@@ -69,7 +74,7 @@ export async function submitSimpleGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: null,
+      user_id: user?.id ?? null,
       completed_at: null,
     })
     .select()
@@ -194,6 +199,9 @@ export async function submitAdvancedGeneration(
     schema.entities.map((e) => e.name).join(", ") +
     ` — ${schema.entities.length} entities, ${schema.relationships.length} relationships, ${schema.endpoints.length} endpoints`;
 
+  // Attach the authenticated user's ID if they are signed in.
+  const user = await getServerUser();
+
   // 1. Insert generation record with the full schema
   const { data, error } = await db
     .from("generations")
@@ -206,7 +214,7 @@ export async function submitAdvancedGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: null,
+      user_id: user?.id ?? null,
       completed_at: null,
     })
     .select()
@@ -380,6 +388,9 @@ export async function createPendingGeneration(
         ` — ${schema.entities.length} entities`
       : (prompt ?? "").trim();
 
+  // Attach the authenticated user's ID if they are signed in.
+  const user = await getServerUser();
+
   const { data, error } = await db
     .from("generations")
     .insert({
@@ -391,7 +402,7 @@ export async function createPendingGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: null,
+      user_id: user?.id ?? null,
       completed_at: null,
     })
     .select()
@@ -461,4 +472,40 @@ export async function createCheckoutSession(
     console.error("[createCheckoutSession] Fetch failed:", err);
     return { success: false, error: "Failed to reach the payment service. Please try again." };
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   getMyGenerations
+   Returns all generations linked to the currently authenticated user, ordered
+   newest-first.  Used by the /dashboard page.
+   Returns an empty array when the visitor is anonymous or Supabase is not
+   configured.
+───────────────────────────────────────────────────────────────────────────── */
+export async function getMyGenerations(): Promise<Generation[]> {
+  const user = await getServerUser();
+  if (!user) return [];
+
+  if (!hasServerSupabaseConfig()) return [];
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch (err) {
+    console.error("[getMyGenerations] Supabase config error:", err);
+    return [];
+  }
+
+  const { data, error } = await db
+    .from("generations")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("[getMyGenerations] Query error:", error);
+    return [];
+  }
+
+  return (data ?? []) as Generation[];
 }

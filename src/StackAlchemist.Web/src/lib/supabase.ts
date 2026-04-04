@@ -1,3 +1,4 @@
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { hasPublicSupabaseConfig, isDemoMode } from "./runtime-config";
@@ -7,16 +8,25 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /**
  * Browser-side Supabase client (uses anon key).
- * Typed with Database for real-time subscription type safety in Client Components.
- * Returns `null` when public env vars are not configured so the UI can fail closed.
+ *
+ * Phase 6: migrated from `createClient` → `createBrowserClient` (@supabase/ssr)
+ * so the client automatically reads/writes the cookie-based session that
+ * middleware maintains on the server side.  All Client Components that call
+ * `supabase.auth.*` or `supabase.channel(...)` should import this singleton.
+ *
+ * Returns `null` when public env vars are not configured so the UI fails closed.
  */
 export const supabase = hasPublicSupabaseConfig()
-  ? createClient<Database>(supabaseUrl!, supabaseAnonKey!)
+  ? createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!)
   : null;
 
 /**
- * Server-side Supabase client (service role).
- * Never expose this client to the browser.
+ * Server-side Supabase client using the **service role** key.
+ * Bypasses RLS — never expose this client to the browser.
+ *
+ * Used only by server actions that need to write on behalf of the system
+ * (e.g. creating a generation row triggered by a Stripe webhook) where the
+ * anon-key SSR client in supabase-server.ts would be blocked by RLS.
  */
 export function createServerClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,9 +41,6 @@ export function createServerClient() {
     );
   }
 
-  // Server actions currently write against a hand-maintained schema shape.
-  // Keep runtime env validation strict, but avoid over-constraining writes until
-  // generated Supabase types are added to the repo.
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,

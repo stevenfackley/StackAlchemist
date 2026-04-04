@@ -36,7 +36,9 @@ function LoginPageContent() {
       if (mode === "magic") {
         const { error } = await supabase.auth.signInWithOtp({
           email: email.trim(),
-          options: { emailRedirectTo: `${window.location.origin}${returnTo}` },
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`,
+          },
         });
         if (error) {
           setErrorMsg(error.message);

@@ -231,6 +231,50 @@ All zones use `{{!-- LLM_INJECTION_START: ZoneName --}}` / `{{!-- LLM_INJECTION_
 
 ---
 
+## Phase 6 — Supabase SSR Session Propagation + User Dashboard (2026-04-04)
+
+### Session Architecture
+- **`@supabase/ssr` installed** — replaces the hand-rolled `createClient` browser singleton with `createBrowserClient` for cookie-based session propagation in Client Components.
+- **`src/middleware.ts`** — runs on every non-asset request; calls `getUser()` to silently refresh the JWT and write updated session cookies back via `Set-Cookie` headers. Bails out early when `NEXT_PUBLIC_SUPABASE_URL` is not set so demo/CI runs are unaffected.
+- **`src/lib/supabase-server.ts`** — new file exporting `createSupabaseServerClient()` (anon-key, cookie-backed) and `getServerUser()` (always uses `getUser()`, never `getSession()`, to avoid trusting stale cookie data).
+- **`src/lib/supabase.ts`** — `createBrowserClient` from `@supabase/ssr` replaces raw `createClient`. Service-role `createServerClient()` retained for engine-triggered writes that must bypass RLS.
+
+### Auth Routes
+- **`/auth/callback`** (GET Route Handler) — handles PKCE code exchange for magic-link sign-ins and email confirmations. `emailRedirectTo` in login/register updated to point here with `?next=` param.
+- **`/auth/signout`** (POST Route Handler) — signs out and redirects to `/`. Called via native `<form method="POST">` in navbar and dashboard header.
+
+### User-Linked Generations
+- `submitSimpleGeneration`, `submitAdvancedGeneration`, and `createPendingGeneration` now call `getServerUser()` and pass `user_id: user?.id ?? null` to every `generations` insert. Anonymous generations remain allowed (`user_id = null`).
+
+### `getMyGenerations` Server Action
+- Queries `generations` by `user_id = currentUser.id`, ordered newest-first, limit 50.
+- Returns `[]` when anonymous or Supabase is unconfigured.
+
+### Navbar — Async Server Component
+- `Navbar` promoted from a plain Server Component to an `async` Server Component.
+- When `getServerUser()` returns a user: shows email badge (md+), Dashboard link, and a Sign-Out `<form>` button.
+- When anonymous: shows the existing Login link.
+
+### `/dashboard` Page
+- Auth-gated: `redirect("/login?returnTo=/dashboard")` when unauthenticated.
+- Stats row: Total / Complete / In Progress counts.
+- Generation list: tier badge, mode tag, prompt preview, status badge, View link, Download link (paid + complete only).
+- BYOK settings card: account email, disabled API key input and model selector (fields wired in Phase 7).
+
+### E2E Tests (dashboard.spec.ts)
+- Existing scaffold tests promoted to real assertions:
+  - Unauthenticated `/dashboard` → redirect to `/login?returnTo=...`
+  - Login page: heading, sign-in button, magic-link toggle hides password field
+  - Register page: heading, submit button, client-side mismatch validation
+
+### Test Results
+```
+Frontend:  next build + next lint pass clean
+E2E:       4 live assertions, 2 intentional skips (Phase 7)
+```
+
+---
+
 ## Phase 5 — Stripe Payment Gate + Supabase Auth (2026-04-04)
 
 ### Payment Architecture
