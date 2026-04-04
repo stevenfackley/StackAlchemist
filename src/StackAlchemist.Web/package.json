@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "node ./scripts/prebuild-clean.mjs",
-    "build": "next build",
+    "build": "node ./scripts/build-wrapper.mjs",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "setup-env": "node ./scripts/setup-env-safe.mjs",

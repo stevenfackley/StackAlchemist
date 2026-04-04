@@ -230,3 +230,42 @@ All zones use `{{!-- LLM_INJECTION_START: ZoneName --}}` / `{{!-- LLM_INJECTION_
 - 1 warning: invalid VS BuildTools LIB path in env — harmless, pre-existing env issue.
 
 ---
+
+## Phase 5 — Stripe Payment Gate + Supabase Auth (2026-04-04)
+
+### Payment Architecture
+- **Pre-payment row**: For paid tiers 1–3, `createPendingGeneration()` inserts a `generations` row with `status=pending` *before* redirecting to Stripe. Engine is NOT called at this point.
+- **Webhook-triggered execution**: Engine fires only when Stripe confirms `checkout.session.completed`. The `generationId` is stored in Stripe session metadata so the webhook correlates payment → generation.
+- **Tier 0 path unchanged**: Free Spark tier calls `submitAdvancedGeneration()` / `submitSimpleGeneration()` directly — creates row AND fires Engine immediately.
+- **No client-side Stripe SDK**: Frontend has zero Stripe JS dependencies. Hosted Checkout URL is returned by the Engine (`/api/stripe/create-session`) and the browser does a hard redirect.
+
+### Engine: `/api/stripe/create-session` Endpoint
+- Input: `{ generationId, tier, successUrl, cancelUrl, prompt? }`
+- Output: `{ sessionId, url }` — Stripe-hosted Checkout URL
+- Pricing (hardcoded; no Stripe Price IDs required):
+  - Tier 1 Blueprint: $299 → `29_900` cents
+  - Tier 2 Boilerplate: $599 → `59_900` cents
+  - Tier 3 Infrastructure: $999 → `99_900` cents
+- `StripeException` caught → 400 Bad Request.
+
+### Engine: Transaction Row on `checkout.session.completed`
+- Inserts row into `transactions` table via Supabase PostgREST immediately before enqueuing the generation.
+- Non-fatal: insert failure logs error but does NOT block generation enqueue.
+- Fields: `stripe_session_id`, `tier`, `amount` (cents from Stripe), `status = "completed"`.
+
+### Frontend: New Server Actions
+- `createPendingGeneration(mode, tier, prompt?, schema?)` — inserts DB row, returns `generationId`. No Engine call.
+- `createCheckoutSession(generationId, tier, prompt?)` — calls Engine → returns Stripe URL. Falls back to `/generate/{id}?demo=1` in demo/no-Stripe environments.
+
+### Supabase Auth Pages
+- `/login` — Email+password or Magic Link. Supports `?returnTo` query param.
+- `/register` — Email+password signup with confirm-password client validation. Shows email-verification success screen.
+- Auth is **optional** — anonymous generations allowed, `user_id = null`. Full `@supabase/ssr` session propagation deferred to Phase 6.
+
+### Navigation
+- Desktop and mobile "Sign In" changed from `<button>` to `<Link href="/login">`.
+
+### `runtime-config.ts` Addition
+- `hasStripeConfig()` — returns `true` when `STRIPE_SECRET_KEY` is set.
+
+---

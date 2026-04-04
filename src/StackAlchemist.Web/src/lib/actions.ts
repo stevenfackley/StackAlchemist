@@ -1,8 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createServerClient } from "./supabase";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasServerSupabaseConfig, isDemoMode } from "./runtime-config";
+import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
   Tier,
   GenerationSchema,
@@ -347,4 +348,117 @@ export async function retryGeneration(
   }
 
   return { success: true };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   createPendingGeneration
+   Creates a generation row in Supabase with status=pending but does NOT fire
+   the Engine.  Used by the paid-tier checkout flow — the Engine is triggered
+   later by the Stripe webhook (checkout.session.completed).
+───────────────────────────────────────────────────────────────────────────── */
+export async function createPendingGeneration(
+  mode: "simple" | "advanced",
+  tier: Tier,
+  prompt?: string,
+  schema?: GenerationSchema
+): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
+  if (isDemoMode || !hasServerSupabaseConfig()) {
+    return { success: true, generationId: `demo-pending-${Date.now()}` };
+  }
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch (err) {
+    console.error("[createPendingGeneration] Supabase config error:", err);
+    return { success: false, error: "Server configuration is incomplete. Please contact support." };
+  }
+
+  const promptSummary =
+    schema
+      ? schema.entities.map((e) => e.name).join(", ") +
+        ` — ${schema.entities.length} entities`
+      : (prompt ?? "").trim();
+
+  const { data, error } = await db
+    .from("generations")
+    .insert({
+      mode,
+      tier,
+      prompt: promptSummary || null,
+      status: "pending",
+      schema_json: schema ?? null,
+      download_url: null,
+      error_message: null,
+      attempt_count: 0,
+      user_id: null,
+      completed_at: null,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("[createPendingGeneration] Insert error:", error);
+    return { success: false, error: "Failed to create generation record. Please try again." };
+  }
+
+  return { success: true, generationId: data.id };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   createCheckoutSession
+   Calls the .NET Engine which uses Stripe.net to create a hosted Checkout
+   Session for the given tier.  Returns the Stripe-hosted URL for redirect.
+   Only valid for tiers 1, 2, and 3 — Tier 0 (Spark) is free.
+───────────────────────────────────────────────────────────────────────────── */
+export async function createCheckoutSession(
+  generationId: string,
+  tier: Tier,
+  prompt?: string
+): Promise<{ success: true; sessionUrl: string } | { success: false; error: string }> {
+  if (tier === 0) {
+    return { success: false, error: "Tier 0 (Spark) is free — no checkout required." };
+  }
+
+  // Demo / no-Stripe fallback: skip payment and redirect to generate page directly.
+  if (isDemoMode || !hasStripeConfig() || !hasEngineConfig()) {
+    return { success: true, sessionUrl: `/generate/${generationId}?demo=1&tier=${tier}` };
+  }
+
+  // Resolve the origin for success / cancel URLs.
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const proto =
+    process.env.NODE_ENV === "production" ||
+    headersList.get("x-forwarded-proto") === "https"
+      ? "https"
+      : "http";
+  const origin = `${proto}://${host}`;
+
+  try {
+    const engineUrl = resolveEngineUrl();
+    const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        generationId,
+        tier,
+        prompt: prompt ?? "",
+        successUrl: `${origin}/generate/${generationId}?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}/advanced?step=3&tier=${tier}`,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Checkout session creation failed." }));
+      console.error("[createCheckoutSession] Engine error:", body);
+      return { success: false, error: body.error ?? "Failed to create checkout session." };
+    }
+
+    const data = await res.json();
+    return { success: true, sessionUrl: data.url };
+  } catch (err) {
+    console.error("[createCheckoutSession] Fetch failed:", err);
+    return { success: false, error: "Failed to reach the payment service. Please try again." };
+  }
 }

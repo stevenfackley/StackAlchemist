@@ -19,7 +19,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { submitAdvancedGeneration } from "@/lib/actions";
+import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import type { Entity, Relationship, Endpoint, Tier, Generation } from "@/lib/types";
@@ -295,20 +295,44 @@ export default function AdvancedModePage() {
   function handleCheckout() {
     startTransition(async () => {
       setSubmitPhase("submitting");
-      const result = await submitAdvancedGeneration(
-        { entities, relationships, endpoints },
-        selectedTier
-      );
-      if (result.success) {
-        setGenerationId(result.generationId);
-        if (isDemoMode || !supabase) {
-          router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=${selectedTier}`);
+      setErrorMsg(null);
+
+      const schema = { entities, relationships, endpoints };
+
+      if (selectedTier === 0) {
+        // Free tier: create generation + fire engine immediately
+        const result = await submitAdvancedGeneration(schema, 0);
+        if (result.success) {
+          setGenerationId(result.generationId);
+          if (isDemoMode || !supabase) {
+            router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`);
+            return;
+          }
+          setSubmitPhase("submitted");
+        } else {
+          setErrorMsg(result.error);
+          setSubmitPhase("error");
+        }
+      } else {
+        // Paid tiers 1–3: create pending row → Stripe Checkout → Engine fires via webhook
+        const pending = await createPendingGeneration("advanced", selectedTier, undefined, schema);
+        if (!pending.success) {
+          setErrorMsg(pending.error);
+          setSubmitPhase("error");
           return;
         }
-        setSubmitPhase("submitted");
-      } else {
-        setErrorMsg(result.error);
-        setSubmitPhase("error");
+
+        setGenerationId(pending.generationId);
+
+        const session = await createCheckoutSession(pending.generationId, selectedTier);
+        if (!session.success) {
+          setErrorMsg(session.error);
+          setSubmitPhase("error");
+          return;
+        }
+
+        // Redirect to Stripe-hosted Checkout (or demo bypass URL)
+        window.location.href = session.sessionUrl;
       }
     });
   }

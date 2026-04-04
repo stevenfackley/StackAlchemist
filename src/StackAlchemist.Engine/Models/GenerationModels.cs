@@ -137,6 +137,27 @@ public sealed class ExtractSchemaResponse
 }
 
 /// <summary>
+/// Request to create a Stripe Checkout Session (paid tiers 1–3).
+/// </summary>
+public sealed class CreateCheckoutSessionRequest
+{
+    public required string GenerationId { get; init; }
+    public required int Tier { get; init; }
+    public required string SuccessUrl { get; init; }
+    public required string CancelUrl { get; init; }
+    public string? Prompt { get; init; }
+}
+
+/// <summary>
+/// Response from the Stripe Checkout Session creation endpoint.
+/// </summary>
+public sealed class CreateCheckoutSessionResponse
+{
+    public required string SessionId { get; init; }
+    public required string Url { get; init; }
+}
+
+/// <summary>
 /// Request to the Engine /api/generate endpoint.
 /// </summary>
 public sealed class GenerateRequest

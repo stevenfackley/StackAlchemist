@@ -339,9 +339,9 @@ export default function HomePage() {
           <a href="#pricing" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Pricing</a>
           <Link href="/story" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Story</Link>
           <Link href="/docs" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Docs</Link>
-          <button className="rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+          <Link href="/login" className="rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]">
             Sign In
-          </button>
+          </Link>
         </div>
 
         {/* Mobile hamburger */}
@@ -361,9 +361,9 @@ export default function HomePage() {
           <a href="#pricing" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
           <Link href="/story" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Story</Link>
           <Link href="/docs" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Docs</Link>
-          <button className="w-full rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100">
+          <Link href="/login" className="w-full text-center rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 hover:border-blue-500/40 transition-colors" onClick={() => setMobileMenuOpen(false)}>
             Sign In
-          </button>
+          </Link>
         </div>
       )}
 

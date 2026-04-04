@@ -1,7 +1,9 @@
 using System.IO.Abstractions;
+using System.Net.Http.Json;
 using System.Threading.Channels;
 using DotNetEnv;
 using Stripe;
+using Stripe.Checkout;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
@@ -195,6 +197,87 @@ app.MapPost("/api/extract-schema", async (
 .WithName("ExtractSchema")
 .WithSummary("Extract a structured schema from a natural-language prompt via LLM.");
 
+// ── Stripe Checkout Session creation (paid tiers 1–3) ────────────────────────
+// Called by the Next.js server action before redirecting the user to Stripe.
+// Returns the hosted Checkout URL so the frontend can redirect without any
+// client-side Stripe SDK dependency.
+app.MapPost("/api/stripe/create-session", async (
+    CreateCheckoutSessionRequest req,
+    IConfiguration config,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    var secretKey = config["Stripe:SecretKey"];
+    if (string.IsNullOrWhiteSpace(secretKey))
+        return Results.BadRequest(new { error = "Stripe is not configured on this server." });
+
+    StripeConfiguration.ApiKey = secretKey;
+
+    // Amount in cents for each tier
+    var tierPricing = new Dictionary<int, (long Cents, string Name, string Description)>
+    {
+        [1] = (29_900, "StackAlchemist Blueprint",      "Schema JSON, OpenAPI spec, SQL migration scripts"),
+        [2] = (59_900, "StackAlchemist Boilerplate",    "Full compilable .NET + Next.js codebase — Compile Guarantee"),
+        [3] = (99_900, "StackAlchemist Infrastructure", "Codebase + AWS CDK, Helm Charts, Deployment Runbook"),
+    };
+
+    if (!tierPricing.TryGetValue(req.Tier, out var pricing))
+        return Results.BadRequest(new { error = $"Invalid tier: {req.Tier}. Must be 1, 2, or 3." });
+
+    try
+    {
+        var options = new SessionCreateOptions
+        {
+            Mode       = "payment",
+            SuccessUrl = req.SuccessUrl,
+            CancelUrl  = req.CancelUrl,
+            LineItems  =
+            [
+                new SessionLineItemOptions
+                {
+                    PriceData = new SessionLineItemPriceDataOptions
+                    {
+                        Currency   = "usd",
+                        UnitAmount = pricing.Cents,
+                        ProductData = new SessionLineItemPriceDataProductDataOptions
+                        {
+                            Name        = pricing.Name,
+                            Description = pricing.Description,
+                        },
+                    },
+                    Quantity = 1,
+                },
+            ],
+            Metadata = new Dictionary<string, string>
+            {
+                ["generationId"] = req.GenerationId,
+                ["tier"]         = req.Tier.ToString(),
+                ["prompt"]       = req.Prompt ?? "",
+            },
+        };
+
+        var service = new SessionService();
+        var session = await service.CreateAsync(options, cancellationToken: ct);
+
+        logger.LogInformation(
+            "Stripe session {SessionId} created for generation {GenId} (tier {Tier})",
+            session.Id, req.GenerationId, req.Tier);
+
+        return Results.Ok(new CreateCheckoutSessionResponse
+        {
+            SessionId = session.Id,
+            Url       = session.Url,
+        });
+    }
+    catch (StripeException ex)
+    {
+        logger.LogError(ex, "Stripe session creation failed for generation {GenId}", req.GenerationId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("CreateStripeSession")
+.WithSummary("Creates a Stripe Checkout Session for a paid tier and returns the hosted URL.");
+
 // ── Stripe webhook ────────────────────────────────────────────────────────────
 // Reads the raw body before routing so Stripe signature verification always
 // receives the unmodified bytes.
@@ -243,6 +326,42 @@ app.MapPost("/api/webhooks/stripe", async (
         var prompt = session.Metadata?.GetValueOrDefault("prompt");
         var generationId = session.Metadata?.GetValueOrDefault("generationId")
                            ?? Guid.NewGuid().ToString();
+
+        // ── Insert transaction row into Supabase ─────────────────────────────
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+        if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
+        {
+            try
+            {
+                var txEndpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/transactions";
+                var txPayload = new
+                {
+                    stripe_session_id = session.Id,
+                    tier              = tier,
+                    amount            = session.AmountTotal ?? 0,
+                    status            = "completed",
+                };
+
+                using var httpClient = new HttpClient();
+                var txReq = new HttpRequestMessage(HttpMethod.Post, txEndpoint)
+                {
+                    Content = JsonContent.Create(txPayload),
+                };
+                txReq.Headers.Add("apikey", serviceRoleKey);
+                txReq.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+                txReq.Headers.Add("Prefer", "return=minimal");
+                await httpClient.SendAsync(txReq, ct);
+
+                logger.LogInformation(
+                    "Transaction row inserted for Stripe session {SessionId}", session.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to insert transaction for session {SessionId}", session.Id);
+                // Non-fatal: still enqueue generation
+            }
+        }
 
         await orchestrator.EnqueueAsync(new GenerateRequest
         {

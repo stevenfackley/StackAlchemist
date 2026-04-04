@@ -17,6 +17,17 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
   outputFileTracingRoot: __dirname,
+  webpack: (config) => {
+    // Fix Windows + pnpm symlink casing collision:
+    // pnpm uses a virtual store with symlinks; webpack follows those symlinks and
+    // ends up with both "C:\..." and "c:\..." paths for the same file, causing
+    // next/dist/pages/_document to load twice and breaking the <Html> singleton
+    // check during static prerendering of /404.
+    // Setting symlinks:false makes webpack use the symlink path as-is (consistent
+    // casing) rather than resolving through to the virtual store.
+    config.resolve.symlinks = false;
+    return config;
+  },
   async headers() {
     return [
       {

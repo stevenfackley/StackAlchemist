@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CheckCircle2, AlertCircle, Loader2, Plus, Trash2, X } from "lucide-react";
-import { submitSimpleGeneration, extractSchema } from "@/lib/actions";
+import { submitSimpleGeneration, extractSchema, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import type { Generation, GenerationSchema, Tier } from "@/lib/types";
@@ -516,17 +516,42 @@ export default function SimpleModePage() {
   function handleProceed() {
     startTransition(async () => {
       setPhase("submitting");
-      const result = await submitSimpleGeneration(prompt, selectedTier);
-      if (result.success) {
-        setGenerationId(result.generationId);
-        if (isDemoMode || !supabase) {
-          router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=${selectedTier}`);
+      setErrorMsg(null);
+
+      if (selectedTier === 0) {
+        // Free tier (Spark): create generation + fire engine immediately
+        const result = await submitSimpleGeneration(prompt, 0);
+        if (result.success) {
+          setGenerationId(result.generationId);
+          if (isDemoMode || !supabase) {
+            router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`);
+            return;
+          }
+          setPhase("submitted");
+        } else {
+          setErrorMsg(result.error);
+          setPhase("error");
+        }
+      } else {
+        // Paid tiers 1–3: create pending row → Stripe Checkout → Engine fires via webhook
+        const pending = await createPendingGeneration("simple", selectedTier, prompt);
+        if (!pending.success) {
+          setErrorMsg(pending.error);
+          setPhase("error");
           return;
         }
-        setPhase("submitted");
-      } else {
-        setErrorMsg(result.error);
-        setPhase("error");
+
+        setGenerationId(pending.generationId);
+
+        const session = await createCheckoutSession(pending.generationId, selectedTier, prompt);
+        if (!session.success) {
+          setErrorMsg(session.error);
+          setPhase("error");
+          return;
+        }
+
+        // Redirect to Stripe-hosted Checkout (or demo bypass URL)
+        window.location.href = session.sessionUrl;
       }
     });
   }

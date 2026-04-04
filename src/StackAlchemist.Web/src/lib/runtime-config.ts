@@ -17,3 +17,7 @@ export function hasServerSupabaseConfig() {
 export function hasEngineConfig() {
   return Boolean(process.env.ENGINE_API_URL) || process.env.NODE_ENV !== "production";
 }
+
+export function hasStripeConfig() {
+  return Boolean(process.env.STRIPE_SECRET_KEY);
+}
