@@ -30,7 +30,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -157,6 +157,9 @@ jobs:
           tags: stackalchemist/${{ matrix.target }}:ci
 
   # ─── E2E Tests (runs on merge to main only) ─────────────────────────────────
+  # E2E tests use Playwright's built-in webServer to start the Next.js dev server.
+  # The docker-compose steps pull pre-built GHCR images (backend) when available;
+  # if images don't exist yet they fail gracefully (continue-on-error).
   e2e:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
@@ -170,7 +173,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -185,7 +188,8 @@ jobs:
 
       - name: Install Playwright Browsers
         working-directory: src/StackAlchemist.Web
-        run: npx playwright install --with-deps chromium
+        # Use pnpm exec to ensure the project-local @playwright/test is used
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Setup .env (test)
         uses: ./.github/actions/setup-env
@@ -208,24 +212,24 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: Start Test Environment
-        run: docker compose -f docker/docker-compose.test.yml up -d
+      # Pull backend images from GHCR if available (not required for frontend-only tests)
+      - name: Start Backend Services
+        run: docker compose -f docker/docker-compose.test.yml up -d sa-engine sa-worker
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-        continue-on-error: true  # May not have images built yet
+        continue-on-error: true  # Backend images may not exist; frontend-only tests still run
 
-      - name: Wait for Services
-        run: |
-          echo "Waiting for services to be ready..."
-          sleep 15
+      - name: Wait for Backend
+        run: sleep 10
         continue-on-error: true
 
       - name: Run Playwright Tests
         working-directory: src/StackAlchemist.Web
-        run: npx playwright test --project=chromium
+        # No PLAYWRIGHT_BASE_URL — Playwright will start Next.js dev server automatically
+        # via playwright.config.ts webServer config
+        run: pnpm exec playwright test --project=chromium
         env:
           CI: true
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
 
       - name: Upload Playwright Report
         if: always()
@@ -243,7 +247,7 @@ jobs:
           path: src/StackAlchemist.Web/e2e-results/
           retention-days: 7
 
-      - name: Teardown Test Environment
+      - name: Teardown Backend Services
         if: always()
         run: docker compose -f docker/docker-compose.test.yml down -v
         continue-on-error: true

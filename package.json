@@ -24,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/stevenfackley/StackAlchemist/issues"
   },
-  "homepage": "https://github.com/stevenfackley/StackAlchemist#readme"
+  "homepage": "https://github.com/stevenfackley/StackAlchemist#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
 }
