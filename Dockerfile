@@ -17,11 +17,13 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 # Copy manifests first so the install layer is cached independently of source.
 # pnpm-workspace.yaml is included so pnpm treats /app as a self-contained root
 # and does not attempt to walk up to a non-existent parent workspace.
-COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml src/StackAlchemist.Web/pnpm-workspace.yaml ./
+COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-workspace.yaml ./
+# Copy the lockfile if it exists.  The wildcard prevents COPY from failing when
+# the lockfile is absent; pnpm will generate a fresh one during install.
+COPY src/StackAlchemist.Web/pnpm-lock.yam[l] ./
 
-# Install dependencies.  We use --no-frozen-lockfile so the build succeeds
-# even when the lockfile has minor drift (e.g. a newly added package was not
-# yet committed to the lockfile).  The lockfile is discarded after build.
+# Install all dependencies from package.json.  --no-frozen-lockfile allows
+# pnpm to update (or create) the lockfile when it has drifted from package.json.
 RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .

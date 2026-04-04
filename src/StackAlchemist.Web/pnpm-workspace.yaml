@@ -1,0 +1,5 @@
+# This file marks src/StackAlchemist.Web as a standalone pnpm workspace root.
+# It prevents pnpm from walking up to the repository root when running
+# `pnpm install` from this directory, ensuring the lockfile here stays
+# self-contained for the Docker build.
+packages: []
