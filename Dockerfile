@@ -9,13 +9,13 @@ WORKDIR /app
 # Enable pnpm via corepack (ships with Node 20)
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@8 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Copy dependency manifests first for cache-friendly dependency resolution.
-COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml ./
+COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml src/StackAlchemist.Web/pnpm-workspace.yaml ./
 
 # Populate pnpm store from lockfile before source copy.
 RUN pnpm fetch --frozen-lockfile
