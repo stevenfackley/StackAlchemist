@@ -7,14 +7,26 @@
 FROM node:20-alpine AS web-builder
 WORKDIR /app
 # Enable pnpm via corepack (ships with Node 20)
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@8 --activate
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+
+# Copy dependency manifests first for cache-friendly dependency resolution.
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Populate pnpm store from lockfile before source copy.
+RUN pnpm fetch --frozen-lockfile
+
 COPY src/StackAlchemist.Web/ .
-RUN pnpm run build
+
+# Keep install + build + cleanup in one layer to reduce intermediate layer size
+# pressure when building with legacy builder (DOCKER_BUILDKIT=0).
+RUN pnpm install --frozen-lockfile --offline --ignore-scripts \
+  && pnpm run build \
+  && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
 WORKDIR /app

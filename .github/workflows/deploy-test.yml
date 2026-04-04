@@ -38,14 +38,19 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
+      - name: Docker pre-flight cleanup
+        run: bash ./scripts/docker-preflight-cleanup.sh
+
       - name: Build Next.js web image
         env:
           DOCKER_BUILDKIT: '0'
         run: |
           # Work around intermittent BuildKit/containerd snapshot export failures
           # seen on the self-hosted runner when loading the final image locally.
+          docker image inspect sa-web-app:test >/dev/null 2>&1 || true
           docker build \
             --target web \
+            --cache-from sa-web-app:test \
             --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
             -t sa-web-app:test \
             .
