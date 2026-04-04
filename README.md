@@ -204,9 +204,17 @@ StackAlchemist/
 
 Auri is our resident alchemist: equal parts wise guide and chaotic builder energy. He represents what StackAlchemist is built for — turning rough ideas into shippable systems, without losing the magic of building.
 
+<p align="center">
+  <img src="docs/branding/main-mascot-alchemist.svg" alt="Auri, the StackAlchemist main mascot" width="320" />
+</p>
+
 ### Reto — Swiss Cheese Method
 
 Reto is the specialist behind the Swiss Cheese Method. He keeps structure solid, leaves room for intelligent variation, and reminds us that reliable software is equal parts discipline and craft.
+
+<p align="center">
+  <img src="docs/branding/swiss-cheese-mascot.svg" alt="Reto, the Swiss Cheese Method mascot" width="320" />
+</p>
 
 ---
 
