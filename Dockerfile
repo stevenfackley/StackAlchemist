@@ -23,8 +23,12 @@ RUN pnpm fetch --frozen-lockfile
 COPY src/StackAlchemist.Web/ .
 
 # Install deps, build, and clean up in one layer to minimise final image size.
+# We invoke next build directly (not via `pnpm run build`) because the npm
+# script wrapper (scripts/build-wrapper.mjs) is excluded by .dockerignore and
+# is only needed on Windows+pnpm where a path-casing bug must be patched at
+# runtime.  On Linux that bug does not exist; next build runs cleanly.
 RUN pnpm install --frozen-lockfile --offline --ignore-scripts \
-  && pnpm run build \
+  && node_modules/.bin/next build \
   && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
