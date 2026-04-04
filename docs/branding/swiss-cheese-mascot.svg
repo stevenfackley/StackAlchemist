@@ -1,12 +1,8 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Reto the Swiss Cheese Mascot</title>
-  <desc id="desc">Reto, a cartoon Swiss cheese mascot wearing Alpine Swiss clothing: red Tyrolean hat with feather, red vest, white shirt, Swiss-cross badge, and cowbell.</desc>
+  <desc id="desc">Reto, a cartoon Swiss cheese mascot with a transparent background, wearing a Swiss-inspired alpine hat and outfit, with a curled moustache and beard.</desc>
 
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F172A"/>
-      <stop offset="1" stop-color="#1E293B"/>
-    </linearGradient>
     <linearGradient id="cheeseFace" x1="220" y1="270" x2="810" y2="760" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFE082"/>
       <stop offset="1" stop-color="#F6C94D"/>
@@ -23,19 +19,6 @@
       <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#4DA6FF" flood-opacity="0.55"/>
     </filter>
   </defs>
-
-  <rect width="1024" height="1024" rx="56" fill="url(#bg)"/>
-
-  <!-- Swiss flag pennant in background -->
-  <g>
-    <rect x="130" y="154" width="12" height="218" rx="6" fill="#94A3B8"/>
-    <path d="M142 166L324 204L142 244V166Z" fill="#D52B1E"/>
-    <rect x="206" y="193" width="24" height="62" rx="3" fill="#FFFFFF"/>
-    <rect x="187" y="212" width="62" height="24" rx="3" fill="#FFFFFF"/>
-  </g>
-
-  <!-- Ground shadow -->
-  <ellipse cx="512" cy="770" rx="310" ry="54" fill="#0B1120" opacity="0.55"/>
 
   <!-- Cheese wedge -->
   <g filter="url(#softShadow)">
@@ -57,12 +40,14 @@
   <!-- Swiss Alpine hat -->
   <g>
     <path d="M337 314C349 228 418 176 512 176C606 176 675 228 687 314H337Z" fill="#C1121F" stroke="#8A0E16" stroke-width="10"/>
-    <rect x="304" y="303" width="416" height="48" rx="24" fill="#A30F1A" stroke="#7D0C14" stroke-width="10"/>
+    <path d="M364 214C426 176 587 176 650 214L615 242C560 216 464 216 399 243L364 214Z" fill="#111827" opacity="0.22"/>
+    <rect x="286" y="303" width="452" height="54" rx="27" fill="#A30F1A" stroke="#7D0C14" stroke-width="10"/>
     <rect x="487" y="240" width="50" height="50" rx="8" fill="#FFFFFF"/>
     <rect x="506" y="250" width="12" height="30" rx="2" fill="#D52B1E"/>
     <rect x="497" y="259" width="30" height="12" rx="2" fill="#D52B1E"/>
     <path d="M690 236C722 220 748 226 764 248C737 252 716 265 701 290C694 272 690 254 690 236Z" fill="#22C55E"/>
     <path d="M705 285C728 259 748 252 765 254" stroke="#BBF7D0" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="512" cy="340" rx="162" ry="20" fill="#7D0C14" opacity="0.35"/>
   </g>
 
   <!-- Eyes -->
@@ -75,12 +60,16 @@
     <circle cx="598" cy="514" r="5" fill="#FFFFFF"/>
   </g>
 
-  <!-- Face + moustache -->
+  <!-- Face + curled moustache + beard -->
   <g>
     <path d="M430 620C450 650 475 667 511 667C547 667 572 650 592 620" stroke="#0F172A" stroke-width="14" stroke-linecap="round"/>
     <circle cx="462" cy="594" r="7" fill="#0F172A"/>
     <circle cx="560" cy="594" r="7" fill="#0F172A"/>
-    <path d="M472 602C488 594 499 596 512 606C525 596 536 594 552 602C540 620 524 627 512 627C500 627 484 620 472 602Z" fill="#5B3A1F"/>
+    <path d="M445 602C460 589 482 589 500 604C486 605 474 613 464 628C455 624 448 615 445 602Z" fill="#4A2C1A"/>
+    <path d="M579 602C564 589 542 589 524 604C538 605 550 613 560 628C569 624 576 615 579 602Z" fill="#4A2C1A"/>
+    <path d="M473 604C489 596 500 598 512 609C524 598 535 596 551 604C538 623 523 631 512 631C501 631 486 623 473 604Z" fill="#6A4125"/>
+    <path d="M455 626C474 649 487 685 490 724C498 735 505 740 512 740C519 740 526 735 534 724C537 685 550 649 569 626C564 677 570 717 586 748C567 766 542 776 512 776C482 776 457 766 438 748C454 717 460 677 455 626Z" fill="#5B3A1F"/>
+    <path d="M475 722C489 734 500 739 512 739C524 739 535 734 549 722" stroke="#7A4A2A" stroke-width="6" stroke-linecap="round"/>
     <ellipse cx="392" cy="612" rx="15" ry="10" fill="#F6A78F" opacity="0.45"/>
     <ellipse cx="629" cy="612" rx="15" ry="10" fill="#F6A78F" opacity="0.45"/>
   </g>
@@ -93,13 +82,11 @@
     <rect x="500" y="614" width="24" height="109" rx="12" fill="#FDE68A"/>
     <circle cx="512" cy="654" r="8" fill="#F59E0B"/>
     <circle cx="512" cy="693" r="8" fill="#F59E0B"/>
+    <rect x="442" y="650" width="34" height="34" rx="6" fill="#FFFFFF"/>
+    <rect x="456" y="656" width="8" height="22" rx="2" fill="#D52B1E"/>
+    <rect x="449" y="663" width="22" height="8" rx="2" fill="#D52B1E"/>
     <rect x="458" y="670" width="108" height="12" rx="6" fill="#6B7280"/>
     <path d="M480 682H544L535 724C533 736 523 744 512 744C501 744 491 736 489 724L480 682Z" fill="#C69222" stroke="#8B5A2B" stroke-width="5"/>
-  </g>
-
-  <!-- Small alpine sparkle accent -->
-  <g filter="url(#glow)">
-    <path d="M306 304L316 281L326 304L349 314L326 324L316 347L306 324L283 314L306 304Z" fill="#4DA6FF"/>
   </g>
 
 </svg>
