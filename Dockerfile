@@ -28,22 +28,24 @@ RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
-# Build the Next.js app and clean up in one layer to minimise image size.
+# Build the Next.js app and clean up cache in one layer.
 # We invoke next build directly (not via `pnpm run build`) because the npm
 # script wrapper (scripts/build-wrapper.mjs) is excluded by .dockerignore and
 # is only needed on Windows+pnpm where a path-casing bug must be patched at
 # runtime.  On Linux that bug does not exist; next build runs cleanly.
 RUN node_modules/.bin/next build \
-  && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
+  && rm -rf /pnpm/store /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-# Standalone output bundles everything needed — no npm install required
+# Keep runtime deps alongside standalone output because the generated server.js
+# still resolves the Next runtime from /app/node_modules on the test runner.
 COPY --from=web-builder /app/.next/standalone ./
 COPY --from=web-builder /app/.next/static ./.next/static
+COPY --from=web-builder /app/node_modules ./node_modules
 COPY --from=web-builder /app/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
