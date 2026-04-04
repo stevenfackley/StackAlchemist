@@ -7,7 +7,7 @@
 FROM node:20-alpine AS web-builder
 WORKDIR /app
 # Enable pnpm via corepack (ships with Node 20)
-RUN corepack enable && corepack prepare pnpm@10 --activate
+RUN corepack enable && corepack prepare pnpm@8 --activate
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
