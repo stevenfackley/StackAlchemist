@@ -1,12 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
+import { hasPublicSupabaseConfig, isDemoMode } from "./runtime-config";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-function hasPublicSupabaseConfig() {
-  return Boolean(supabaseUrl && supabaseAnonKey);
-}
 
 /**
  * Browser-side Supabase client (uses anon key).
@@ -25,6 +22,10 @@ export function createServerClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
+    if (isDemoMode) {
+      throw new Error("Supabase is unavailable in demo mode.");
+    }
+
     throw new Error(
       "Supabase server configuration is missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
     );

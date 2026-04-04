@@ -6,11 +6,16 @@ import Image from "next/image";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tier?: string }>;
 }
 
-export default async function GeneratePage({ params }: PageProps) {
+export default async function GeneratePage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const generation = await getGeneration(id);
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const tier = resolvedSearchParams?.tier
+    ? (Number(resolvedSearchParams.tier) as 0 | 1 | 2 | 3)
+    : undefined;
+  const generation = await getGeneration(id, tier);
 
   if (!generation) {
     return (

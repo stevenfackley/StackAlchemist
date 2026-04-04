@@ -21,6 +21,7 @@ import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/runtime-config";
 import type { Entity, Relationship, Endpoint, Tier, Generation } from "@/lib/types";
 
 const FIELD_TYPES = ["UUID", "String", "Integer", "Decimal", "Boolean", "Timestamp", "Text", "JSON"];
@@ -239,8 +240,8 @@ const STEPS = ["Define Entities", "Configure API", "Select Tier & Pay"];
 export default function AdvancedModePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialStep = Number(searchParams.get("step") ?? "1");
-  const initialTier = Number(searchParams.get("tier") ?? "2") as Tier;
+  const initialStep = Number(searchParams?.get("step") ?? "1");
+  const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
 
   const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 3));
   const [entities, setEntities] = useState<Entity[]>([{
@@ -300,6 +301,10 @@ export default function AdvancedModePage() {
       );
       if (result.success) {
         setGenerationId(result.generationId);
+        if (isDemoMode || !supabase) {
+          router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=${selectedTier}`);
+          return;
+        }
         setSubmitPhase("submitted");
       } else {
         setErrorMsg(result.error);

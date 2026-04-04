@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { retryGeneration } from "@/lib/actions";
 import type { Generation } from "@/lib/types";
 import dynamic from "next/dynamic";
+import { isDemoMode } from "@/lib/runtime-config";
 
 // Lazy-load the IDE embed so StackBlitz SDK is only bundled when needed
 const MicroIdeEmbed = dynamic(
@@ -562,6 +563,11 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
+    if (isDemoMode && generation.status !== "success") {
+      setGeneration((current) => ({ ...current, status: "success" }));
+      return;
+    }
+
     if (!supabase) return;
     if (generation.status === "success" || generation.status === "failed") return;
 

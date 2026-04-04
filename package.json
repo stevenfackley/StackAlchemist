@@ -1,0 +1,10 @@
+{
+  "name": "stackalchemist",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix src/StackAlchemist.Web",
+    "dev": "npm run dev --prefix src/StackAlchemist.Web",
+    "build": "npm run build --prefix src/StackAlchemist.Web",
+    "start": "npm run start --prefix src/StackAlchemist.Web"
+  }
+}

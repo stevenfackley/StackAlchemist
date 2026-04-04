@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { DOCS, type DocMeta } from "@/lib/docs-manifest";
+import { isDemoMode } from "./runtime-config";
 
 export type { DocMeta };
 export { DOCS };
@@ -21,6 +22,13 @@ export function getDocBySlug(slug: string): { meta: DocMeta; content: string } |
     const content = fs.readFileSync(filePath, "utf-8");
     return { meta, content };
   } catch {
+    if (isDemoMode) {
+      return {
+        meta,
+        content: `# ${meta.title}\n\nDemo mode is active, so repo-level markdown docs are not loaded.\n\nTo see the full documentation locally, run the app from the full repository with the docs folder available.`,
+      };
+    }
+
     return null;
   }
 }

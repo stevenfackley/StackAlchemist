@@ -1,6 +1,8 @@
 "use server";
 
 import { createServerClient } from "./supabase";
+import { buildDemoGeneration } from "./demo-data";
+import { hasEngineConfig, hasServerSupabaseConfig, isDemoMode } from "./runtime-config";
 import type {
   Tier,
   GenerationSchema,
@@ -34,6 +36,15 @@ export async function submitSimpleGeneration(
 ): Promise<SubmitGenerationResponse> {
   if (!prompt || prompt.trim().length < 10) {
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
+  }
+
+  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+    const generationId = `demo-simple-${Date.now()}`;
+    return {
+      success: true,
+      generationId,
+      redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
+    };
   }
 
   let db;
@@ -113,6 +124,10 @@ export async function extractSchema(
   generationId: string,
   prompt: string
 ): Promise<{ success: true; schema: GenerationSchema } | { success: false; error: string }> {
+  if (isDemoMode || !hasEngineConfig()) {
+    return { success: true, schema: buildDemoGeneration(generationId).schema_json! };
+  }
+
   try {
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/extract-schema`, {
@@ -146,6 +161,15 @@ export async function submitAdvancedGeneration(
 ): Promise<SubmitGenerationResponse> {
   if (!schema.entities || schema.entities.length === 0) {
     return { success: false, error: "Please define at least one entity before proceeding." };
+  }
+
+  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+    const generationId = `demo-advanced-${Date.now()}`;
+    return {
+      success: true,
+      generationId,
+      redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
+    };
   }
 
   // Validate entity names
@@ -230,7 +254,12 @@ export async function submitAdvancedGeneration(
    Fetches a single generation record by ID.
    Safe to use in Server Components.
 ───────────────────────────────────────────────────────────────────────────── */
-export async function getGeneration(generationId: string) {
+export async function getGeneration(generationId: string, demoTier?: Tier) {
+  if (isDemoMode || !hasServerSupabaseConfig()) {
+    const tier = demoTier ?? 0;
+    return buildDemoGeneration(generationId, tier);
+  }
+
   let db;
 
   try {
@@ -260,6 +289,10 @@ export async function getGeneration(generationId: string) {
 export async function retryGeneration(
   generationId: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+    return { success: true };
+  }
+
   let db;
 
   try {

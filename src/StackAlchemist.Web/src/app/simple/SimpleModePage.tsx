@@ -21,6 +21,7 @@ import "@xyflow/react/dist/style.css";
 import { CheckCircle2, AlertCircle, Loader2, Plus, Trash2, X } from "lucide-react";
 import { submitSimpleGeneration, extractSchema } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/runtime-config";
 import type { Generation, GenerationSchema, Tier } from "@/lib/types";
 
 // ─── Schema Data Model ───────────────────────────────────────────────────────
@@ -394,7 +395,7 @@ function mapSchemaToLocal(schema: GenerationSchema): {
 export default function SimpleModePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const prompt = searchParams.get("q") ?? "";
+  const prompt = searchParams?.get("q") ?? "";
 
   // ─── UI State ───────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<"generating" | "canvas" | "tier" | "submitting" | "submitted" | "error">("generating");
@@ -518,6 +519,10 @@ export default function SimpleModePage() {
       const result = await submitSimpleGeneration(prompt, selectedTier);
       if (result.success) {
         setGenerationId(result.generationId);
+        if (isDemoMode || !supabase) {
+          router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=${selectedTier}`);
+          return;
+        }
         setPhase("submitted");
       } else {
         setErrorMsg(result.error);
