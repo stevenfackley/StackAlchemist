@@ -62,6 +62,11 @@ jobs:
 
           docker tag "$IMAGE_TAG" sa-web-app:test
 
+          # Remove the SHA-tagged duplicate immediately — :test is the canonical
+          # reference and keeping both wastes disk.
+          docker image rm -f "$IMAGE_TAG" >/dev/null 2>&1 || true
+          echo "✅ Image built and tagged as sa-web-app:test"
+
       - name: Swap web container
         run: |
           # Stop and remove the old container (nginx placeholder or previous web app)
@@ -97,3 +102,13 @@ jobs:
             -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro \
             nginx:alpine
           echo "Placeholder restored."
+
+      - name: Post-deploy Docker cleanup
+        if: always()
+        run: |
+          # Prune any dangling layers and build cache produced by this run.
+          # Runs even on failure so disk is reclaimed regardless of outcome.
+          docker image prune -f 2>/dev/null || true
+          docker builder prune -f --filter "until=1h" 2>/dev/null || true
+          echo "── Post-deploy disk usage ──"
+          df -h / 2>/dev/null || true
