@@ -69,10 +69,24 @@ public sealed class CompileWorkerService(
                 job.GenerationId, GenerationState.Building, ct: ct);
 
             // ── Run dotnet build ──────────────────────────────────────────────
+            await deliveryService.AppendBuildLogAsync(
+                job.GenerationId,
+                $"[Attempt {job.RetryCount + 1}] Running dotnet build...",
+                ct);
+
             var buildResult = await compileService.ExecuteBuildAsync(job.OutputDirectory, ct);
+
+            // Stream build output to Supabase
+            if (!string.IsNullOrWhiteSpace(buildResult.StandardOutput))
+            {
+                await deliveryService.AppendBuildLogAsync(
+                    job.GenerationId, buildResult.StandardOutput, ct);
+            }
 
             if (buildResult.IsSuccess)
             {
+                await deliveryService.AppendBuildLogAsync(
+                    job.GenerationId, "BUILD SUCCEEDED", ct);
                 // Building → Packing
                 job.State = GenerationStateMachine.Transition(
                     job.State, GenerationEvent.BuildPassed, job);
@@ -110,6 +124,11 @@ public sealed class CompileWorkerService(
             var errors = compileService.ExtractBuildErrors(buildResult.ErrorOutput);
             var errorSummary = string.Join("\n", errors);
             job.BuildErrorHistory.Add($"Attempt {job.RetryCount + 1}: {errorSummary}");
+
+            await deliveryService.AppendBuildLogAsync(
+                job.GenerationId,
+                $"BUILD FAILED (attempt {job.RetryCount + 1})\n{errorSummary}",
+                ct);
 
             logger.LogWarning(
                 "Build failed for {Id} (attempt {Attempt}): {Errors}",

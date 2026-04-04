@@ -141,6 +141,60 @@ app.MapPost("/api/generate", async (
 .WithName("Generate")
 .WithSummary("Enqueue a code generation job.");
 
+// ── Schema extraction (Simple Mode) ──────────────────────────────────────
+app.MapPost("/api/extract-schema", async (
+    ExtractSchemaRequest request,
+    IPromptBuilderService promptBuilder,
+    ILlmClient llmClient,
+    ISchemaExtractionService schemaExtractor,
+    IDeliveryService delivery,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    logger.LogInformation("Schema extraction requested for generation {Id}", request.GenerationId);
+
+    // Update status → extracting_schema
+    await delivery.UpdateStatusAsync(request.GenerationId, "extracting_schema", ct);
+
+    try
+    {
+        var systemPrompt = promptBuilder.BuildSchemaExtractionPrompt(request.Prompt);
+        var llmResponse = await llmClient.GenerateAsync(
+            systemPrompt,
+            request.Prompt,
+            ct);
+
+        var schema = schemaExtractor.ParseExtractionResponse(llmResponse);
+
+        // Persist extracted schema to Supabase
+        await delivery.UpdateSchemaAsync(request.GenerationId, schema, ct);
+
+        logger.LogInformation(
+            "Schema extracted for {Id}: {Count} entities",
+            request.GenerationId, schema.Entities.Count);
+
+        return Results.Ok(new ExtractSchemaResponse
+        {
+            GenerationId = request.GenerationId,
+            Schema = schema,
+        });
+    }
+    catch (SchemaExtractionException ex)
+    {
+        logger.LogWarning("Schema extraction failed for {Id}: {Msg}", request.GenerationId, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (SchemaValidationException ex)
+    {
+        logger.LogWarning("Schema validation failed for {Id}: {Msg}", request.GenerationId, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("ExtractSchema")
+.WithSummary("Extract a structured schema from a natural-language prompt via LLM.");
+
 // ── Stripe webhook ────────────────────────────────────────────────────────────
 // Reads the raw body before routing so Stripe signature verification always
 // receives the unmodified bytes.

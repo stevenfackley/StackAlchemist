@@ -452,6 +452,21 @@ function InProgressPanel({ generation }: { generation: Generation }) {
       {/* Progress stepper */}
       <ProgressStepper status={generation.status} />
 
+      {/* Build log stream */}
+      {generation.build_log && (
+        <div className="w-full max-w-2xl rounded-xl border border-slate-600/30 bg-slate-900/60 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/50 bg-slate-800/50">
+            <TerminalSquare className="h-3.5 w-3.5 text-slate-500" />
+            <span className="font-mono text-[10px] text-slate-500 tracking-widest uppercase">Build Output</span>
+          </div>
+          <div className="px-4 py-3 max-h-64 overflow-y-auto">
+            <pre className="font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">
+              {generation.build_log}
+            </pre>
+          </div>
+        </div>
+      )}
+
       {/* Generation ID */}
       <div className="w-full max-w-sm rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1">
         <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Generation ID</p>

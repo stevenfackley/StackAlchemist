@@ -104,6 +104,37 @@ export async function submitSimpleGeneration(
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   extractSchema
+   Called in Simple Mode before generation. Sends the prompt to the Engine
+   which calls Claude 3.5 to extract a structured JSON schema.
+   Returns the schema so the user can review/edit on the React Flow canvas.
+───────────────────────────────────────────────────────────────────────────── */
+export async function extractSchema(
+  generationId: string,
+  prompt: string
+): Promise<{ success: true; schema: GenerationSchema } | { success: false; error: string }> {
+  try {
+    const engineUrl = resolveEngineUrl();
+    const res = await fetch(`${engineUrl}/api/extract-schema`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ generationId, prompt: prompt.trim() }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Schema extraction failed" }));
+      return { success: false, error: body.error || "Schema extraction failed" };
+    }
+
+    const data = await res.json();
+    return { success: true, schema: data.schema as GenerationSchema };
+  } catch (err) {
+    console.error("[extractSchema] Failed:", err);
+    return { success: false, error: "Failed to reach the generation engine." };
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    submitAdvancedGeneration
    Called from the Advanced Wizard when the user clicks "Proceed to Checkout".
    Saves the full schema (entities, relationships, endpoints) to Supabase

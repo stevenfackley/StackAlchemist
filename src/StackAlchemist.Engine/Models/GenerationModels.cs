@@ -119,6 +119,24 @@ public sealed class TemplateField
 }
 
 /// <summary>
+/// Request to the Engine /api/extract-schema endpoint (Simple Mode).
+/// </summary>
+public sealed class ExtractSchemaRequest
+{
+    public required string GenerationId { get; init; }
+    public required string Prompt { get; init; }
+}
+
+/// <summary>
+/// Response from the Engine /api/extract-schema endpoint.
+/// </summary>
+public sealed class ExtractSchemaResponse
+{
+    public required string GenerationId { get; init; }
+    public required GenerationSchema Schema { get; init; }
+}
+
+/// <summary>
 /// Request to the Engine /api/generate endpoint.
 /// </summary>
 public sealed class GenerateRequest

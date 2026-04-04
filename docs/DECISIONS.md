@@ -98,6 +98,50 @@ Zero failures across both suites.
 
 ---
 
+## Phase 4 — Gap Closure: Schema, RLS, Extraction, Build Logs (2026-04-04)
+
+### Supabase Migrations (checked in)
+Three migration files added at `supabase/migrations/`:
+- `20260404000001_create_profiles.sql` — profiles table with auto-create trigger on auth.users insert, RLS (read/update own)
+- `20260404000002_create_transactions.sql` — transactions table with Stripe session uniqueness, RLS (read own + service_role manages)
+- `20260404000003_create_generations.sql` — generations table matching TypeScript `Generation` type, including `build_log` and `preview_files_json` columns, `updated_at` auto-trigger, RLS (anyone inserts/reads, service_role updates), Realtime publication enabled
+
+### Schema matches TypeScript types
+`types.ts` now includes `Profile`, `Transaction`, and updated `Generation` (with `build_log`, `transaction_id`). The `Database` type covers all three tables.
+
+### Schema Extraction Endpoint
+New `POST /api/extract-schema` endpoint on the Engine:
+- Accepts `{ generationId, prompt }`, updates status to `extracting_schema`
+- Calls `IPromptBuilderService.BuildSchemaExtractionPrompt()` → `ILlmClient` → `ISchemaExtractionService.ParseExtractionResponse()`
+- Persists extracted `schema_json` to Supabase via new `IDeliveryService.UpdateSchemaAsync()`
+- Returns `{ generationId, schema }` on success; 400 with error on extraction/validation failure
+
+### Simple Mode Wired to LLM Extraction
+`SimpleModePage` now calls `extractSchema()` server action on load instead of showing hardcoded entities.
+Flow: create pending generation → call Engine `/api/extract-schema` → map returned `GenerationSchema` to local editor types → render on React Flow canvas. Falls back to default example schema if extraction fails.
+
+### Build Log Streaming
+- `IDeliveryService` gained `AppendBuildLogAsync()` — fetches current `build_log`, appends chunk, PATCHes back
+- `CompileWorkerService` streams build output at key points: before build, stdout, success/failure, error summaries
+- `GenerateClientPage` `InProgressPanel` renders `generation.build_log` in a terminal-styled panel, updated live via Supabase Realtime
+
+### IDeliveryService Expansion
+Three new methods added to the interface:
+- `UpdateStatusAsync(string generationId, string status, ...)` — string-based status overload for frontend-facing statuses
+- `UpdateSchemaAsync(string generationId, GenerationSchema schema, ...)` — persists extracted schema
+- `AppendBuildLogAsync(string generationId, string logChunk, ...)` — append-style build log updates
+
+Internal refactor: extracted `PatchGenerationAsync()` shared helper to eliminate PATCH duplication.
+
+### Test Results
+```
+Engine.Tests:  66 passed, 6 skipped
+Worker.Tests:  22 passed, 3 skipped
+Frontend:      next build + next lint pass clean
+```
+
+---
+
 ## Phase 3 — Engine Services & Test Coverage (2026-04-02)
 
 ### New Services

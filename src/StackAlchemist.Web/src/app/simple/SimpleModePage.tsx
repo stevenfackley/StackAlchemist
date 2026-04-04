@@ -19,9 +19,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CheckCircle2, AlertCircle, Loader2, Plus, Trash2, X } from "lucide-react";
-import { submitSimpleGeneration } from "@/lib/actions";
+import { submitSimpleGeneration, extractSchema } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
-import type { Generation, Tier } from "@/lib/types";
+import type { Generation, GenerationSchema, Tier } from "@/lib/types";
 
 // ─── Schema Data Model ───────────────────────────────────────────────────────
 interface SchemaField {
@@ -350,6 +350,47 @@ const TIERS: { id: Tier; name: string; price: string; tagline: string; isFree?: 
   { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
 ];
 
+// ─── Map engine GenerationSchema → local editor types ────────────────────────
+function mapSchemaToLocal(schema: GenerationSchema): {
+  entities: SchemaEntity[];
+  relations: SchemaRelation[];
+} {
+  const TYPE_MAP: Record<string, string> = {
+    uuid: "UUID", string: "String", integer: "Int", int: "Int",
+    decimal: "Decimal", boolean: "Boolean", datetime: "Timestamp",
+    timestamp: "Timestamp", text: "Text", json: "JSON",
+  };
+
+  const entities: SchemaEntity[] = schema.entities.map((e) => ({
+    id: e.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+    name: e.name,
+    fields: e.fields.map((f) => ({
+      name: f.name,
+      type: TYPE_MAP[f.type.toLowerCase()] ?? f.type,
+      pk: f.pk,
+    })),
+  }));
+
+  const REL_LABEL: Record<string, string> = {
+    "one-to-many": "1:M", "Has Many": "1:M",
+    "many-to-many": "M:M", "Many To Many": "M:M",
+    "one-to-one": "1:1", "Has One": "1:1",
+    "Belongs To": "M:1",
+  };
+
+  const entityIds = new Set(entities.map((e) => e.id));
+  const relations: SchemaRelation[] = (schema.relationships ?? [])
+    .map((r) => {
+      const sourceId = r.from.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const targetId = r.to.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      if (!entityIds.has(sourceId) || !entityIds.has(targetId)) return null;
+      return { sourceId, targetId, label: REL_LABEL[r.type] ?? "1:M" };
+    })
+    .filter((r): r is SchemaRelation => r !== null);
+
+  return { entities, relations };
+}
+
 export default function SimpleModePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -390,22 +431,53 @@ export default function SimpleModePage() {
     setShowSchemaEditor(false);
   }
 
-  // ─── Simulate parsing progress ─────────────────────────────────────────────
+  // ─── LLM Schema Extraction ─────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== "generating") return;
-    let step = 0;
-    const interval = setInterval(() => {
-      if (step < GEN_STEPS.length) {
-        setLogLines((l) => [...l, GEN_STEPS[step]]);
-        setProgress(Math.round(((step + 1) / GEN_STEPS.length) * 100));
-        step++;
+    if (phase !== "generating" || !prompt) return;
+    let cancelled = false;
+
+    async function runExtraction() {
+      // Animate progress steps while waiting
+      let step = 0;
+      const interval = setInterval(() => {
+        if (step < GEN_STEPS.length - 1) {
+          setLogLines((l) => [...l, GEN_STEPS[step]]);
+          setProgress(Math.round(((step + 1) / GEN_STEPS.length) * 80));
+          step++;
+        }
+      }, 600);
+
+      // Create a pending generation record first
+      const preResult = await submitSimpleGeneration(prompt, 0);
+      const tempGenId = preResult.success ? preResult.generationId : undefined;
+
+      // Call the real schema extraction endpoint
+      const result = tempGenId
+        ? await extractSchema(tempGenId, prompt)
+        : { success: false as const, error: "Failed to create generation record." };
+
+      clearInterval(interval);
+      if (cancelled) return;
+
+      if (result.success) {
+        // Map GenerationSchema → local SchemaEntity/SchemaRelation
+        const mapped = mapSchemaToLocal(result.schema);
+        setSchemaEntities(mapped.entities);
+        setSchemaRelations(mapped.relations);
+        setLogLines((l) => [...l, "Schema extracted successfully."]);
+        setProgress(100);
+        setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 400);
       } else {
-        clearInterval(interval);
-        setTimeout(() => setPhase("canvas"), 400);
+        // Fallback: show error but still allow canvas with defaults
+        setLogLines((l) => [...l, `Schema extraction failed: ${result.error}`, "Falling back to example schema..."]);
+        setProgress(100);
+        setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 800);
       }
-    }, 450);
-    return () => clearInterval(interval);
-  }, [phase]);
+    }
+
+    runExtraction();
+    return () => { cancelled = true; };
+  }, [phase, prompt]);
 
   // ─── Supabase real-time subscription once generation is submitted ───────────
   useEffect(() => {

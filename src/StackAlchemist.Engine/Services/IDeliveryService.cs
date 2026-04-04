@@ -19,4 +19,30 @@ public interface IDeliveryService
         string? downloadUrl = null,
         string? errorMessage = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates the status using a raw string value (for frontend-facing statuses
+    /// like "extracting_schema" that don't map 1:1 to the engine state machine).
+    /// </summary>
+    Task UpdateStatusAsync(
+        string generationId,
+        string status,
+        CancellationToken ct,
+        string? errorMessage = null);
+
+    /// <summary>
+    /// Persists the extracted schema JSON to the generation row.
+    /// </summary>
+    Task UpdateSchemaAsync(
+        string generationId,
+        GenerationSchema schema,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Appends build output to the build_log column.
+    /// </summary>
+    Task AppendBuildLogAsync(
+        string generationId,
+        string logChunk,
+        CancellationToken ct);
 }

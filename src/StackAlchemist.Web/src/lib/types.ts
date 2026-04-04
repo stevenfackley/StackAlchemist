@@ -53,6 +53,7 @@ export interface GenerationSchema {
 export interface Generation {
   id: string;
   user_id: string | null;
+  transaction_id: string | null;
   status: GenerationStatus;
   mode: "simple" | "advanced";
   tier: Tier;
@@ -64,11 +65,35 @@ export interface Generation {
    *  Populated by the engine instead of uploading a zip to R2.
    */
   preview_files_json: Record<string, string> | null;
+  /** Streaming build output from the compile worker */
+  build_log: string | null;
   error_message: string | null;
   attempt_count: number;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+}
+
+// ─── Profile Record ─────────────────────────────────────────────────────────
+export interface Profile {
+  id: string;
+  email: string;
+  api_key_override: string | null;
+  preferred_model: string;
+  created_at: string;
+}
+
+// ─── Transaction Record ─────────────────────────────────────────────────────
+export type TransactionStatus = "pending" | "completed" | "failed" | "refunded";
+
+export interface Transaction {
+  id: string;
+  user_id: string | null;
+  stripe_session_id: string | null;
+  tier: Tier;
+  amount: number;
+  status: TransactionStatus;
+  created_at: string;
 }
 
 // ─── Supabase Database Type (used for createClient<Database>) ────────────────
@@ -82,6 +107,7 @@ export interface Database {
         Insert: {
           id?: string;
           user_id?: string | null;
+          transaction_id?: string | null;
           status?: GenerationStatus;
           mode: "simple" | "advanced";
           tier: Tier;
@@ -89,6 +115,7 @@ export interface Database {
           schema_json?: GenerationSchema | null;
           download_url?: string | null;
           preview_files_json?: Record<string, string> | null;
+          build_log?: string | null;
           error_message?: string | null;
           attempt_count?: number;
           created_at?: string;
@@ -96,6 +123,32 @@ export interface Database {
           completed_at?: string | null;
         };
         Update: Partial<Generation>;
+        Relationships: [];
+      };
+      profiles: {
+        Row: Profile;
+        Insert: {
+          id: string;
+          email: string;
+          api_key_override?: string | null;
+          preferred_model?: string;
+          created_at?: string;
+        };
+        Update: Partial<Profile>;
+        Relationships: [];
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          stripe_session_id?: string | null;
+          tier: Tier;
+          amount: number;
+          status?: TransactionStatus;
+          created_at?: string;
+        };
+        Update: Partial<Transaction>;
         Relationships: [];
       };
     };
