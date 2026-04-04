@@ -1,44 +1,54 @@
 #!/usr/bin/env bash
+# scripts/docker-preflight-cleanup.sh
+# ---------------------------------------------------------------------------
+# Pre-flight Docker cleanup for the self-hosted GitHub Actions runner.
+#
+# Goals:
+#   1. Remove corrupted "moby-dangling" image references that crash the
+#      legacy builder (and can linger even after switching to BuildKit).
+#   2. Prune stopped containers, dangling images, and stale build cache
+#      so the runner doesn't run out of disk space over time.
+#   3. Print disk usage before and after so CI logs are easy to triage.
+# ---------------------------------------------------------------------------
 set -Eeuo pipefail
 
-DOCKER_MIN_FREE_GB="${DOCKER_MIN_FREE_GB:-8}"
+echo "── Docker disk usage BEFORE cleanup ──"
+docker system df 2>/dev/null || true
 
-print_host_free_space() {
-  local path="$1"
-  if [ -d "$path" ]; then
-    echo "==> Host free space for $path"
-    df -h "$path" || true
-  fi
-}
-
-echo "==> Docker disk usage before cleanup"
-docker system df || true
-print_host_free_space /var/lib/docker
-print_host_free_space /var/lib/containerd
-
-echo "==> Pruning dangling build cache/layers/images"
-# Safe cleanup: only removes dangling/unreferenced artifacts.
-docker builder prune -f || true
-docker image prune -f || true
-docker container prune -f || true
-docker volume prune -f || true
-
-echo "==> Pruning old caches older than 24h"
-# Extra pressure relief for constrained LXC disks.
-docker builder prune -af --filter "until=24h" || true
-
-if [ -d /var/lib/docker ]; then
-  # 4th column from `df -Pk` is available KiB.
-  docker_avail_kib="$(df -Pk /var/lib/docker | awk 'NR==2 {print $4}')"
-  docker_avail_gb="$((docker_avail_kib / 1024 / 1024))"
-
-  if [ "$docker_avail_gb" -lt "$DOCKER_MIN_FREE_GB" ]; then
-    echo "==> Free space still low (${docker_avail_gb}GB < ${DOCKER_MIN_FREE_GB}GB). Running aggressive prune."
-    docker system prune -af --volumes || true
-  fi
+# 1. Kill corrupted / dangling image references.
+#    The legacy builder sometimes creates "moby-dangling@sha256:…" entries
+#    that it later cannot resolve, causing:
+#      "creating image moby-dangling@sha256:… already exists, but failed to resolve"
+#    Removing ALL dangling images (untagged) eliminates these ghosts.
+echo ""
+echo "── Removing dangling images ──"
+DANGLING=$(docker images -f "dangling=true" -q 2>/dev/null || true)
+if [ -n "$DANGLING" ]; then
+  echo "$DANGLING" | xargs docker rmi -f 2>/dev/null || true
+  echo "Removed dangling images."
+else
+  echo "No dangling images found."
 fi
 
-echo "==> Docker disk usage after cleanup"
-docker system df || true
-print_host_free_space /var/lib/docker
-print_host_free_space /var/lib/containerd
+# 2. Prune stopped containers.
+echo ""
+echo "── Pruning stopped containers ──"
+docker container prune -f 2>/dev/null || true
+
+# 3. Prune build cache older than 12 hours.
+echo ""
+echo "── Pruning build cache (>12 h) ──"
+docker builder prune -f --filter "until=12h" 2>/dev/null || true
+
+# 4. Remove old sa-web-app images that are no longer the :test tag.
+echo ""
+echo "── Removing stale sa-web-app images ──"
+docker images 'sa-web-app' --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
+  | grep -v ':test$' \
+  | xargs -r docker rmi -f 2>/dev/null || true
+
+echo ""
+echo "── Docker disk usage AFTER cleanup ──"
+docker system df 2>/dev/null || true
+echo ""
+echo "✅ Pre-flight cleanup complete."

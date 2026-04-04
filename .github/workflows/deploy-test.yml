@@ -40,34 +40,15 @@ jobs:
 
       - name: Docker pre-flight cleanup
         shell: bash
-        run: |
-          set -Eeuo pipefail
-          if [ -f ./scripts/docker-preflight-cleanup.sh ]; then
-            bash ./scripts/docker-preflight-cleanup.sh
-          else
-            echo "⚠️ scripts/docker-preflight-cleanup.sh missing; running inline cleanup fallback"
-            docker system df || true
-            docker builder prune -f || true
-            docker image prune -f || true
-            docker container prune -f || true
-            docker volume prune -f || true
-            docker builder prune -af --filter "until=24h" || true
-            docker system prune -af --volumes || true
-            docker system df || true
-          fi
+        run: bash ./scripts/docker-preflight-cleanup.sh
 
       - name: Build Next.js web image
         env:
-          DOCKER_BUILDKIT: '0'
+          DOCKER_BUILDKIT: '1'
         run: |
-          # Work around intermittent BuildKit/containerd snapshot export failures
-          # seen on the self-hosted runner when loading the final image locally.
           set -Eeuo pipefail
 
-          # Legacy builder cache metadata can become corrupted on this runner,
-          # causing failures such as:
-          # "failed to create cache image ... moby-dangling ... already exists"
-          # Prefer deterministic clean builds over flaky cache restores.
+          # Remove any previous image to guarantee a clean tag namespace.
           docker image rm -f sa-web-app:test >/dev/null 2>&1 || true
 
           IMAGE_TAG="sa-web-app:${GITHUB_SHA::12}"

@@ -22,8 +22,7 @@ RUN pnpm fetch --frozen-lockfile
 
 COPY src/StackAlchemist.Web/ .
 
-# Keep install + build + cleanup in one layer to reduce intermediate layer size
-# pressure when building with legacy builder (DOCKER_BUILDKIT=0).
+# Install deps, build, and clean up in one layer to minimise final image size.
 RUN pnpm install --frozen-lockfile --offline --ignore-scripts \
   && pnpm run build \
   && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
