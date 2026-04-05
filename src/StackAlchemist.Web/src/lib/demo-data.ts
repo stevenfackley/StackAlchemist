@@ -87,6 +87,7 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     schema_json: demoSchema,
     download_url: tier === 0 ? null : "/demo-download.zip",
     preview_files_json: demoPreviewFiles,
+    personalization_json: null,
     build_log: "Demo mode active: backend services are mocked for Bolt.new compatibility.",
     error_message: null,
     attempt_count: 0,
