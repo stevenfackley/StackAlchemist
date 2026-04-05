@@ -42,6 +42,7 @@ public sealed class GenerationContext
     public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
+    public GenerationPersonalization? Personalization { get; init; }
     public GenerationState State { get; set; } = GenerationState.Pending;
     public int RetryCount { get; set; }
     public List<string> BuildErrorHistory { get; } = [];
@@ -167,6 +168,41 @@ public sealed class CreateCheckoutSessionResponse
 }
 
 /// <summary>
+/// Personalization data collected from the wizard before generation.
+/// Stored in generations.personalization_json and injected into prompts + templates.
+/// </summary>
+public sealed class GenerationPersonalization
+{
+    public string BusinessDescription { get; init; } = "";
+    public string? ProjectName { get; init; }
+    public string? Tagline { get; init; }
+    public PersonalizationColorScheme? ColorScheme { get; init; }
+    /// <summary>Entity name → domain description (e.g. "Order" → "a food delivery order")</summary>
+    public Dictionary<string, string> DomainContext { get; init; } = [];
+    public PersonalizationFeatureFlags? FeatureFlags { get; init; }
+}
+
+public sealed class PersonalizationColorScheme
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Primary { get; init; } = "#2563EB";
+    public string Secondary { get; init; } = "#1D4ED8";
+    public string Accent { get; init; } = "#60A5FA";
+    public string Background { get; init; } = "#0F172A";
+    public string Surface { get; init; } = "#1E293B";
+}
+
+public sealed class PersonalizationFeatureFlags
+{
+    public string AuthMethod { get; init; } = "jwt"; // jwt | cookie | oauth | none
+    public bool SoftDelete { get; init; }
+    public bool AuditTimestamps { get; init; } = true;
+    public bool IncludeSwagger { get; init; } = true;
+    public bool IncludeDockerCompose { get; init; } = true;
+}
+
+/// <summary>
 /// Request to the Engine /api/generate endpoint.
 /// </summary>
 public sealed class GenerateRequest
@@ -177,6 +213,7 @@ public sealed class GenerateRequest
     public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
+    public GenerationPersonalization? Personalization { get; init; }
 }
 
 /// <summary>

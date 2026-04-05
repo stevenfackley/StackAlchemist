@@ -45,6 +45,7 @@ public sealed class GenerationOrchestrator(
             ProjectType = request.ProjectType,
             Prompt = request.Prompt,
             Schema = request.Schema,
+            Personalization = request.Personalization,
         };
 
         // Transition: pending → generating
@@ -136,6 +137,16 @@ public sealed class GenerationOrchestrator(
     /// </summary>
     private static string DeriveProjectName(GenerateRequest request)
     {
+        // 0. Explicit personalization project name takes highest priority
+        if (!string.IsNullOrWhiteSpace(request.Personalization?.ProjectName))
+        {
+            var name = request.Personalization.ProjectName.Trim();
+            // Sanitize to PascalCase identifier
+            var sanitized = System.Text.RegularExpressions.Regex.Replace(name, @"[^a-zA-Z0-9]", "");
+            if (sanitized.Length > 0)
+                return char.ToUpperInvariant(sanitized[0]) + sanitized[1..];
+        }
+
         // 1. Schema entities — most reliable signal
         var entities = request.Schema?.Entities;
         if (entities is { Count: > 0 })
@@ -188,7 +199,7 @@ public sealed class GenerationOrchestrator(
     private string LoadPromptTemplate(GenerateRequest request)
     {
         if (request.Schema is not null)
-            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType);
+            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType, request.Personalization);
 
         var promptPath = fileSystem.Path.Combine(
             AppContext.BaseDirectory, "Prompts", "V1-generation.md");

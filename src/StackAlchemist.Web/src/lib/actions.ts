@@ -12,7 +12,9 @@ import type {
   SubmitGenerationResponse,
   EngineGenerateRequest,
   ProjectType,
+  PersonalizationData,
 } from "./types";
+import { DEFAULT_PERSONALIZATION } from "./types";
 
 function resolveEngineUrl() {
   const configuredUrl = process.env.ENGINE_API_URL;
@@ -37,7 +39,8 @@ function resolveEngineUrl() {
 export async function submitSimpleGeneration(
   prompt: string,
   tier: Tier,
-  projectType: ProjectType = "DotNetNextJs"
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
   if (!prompt || prompt.trim().length < 10) {
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
@@ -74,6 +77,7 @@ export async function submitSimpleGeneration(
       project_type: projectType,
       status: "pending",
       schema_json: null,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,
@@ -98,6 +102,7 @@ export async function submitSimpleGeneration(
       tier,
       projectType,
       prompt: prompt.trim(),
+      personalization: personalization ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
@@ -168,7 +173,8 @@ export async function extractSchema(
 export async function submitAdvancedGeneration(
   schema: GenerationSchema,
   tier: Tier,
-  projectType: ProjectType = "DotNetNextJs"
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
   if (!schema.entities || schema.entities.length === 0) {
     return { success: false, error: "Please define at least one entity before proceeding." };
@@ -217,6 +223,7 @@ export async function submitAdvancedGeneration(
       project_type: projectType,
       status: "pending",
       schema_json: schema,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,
@@ -241,6 +248,7 @@ export async function submitAdvancedGeneration(
       tier,
       projectType,
       schema,
+      personalization: personalization ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
@@ -351,6 +359,7 @@ export async function retryGeneration(
       projectType: gen.project_type ?? "DotNetNextJs",
       prompt: gen.prompt ?? undefined,
       schema: gen.schema_json ?? undefined,
+      personalization: gen.personalization_json ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
@@ -377,7 +386,8 @@ export async function createPendingGeneration(
   tier: Tier,
   prompt?: string,
   schema?: GenerationSchema,
-  projectType: ProjectType = "DotNetNextJs"
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
   if (isDemoMode || !hasServerSupabaseConfig()) {
     return { success: true, generationId: `demo-pending-${Date.now()}` };
@@ -409,6 +419,7 @@ export async function createPendingGeneration(
       project_type: projectType,
       status: "pending",
       schema_json: schema ?? null,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,

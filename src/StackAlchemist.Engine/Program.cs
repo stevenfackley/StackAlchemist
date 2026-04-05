@@ -338,6 +338,7 @@ app.MapPost("/api/webhooks/stripe", async (
             : ProjectType.DotNetNextJs;
         var mode = prompt is not null ? "simple" : "advanced";
         GenerationSchema? schema = null;
+        GenerationPersonalization? personalization = null;
 
         // Recover the original generation payload so paid advanced-mode jobs keep their
         // saved schema and platform selection after redirecting through Stripe Checkout.
@@ -348,7 +349,7 @@ app.MapPost("/api/webhooks/stripe", async (
             try
             {
                 var generationEndpoint =
-                    $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=mode,prompt,schema_json,project_type";
+                    $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=mode,prompt,schema_json,project_type,personalization_json";
 
                 using var httpClient = new HttpClient();
                 using var generationRequest = new HttpRequestMessage(HttpMethod.Get, generationEndpoint);
@@ -391,6 +392,14 @@ app.MapPost("/api/webhooks/stripe", async (
                         schemaElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
                     {
                         schema = System.Text.Json.JsonSerializer.Deserialize<GenerationSchema>(schemaElement.GetRawText());
+                    }
+
+                    if (row.TryGetProperty("personalization_json", out var personalizationElement) &&
+                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
+                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        personalization = System.Text.Json.JsonSerializer.Deserialize<GenerationPersonalization>(personalizationElement.GetRawText(), opts);
                     }
                 }
             }
@@ -436,12 +445,13 @@ app.MapPost("/api/webhooks/stripe", async (
 
         await orchestrator.EnqueueAsync(new GenerateRequest
         {
-            GenerationId = generationId,
-            Mode         = mode,
-            Tier         = tier,
-            ProjectType  = projectType,
-            Prompt       = prompt,
-            Schema       = schema,
+            GenerationId  = generationId,
+            Mode          = mode,
+            Tier          = tier,
+            ProjectType   = projectType,
+            Prompt        = prompt,
+            Schema        = schema,
+            Personalization = personalization,
         }, ct);
     }
 

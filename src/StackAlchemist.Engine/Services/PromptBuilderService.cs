@@ -6,7 +6,7 @@ namespace StackAlchemist.Engine.Services;
 
 public interface IPromptBuilderService
 {
-    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs);
+    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null);
     string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt);
     string BuildSchemaExtractionPrompt(string userPrompt);
 }
@@ -24,7 +24,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
 
     // ── Generation prompt ─────────────────────────────────────────────────────
 
-    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs)
+    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null)
     {
         var schemaJson = JsonSerializer.Serialize(schema, IndentedJson);
         var sb = new StringBuilder();
@@ -77,6 +77,55 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine("## Relationships");
             foreach (var rel in schema.Relationships)
                 sb.AppendLine($"- {rel.From} → {rel.To} ({rel.Type})");
+        }
+
+        // ── Personalization context ───────────────────────────────────────────
+        if (personalization is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(personalization.BusinessDescription))
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Business Context");
+                sb.AppendLine("Use the following context to inform code comments, seed data, UI copy, validation messages, and README content:");
+                if (!string.IsNullOrWhiteSpace(personalization.ProjectName))
+                    sb.AppendLine($"- **Project name:** {personalization.ProjectName}");
+                if (!string.IsNullOrWhiteSpace(personalization.Tagline))
+                    sb.AppendLine($"- **Tagline:** {personalization.Tagline}");
+                sb.AppendLine($"- **Description:** {personalization.BusinessDescription}");
+            }
+
+            if (personalization.DomainContext.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Domain Vocabulary");
+                sb.AppendLine("Use realistic domain language in controller logic, validation, comments, and seed data:");
+                foreach (var (entity, context) in personalization.DomainContext)
+                    sb.AppendLine($"- **{entity}:** {context}");
+            }
+
+            if (personalization.ColorScheme is not null)
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Color Theme");
+                sb.AppendLine($"Use this palette in the generated frontend's Tailwind config (tailwind.config.ts):");
+                sb.AppendLine($"- primary: {personalization.ColorScheme.Primary}");
+                sb.AppendLine($"- secondary: {personalization.ColorScheme.Secondary}");
+                sb.AppendLine($"- accent: {personalization.ColorScheme.Accent}");
+                sb.AppendLine($"- background: {personalization.ColorScheme.Background}");
+                sb.AppendLine($"- surface: {personalization.ColorScheme.Surface}");
+            }
+
+            if (personalization.FeatureFlags is not null)
+            {
+                var ff = personalization.FeatureFlags;
+                sb.AppendLine();
+                sb.AppendLine("## Feature Flags");
+                sb.AppendLine($"- Authentication method: {ff.AuthMethod}");
+                sb.AppendLine($"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
+                sb.AppendLine($"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
+                sb.AppendLine($"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");
+                sb.AppendLine($"- Docker Compose for local dev: {(ff.IncludeDockerCompose ? "yes — include in output" : "no")}");
+            }
         }
 
         return sb.ToString();
