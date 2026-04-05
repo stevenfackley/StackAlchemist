@@ -1,39 +1,39 @@
-name: Deploy Test Site
+name: Deploy Production Site
 
 on:
   push:
-    branches: [develop]
+    branches: [main]
 
 concurrency:
-  group: deploy-test
-  cancel-in-progress: true
+  group: deploy-prod
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy Web App to Test Server
+    name: Deploy Web App to Production Server
     runs-on: self-hosted
-    environment: test
+    environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .env (test)
+      - name: Setup .env (production)
         uses: ./.github/actions/setup-env
         with:
-          environment: test
-          app_url: https://test.stackalchemist.app
-          aspnetcore_environment: Staging
+          environment: production
+          app_url: https://stackalchemist.app
+          aspnetcore_environment: Production
           api_port: '5000'
           engine_api_url: http://sa-engine
-          is_test_site: 'true'
+          is_test_site: 'false'
           supabase_url: ${{ secrets.SUPABASE_URL }}
           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          r2_bucket_name: stackalchemist-generations-test
+          r2_bucket_name: stackalchemist-generations-prod
           r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
           cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
@@ -52,24 +52,20 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # Remove any previous image to guarantee a clean tag namespace.
-          docker image rm -f sa-web-app:test >/dev/null 2>&1 || true
+          docker image rm -f sa-web-app:prod >/dev/null 2>&1 || true
 
           IMAGE_TAG="sa-web-app:${GITHUB_SHA::12}"
           docker build \
             --target web \
             --pull \
             --no-cache \
-            --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
+            --build-arg NEXT_PUBLIC_APP_URL=https://stackalchemist.app \
             -t "$IMAGE_TAG" \
             .
 
-          docker tag "$IMAGE_TAG" sa-web-app:test
-
-          # Remove the SHA-tagged duplicate immediately — :test is the canonical
-          # reference and keeping both wastes disk.
+          docker tag "$IMAGE_TAG" sa-web-app:prod
           docker image rm -f "$IMAGE_TAG" >/dev/null 2>&1 || true
-          echo "✅ Image built and tagged as sa-web-app:test"
+          echo "✅ Image built and tagged as sa-web-app:prod"
 
       - name: Swap web container
         run: |
@@ -89,11 +85,9 @@ jobs:
             docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then((res) => { console.log('status=' + res.status); process.exit(res.ok ? 0 : 1); }).catch((err) => { console.error(err); process.exit(1); })" || true
           }
 
-          # Stop and remove the old container (nginx placeholder or previous web app)
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
 
-          # Start the new Next.js container on the shared tunnel network
           docker run -d \
             --name sa-web \
             --restart unless-stopped \
@@ -101,10 +95,9 @@ jobs:
             -p 3000:3000 \
             --env-file .env \
             -e NODE_ENV=production \
-            -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
-            sa-web-app:test
+            -e NEXT_PUBLIC_APP_URL=https://stackalchemist.app \
+            sa-web-app:prod
 
-          # Fail the deployment if the container does not stay up and answer HTTP.
           for i in {1..20}; do
             if [ "$(docker inspect -f '{{.State.Running}}' sa-web 2>/dev/null || echo false)" != "true" ]; then
               echo "❌ sa-web exited during startup"
@@ -149,8 +142,6 @@ jobs:
       - name: Post-deploy Docker cleanup
         if: always()
         run: |
-          # Prune any dangling layers and build cache produced by this run.
-          # Runs even on failure so disk is reclaimed regardless of outcome.
           docker image prune -f 2>/dev/null || true
           docker builder prune -f --filter "until=1h" 2>/dev/null || true
           echo "── Post-deploy disk usage ──"
