@@ -126,41 +126,41 @@ runs:
         # DO NOT edit manually. See .github/actions/setup-env/action.yml
 
         # Frontend (Next.js)
-        NEXT_PUBLIC_APP_URL="${APP_URL}"
-        NEXT_PUBLIC_IS_TEST_SITE="${IS_TEST_SITE}"
-        ENGINE_API_URL="${ENGINE_API_URL}"
+        NEXT_PUBLIC_APP_URL=${APP_URL}
+        NEXT_PUBLIC_IS_TEST_SITE=${IS_TEST_SITE}
+        ENGINE_API_URL=${ENGINE_API_URL}
 
         # Backend (.NET API)
-        ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENV}"
-        API_PORT="${API_PORT}"
+        ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENV}
+        API_PORT=${API_PORT}
 
         # Supabase
-        NEXT_PUBLIC_SUPABASE_URL="${SUPABASE_URL}"
-        NEXT_PUBLIC_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY}"
-        SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}"
+        NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+        SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
 
         # Cloudflare R2
-        R2_ACCOUNT_ID="${CF_ACCOUNT_ID}"
-        R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
-        R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
-        R2_BUCKET_NAME="${R2_BUCKET_NAME}"
-        R2_PUBLIC_URL="${R2_PUBLIC_URL}"
-        R2_S3_URL="https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com"
-        R2_ENDPOINT="https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com"
+        R2_ACCOUNT_ID=${CF_ACCOUNT_ID}
+        R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+        R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+        R2_BUCKET_NAME=${R2_BUCKET_NAME}
+        R2_PUBLIC_URL=${R2_PUBLIC_URL}
+        R2_S3_URL=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com
+        R2_ENDPOINT=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com
 
         # Cloudflare Tunnel
-        CLOUDFLARE_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN}"
+        CLOUDFLARE_TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
 
         # Stripe
-        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY}"
-        STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}"
-        STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET}"
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+        STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+        STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
 
         # LLM APIs
-        ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"
+        ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 
         # Engine auth
-        ENGINE_SERVICE_KEY="${ENGINE_SERVICE_KEY}"
+        ENGINE_SERVICE_KEY=${ENGINE_SERVICE_KEY}
         EOF
 
         # Strip leading whitespace added by heredoc indentation
