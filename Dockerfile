@@ -41,11 +41,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-# Keep runtime deps alongside standalone output because the generated server.js
-# still resolves the Next runtime from /app/node_modules on the test runner.
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10 --activate
+COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-workspace.yaml ./
+COPY src/StackAlchemist.Web/pnpm-lock.yam[l] ./
+# Install production deps in the runtime image so /app/server.js can resolve
+# the Next runtime without relying on pnpm symlink structures from the builder.
+RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts \
+  && rm -rf /pnpm/store /root/.npm /tmp/*
 COPY --from=web-builder /app/.next/standalone ./
 COPY --from=web-builder /app/.next/static ./.next/static
-COPY --from=web-builder /app/node_modules ./node_modules
 COPY --from=web-builder /app/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
