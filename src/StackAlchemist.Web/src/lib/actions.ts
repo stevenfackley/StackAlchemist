@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { createServerClient } from "./supabase";
 import { getServerUser } from "./supabase-server";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
+import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
   Tier,
@@ -15,6 +15,32 @@ import type {
   PersonalizationData,
 } from "./types";
 import { DEFAULT_PERSONALIZATION } from "./types";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns headers for all Engine API calls, including the service key when set. */
+function engineHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = getEngineServiceKey();
+  if (key) headers["X-Engine-Key"] = key;
+  return headers;
+}
+
+/**
+ * Sanitizes a user-supplied prompt before sending to the LLM.
+ * - Caps length to prevent token abuse
+ * - Strips null bytes and non-printable control chars (except newlines/tabs)
+ * - Blocks obvious prompt-injection patterns
+ */
+function sanitizePrompt(raw: string, maxLength = 2000): string {
+  // Strip null bytes and non-printable control chars (keep \n \r \t)
+  let s = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  // Collapse excessive whitespace lines
+  s = s.replace(/\n{4,}/g, "\n\n\n");
+  // Hard cap
+  if (s.length > maxLength) s = s.slice(0, maxLength);
+  return s.trim();
+}
 
 function resolveEngineUrl() {
   const configuredUrl = process.env.ENGINE_API_URL;
@@ -42,9 +68,11 @@ export async function submitSimpleGeneration(
   projectType: ProjectType = "DotNetNextJs",
   personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
-  if (!prompt || prompt.trim().length < 10) {
+  const sanitized = sanitizePrompt(prompt);
+  if (sanitized.length < 10) {
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
   }
+  prompt = sanitized;
 
   if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
     const generationId = `demo-simple-${Date.now()}`;
@@ -108,7 +136,7 @@ export async function submitSimpleGeneration(
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
 
@@ -147,8 +175,8 @@ export async function extractSchema(
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/extract-schema`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generationId, prompt: prompt.trim() }),
+      headers: engineHeaders(),
+      body: JSON.stringify({ generationId, prompt: sanitizePrompt(prompt) }),
     });
 
     if (!res.ok) {
@@ -254,7 +282,7 @@ export async function submitAdvancedGeneration(
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
 
@@ -365,7 +393,7 @@ export async function retryGeneration(
     const engineUrl = resolveEngineUrl();
     await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
   } catch (err) {
@@ -478,7 +506,7 @@ export async function createCheckoutSession(
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify({
         generationId,
         tier,

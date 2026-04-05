@@ -1,7 +1,9 @@
 using System.IO.Abstractions;
 using System.Net.Http.Json;
+using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
+using Microsoft.AspNetCore.RateLimiting;
 using Stripe;
 using Stripe.Checkout;
 using StackAlchemist.Engine.Models;
@@ -39,10 +41,84 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
     ["Stripe:WebhookSecret"]          = Ev("STRIPE_WEBHOOK_SECRET"),
+    // Engine hardening
+    ["Engine:ServiceKey"]             = Ev("ENGINE_SERVICE_KEY"),
+    ["Engine:AllowedOrigins"]         = Ev("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000",
 }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value));
+
+// ── Production startup validation ────────────────────────────────────────────
+// Fail-fast on missing critical secrets so misconfigured deployments surface immediately.
+if (builder.Environment.IsProduction())
+{
+    var required = new[]
+    {
+        ("STRIPE_WEBHOOK_SECRET", builder.Configuration["Stripe:WebhookSecret"]),
+        ("ENGINE_SERVICE_KEY",    builder.Configuration["Engine:ServiceKey"]),
+    };
+    foreach (var (name, value) in required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new InvalidOperationException(
+                $"Required environment variable '{name}' is not set. " +
+                "Set it via user-secrets or environment before starting in Production.");
+    }
+}
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+// Allow Next.js frontend origin(s). Engine is called server-side from Next.js
+// server actions, so CORS is mainly defensive; add browser origins here too
+// in case direct client calls are introduced.
+var allowedOrigins = (builder.Configuration["Engine:AllowedOrigins"] ?? "http://localhost:3000")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()));
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Per-IP fixed-window limits on expensive endpoints.
+builder.Services.AddRateLimiter(rl =>
+{
+    // Generation: 5 per minute per IP — generous for real users, blocks spamming
+    rl.AddFixedWindowLimiter("generate", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 5;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Schema extraction: 15 per minute per IP
+    rl.AddFixedWindowLimiter("extract", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 15;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Stripe session creation: 3 per minute per IP
+    rl.AddFixedWindowLimiter("stripe-session", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 3;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    rl.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    rl.OnRejected = async (ctx, token) =>
+    {
+        ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await ctx.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Rate limit exceeded. Please wait before retrying." }, token);
+    };
+});
 
 // ── HTTP clients ──────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
@@ -119,6 +195,36 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseCors("Frontend");
+app.UseRateLimiter();
+
+// ── Service key auth ──────────────────────────────────────────────────────────
+// Protects /api/* (except /api/webhooks/stripe which uses Stripe signature auth)
+// against unauthenticated callers. When ENGINE_SERVICE_KEY is unset the check
+// is skipped so local dev / CI works without extra config.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api") &&
+        !context.Request.Path.StartsWithSegments("/api/webhooks"))
+    {
+        var configuredKey = context.RequestServices
+            .GetRequiredService<IConfiguration>()["Engine:ServiceKey"];
+
+        if (!string.IsNullOrWhiteSpace(configuredKey))
+        {
+            var providedKey = context.Request.Headers["X-Engine-Key"].FirstOrDefault();
+            if (providedKey != configuredKey)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
+        }
+    }
+
+    await next(context);
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -143,7 +249,8 @@ app.MapPost("/api/generate", async (
     return Results.Accepted($"/api/generate/{response.JobId}", response);
 })
 .WithName("Generate")
-.WithSummary("Enqueue a code generation job.");
+.WithSummary("Enqueue a code generation job.")
+.RequireRateLimiting("generate");
 
 // ── Schema extraction (Simple Mode) ──────────────────────────────────────
 app.MapPost("/api/extract-schema", async (
@@ -197,7 +304,8 @@ app.MapPost("/api/extract-schema", async (
     }
 })
 .WithName("ExtractSchema")
-.WithSummary("Extract a structured schema from a natural-language prompt via LLM.");
+.WithSummary("Extract a structured schema from a natural-language prompt via LLM.")
+.RequireRateLimiting("extract");
 
 // ── Stripe Checkout Session creation (paid tiers 1–3) ────────────────────────
 // Called by the Next.js server action before redirecting the user to Stripe.
@@ -280,7 +388,8 @@ app.MapPost("/api/stripe/create-session", async (
     }
 })
 .WithName("CreateStripeSession")
-.WithSummary("Creates a Stripe Checkout Session for a paid tier and returns the hosted URL.");
+.WithSummary("Creates a Stripe Checkout Session for a paid tier and returns the hosted URL.")
+.RequireRateLimiting("stripe-session");
 
 // ── Stripe webhook ────────────────────────────────────────────────────────────
 // Reads the raw body before routing so Stripe signature verification always
