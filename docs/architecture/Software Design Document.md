@@ -35,7 +35,8 @@ StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows
 
 **A. Dual Mode Intake Pipeline**
 * **Simple Mode:** User submits text prompt. Next.js server action calls LLM to generate a structured JSON schema. The frontend renders this JSON into an editable node based UI.
-* **Advanced Mode:** User interacts directly with the node based UI to define entities. The final validated schema is serialized into a JSON payload.
+* **Advanced Mode:** User interacts directly with the node based UI to define entities, choose a target platform, and configure endpoints. The final validated schema plus `project_type` selection are serialized into the generation payload.
+* **Compile Orchestration:** `CompileService` now dispatches to per-platform build strategies so `.NET/Next.js` and `FastAPI/React` projects can share the same retry/state machine pipeline while keeping ecosystem-specific validation commands and error parsing.
 
 **B. The "Swiss Cheese" Generation Method**
 The system maintains a library of master templates (starting with the V1 .NET/Next.js stack).

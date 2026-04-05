@@ -23,11 +23,17 @@ public sealed class GenerationOrchestrator(
     ITemplateProvider templateProvider,
     IReconstructionService reconstructionService,
     ILlmClient llmClient,
+    IPromptBuilderService promptBuilder,
     IFileSystem fileSystem,
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
-    private const string TemplateSet = "V1-DotNet-NextJs";
+    private static string ResolveTemplateSet(ProjectType projectType) => projectType switch
+    {
+        ProjectType.DotNetNextJs => "V1-DotNet-NextJs",
+        ProjectType.PythonReact => "V1-Python-React",
+        _ => "V1-DotNet-NextJs",
+    };
 
     public async Task<GenerateResponse> EnqueueAsync(GenerateRequest request, CancellationToken ct = default)
     {
@@ -36,6 +42,7 @@ public sealed class GenerationOrchestrator(
             GenerationId = request.GenerationId,
             Mode = request.Mode,
             Tier = request.Tier,
+            ProjectType = request.ProjectType,
             Prompt = request.Prompt,
             Schema = request.Schema,
         };
@@ -50,7 +57,8 @@ public sealed class GenerationOrchestrator(
         try
         {
             // Step 1: Load and render templates
-            var rawTemplates = templateProvider.LoadTemplate(TemplateSet);
+            var templateSet = ResolveTemplateSet(request.ProjectType);
+            var rawTemplates = templateProvider.LoadTemplate(templateSet);
             var variables = BuildVariables(request);
             var renderedTemplates = templateProvider.Render(rawTemplates, variables);
 
@@ -90,6 +98,7 @@ public sealed class GenerationOrchestrator(
         {
             JobId = request.GenerationId,
             Status = context.State.ToString().ToLowerInvariant(),
+            ProjectType = request.ProjectType,
         };
     }
 
@@ -178,6 +187,9 @@ public sealed class GenerationOrchestrator(
 
     private string LoadPromptTemplate(GenerateRequest request)
     {
+        if (request.Schema is not null)
+            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType);
+
         var promptPath = fileSystem.Path.Combine(
             AppContext.BaseDirectory, "Prompts", "V1-generation.md");
 

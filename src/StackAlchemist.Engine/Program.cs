@@ -92,6 +92,8 @@ builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
 
 // ── Compile service ───────────────────────────────────────────────────────────
+builder.Services.AddSingleton<IBuildStrategy, DotNetBuildStrategy>();
+builder.Services.AddSingleton<IBuildStrategy, PythonReactBuildStrategy>();
 builder.Services.AddSingleton<ICompileService, CompileService>();
 
 // ── In-process job queue (Channel) + background compile worker ───────────────
@@ -252,6 +254,7 @@ app.MapPost("/api/stripe/create-session", async (
             {
                 ["generationId"] = req.GenerationId,
                 ["tier"]         = req.Tier.ToString(),
+                ["projectType"]  = req.ProjectType.ToString(),
                 ["prompt"]       = req.Prompt ?? "",
             },
         };
@@ -267,6 +270,7 @@ app.MapPost("/api/stripe/create-session", async (
         {
             SessionId = session.Id,
             Url       = session.Url,
+            ProjectType = req.ProjectType,
         });
     }
     catch (StripeException ex)
@@ -326,10 +330,77 @@ app.MapPost("/api/webhooks/stripe", async (
         var prompt = session.Metadata?.GetValueOrDefault("prompt");
         var generationId = session.Metadata?.GetValueOrDefault("generationId")
                            ?? Guid.NewGuid().ToString();
+        var projectType = Enum.TryParse<ProjectType>(
+            session.Metadata?.GetValueOrDefault("projectType"),
+            ignoreCase: true,
+            out var parsedProjectType)
+            ? parsedProjectType
+            : ProjectType.DotNetNextJs;
+        var mode = prompt is not null ? "simple" : "advanced";
+        GenerationSchema? schema = null;
 
-        // ── Insert transaction row into Supabase ─────────────────────────────
+        // Recover the original generation payload so paid advanced-mode jobs keep their
+        // saved schema and platform selection after redirecting through Stripe Checkout.
         var supabaseUrl = config["Supabase:Url"];
         var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+        if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
+        {
+            try
+            {
+                var generationEndpoint =
+                    $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=mode,prompt,schema_json,project_type";
+
+                using var httpClient = new HttpClient();
+                using var generationRequest = new HttpRequestMessage(HttpMethod.Get, generationEndpoint);
+                generationRequest.Headers.Add("apikey", serviceRoleKey);
+                generationRequest.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+                using var generationResponse = await httpClient.SendAsync(generationRequest, ct);
+                generationResponse.EnsureSuccessStatusCode();
+
+                var payload = await generationResponse.Content.ReadAsStringAsync(ct);
+                using var document = System.Text.Json.JsonDocument.Parse(payload);
+
+                if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                    document.RootElement.GetArrayLength() > 0)
+                {
+                    var row = document.RootElement[0];
+
+                    if (row.TryGetProperty("mode", out var modeElement) &&
+                        modeElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        mode = modeElement.GetString() ?? mode;
+                    }
+
+                    if (row.TryGetProperty("prompt", out var promptElement) &&
+                        promptElement.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        string.IsNullOrWhiteSpace(prompt))
+                    {
+                        prompt = promptElement.GetString();
+                    }
+
+                    if (row.TryGetProperty("project_type", out var projectTypeElement) &&
+                        projectTypeElement.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        Enum.TryParse<ProjectType>(projectTypeElement.GetString(), ignoreCase: true, out var storedProjectType))
+                    {
+                        projectType = storedProjectType;
+                    }
+
+                    if (row.TryGetProperty("schema_json", out var schemaElement) &&
+                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
+                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        schema = System.Text.Json.JsonSerializer.Deserialize<GenerationSchema>(schemaElement.GetRawText());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to reload generation payload for {GenerationId}", generationId);
+            }
+        }
+
+        // ── Insert transaction row into Supabase ─────────────────────────────
         if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
         {
             try
@@ -366,9 +437,11 @@ app.MapPost("/api/webhooks/stripe", async (
         await orchestrator.EnqueueAsync(new GenerateRequest
         {
             GenerationId = generationId,
-            Mode         = prompt is not null ? "simple" : "advanced",
+            Mode         = mode,
             Tier         = tier,
+            ProjectType  = projectType,
             Prompt       = prompt,
+            Schema       = schema,
         }, ct);
     }
 

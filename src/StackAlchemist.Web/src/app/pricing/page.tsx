@@ -40,7 +40,7 @@ const tiers = [
     ],
     highlight: false,
     cta: "Get the Blueprint",
-    href: "/advanced?step=3&tier=1",
+    href: "/advanced?step=4&tier=1",
     isFree: false,
   },
   {
@@ -61,7 +61,7 @@ const tiers = [
     ],
     highlight: true,
     cta: "Get the Boilerplate",
-    href: "/advanced?step=3&tier=2",
+    href: "/advanced?step=4&tier=2",
     isFree: false,
   },
   {
@@ -82,7 +82,7 @@ const tiers = [
     ],
     highlight: false,
     cta: "Get the Infrastructure",
-    href: "/advanced?step=3&tier=3",
+    href: "/advanced?step=4&tier=3",
     isFree: false,
   },
 ];

@@ -12,19 +12,19 @@ test.describe('Checkout Flow', () => {
   });
 
   test('should create Stripe checkout session for Tier 1', async ({ page }) => {
-    await page.goto('/advanced?step=3&tier=1');
+    await page.goto('/advanced?step=4&tier=1');
     await expect(page.getByText(/blueprint/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /proceed to checkout|launch free preview/i })).toBeVisible();
   });
 
   test('should create Stripe checkout session for Tier 2', async ({ page }) => {
-    await page.goto('/advanced?step=3&tier=2');
+    await page.goto('/advanced?step=4&tier=2');
     await expect(page.getByText(/boilerplate/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /proceed to checkout|launch free preview/i })).toBeVisible();
   });
 
   test('should create Stripe checkout session for Tier 3', async ({ page }) => {
-    await page.goto('/advanced?step=3&tier=3');
+    await page.goto('/advanced?step=4&tier=3');
     await expect(page.getByText(/infrastructure/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /proceed to checkout|launch free preview/i })).toBeVisible();
   });

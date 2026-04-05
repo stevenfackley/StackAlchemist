@@ -543,7 +543,13 @@ export default function SimpleModePage() {
 
         setGenerationId(pending.generationId);
 
-        const session = await createCheckoutSession(pending.generationId, selectedTier, prompt);
+        const session = await createCheckoutSession(
+          pending.generationId,
+          selectedTier,
+          prompt,
+          "DotNetNextJs",
+          "simple"
+        );
         if (!session.success) {
           setErrorMsg(session.error);
           setPhase("error");

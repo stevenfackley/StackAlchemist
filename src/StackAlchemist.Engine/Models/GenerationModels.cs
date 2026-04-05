@@ -25,6 +25,12 @@ public enum GenerationEvent
     UploadedToR2,
 }
 
+public enum ProjectType
+{
+    DotNetNextJs,
+    PythonReact,
+}
+
 /// <summary>
 /// Mutable context carried through the generation pipeline.
 /// </summary>
@@ -33,6 +39,7 @@ public sealed class GenerationContext
     public required string GenerationId { get; init; }
     public required string Mode { get; init; } // "simple" | "advanced"
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
     public GenerationState State { get; set; } = GenerationState.Pending;
@@ -143,6 +150,7 @@ public sealed class CreateCheckoutSessionRequest
 {
     public required string GenerationId { get; init; }
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public required string SuccessUrl { get; init; }
     public required string CancelUrl { get; init; }
     public string? Prompt { get; init; }
@@ -155,6 +163,7 @@ public sealed class CreateCheckoutSessionResponse
 {
     public required string SessionId { get; init; }
     public required string Url { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
 }
 
 /// <summary>
@@ -165,6 +174,7 @@ public sealed class GenerateRequest
     public required string GenerationId { get; init; }
     public required string Mode { get; init; }
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
 }
@@ -176,6 +186,7 @@ public sealed class GenerateResponse
 {
     public required string JobId { get; init; }
     public required string Status { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
 }
 
 /// <summary>

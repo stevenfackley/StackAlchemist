@@ -79,6 +79,7 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     id,
     user_id: null,
     transaction_id: null,
+    project_type: "DotNetNextJs",
     status: "success",
     mode: id.includes("advanced") ? "advanced" : "simple",
     tier,

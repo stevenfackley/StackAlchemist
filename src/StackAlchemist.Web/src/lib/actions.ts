@@ -11,6 +11,7 @@ import type {
   GenerationSchema,
   SubmitGenerationResponse,
   EngineGenerateRequest,
+  ProjectType,
 } from "./types";
 
 function resolveEngineUrl() {
@@ -35,7 +36,8 @@ function resolveEngineUrl() {
 ───────────────────────────────────────────────────────────────────────────── */
 export async function submitSimpleGeneration(
   prompt: string,
-  tier: Tier
+  tier: Tier,
+  projectType: ProjectType = "DotNetNextJs"
 ): Promise<SubmitGenerationResponse> {
   if (!prompt || prompt.trim().length < 10) {
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
@@ -69,6 +71,7 @@ export async function submitSimpleGeneration(
       mode: "simple",
       tier,
       prompt: prompt.trim(),
+      project_type: projectType,
       status: "pending",
       schema_json: null,
       download_url: null,
@@ -93,6 +96,7 @@ export async function submitSimpleGeneration(
       generationId,
       mode: "simple",
       tier,
+      projectType,
       prompt: prompt.trim(),
     };
 
@@ -163,7 +167,8 @@ export async function extractSchema(
 ───────────────────────────────────────────────────────────────────────────── */
 export async function submitAdvancedGeneration(
   schema: GenerationSchema,
-  tier: Tier
+  tier: Tier,
+  projectType: ProjectType = "DotNetNextJs"
 ): Promise<SubmitGenerationResponse> {
   if (!schema.entities || schema.entities.length === 0) {
     return { success: false, error: "Please define at least one entity before proceeding." };
@@ -209,6 +214,7 @@ export async function submitAdvancedGeneration(
       mode: "advanced",
       tier,
       prompt: promptSummary,
+      project_type: projectType,
       status: "pending",
       schema_json: schema,
       download_url: null,
@@ -233,6 +239,7 @@ export async function submitAdvancedGeneration(
       generationId,
       mode: "advanced",
       tier,
+      projectType,
       schema,
     };
 
@@ -341,6 +348,7 @@ export async function retryGeneration(
       generationId,
       mode: gen.mode,
       tier: gen.tier as Tier,
+      projectType: gen.project_type ?? "DotNetNextJs",
       prompt: gen.prompt ?? undefined,
       schema: gen.schema_json ?? undefined,
     };
@@ -368,7 +376,8 @@ export async function createPendingGeneration(
   mode: "simple" | "advanced",
   tier: Tier,
   prompt?: string,
-  schema?: GenerationSchema
+  schema?: GenerationSchema,
+  projectType: ProjectType = "DotNetNextJs"
 ): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
   if (isDemoMode || !hasServerSupabaseConfig()) {
     return { success: true, generationId: `demo-pending-${Date.now()}` };
@@ -397,6 +406,7 @@ export async function createPendingGeneration(
       mode,
       tier,
       prompt: promptSummary || null,
+      project_type: projectType,
       status: "pending",
       schema_json: schema ?? null,
       download_url: null,
@@ -425,7 +435,9 @@ export async function createPendingGeneration(
 export async function createCheckoutSession(
   generationId: string,
   tier: Tier,
-  prompt?: string
+  prompt?: string,
+  projectType: ProjectType = "DotNetNextJs",
+  mode: "simple" | "advanced" = "advanced"
 ): Promise<{ success: true; sessionUrl: string } | { success: false; error: string }> {
   if (tier === 0) {
     return { success: false, error: "Tier 0 (Spark) is free — no checkout required." };
@@ -447,6 +459,11 @@ export async function createCheckoutSession(
   const origin = `${proto}://${host}`;
 
   try {
+    const cancelPath =
+      mode === "simple"
+        ? `/simple?q=${encodeURIComponent(prompt ?? "")}&tier=${tier}`
+        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`;
+
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
       method: "POST",
@@ -454,9 +471,10 @@ export async function createCheckoutSession(
       body: JSON.stringify({
         generationId,
         tier,
+        projectType,
         prompt: prompt ?? "",
         successUrl: `${origin}/generate/${generationId}?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${origin}/advanced?step=3&tier=${tier}`,
+        cancelUrl: `${origin}${cancelPath}`,
       }),
     });
 

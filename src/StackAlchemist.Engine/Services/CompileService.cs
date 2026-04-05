@@ -1,64 +1,33 @@
-using System.Diagnostics;
-using System.Text.RegularExpressions;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// Runs <c>dotnet build</c> in the generated project directory, extracts C# compiler
-/// error lines, and constructs retry prompts for the LLM repair loop.
+/// Selects the appropriate ecosystem-specific build strategy and constructs retry prompts
+/// for the LLM repair loop.
 /// </summary>
-public sealed partial class CompileService(ILogger<CompileService> logger) : ICompileService
+public sealed class CompileService(
+    IEnumerable<IBuildStrategy> strategies,
+    ILogger<CompileService> logger) : ICompileService
 {
-    private const int MaxContextChars = 8_000; // ~2 000 tokens budget for error context
+    private const int MaxContextChars = 8_000;
 
-    public async Task<BuildResult> ExecuteBuildAsync(string projectDirectory, CancellationToken ct = default)
+    private readonly Dictionary<ProjectType, IBuildStrategy> _strategies = strategies
+        .GroupBy(strategy => strategy.SupportedProjectType)
+        .ToDictionary(group => group.Key, group => group.Last());
+
+    public Task<BuildResult> ExecuteBuildAsync(
+        string projectDirectory,
+        ProjectType projectType,
+        CancellationToken ct = default)
     {
-        // Prefer the dotnet/ subdirectory if it exists (template layout)
-        var dotnetDir = Path.Combine(projectDirectory, "dotnet");
-        if (!Directory.Exists(dotnetDir))
-            dotnetDir = projectDirectory;
-
-        logger.LogInformation("Running dotnet build in {Dir}", dotnetDir);
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = "build --no-restore",
-            WorkingDirectory = dotnetDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        using var process = new Process { StartInfo = psi };
-        process.Start();
-
-        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
-
-        var result = new BuildResult
-        {
-            ExitCode = process.ExitCode,
-            StandardOutput = stdout,
-            ErrorOutput = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr,
-        };
-
-        if (result.IsSuccess)
-            logger.LogInformation("Build succeeded in {Dir}", dotnetDir);
-        else
-            logger.LogWarning("Build failed in {Dir} — exit code {Code}", dotnetDir, result.ExitCode);
-
-        return result;
+        return ResolveStrategy(projectType).ExecuteBuildAsync(projectDirectory, ct);
     }
 
-    public List<string> ExtractBuildErrors(string buildOutput)
-        => BuildErrorRegex()
-            .Matches(buildOutput)
-            .Select(m => m.Value.Trim())
-            .ToList();
+    public List<string> ExtractBuildErrors(string buildOutput, ProjectType projectType)
+    {
+        return ResolveStrategy(projectType).ExtractBuildErrors(buildOutput);
+    }
 
     public string BuildRetryContext(string originalPrompt, List<string> errorHistory, int retryAttempt)
     {
@@ -69,7 +38,6 @@ public sealed partial class CompileService(ILogger<CompileService> logger) : ICo
 
             """;
 
-        // Include errors newest-first, respecting the char budget
         var totalLength = context.Length + originalPrompt.Length + 200;
         var includedErrors = new List<string>();
 
@@ -77,6 +45,7 @@ public sealed partial class CompileService(ILogger<CompileService> logger) : ICo
         {
             if (totalLength + errorHistory[i].Length > MaxContextChars)
                 break;
+
             includedErrors.Insert(0, errorHistory[i]);
             totalLength += errorHistory[i].Length;
         }
@@ -98,6 +67,12 @@ public sealed partial class CompileService(ILogger<CompileService> logger) : ICo
         return context;
     }
 
-    [GeneratedRegex(@"^.+:\s*error\s+CS\d+:.+$", RegexOptions.Multiline)]
-    private static partial Regex BuildErrorRegex();
+    private IBuildStrategy ResolveStrategy(ProjectType projectType)
+    {
+        if (_strategies.TryGetValue(projectType, out var strategy))
+            return strategy;
+
+        logger.LogError("No build strategy registered for project type {ProjectType}", projectType);
+        throw new ArgumentOutOfRangeException(nameof(projectType), projectType, "Unsupported project type");
+    }
 }

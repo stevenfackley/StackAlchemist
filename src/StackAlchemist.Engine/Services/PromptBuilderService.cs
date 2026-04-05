@@ -6,19 +6,8 @@ namespace StackAlchemist.Engine.Services;
 
 public interface IPromptBuilderService
 {
-    /// <summary>Builds the system+user prompt that instructs Claude to generate code for the given schema.</summary>
-    string BuildGenerationPrompt(GenerationSchema schema);
-
-    /// <summary>
-    /// Builds a retry prompt that includes the original generation prompt plus all accumulated build errors
-    /// from previous attempts. Truncates older errors when approaching the token budget.
-    /// </summary>
+    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs);
     string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt);
-
-    /// <summary>
-    /// Builds the schema-extraction prompt for Simple Mode.
-    /// Instructs Claude to convert a natural-language description into a structured JSON schema.
-    /// </summary>
     string BuildSchemaExtractionPrompt(string userPrompt);
 }
 
@@ -35,12 +24,20 @@ public sealed class PromptBuilderService : IPromptBuilderService
 
     // ── Generation prompt ─────────────────────────────────────────────────────
 
-    public string BuildGenerationPrompt(GenerationSchema schema)
+    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs)
     {
         var schemaJson = JsonSerializer.Serialize(schema, IndentedJson);
-
         var sb = new StringBuilder();
-        sb.AppendLine("You are an expert .NET 10 and Next.js 15 developer generating production-quality code.");
+
+        var stackDescription = projectType switch
+        {
+            ProjectType.PythonReact =>
+                "You are an expert Python (FastAPI, SQLAlchemy, Pydantic, Alembic) and React (Vite, TypeScript, Tailwind CSS, TanStack Query) developer generating production-quality code.",
+            _ =>
+                "You are an expert .NET 10 and Next.js 15 developer generating production-quality code.",
+        };
+
+        sb.AppendLine(stackDescription);
         sb.AppendLine();
         sb.AppendLine("## Output Format");
         sb.AppendLine("ONLY output file blocks using this exact format. Output NOTHING else — no prose, no explanation, no markdown outside the blocks:");
@@ -49,6 +46,16 @@ public sealed class PromptBuilderService : IPromptBuilderService
         sb.AppendLine("... file content here ...");
         sb.AppendLine("[[END_FILE]]");
         sb.AppendLine();
+
+        if (projectType == ProjectType.PythonReact)
+        {
+            sb.AppendLine("## Stack");
+            sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
+            sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
+            sb.AppendLine("- Use `backend/` prefix for Python files and `frontend/src/` prefix for React files");
+            sb.AppendLine();
+        }
+
         sb.AppendLine("## Schema");
         sb.AppendLine("Generate a full-stack application for the following data schema:");
         sb.AppendLine();
@@ -61,9 +68,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Entities");
             foreach (var entity in schema.Entities)
-            {
                 sb.AppendLine($"- {entity.Name}");
-            }
         }
 
         if (schema.Relationships.Count > 0)
@@ -71,9 +76,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Relationships");
             foreach (var rel in schema.Relationships)
-            {
                 sb.AppendLine($"- {rel.From} → {rel.To} ({rel.Type})");
-            }
         }
 
         return sb.ToString();

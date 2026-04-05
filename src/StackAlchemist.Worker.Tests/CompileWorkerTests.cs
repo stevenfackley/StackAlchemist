@@ -10,7 +10,12 @@ namespace StackAlchemist.Worker.Tests;
 /// </summary>
 public class CompileWorkerTests
 {
-    private readonly CompileService _sut = new(NullLogger<CompileService>.Instance);
+    private readonly CompileService _sut = new(
+        [
+            new DotNetBuildStrategy(NullLogger<DotNetBuildStrategy>.Instance),
+            new PythonReactBuildStrategy(NullLogger<PythonReactBuildStrategy>.Instance),
+        ],
+        NullLogger<CompileService>.Instance);
 
     [Fact]
     public void ExtractBuildErrors_FromDotnetOutput_ReturnsParsedErrors()
@@ -23,7 +28,7 @@ public class CompileWorkerTests
             Build FAILED.
             """;
 
-        var errors = _sut.ExtractBuildErrors(buildOutput);
+        var errors = _sut.ExtractBuildErrors(buildOutput, StackAlchemist.Engine.Models.ProjectType.DotNetNextJs);
 
         errors.Should().HaveCount(2);
         errors[0].Should().Contain("CS1002");
@@ -39,7 +44,7 @@ public class CompileWorkerTests
                 0 Error(s)
             """;
 
-        var errors = _sut.ExtractBuildErrors(buildOutput);
+        var errors = _sut.ExtractBuildErrors(buildOutput, StackAlchemist.Engine.Models.ProjectType.DotNetNextJs);
         errors.Should().BeEmpty();
     }
 
@@ -88,5 +93,20 @@ public class CompileWorkerTests
         context.Length.Should().BeLessThan(10_000);
         // Should contain the most recent errors, not necessarily the oldest
         context.Should().Contain("Generate code");
+    }
+
+    [Fact]
+    public void ExtractBuildErrors_FromPythonOutput_ReturnsParsedErrors()
+    {
+        var buildOutput = """
+            backend/app/main.py:10:1: E302 expected 2 blank lines, found 1
+            ERROR collecting tests/test_health.py
+            """;
+
+        var errors = _sut.ExtractBuildErrors(buildOutput, StackAlchemist.Engine.Models.ProjectType.PythonReact);
+
+        errors.Should().HaveCount(2);
+        errors[0].Should().Contain("E302");
+        errors[1].Should().Contain("ERROR collecting");
     }
 }

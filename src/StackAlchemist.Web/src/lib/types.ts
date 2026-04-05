@@ -16,6 +16,9 @@ export type GenerationStatus =
 // 0 = Spark (free): view-only micro IDE preview, no download
 export type Tier = 0 | 1 | 2 | 3;
 
+// ─── Platform ────────────────────────────────────────────────────────────────
+export type ProjectType = "DotNetNextJs" | "PythonReact";
+
 // ─── Schema Types ────────────────────────────────────────────────────────────
 export interface Field {
   name: string;
@@ -54,6 +57,7 @@ export interface Generation {
   id: string;
   user_id: string | null;
   transaction_id: string | null;
+  project_type: ProjectType;
   status: GenerationStatus;
   mode: "simple" | "advanced";
   tier: Tier;
@@ -108,6 +112,7 @@ export interface Database {
           id?: string;
           user_id?: string | null;
           transaction_id?: string | null;
+          project_type?: ProjectType;
           status?: GenerationStatus;
           mode: "simple" | "advanced";
           tier: Tier;
@@ -183,6 +188,7 @@ export interface SimpleModePayload {
 export interface AdvancedModePayload {
   schema: GenerationSchema;
   tier: Tier;
+  projectType: ProjectType;
 }
 
 // ─── Engine API types ─────────────────────────────────────────────────────────
@@ -190,6 +196,7 @@ export interface EngineGenerateRequest {
   generationId: string;
   mode: "simple" | "advanced";
   tier: Tier;
+  projectType?: ProjectType;
   prompt?: string;
   schema?: GenerationSchema;
 }
@@ -197,4 +204,5 @@ export interface EngineGenerateRequest {
 export interface EngineGenerateResponse {
   jobId: string;
   status: GenerationStatus;
+  projectType: ProjectType;
 }

@@ -29,11 +29,11 @@ Reference this file instead of re-reading source files when possible.
 ### Routing
 - `/` — Landing page (hero, features, pricing teaser)
 - `/simple?q=<prompt>` — Simple Mode: generation animation → editable React Flow canvas
-- `/advanced?step=<1|2|3>` — Advanced Mode: 3-step stepper wizard
+- `/advanced?step=<1|2|3|4>` — Advanced Mode: 4-step stepper wizard
 
 ### Pricing placement
 - Full pricing grid removed from landing page per owner feedback.
-- Pricing details live exclusively in `/advanced?step=3`.
+- Pricing details live exclusively in `/advanced?step=4`.
 - Landing page has a teaser CTA linking to that route.
 
 ### Environment / Tooling
@@ -350,5 +350,47 @@ E2E:       4 live assertions, 2 intentional skips (Phase 7)
 ### Documentation Sync
 - `README.md` test badge/counts updated to reflect verified test totals.
 - Progress guidance in `docs/DEV_PROMPT.md` updated so next implementation work starts from accurate current reality rather than stale phase assumptions.
+
+---
+
+## Multi-Ecosystem Expansion Pass (2026-04-05)
+
+### Generation model + persistence
+- Added `ProjectType` support across the engine request/response pipeline for `DotNetNextJs` and `PythonReact`.
+- Added `project_type` to the Supabase `generations` table via migration `20260405000004_add_project_type_to_generations.sql`.
+- Next.js server actions now persist `project_type` on every generation row and resend it on retry.
+
+### Compile pipeline strategy split
+- `CompileService` is now a thin selector over per-platform `IBuildStrategy` implementations.
+- `DotNetBuildStrategy` runs `.NET` validation and extracts C# compiler errors.
+- `PythonReactBuildStrategy` runs backend `pip` + `flake8` + `pytest --collect-only` and frontend `npm install` + `eslint` + `tsc`, plus Python/TypeScript/ESLint error extraction.
+- `CompileWorkerService` now logs the selected project type in the live build stream instead of hardcoding `dotnet build`.
+
+### Advanced mode platform selection
+- Advanced Mode is now a 4-step flow:
+  1. Define Entities
+  2. Platform Selection
+  3. Configure API
+  4. Select Tier & Pay
+- The submission spinner now includes a shared live build-log console backed by Supabase Realtime updates from `build_log`.
+
+### Template + orchestration updates
+- `GenerationOrchestrator` resolves template roots by `ProjectType` and uses `PromptBuilderService.BuildGenerationPrompt(schema, projectType)` for schema-backed generation requests.
+- `V1-Python-React/` now includes the shared injection zone names expected by reconstruction (`Controllers`, `Models`, `Repositories`, `TypeDefinitions`, etc.).
+- Added Python/React validation assets: `.flake8`, `pytest.ini`, sample backend health test, and a modern `eslint.config.js`.
+- `validate.mjs` now render-checks both `V1-DotNet-NextJs` and `V1-Python-React`.
+
+### Paid checkout reliability
+- Stripe Checkout session metadata now carries `projectType`.
+- The Stripe webhook now reloads `mode`, `prompt`, `schema_json`, and `project_type` from Supabase before enqueueing the engine job, fixing the preexisting paid Advanced Mode loss of schema context after redirect.
+
+### Test coverage
+- Added `MultiEcosystemPipelineTests` to verify template-set selection and queue propagation for both ecosystems.
+- Expanded compile-service tests with Python/ESLint error parsing coverage.
+- Updated Playwright Advanced Mode coverage for the new platform-selection step and shifted tier checkout to step 4.
+
+### Infrastructure audit
+- Verified current GitHub workflow secret names remain environment-scoped without test/prod key prefixes (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `R2_*`, `STRIPE_*`).
+- Verified the root Dockerfile remains npm-based for web/worker Node workflows (`npm install`, `npx next build`) and did not regress to pnpm.
 
 ---
