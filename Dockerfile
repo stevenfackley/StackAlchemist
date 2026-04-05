@@ -28,12 +28,14 @@ RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
-# Build the Next.js app and clean up cache in one layer.
+# Build the Next.js app, materialize the Next runtime package, and clean cache.
 # We invoke next build directly (not via `pnpm run build`) because the npm
 # script wrapper (scripts/build-wrapper.mjs) is excluded by .dockerignore and
 # is only needed on Windows+pnpm where a path-casing bug must be patched at
 # runtime.  On Linux that bug does not exist; next build runs cleanly.
 RUN node_modules/.bin/next build \
+  && mkdir -p /app/runtime-node_modules \
+  && cp -RL node_modules/next /app/runtime-node_modules/next \
   && rm -rf /pnpm/store /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
@@ -41,17 +43,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@10 --activate
-COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-workspace.yaml ./
-COPY src/StackAlchemist.Web/pnpm-lock.yam[l] ./
-# Install production deps in the runtime image so /app/server.js can resolve
-# the Next runtime without relying on pnpm symlink structures from the builder.
-RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts \
-  && rm -rf /pnpm/store /root/.npm /tmp/*
 COPY --from=web-builder /app/.next/standalone ./
 COPY --from=web-builder /app/.next/static ./.next/static
+COPY --from=web-builder /app/runtime-node_modules/next ./node_modules/next
 COPY --from=web-builder /app/public ./public
 EXPOSE 3000
 CMD ["node", "server.js"]
