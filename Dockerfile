@@ -13,8 +13,9 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 # Copy manifests first so the install layer is cached independently of source.
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/package-lock.json ./
 
-# Install all dependencies from package.json.
-RUN npm install --include=dev
+# Install all dependencies. --ignore-scripts skips postinstall (setup-env-safe.mjs)
+# which requires the full scripts/ dir that isn't copied until the next step.
+RUN npm install --include=dev --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
