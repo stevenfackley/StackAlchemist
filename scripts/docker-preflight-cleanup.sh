@@ -58,6 +58,19 @@ echo ""
 echo "── Pruning stopped containers ──"
 docker container prune -f 2>/dev/null || true
 
+# ── 2a. Remove legacy StackAlchemist prod containers by fixed name ──────────
+# The production compose stack uses explicit container_name values. If a prior
+# manual deploy or older workflow left containers behind outside the current
+# compose project, `docker compose up` will fail with a name-conflict error.
+echo ""
+echo "── Removing legacy StackAlchemist production containers if present ──"
+for container in sa-web sa-engine sa-reverse-proxy sa-tunnel; do
+  if docker ps -a --format '{{.Names}}' | grep -Fx "$container" >/dev/null 2>&1; then
+    echo "Removing existing container: $container"
+    docker rm -f "$container" 2>/dev/null || true
+  fi
+done
+
 # ── 3. Remove ALL unused Docker images ──────────────────────────────────────
 #    This is more aggressive than just dangling=true; it removes any image
 #    not referenced by a running or stopped container.
