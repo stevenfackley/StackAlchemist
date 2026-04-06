@@ -24,7 +24,7 @@ COPY src/StackAlchemist.Web/pnpm-lock.yam[l] ./
 
 # Install all dependencies from package.json.  --no-frozen-lockfile allows
 # pnpm to update (or create) the lockfile when it has drifted from package.json.
-RUN pnpm install --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --no-frozen-lockfile --ignore-scripts --shamefully-hoist
 
 COPY src/StackAlchemist.Web/ .
 
