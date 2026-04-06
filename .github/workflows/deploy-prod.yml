@@ -33,6 +33,16 @@ jobs:
           echo "This workflow requests GitHub OIDC tokens so future AWS-integrated steps can assume an IAM role."
           echo "The current production deploy runs locally on the EC2 self-hosted runner and does not require SSH deployment."
 
+      - name: Configure AWS credentials via GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+
+      - name: Verify AWS caller identity
+        shell: bash
+        run: aws sts get-caller-identity
+
       - name: Setup .env (prod)
         uses: ./.github/actions/setup-env
         with:
