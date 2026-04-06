@@ -22,7 +22,9 @@ import { CheckCircle2, AlertCircle, Loader2, Plus, Trash2, X } from "lucide-reac
 import { submitSimpleGeneration, extractSchema, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
-import type { Generation, GenerationSchema, Tier } from "@/lib/types";
+import { PersonalizationModal } from "@/components/personalization-modal";
+import type { Generation, GenerationSchema, Tier, PersonalizationData } from "@/lib/types";
+import { DEFAULT_PERSONALIZATION } from "@/lib/types";
 
 // ─── Schema Data Model ───────────────────────────────────────────────────────
 interface SchemaField {
@@ -407,6 +409,8 @@ export default function SimpleModePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showSchemaEditor, setShowSchemaEditor] = useState(false);
+  const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
+  const [personalization, setPersonalization] = useState<PersonalizationData>(DEFAULT_PERSONALIZATION);
 
   // ─── Schema State ──────────────────────────────────────────────────────────
   const [schemaEntities, setSchemaEntities] = useState<SchemaEntity[]>(INITIAL_ENTITIES);
@@ -513,14 +517,14 @@ export default function SimpleModePage() {
   }, [generationId, router, selectedTier]);
 
   // ─── Submit to Supabase + Engine ────────────────────────────────────────────
-  function handleProceed() {
+  function handleProceed(p: PersonalizationData = personalization) {
     startTransition(async () => {
       setPhase("submitting");
       setErrorMsg(null);
 
       if (selectedTier === 0) {
         // Free tier (Spark): create generation + fire engine immediately
-        const result = await submitSimpleGeneration(prompt, 0);
+        const result = await submitSimpleGeneration(prompt, 0, "DotNetNextJs", p);
         if (result.success) {
           setGenerationId(result.generationId);
           if (isDemoMode || !supabase) {
@@ -534,7 +538,7 @@ export default function SimpleModePage() {
         }
       } else {
         // Paid tiers 1–3: create pending row → Stripe Checkout → Engine fires via webhook
-        const pending = await createPendingGeneration("simple", selectedTier, prompt);
+        const pending = await createPendingGeneration("simple", selectedTier, prompt, undefined, "DotNetNextJs", p);
         if (!pending.success) {
           setErrorMsg(pending.error);
           setPhase("error");
@@ -543,7 +547,13 @@ export default function SimpleModePage() {
 
         setGenerationId(pending.generationId);
 
-        const session = await createCheckoutSession(pending.generationId, selectedTier, prompt);
+        const session = await createCheckoutSession(
+          pending.generationId,
+          selectedTier,
+          prompt,
+          "DotNetNextJs",
+          "simple"
+        );
         if (!session.success) {
           setErrorMsg(session.error);
           setPhase("error");
@@ -570,6 +580,21 @@ export default function SimpleModePage() {
   }
 
   return (
+    <>
+    {showPersonalizationModal && (
+      <PersonalizationModal
+        entityNames={schemaEntities.map((e) => e.name)}
+        onComplete={(data) => {
+          setPersonalization(data);
+          setShowPersonalizationModal(false);
+          handleProceed(data);
+        }}
+        onSkip={() => {
+          setShowPersonalizationModal(false);
+          handleProceed(DEFAULT_PERSONALIZATION);
+        }}
+      />
+    )}
     <div className="min-h-screen flex flex-col bg-slate-800">
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
@@ -730,7 +755,7 @@ export default function SimpleModePage() {
                   &larr; Review Schema
                 </button>
                 <button
-                  onClick={handleProceed}
+                  onClick={() => setShowPersonalizationModal(true)}
                   disabled={isPending}
                   className={`flex-1 font-mono text-xs py-3 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center justify-center gap-2 ${
                     selectedTier === 0
@@ -741,9 +766,9 @@ export default function SimpleModePage() {
                   {isPending ? (
                     <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
                   ) : selectedTier === 0 ? (
-                    "Launch Free Preview \u2192"
+                    "Personalize & Launch \u2192"
                   ) : (
-                    "Proceed to Checkout \u2192"
+                    "Personalize & Checkout \u2192"
                   )}
                 </button>
               </div>
@@ -826,5 +851,6 @@ export default function SimpleModePage() {
         />
       )}
     </div>
+    </>
   );
 }

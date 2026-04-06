@@ -1,7 +1,9 @@
 using System.IO.Abstractions;
 using System.Net.Http.Json;
+using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
+using Microsoft.AspNetCore.RateLimiting;
 using Stripe;
 using Stripe.Checkout;
 using StackAlchemist.Engine.Models;
@@ -39,10 +41,84 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
     ["Stripe:WebhookSecret"]          = Ev("STRIPE_WEBHOOK_SECRET"),
+    // Engine hardening
+    ["Engine:ServiceKey"]             = Ev("ENGINE_SERVICE_KEY"),
+    ["Engine:AllowedOrigins"]         = Ev("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000",
 }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value));
+
+// ── Production startup validation ────────────────────────────────────────────
+// Fail-fast on missing critical secrets so misconfigured deployments surface immediately.
+if (builder.Environment.IsProduction())
+{
+    var required = new[]
+    {
+        ("STRIPE_WEBHOOK_SECRET", builder.Configuration["Stripe:WebhookSecret"]),
+        ("ENGINE_SERVICE_KEY",    builder.Configuration["Engine:ServiceKey"]),
+    };
+    foreach (var (name, value) in required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new InvalidOperationException(
+                $"Required environment variable '{name}' is not set. " +
+                "Set it via user-secrets or environment before starting in Production.");
+    }
+}
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+// Allow Next.js frontend origin(s). Engine is called server-side from Next.js
+// server actions, so CORS is mainly defensive; add browser origins here too
+// in case direct client calls are introduced.
+var allowedOrigins = (builder.Configuration["Engine:AllowedOrigins"] ?? "http://localhost:3000")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()));
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Per-IP fixed-window limits on expensive endpoints.
+builder.Services.AddRateLimiter(rl =>
+{
+    // Generation: 5 per minute per IP — generous for real users, blocks spamming
+    rl.AddFixedWindowLimiter("generate", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 5;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Schema extraction: 15 per minute per IP
+    rl.AddFixedWindowLimiter("extract", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 15;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Stripe session creation: 3 per minute per IP
+    rl.AddFixedWindowLimiter("stripe-session", o =>
+    {
+        o.Window          = TimeSpan.FromMinutes(1);
+        o.PermitLimit     = 3;
+        o.QueueLimit      = 0;
+        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    rl.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    rl.OnRejected = async (ctx, token) =>
+    {
+        ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await ctx.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Rate limit exceeded. Please wait before retrying." }, token);
+    };
+});
 
 // ── HTTP clients ──────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
@@ -92,6 +168,8 @@ builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
 
 // ── Compile service ───────────────────────────────────────────────────────────
+builder.Services.AddSingleton<IBuildStrategy, DotNetBuildStrategy>();
+builder.Services.AddSingleton<IBuildStrategy, PythonReactBuildStrategy>();
 builder.Services.AddSingleton<ICompileService, CompileService>();
 
 // ── In-process job queue (Channel) + background compile worker ───────────────
@@ -117,6 +195,36 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseCors("Frontend");
+app.UseRateLimiter();
+
+// ── Service key auth ──────────────────────────────────────────────────────────
+// Protects /api/* (except /api/webhooks/stripe which uses Stripe signature auth)
+// against unauthenticated callers. When ENGINE_SERVICE_KEY is unset the check
+// is skipped so local dev / CI works without extra config.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api") &&
+        !context.Request.Path.StartsWithSegments("/api/webhooks"))
+    {
+        var configuredKey = context.RequestServices
+            .GetRequiredService<IConfiguration>()["Engine:ServiceKey"];
+
+        if (!string.IsNullOrWhiteSpace(configuredKey))
+        {
+            var providedKey = context.Request.Headers["X-Engine-Key"].FirstOrDefault();
+            if (providedKey != configuredKey)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
+                return;
+            }
+        }
+    }
+
+    await next(context);
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -141,7 +249,8 @@ app.MapPost("/api/generate", async (
     return Results.Accepted($"/api/generate/{response.JobId}", response);
 })
 .WithName("Generate")
-.WithSummary("Enqueue a code generation job.");
+.WithSummary("Enqueue a code generation job.")
+.RequireRateLimiting("generate");
 
 // ── Schema extraction (Simple Mode) ──────────────────────────────────────
 app.MapPost("/api/extract-schema", async (
@@ -195,7 +304,8 @@ app.MapPost("/api/extract-schema", async (
     }
 })
 .WithName("ExtractSchema")
-.WithSummary("Extract a structured schema from a natural-language prompt via LLM.");
+.WithSummary("Extract a structured schema from a natural-language prompt via LLM.")
+.RequireRateLimiting("extract");
 
 // ── Stripe Checkout Session creation (paid tiers 1–3) ────────────────────────
 // Called by the Next.js server action before redirecting the user to Stripe.
@@ -252,6 +362,7 @@ app.MapPost("/api/stripe/create-session", async (
             {
                 ["generationId"] = req.GenerationId,
                 ["tier"]         = req.Tier.ToString(),
+                ["projectType"]  = req.ProjectType.ToString(),
                 ["prompt"]       = req.Prompt ?? "",
             },
         };
@@ -267,6 +378,7 @@ app.MapPost("/api/stripe/create-session", async (
         {
             SessionId = session.Id,
             Url       = session.Url,
+            ProjectType = req.ProjectType,
         });
     }
     catch (StripeException ex)
@@ -276,7 +388,8 @@ app.MapPost("/api/stripe/create-session", async (
     }
 })
 .WithName("CreateStripeSession")
-.WithSummary("Creates a Stripe Checkout Session for a paid tier and returns the hosted URL.");
+.WithSummary("Creates a Stripe Checkout Session for a paid tier and returns the hosted URL.")
+.RequireRateLimiting("stripe-session");
 
 // ── Stripe webhook ────────────────────────────────────────────────────────────
 // Reads the raw body before routing so Stripe signature verification always
@@ -326,10 +439,86 @@ app.MapPost("/api/webhooks/stripe", async (
         var prompt = session.Metadata?.GetValueOrDefault("prompt");
         var generationId = session.Metadata?.GetValueOrDefault("generationId")
                            ?? Guid.NewGuid().ToString();
+        var projectType = Enum.TryParse<ProjectType>(
+            session.Metadata?.GetValueOrDefault("projectType"),
+            ignoreCase: true,
+            out var parsedProjectType)
+            ? parsedProjectType
+            : ProjectType.DotNetNextJs;
+        var mode = prompt is not null ? "simple" : "advanced";
+        GenerationSchema? schema = null;
+        GenerationPersonalization? personalization = null;
 
-        // ── Insert transaction row into Supabase ─────────────────────────────
+        // Recover the original generation payload so paid advanced-mode jobs keep their
+        // saved schema and platform selection after redirecting through Stripe Checkout.
         var supabaseUrl = config["Supabase:Url"];
         var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+        if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
+        {
+            try
+            {
+                var generationEndpoint =
+                    $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=mode,prompt,schema_json,project_type,personalization_json";
+
+                using var httpClient = new HttpClient();
+                using var generationRequest = new HttpRequestMessage(HttpMethod.Get, generationEndpoint);
+                generationRequest.Headers.Add("apikey", serviceRoleKey);
+                generationRequest.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+                using var generationResponse = await httpClient.SendAsync(generationRequest, ct);
+                generationResponse.EnsureSuccessStatusCode();
+
+                var payload = await generationResponse.Content.ReadAsStringAsync(ct);
+                using var document = System.Text.Json.JsonDocument.Parse(payload);
+
+                if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                    document.RootElement.GetArrayLength() > 0)
+                {
+                    var row = document.RootElement[0];
+
+                    if (row.TryGetProperty("mode", out var modeElement) &&
+                        modeElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        mode = modeElement.GetString() ?? mode;
+                    }
+
+                    if (row.TryGetProperty("prompt", out var promptElement) &&
+                        promptElement.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        string.IsNullOrWhiteSpace(prompt))
+                    {
+                        prompt = promptElement.GetString();
+                    }
+
+                    if (row.TryGetProperty("project_type", out var projectTypeElement) &&
+                        projectTypeElement.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        Enum.TryParse<ProjectType>(projectTypeElement.GetString(), ignoreCase: true, out var storedProjectType))
+                    {
+                        projectType = storedProjectType;
+                    }
+
+                    if (row.TryGetProperty("schema_json", out var schemaElement) &&
+                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
+                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        schema = System.Text.Json.JsonSerializer.Deserialize<GenerationSchema>(schemaElement.GetRawText());
+                    }
+
+                    if (row.TryGetProperty("personalization_json", out var personalizationElement) &&
+                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
+                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+                    {
+                        var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        personalization = System.Text.Json.JsonSerializer.Deserialize<GenerationPersonalization>(personalizationElement.GetRawText(), opts);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to reload generation payload for {GenerationId}", generationId);
+            }
+        }
+
+        // ── Insert transaction row into Supabase ─────────────────────────────
         if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
         {
             try
@@ -365,10 +554,13 @@ app.MapPost("/api/webhooks/stripe", async (
 
         await orchestrator.EnqueueAsync(new GenerateRequest
         {
-            GenerationId = generationId,
-            Mode         = prompt is not null ? "simple" : "advanced",
-            Tier         = tier,
-            Prompt       = prompt,
+            GenerationId  = generationId,
+            Mode          = mode,
+            Tier          = tier,
+            ProjectType   = projectType,
+            Prompt        = prompt,
+            Schema        = schema,
+            Personalization = personalization,
         }, ct);
     }
 

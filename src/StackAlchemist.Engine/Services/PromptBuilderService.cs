@@ -6,19 +6,8 @@ namespace StackAlchemist.Engine.Services;
 
 public interface IPromptBuilderService
 {
-    /// <summary>Builds the system+user prompt that instructs Claude to generate code for the given schema.</summary>
-    string BuildGenerationPrompt(GenerationSchema schema);
-
-    /// <summary>
-    /// Builds a retry prompt that includes the original generation prompt plus all accumulated build errors
-    /// from previous attempts. Truncates older errors when approaching the token budget.
-    /// </summary>
+    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null);
     string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt);
-
-    /// <summary>
-    /// Builds the schema-extraction prompt for Simple Mode.
-    /// Instructs Claude to convert a natural-language description into a structured JSON schema.
-    /// </summary>
     string BuildSchemaExtractionPrompt(string userPrompt);
 }
 
@@ -35,12 +24,20 @@ public sealed class PromptBuilderService : IPromptBuilderService
 
     // ── Generation prompt ─────────────────────────────────────────────────────
 
-    public string BuildGenerationPrompt(GenerationSchema schema)
+    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null)
     {
         var schemaJson = JsonSerializer.Serialize(schema, IndentedJson);
-
         var sb = new StringBuilder();
-        sb.AppendLine("You are an expert .NET 10 and Next.js 15 developer generating production-quality code.");
+
+        var stackDescription = projectType switch
+        {
+            ProjectType.PythonReact =>
+                "You are an expert Python (FastAPI, SQLAlchemy, Pydantic, Alembic) and React (Vite, TypeScript, Tailwind CSS, TanStack Query) developer generating production-quality code.",
+            _ =>
+                "You are an expert .NET 10 and Next.js 15 developer generating production-quality code.",
+        };
+
+        sb.AppendLine(stackDescription);
         sb.AppendLine();
         sb.AppendLine("## Output Format");
         sb.AppendLine("ONLY output file blocks using this exact format. Output NOTHING else — no prose, no explanation, no markdown outside the blocks:");
@@ -49,6 +46,16 @@ public sealed class PromptBuilderService : IPromptBuilderService
         sb.AppendLine("... file content here ...");
         sb.AppendLine("[[END_FILE]]");
         sb.AppendLine();
+
+        if (projectType == ProjectType.PythonReact)
+        {
+            sb.AppendLine("## Stack");
+            sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
+            sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
+            sb.AppendLine("- Use `backend/` prefix for Python files and `frontend/src/` prefix for React files");
+            sb.AppendLine();
+        }
+
         sb.AppendLine("## Schema");
         sb.AppendLine("Generate a full-stack application for the following data schema:");
         sb.AppendLine();
@@ -61,9 +68,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Entities");
             foreach (var entity in schema.Entities)
-            {
                 sb.AppendLine($"- {entity.Name}");
-            }
         }
 
         if (schema.Relationships.Count > 0)
@@ -71,8 +76,55 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Relationships");
             foreach (var rel in schema.Relationships)
-            {
                 sb.AppendLine($"- {rel.From} → {rel.To} ({rel.Type})");
+        }
+
+        // ── Personalization context ───────────────────────────────────────────
+        if (personalization is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(personalization.BusinessDescription))
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Business Context");
+                sb.AppendLine("Use the following context to inform code comments, seed data, UI copy, validation messages, and README content:");
+                if (!string.IsNullOrWhiteSpace(personalization.ProjectName))
+                    sb.AppendLine($"- **Project name:** {personalization.ProjectName}");
+                if (!string.IsNullOrWhiteSpace(personalization.Tagline))
+                    sb.AppendLine($"- **Tagline:** {personalization.Tagline}");
+                sb.AppendLine($"- **Description:** {personalization.BusinessDescription}");
+            }
+
+            if (personalization.DomainContext.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Domain Vocabulary");
+                sb.AppendLine("Use realistic domain language in controller logic, validation, comments, and seed data:");
+                foreach (var (entity, context) in personalization.DomainContext)
+                    sb.AppendLine($"- **{entity}:** {context}");
+            }
+
+            if (personalization.ColorScheme is not null)
+            {
+                sb.AppendLine();
+                sb.AppendLine("## Color Theme");
+                sb.AppendLine($"Use this palette in the generated frontend's Tailwind config (tailwind.config.ts):");
+                sb.AppendLine($"- primary: {personalization.ColorScheme.Primary}");
+                sb.AppendLine($"- secondary: {personalization.ColorScheme.Secondary}");
+                sb.AppendLine($"- accent: {personalization.ColorScheme.Accent}");
+                sb.AppendLine($"- background: {personalization.ColorScheme.Background}");
+                sb.AppendLine($"- surface: {personalization.ColorScheme.Surface}");
+            }
+
+            if (personalization.FeatureFlags is not null)
+            {
+                var ff = personalization.FeatureFlags;
+                sb.AppendLine();
+                sb.AppendLine("## Feature Flags");
+                sb.AppendLine($"- Authentication method: {ff.AuthMethod}");
+                sb.AppendLine($"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
+                sb.AppendLine($"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
+                sb.AppendLine($"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");
+                sb.AppendLine($"- Docker Compose for local dev: {(ff.IncludeDockerCompose ? "yes — include in output" : "no")}");
             }
         }
 

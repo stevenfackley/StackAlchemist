@@ -99,7 +99,7 @@ src/StackAlchemist.Web/
 | Flow | Steps |
 |------|-------|
 | **Simple Mode** | Load landing → click Simple Mode → type prompt → submit → wait for canvas → verify entities rendered → edit entity → confirm schema → assert payload sent to backend |
-| **Advanced Mode** | Load landing → click Advanced → Step 1: add entities → Step 2: configure endpoints → Step 3: select tier → verify schema JSON |
+| **Advanced Mode** | Load landing → click Advanced → Step 1: add entities → Step 2: choose platform → Step 3: configure endpoints → Step 4: select tier → verify schema JSON |
 | **Checkout** | Select tier → Stripe Checkout redirect → verify session params |
 | **Dashboard** | Login → view generation history → click download → verify link resolves |
 

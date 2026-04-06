@@ -1,6 +1,6 @@
 /**
- * Template validation script — Phase 2
- * Renders all V1 Handlebars templates with mock data and validates output.
+ * Template validation script — multi-ecosystem
+ * Renders all Handlebars templates with mock data and validates output.
  * Run: node validate.mjs
  */
 
@@ -8,7 +8,8 @@ import Handlebars from "handlebars";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative } from "path";
 
-const TEMPLATE_DIR = new URL("./V1-DotNet-NextJs", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
+const TEMPLATE_ROOT = new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
+const TEMPLATE_DIRS = ["V1-DotNet-NextJs", "V1-Python-React"].map((dir) => join(TEMPLATE_ROOT, dir));
 
 const MOCK_DATA = {
   ProjectName: "GymManager",
@@ -40,11 +41,9 @@ const MOCK_DATA = {
   ],
 };
 
-// Register helpers
 Handlebars.registerHelper("lower", (str) => String(str).toLowerCase());
 Handlebars.registerHelper("upper", (str) => String(str).toUpperCase());
 
-// Collect all template files
 function walkDir(dir) {
   const results = [];
   for (const entry of readdirSync(dir)) {
@@ -58,38 +57,37 @@ function walkDir(dir) {
   return results;
 }
 
-const files = walkDir(TEMPLATE_DIR);
 let passed = 0;
 let failed = 0;
-const errors = [];
 
-for (const file of files) {
-  const rel = relative(TEMPLATE_DIR, file);
-  const src = readFileSync(file, "utf8");
+for (const templateDir of TEMPLATE_DIRS) {
+  const files = walkDir(templateDir);
+  console.log(`\nValidating ${relative(TEMPLATE_ROOT, templateDir)}...`);
 
-  try {
-    // Render filename too (handles {{ProjectName}}.csproj)
-    const nameTemplate = Handlebars.compile(rel, { noEscape: true });
-    const renderedName = nameTemplate(MOCK_DATA);
+  for (const file of files) {
+    const rel = relative(templateDir, file);
+    const src = readFileSync(file, "utf8");
 
-    // Render file content
-    const template = Handlebars.compile(src, { noEscape: true });
-    const rendered = template(MOCK_DATA);
+    try {
+      const nameTemplate = Handlebars.compile(rel, { noEscape: true });
+      const renderedName = nameTemplate(MOCK_DATA);
 
-    // Basic sanity: rendered should not contain un-substituted {{ (except inside LLM injection zones)
-    const stripped = rendered.replace(/\{\{!--[\s\S]*?--\}\}/g, "");
-    const remaining = (stripped.match(/\{\{[^!]/g) ?? []).length;
-    if (remaining > 0) {
-      throw new Error(`${remaining} unresolved Handlebars expression(s) remain after render`);
+      const template = Handlebars.compile(src, { noEscape: true });
+      const rendered = template(MOCK_DATA);
+
+      const stripped = rendered.replace(/\{\{!--[\s\S]*?--\}\}/g, "");
+      const remaining = (stripped.match(/\{\{[^!]/g) ?? []).length;
+      if (remaining > 0) {
+        throw new Error(`${remaining} unresolved Handlebars expression(s) remain after render`);
+      }
+
+      console.log(`  ✓  ${renderedName}`);
+      passed++;
+    } catch (err) {
+      console.error(`  ✗  ${rel}`);
+      console.error(`       ${err.message}`);
+      failed++;
     }
-
-    console.log(`  ✓  ${renderedName}`);
-    passed++;
-  } catch (err) {
-    console.error(`  ✗  ${rel}`);
-    console.error(`       ${err.message}`);
-    failed++;
-    errors.push({ file: rel, error: err.message });
   }
 }
 

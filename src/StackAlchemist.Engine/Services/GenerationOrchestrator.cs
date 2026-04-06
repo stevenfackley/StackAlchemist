@@ -23,11 +23,17 @@ public sealed class GenerationOrchestrator(
     ITemplateProvider templateProvider,
     IReconstructionService reconstructionService,
     ILlmClient llmClient,
+    IPromptBuilderService promptBuilder,
     IFileSystem fileSystem,
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
-    private const string TemplateSet = "V1-DotNet-NextJs";
+    private static string ResolveTemplateSet(ProjectType projectType) => projectType switch
+    {
+        ProjectType.DotNetNextJs => "V1-DotNet-NextJs",
+        ProjectType.PythonReact => "V1-Python-React",
+        _ => "V1-DotNet-NextJs",
+    };
 
     public async Task<GenerateResponse> EnqueueAsync(GenerateRequest request, CancellationToken ct = default)
     {
@@ -36,8 +42,10 @@ public sealed class GenerationOrchestrator(
             GenerationId = request.GenerationId,
             Mode = request.Mode,
             Tier = request.Tier,
+            ProjectType = request.ProjectType,
             Prompt = request.Prompt,
             Schema = request.Schema,
+            Personalization = request.Personalization,
         };
 
         // Transition: pending → generating
@@ -50,7 +58,8 @@ public sealed class GenerationOrchestrator(
         try
         {
             // Step 1: Load and render templates
-            var rawTemplates = templateProvider.LoadTemplate(TemplateSet);
+            var templateSet = ResolveTemplateSet(request.ProjectType);
+            var rawTemplates = templateProvider.LoadTemplate(templateSet);
             var variables = BuildVariables(request);
             var renderedTemplates = templateProvider.Render(rawTemplates, variables);
 
@@ -90,6 +99,7 @@ public sealed class GenerationOrchestrator(
         {
             JobId = request.GenerationId,
             Status = context.State.ToString().ToLowerInvariant(),
+            ProjectType = request.ProjectType,
         };
     }
 
@@ -127,6 +137,16 @@ public sealed class GenerationOrchestrator(
     /// </summary>
     private static string DeriveProjectName(GenerateRequest request)
     {
+        // 0. Explicit personalization project name takes highest priority
+        if (!string.IsNullOrWhiteSpace(request.Personalization?.ProjectName))
+        {
+            var name = request.Personalization.ProjectName.Trim();
+            // Sanitize to PascalCase identifier
+            var sanitized = System.Text.RegularExpressions.Regex.Replace(name, @"[^a-zA-Z0-9]", "");
+            if (sanitized.Length > 0)
+                return char.ToUpperInvariant(sanitized[0]) + sanitized[1..];
+        }
+
         // 1. Schema entities — most reliable signal
         var entities = request.Schema?.Entities;
         if (entities is { Count: > 0 })
@@ -178,6 +198,9 @@ public sealed class GenerationOrchestrator(
 
     private string LoadPromptTemplate(GenerateRequest request)
     {
+        if (request.Schema is not null)
+            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType, request.Personalization);
+
         var promptPath = fileSystem.Path.Combine(
             AppContext.BaseDirectory, "Prompts", "V1-generation.md");
 

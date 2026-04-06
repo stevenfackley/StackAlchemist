@@ -6,42 +6,30 @@
 # ==========================================
 FROM node:20-alpine AS web-builder
 WORKDIR /app
-# Enable pnpm via corepack (ships with Node 20)
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@10 --activate
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Copy manifests first so the install layer is cached independently of source.
-# pnpm-workspace.yaml is included so pnpm treats /app as a self-contained root
-# and does not attempt to walk up to a non-existent parent workspace.
-COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/pnpm-workspace.yaml ./
-# Copy the lockfile if it exists.  The wildcard prevents COPY from failing when
-# the lockfile is absent; pnpm will generate a fresh one during install.
-COPY src/StackAlchemist.Web/pnpm-lock.yam[l] ./
+COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/package-lock.json ./
 
-# Install all dependencies from package.json.  --no-frozen-lockfile allows
-# pnpm to update (or create) the lockfile when it has drifted from package.json.
-RUN pnpm install --no-frozen-lockfile --ignore-scripts --shamefully-hoist
+# Install all dependencies. --ignore-scripts skips postinstall (setup-env-safe.mjs)
+# which requires the full scripts/ dir that isn't copied until the next step.
+RUN npm install --include=dev --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
-# Build the Next.js app and clean up in one layer to minimise image size.
-# We invoke next build directly (not via `pnpm run build`) because the npm
-# script wrapper (scripts/build-wrapper.mjs) is excluded by .dockerignore and
-# is only needed on Windows+pnpm where a path-casing bug must be patched at
-# runtime.  On Linux that bug does not exist; next build runs cleanly.
-RUN node_modules/.bin/next build \
-  && rm -rf node_modules /pnpm/store /root/.npm /tmp/*
+# Build the Next.js app and clean build cache.
+# We invoke next build directly because the npm script wrapper
+# (scripts/build-wrapper.mjs) is only needed on Windows+pnpm.
+RUN npx next build \
+  && rm -rf /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-# Standalone output bundles everything needed — no npm install required
 COPY --from=web-builder /app/.next/standalone ./
 COPY --from=web-builder /app/.next/static ./.next/static
 COPY --from=web-builder /app/public ./public

@@ -17,12 +17,15 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
-import type { Entity, Relationship, Endpoint, Tier, Generation } from "@/lib/types";
+import { BuildLogConsole } from "@/components/build-log-console";
+import { PersonalizationModal } from "@/components/personalization-modal";
+import type { Entity, Relationship, Endpoint, Tier, Generation, ProjectType, PersonalizationData } from "@/lib/types";
+import { DEFAULT_PERSONALIZATION } from "@/lib/types";
 
 const FIELD_TYPES = ["UUID", "String", "Integer", "Decimal", "Boolean", "Timestamp", "Text", "JSON"];
 const REL_TYPES: Relationship["type"][] = ["Has Many", "Belongs To", "Has One", "Many To Many"];
@@ -144,7 +147,80 @@ function StepEndpoints({ endpoints, setEndpoints, entityNames }: {
   );
 }
 
-// ─── Step 3: Tier ─────────────────────────────────────────────────────────────
+// ─── Step 3: Platform ─────────────────────────────────────────────────────────
+function StepPlatformSelection({
+  selectedProjectType,
+  setSelectedProjectType,
+}: {
+  selectedProjectType: ProjectType;
+  setSelectedProjectType: (projectType: ProjectType) => void;
+}) {
+  const platforms: Array<{
+    id: ProjectType;
+    title: string;
+    badge: string;
+    description: string;
+    details: string[];
+  }> = [
+    {
+      id: "DotNetNextJs",
+      title: ".NET 10 + Next.js 15",
+      badge: "Default",
+      description: "C# minimal API backend with a Next.js App Router frontend.",
+      details: ["Backend: .NET 10", "Frontend: Next.js 15", "Data access: Dapper + PostgreSQL"],
+    },
+    {
+      id: "PythonReact",
+      title: "FastAPI + React/Vite",
+      badge: "New",
+      description: "Python API stack with a Vite React frontend and modern query tooling.",
+      details: ["Backend: FastAPI + SQLAlchemy", "Frontend: React + Vite", "Tooling: Alembic + TanStack Query"],
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Select the platform you want StackAlchemist to generate</p>
+      <div className="grid grid-cols-1 gap-4">
+        {platforms.map((platform) => (
+          <button
+            key={platform.id}
+            type="button"
+            onClick={() => setSelectedProjectType(platform.id)}
+            className={cn(
+              "rounded-2xl border p-5 text-left transition-all duration-300",
+              selectedProjectType === platform.id
+                ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+                : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2">
+                <p className="font-mono text-sm font-bold tracking-widest text-white uppercase">{platform.title}</p>
+                <p className="text-sm text-slate-400">{platform.description}</p>
+              </div>
+              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 font-mono text-[10px] text-blue-400 uppercase tracking-widest">
+                {platform.badge}
+              </span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {platform.details.map((detail) => (
+                <span
+                  key={detail}
+                  className="rounded-full border border-slate-600/40 bg-slate-800/50 px-2.5 py-1 font-mono text-[10px] text-slate-300"
+                >
+                  {detail}
+                </span>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: Tier ─────────────────────────────────────────────────────────────
 function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSelectedTier: (t: Tier) => void }) {
   const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
     {
@@ -234,16 +310,21 @@ function relsToEdges(relationships: Relationship[]): Edge[] {
   }));
 }
 
+// ─── Step 4: Personalize (modal overlay) ─────────────────────────────────────
+// Shown as an overlay on the wizard when the user is on step 4.
+// The actual stepper treats step 4 as a pass-through to the modal.
+
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
-const STEPS = ["Define Entities", "Configure API", "Select Tier & Pay"];
+const STEPS = ["Define Entities", "Platform Selection", "Configure API", "Personalize", "Select Tier & Pay"];
 
 export default function AdvancedModePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialStep = Number(searchParams?.get("step") ?? "1");
   const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
+  const initialProjectType = (searchParams?.get("projectType") as ProjectType | null) ?? "DotNetNextJs";
 
-  const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 3));
+  const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 5));
   const [entities, setEntities] = useState<Entity[]>([{
     name: "Product",
     fields: [
@@ -254,10 +335,14 @@ export default function AdvancedModePage() {
   }]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [selectedProjectType, setSelectedProjectType] = useState<ProjectType>(initialProjectType);
   const [selectedTier, setSelectedTier] = useState<Tier>(initialTier);
+  const [personalization, setPersonalization] = useState<PersonalizationData>(DEFAULT_PERSONALIZATION);
+  const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
+  const [liveBuildLog, setLiveBuildLog] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -279,6 +364,7 @@ export default function AdvancedModePage() {
         (payload) => {
           const updated = payload.new as Generation;
           setLiveStatus(updated.status);
+          setLiveBuildLog(updated.build_log);
           if (updated.status === "success" && (updated.download_url || selectedTier === 0)) {
             // Spark (free): redirect when preview_files_json is ready (no download_url).
             // Paid tiers: redirect when download_url is ready.
@@ -301,7 +387,7 @@ export default function AdvancedModePage() {
 
       if (selectedTier === 0) {
         // Free tier: create generation + fire engine immediately
-        const result = await submitAdvancedGeneration(schema, 0);
+        const result = await submitAdvancedGeneration(schema, 0, selectedProjectType, personalization);
         if (result.success) {
           setGenerationId(result.generationId);
           if (isDemoMode || !supabase) {
@@ -315,7 +401,7 @@ export default function AdvancedModePage() {
         }
       } else {
         // Paid tiers 1–3: create pending row → Stripe Checkout → Engine fires via webhook
-        const pending = await createPendingGeneration("advanced", selectedTier, undefined, schema);
+        const pending = await createPendingGeneration("advanced", selectedTier, undefined, schema, selectedProjectType, personalization);
         if (!pending.success) {
           setErrorMsg(pending.error);
           setSubmitPhase("error");
@@ -324,7 +410,13 @@ export default function AdvancedModePage() {
 
         setGenerationId(pending.generationId);
 
-        const session = await createCheckoutSession(pending.generationId, selectedTier);
+        const session = await createCheckoutSession(
+          pending.generationId,
+          selectedTier,
+          undefined,
+          selectedProjectType,
+          "advanced"
+        );
         if (!session.success) {
           setErrorMsg(session.error);
           setSubmitPhase("error");
@@ -350,6 +442,8 @@ export default function AdvancedModePage() {
             <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 text-left space-y-2">
               <p className="font-mono text-xs text-slate-500 uppercase">Generation ID</p>
               <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
+              <p className="font-mono text-[10px] text-slate-500 uppercase">Platform</p>
+              <p className="font-mono text-xs text-white">{selectedProjectType}</p>
               <p className="font-mono text-xs text-slate-500">
                 {selectedTier === 0
                   ? "Keep this page open \u2014 we\u2019ll launch your live preview when it\u2019s ready."
@@ -357,6 +451,7 @@ export default function AdvancedModePage() {
               </p>
             </div>
           )}
+          <BuildLogConsole log={liveBuildLog} title="Live Build Output" className="w-full max-w-2xl rounded-xl border border-slate-600/30 bg-slate-900/60 overflow-hidden text-left" />
           <div className="w-full bg-slate-700 rounded-full h-1"><div className="h-full bg-blue-500 animate-pulse rounded-full w-3/5" /></div>
         </div>
       </div>
@@ -387,6 +482,14 @@ export default function AdvancedModePage() {
   }
 
   return (
+    <>
+    {showPersonalizationModal && (
+      <PersonalizationModal
+        entityNames={entities.map((e) => e.name).filter(Boolean)}
+        onComplete={(data) => { setPersonalization(data); setShowPersonalizationModal(false); }}
+        onSkip={() => setShowPersonalizationModal(false)}
+      />
+    )}
     <div className="h-screen flex flex-col bg-slate-800 overflow-hidden">
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
@@ -418,8 +521,70 @@ export default function AdvancedModePage() {
         {/* Left panel */}
         <div className="w-full lg:w-1/2 border-r border-slate-600/30 overflow-y-auto p-5">
           {step === 1 && <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />}
-          {step === 2 && <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />}
-          {step === 3 && <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />}
+          {step === 2 && <StepPlatformSelection selectedProjectType={selectedProjectType} setSelectedProjectType={setSelectedProjectType} />}
+          {step === 3 && <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />}
+          {step === 4 && (
+            <div className="space-y-4">
+              <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Make your generated project unique</p>
+              <div className="rounded-2xl border border-slate-600/30 bg-slate-700/20 p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shrink-0">
+                    <Zap className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-mono text-sm font-bold text-white">Personalization Wizard</h3>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Define your business identity, color theme, domain vocabulary, and feature preferences.
+                      The generated code will use your brand name, domain language, and selected color tokens.
+                    </p>
+                  </div>
+                </div>
+                {personalization.businessDescription ? (
+                  <div className="space-y-2">
+                    <p className="font-mono text-[10px] text-emerald-400 uppercase tracking-widest">Configured</p>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                      {personalization.projectName && (
+                        <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
+                          <p className="text-slate-500">Project Name</p>
+                          <p className="text-white">{personalization.projectName}</p>
+                        </div>
+                      )}
+                      <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
+                        <p className="text-slate-500">Color Theme</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="h-2.5 w-2.5 rounded-full" style={{ background: personalization.colorScheme.primary }} />
+                          <p className="text-white">{personalization.colorScheme.name}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
+                        <p className="text-slate-500">Auth</p>
+                        <p className="text-white uppercase">{personalization.featureFlags.authMethod}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-mono text-xs text-slate-500">Not configured — defaults will be applied.</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPersonalizationModal(true)}
+                    className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
+                  >
+                    {personalization.businessDescription ? "Edit Personalization" : "Personalize \u2192"}
+                  </button>
+                  {personalization.businessDescription && (
+                    <button
+                      onClick={() => setPersonalization(DEFAULT_PERSONALIZATION)}
+                      className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:text-rose-400 px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {step === 5 && <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />}
         </div>
 
         {/* Right panel: Live preview (hidden on mobile) */}
@@ -454,8 +619,8 @@ export default function AdvancedModePage() {
               &larr; Back
             </Link>
           )}
-          {step < 3 ? (
-            <button onClick={() => setStep((s) => Math.min(3, s + 1))}
+          {step < 5 ? (
+            <button onClick={() => setStep((s) => Math.min(5, s + 1))}
               className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
               Next &rarr;
             </button>
@@ -477,5 +642,6 @@ export default function AdvancedModePage() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

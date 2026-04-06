@@ -12,6 +12,7 @@ jobs:
   deploy:
     name: Deploy Web App to Test Server
     runs-on: self-hosted
+    environment: test
 
     steps:
       - name: Checkout
@@ -24,6 +25,8 @@ jobs:
           app_url: https://test.stackalchemist.app
           aspnetcore_environment: Staging
           api_port: '5000'
+          engine_api_url: http://sa-engine
+          is_test_site: 'true'
           supabase_url: ${{ secrets.SUPABASE_URL }}
           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -31,12 +34,13 @@ jobs:
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           r2_bucket_name: stackalchemist-generations-test
-          r2_public_url: https://pub-test.stackalchemist.app
+          r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
           cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
           stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
 
       - name: Docker pre-flight cleanup
         shell: bash
@@ -69,6 +73,22 @@ jobs:
 
       - name: Swap web container
         run: |
+          set -Eeuo pipefail
+
+          dump_sa_web_diagnostics() {
+            echo "── docker ps (sa-web) ──"
+            docker ps -a --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+
+            echo "── docker inspect (sa-web) ──"
+            docker inspect sa-web || true
+
+            echo "── docker logs (sa-web) ──"
+            docker logs --tail 200 sa-web || true
+
+            echo "── in-container probe (sa-web) ──"
+            docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then((res) => { console.log('status=' + res.status); process.exit(res.ok ? 0 : 1); }).catch((err) => { console.error(err); process.exit(1); })" || true
+          }
+
           # Stop and remove the old container (nginx placeholder or previous web app)
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
@@ -79,9 +99,32 @@ jobs:
             --restart unless-stopped \
             --network under-construction_default \
             -p 3000:3000 \
+            --env-file .env \
             -e NODE_ENV=production \
             -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
             sa-web-app:test
+
+          # Fail the deployment if the container does not stay up and answer HTTP.
+          for i in {1..20}; do
+            if [ "$(docker inspect -f '{{.State.Running}}' sa-web 2>/dev/null || echo false)" != "true" ]; then
+              echo "❌ sa-web exited during startup"
+              dump_sa_web_diagnostics
+              exit 1
+            fi
+
+            if docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+              echo "✅ Web app responded successfully."
+              break
+            fi
+
+            if [ "$i" -eq 20 ]; then
+              echo "❌ sa-web did not become healthy in time"
+              dump_sa_web_diagnostics
+              exit 1
+            fi
+
+            sleep 3
+          done
 
           echo "✅ Web app deployed."
           docker ps --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

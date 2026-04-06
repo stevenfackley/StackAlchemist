@@ -21,32 +21,37 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+            // Write cookies back onto the request (so Server Actions see them)
+            // and onto the response (so the browser receives Set-Cookie headers).
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
         },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          // Write cookies back onto the request (so Server Actions see them)
-          // and onto the response (so the browser receives Set-Cookie headers).
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+      }
+    );
 
-  // Refresh the session — do NOT use getSession() here; getUser() is required
-  // to avoid trusting stale cookie data.
-  await supabase.auth.getUser();
+    // Refresh the session — do NOT use getSession() here; getUser() is required
+    // to avoid trusting stale cookie data.
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.error("[middleware] Supabase session refresh failed:", error);
+    return NextResponse.next({ request });
+  }
 
   return supabaseResponse;
 }

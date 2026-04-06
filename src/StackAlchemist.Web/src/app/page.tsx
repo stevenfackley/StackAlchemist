@@ -201,7 +201,7 @@ const PRICING_TIERS = [
       "Architecture Decision Records",
     ],
     featured: false,
-    href: "/advanced?step=3&tier=1",
+    href: "/advanced?step=4&tier=1",
   },
   {
     id: "boilerplate",
@@ -220,7 +220,7 @@ const PRICING_TIERS = [
       "Compile Guarantee (3-retry loop)",
     ],
     featured: true,
-    href: "/advanced?step=3&tier=2",
+    href: "/advanced?step=4&tier=2",
   },
   {
     id: "infrastructure",
@@ -239,7 +239,7 @@ const PRICING_TIERS = [
       "Cost Estimation Report",
     ],
     featured: false,
-    href: "/advanced?step=3&tier=3",
+    href: "/advanced?step=4&tier=3",
   },
 ];
 

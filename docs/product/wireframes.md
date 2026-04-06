@@ -61,7 +61,7 @@ This document provides a visual representation of the StackAlchemist user interf
 ## 3. Advanced Mode: Manual Entity Wizard (Stepper)
 ```text
 +-------------------------------------------------------------+
-|  [Logo] Step 1: Entities -> Step 2: API -> Step 3: Billing  |
+|  [Logo] Step 1: Entities -> Step 2: Platform -> Step 3: API -> Step 4: Billing |
 +-------------------------------------------------------------+
 |                                                             |
 |  [+] Add New Entity                                         |

@@ -4,14 +4,43 @@ import { headers } from "next/headers";
 import { createServerClient } from "./supabase";
 import { getServerUser } from "./supabase-server";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
+import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
   Tier,
   GenerationSchema,
   SubmitGenerationResponse,
   EngineGenerateRequest,
+  ProjectType,
+  PersonalizationData,
 } from "./types";
+import { DEFAULT_PERSONALIZATION } from "./types";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns headers for all Engine API calls, including the service key when set. */
+function engineHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = getEngineServiceKey();
+  if (key) headers["X-Engine-Key"] = key;
+  return headers;
+}
+
+/**
+ * Sanitizes a user-supplied prompt before sending to the LLM.
+ * - Caps length to prevent token abuse
+ * - Strips null bytes and non-printable control chars (except newlines/tabs)
+ * - Blocks obvious prompt-injection patterns
+ */
+function sanitizePrompt(raw: string, maxLength = 2000): string {
+  // Strip null bytes and non-printable control chars (keep \n \r \t)
+  let s = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  // Collapse excessive whitespace lines
+  s = s.replace(/\n{4,}/g, "\n\n\n");
+  // Hard cap
+  if (s.length > maxLength) s = s.slice(0, maxLength);
+  return s.trim();
+}
 
 function resolveEngineUrl() {
   const configuredUrl = process.env.ENGINE_API_URL;
@@ -35,11 +64,15 @@ function resolveEngineUrl() {
 ───────────────────────────────────────────────────────────────────────────── */
 export async function submitSimpleGeneration(
   prompt: string,
-  tier: Tier
+  tier: Tier,
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
-  if (!prompt || prompt.trim().length < 10) {
+  const sanitized = sanitizePrompt(prompt);
+  if (sanitized.length < 10) {
     return { success: false, error: "Please provide a more detailed description (at least 10 characters)." };
   }
+  prompt = sanitized;
 
   if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
     const generationId = `demo-simple-${Date.now()}`;
@@ -69,8 +102,10 @@ export async function submitSimpleGeneration(
       mode: "simple",
       tier,
       prompt: prompt.trim(),
+      project_type: projectType,
       status: "pending",
       schema_json: null,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,
@@ -93,13 +128,15 @@ export async function submitSimpleGeneration(
       generationId,
       mode: "simple",
       tier,
+      projectType,
       prompt: prompt.trim(),
+      personalization: personalization ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
 
@@ -138,8 +175,8 @@ export async function extractSchema(
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/extract-schema`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generationId, prompt: prompt.trim() }),
+      headers: engineHeaders(),
+      body: JSON.stringify({ generationId, prompt: sanitizePrompt(prompt) }),
     });
 
     if (!res.ok) {
@@ -163,7 +200,9 @@ export async function extractSchema(
 ───────────────────────────────────────────────────────────────────────────── */
 export async function submitAdvancedGeneration(
   schema: GenerationSchema,
-  tier: Tier
+  tier: Tier,
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
   if (!schema.entities || schema.entities.length === 0) {
     return { success: false, error: "Please define at least one entity before proceeding." };
@@ -209,8 +248,10 @@ export async function submitAdvancedGeneration(
       mode: "advanced",
       tier,
       prompt: promptSummary,
+      project_type: projectType,
       status: "pending",
       schema_json: schema,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,
@@ -233,13 +274,15 @@ export async function submitAdvancedGeneration(
       generationId,
       mode: "advanced",
       tier,
+      projectType,
       schema,
+      personalization: personalization ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
 
@@ -341,14 +384,16 @@ export async function retryGeneration(
       generationId,
       mode: gen.mode,
       tier: gen.tier as Tier,
+      projectType: gen.project_type ?? "DotNetNextJs",
       prompt: gen.prompt ?? undefined,
       schema: gen.schema_json ?? undefined,
+      personalization: gen.personalization_json ?? DEFAULT_PERSONALIZATION,
     };
 
     const engineUrl = resolveEngineUrl();
     await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
   } catch (err) {
@@ -368,7 +413,9 @@ export async function createPendingGeneration(
   mode: "simple" | "advanced",
   tier: Tier,
   prompt?: string,
-  schema?: GenerationSchema
+  schema?: GenerationSchema,
+  projectType: ProjectType = "DotNetNextJs",
+  personalization?: PersonalizationData
 ): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
   if (isDemoMode || !hasServerSupabaseConfig()) {
     return { success: true, generationId: `demo-pending-${Date.now()}` };
@@ -397,8 +444,10 @@ export async function createPendingGeneration(
       mode,
       tier,
       prompt: promptSummary || null,
+      project_type: projectType,
       status: "pending",
       schema_json: schema ?? null,
+      personalization_json: personalization ?? null,
       download_url: null,
       error_message: null,
       attempt_count: 0,
@@ -425,7 +474,9 @@ export async function createPendingGeneration(
 export async function createCheckoutSession(
   generationId: string,
   tier: Tier,
-  prompt?: string
+  prompt?: string,
+  projectType: ProjectType = "DotNetNextJs",
+  mode: "simple" | "advanced" = "advanced"
 ): Promise<{ success: true; sessionUrl: string } | { success: false; error: string }> {
   if (tier === 0) {
     return { success: false, error: "Tier 0 (Spark) is free — no checkout required." };
@@ -447,16 +498,22 @@ export async function createCheckoutSession(
   const origin = `${proto}://${host}`;
 
   try {
+    const cancelPath =
+      mode === "simple"
+        ? `/simple?q=${encodeURIComponent(prompt ?? "")}&tier=${tier}`
+        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`;
+
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: engineHeaders(),
       body: JSON.stringify({
         generationId,
         tier,
+        projectType,
         prompt: prompt ?? "",
         successUrl: `${origin}/generate/${generationId}?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${origin}/advanced?step=3&tier=${tier}`,
+        cancelUrl: `${origin}${cancelPath}`,
       }),
     });
 

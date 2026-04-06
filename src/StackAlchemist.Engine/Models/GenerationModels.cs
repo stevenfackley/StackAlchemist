@@ -25,6 +25,12 @@ public enum GenerationEvent
     UploadedToR2,
 }
 
+public enum ProjectType
+{
+    DotNetNextJs,
+    PythonReact,
+}
+
 /// <summary>
 /// Mutable context carried through the generation pipeline.
 /// </summary>
@@ -33,8 +39,10 @@ public sealed class GenerationContext
     public required string GenerationId { get; init; }
     public required string Mode { get; init; } // "simple" | "advanced"
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
+    public GenerationPersonalization? Personalization { get; init; }
     public GenerationState State { get; set; } = GenerationState.Pending;
     public int RetryCount { get; set; }
     public List<string> BuildErrorHistory { get; } = [];
@@ -143,6 +151,7 @@ public sealed class CreateCheckoutSessionRequest
 {
     public required string GenerationId { get; init; }
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public required string SuccessUrl { get; init; }
     public required string CancelUrl { get; init; }
     public string? Prompt { get; init; }
@@ -155,6 +164,42 @@ public sealed class CreateCheckoutSessionResponse
 {
     public required string SessionId { get; init; }
     public required string Url { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
+}
+
+/// <summary>
+/// Personalization data collected from the wizard before generation.
+/// Stored in generations.personalization_json and injected into prompts + templates.
+/// </summary>
+public sealed class GenerationPersonalization
+{
+    public string BusinessDescription { get; init; } = "";
+    public string? ProjectName { get; init; }
+    public string? Tagline { get; init; }
+    public PersonalizationColorScheme? ColorScheme { get; init; }
+    /// <summary>Entity name → domain description (e.g. "Order" → "a food delivery order")</summary>
+    public Dictionary<string, string> DomainContext { get; init; } = [];
+    public PersonalizationFeatureFlags? FeatureFlags { get; init; }
+}
+
+public sealed class PersonalizationColorScheme
+{
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Primary { get; init; } = "#2563EB";
+    public string Secondary { get; init; } = "#1D4ED8";
+    public string Accent { get; init; } = "#60A5FA";
+    public string Background { get; init; } = "#0F172A";
+    public string Surface { get; init; } = "#1E293B";
+}
+
+public sealed class PersonalizationFeatureFlags
+{
+    public string AuthMethod { get; init; } = "jwt"; // jwt | cookie | oauth | none
+    public bool SoftDelete { get; init; }
+    public bool AuditTimestamps { get; init; } = true;
+    public bool IncludeSwagger { get; init; } = true;
+    public bool IncludeDockerCompose { get; init; } = true;
 }
 
 /// <summary>
@@ -165,8 +210,10 @@ public sealed class GenerateRequest
     public required string GenerationId { get; init; }
     public required string Mode { get; init; }
     public required int Tier { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
     public string? Prompt { get; init; }
     public GenerationSchema? Schema { get; init; }
+    public GenerationPersonalization? Personalization { get; init; }
 }
 
 /// <summary>
@@ -176,6 +223,7 @@ public sealed class GenerateResponse
 {
     public required string JobId { get; init; }
     public required string Status { get; init; }
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
 }
 
 /// <summary>

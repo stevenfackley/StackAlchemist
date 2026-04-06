@@ -21,3 +21,7 @@ export function hasEngineConfig() {
 export function hasStripeConfig() {
   return Boolean(process.env.STRIPE_SECRET_KEY);
 }
+
+export function getEngineServiceKey() {
+  return process.env.ENGINE_SERVICE_KEY ?? "";
+}

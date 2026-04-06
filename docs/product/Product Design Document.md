@@ -10,7 +10,8 @@ StackAlchemist orchestrates code generation by connecting a Next.js frontend wit
 * **Component Library:** `shadcn/ui` styled with Tailwind CSS.
 * **Landing Page:** The current landing page opens with a full-height hero focused on positioning copy and stack confidence, followed by a dedicated "Launch Console" section that contains mode switching, the prompt builder, and handoff guidance.
 * **Simple Mode UI:** The home page uses a terminal-style prompt control with a prompt-builder layer that appends common architecture requirements. Upon submission, it transitions to a visual entity mapping canvas.
-* **Advanced Mode UI:** A horizontal stepper wizard. Users define entity properties using structured dropdowns and text inputs, with real time relationship mapping visualization.
+* **Advanced Mode UI:** A 4-step horizontal stepper wizard. Users define entities, choose the target platform (.NET/Next.js or FastAPI/React), configure API endpoints, and then select a tier, with real time relationship mapping visualization throughout.
+* **Live Build Console:** During generation handoff and compile validation, the UI surfaces a terminal-style build log console fed by Supabase Realtime updates from the generation record.
 * **Pricing UI:** The pricing page now uses the shared logo treatment and includes an explicit header path back to the home page.
 * **Generation State UI:** A real time progress indicator utilizing Supabase WebSockets. It displays detailed logs including "Injecting Handlebars Templates," "Generating C# Controllers," and "Running Compile Guarantee CI Check."
 * **Personalization Wizard UI:** A multi-step guided flow inserted between schema confirmation and generation trigger. Uses the existing horizontal stepper pattern with 4 steps:

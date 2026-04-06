@@ -71,10 +71,10 @@ public sealed class CompileWorkerService(
             // ── Run dotnet build ──────────────────────────────────────────────
             await deliveryService.AppendBuildLogAsync(
                 job.GenerationId,
-                $"[Attempt {job.RetryCount + 1}] Running dotnet build...",
+                $"[Attempt {job.RetryCount + 1}] Running {job.ProjectType} build validation...",
                 ct);
 
-            var buildResult = await compileService.ExecuteBuildAsync(job.OutputDirectory, ct);
+            var buildResult = await compileService.ExecuteBuildAsync(job.OutputDirectory, job.ProjectType, ct);
 
             // Stream build output to Supabase
             if (!string.IsNullOrWhiteSpace(buildResult.StandardOutput))
@@ -121,7 +121,7 @@ public sealed class CompileWorkerService(
             }
 
             // ── Build failed — extract errors and decide: retry or fail ───────
-            var errors = compileService.ExtractBuildErrors(buildResult.ErrorOutput);
+            var errors = compileService.ExtractBuildErrors(buildResult.ErrorOutput, job.ProjectType);
             var errorSummary = string.Join("\n", errors);
             job.BuildErrorHistory.Add($"Attempt {job.RetryCount + 1}: {errorSummary}");
 

@@ -16,6 +16,9 @@ export type GenerationStatus =
 // 0 = Spark (free): view-only micro IDE preview, no download
 export type Tier = 0 | 1 | 2 | 3;
 
+// ─── Platform ────────────────────────────────────────────────────────────────
+export type ProjectType = "DotNetNextJs" | "PythonReact";
+
 // ─── Schema Types ────────────────────────────────────────────────────────────
 export interface Field {
   name: string;
@@ -54,6 +57,7 @@ export interface Generation {
   id: string;
   user_id: string | null;
   transaction_id: string | null;
+  project_type: ProjectType;
   status: GenerationStatus;
   mode: "simple" | "advanced";
   tier: Tier;
@@ -65,6 +69,8 @@ export interface Generation {
    *  Populated by the engine instead of uploading a zip to R2.
    */
   preview_files_json: Record<string, string> | null;
+  /** Personalization choices stored at generation time */
+  personalization_json: PersonalizationData | null;
   /** Streaming build output from the compile worker */
   build_log: string | null;
   error_message: string | null;
@@ -108,6 +114,7 @@ export interface Database {
           id?: string;
           user_id?: string | null;
           transaction_id?: string | null;
+          project_type?: ProjectType;
           status?: GenerationStatus;
           mode: "simple" | "advanced";
           tier: Tier;
@@ -115,6 +122,7 @@ export interface Database {
           schema_json?: GenerationSchema | null;
           download_url?: string | null;
           preview_files_json?: Record<string, string> | null;
+          personalization_json?: PersonalizationData | null;
           build_log?: string | null;
           error_message?: string | null;
           attempt_count?: number;
@@ -173,6 +181,59 @@ export interface SubmitGenerationError {
 
 export type SubmitGenerationResponse = SubmitGenerationResult | SubmitGenerationError;
 
+// ─── Personalization ──────────────────────────────────────────────────────────
+export interface ColorPalette {
+  id: string;
+  name: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  surface: string;
+}
+
+export interface PersonalizationFeatureFlags {
+  authMethod: "jwt" | "cookie" | "oauth" | "none";
+  softDelete: boolean;
+  auditTimestamps: boolean;
+  includeSwagger: boolean;
+  includeDockerCompose: boolean;
+}
+
+export interface PersonalizationData {
+  businessDescription: string;
+  projectName?: string;
+  tagline?: string;
+  colorScheme: ColorPalette;
+  /** entity name → what it represents in this business */
+  domainContext: Record<string, string>;
+  featureFlags: PersonalizationFeatureFlags;
+}
+
+export const COLOR_PALETTES: ColorPalette[] = [
+  { id: "corporate-blue",  name: "Corporate Blue",  primary: "#2563EB", secondary: "#1D4ED8", accent: "#60A5FA", background: "#0F172A", surface: "#1E293B" },
+  { id: "warm-startup",    name: "Warm Startup",    primary: "#EA580C", secondary: "#C2410C", accent: "#FB923C", background: "#1C1008", surface: "#2D1B0E" },
+  { id: "dark-hacker",     name: "Dark Hacker",     primary: "#16A34A", secondary: "#15803D", accent: "#4ADE80", background: "#020B04", surface: "#071A0A" },
+  { id: "earthy-minimal",  name: "Earthy Minimal",  primary: "#D97706", secondary: "#B45309", accent: "#FCD34D", background: "#1C1007", surface: "#2D1F0A" },
+  { id: "bold-saas",       name: "Bold SaaS",       primary: "#7C3AED", secondary: "#6D28D9", accent: "#A78BFA", background: "#0D0520", surface: "#1A0B33" },
+  { id: "electric-teal",   name: "Electric Teal",   primary: "#0D9488", secondary: "#0F766E", accent: "#2DD4BF", background: "#011111", surface: "#042525" },
+];
+
+export const DEFAULT_PERSONALIZATION: PersonalizationData = {
+  businessDescription: "",
+  projectName: "",
+  tagline: "",
+  colorScheme: COLOR_PALETTES[0],
+  domainContext: {},
+  featureFlags: {
+    authMethod: "jwt",
+    softDelete: false,
+    auditTimestamps: true,
+    includeSwagger: true,
+    includeDockerCompose: true,
+  },
+};
+
 // ─── Simple Mode Payload ──────────────────────────────────────────────────────
 export interface SimpleModePayload {
   prompt: string;
@@ -183,6 +244,8 @@ export interface SimpleModePayload {
 export interface AdvancedModePayload {
   schema: GenerationSchema;
   tier: Tier;
+  projectType: ProjectType;
+  personalization?: PersonalizationData;
 }
 
 // ─── Engine API types ─────────────────────────────────────────────────────────
@@ -190,11 +253,14 @@ export interface EngineGenerateRequest {
   generationId: string;
   mode: "simple" | "advanced";
   tier: Tier;
+  projectType?: ProjectType;
   prompt?: string;
   schema?: GenerationSchema;
+  personalization?: PersonalizationData;
 }
 
 export interface EngineGenerateResponse {
   jobId: string;
   status: GenerationStatus;
+  projectType: ProjectType;
 }
