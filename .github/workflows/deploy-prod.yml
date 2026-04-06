@@ -1,0 +1,88 @@
+name: Deploy Production Site
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy Production Stack
+    runs-on:
+      - self-hosted
+      - linux
+      - ARM64
+      - prod
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Explain OIDC usage
+        run: |
+          echo "This workflow requests GitHub OIDC tokens so future AWS-integrated steps can assume an IAM role."
+          echo "The current production deploy runs locally on the EC2 self-hosted runner and does not require SSH deployment."
+
+      - name: Setup .env (prod)
+        uses: ./.github/actions/setup-env
+        with:
+          environment: production
+          app_url: https://stackalchemist.app
+          aspnetcore_environment: Production
+          api_port: '5000'
+          engine_api_url: http://sa-engine
+          is_test_site: 'false'
+          supabase_url: ${{ secrets.SUPABASE_URL }}
+          supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
+          supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2_bucket_name: stackalchemist-generations-prod
+          r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
+          cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
+          stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+
+      - name: Docker pre-flight cleanup
+        shell: bash
+        run: bash ./scripts/docker-preflight-cleanup.sh
+
+      - name: Verify Docker Compose file
+        shell: bash
+        run: docker compose -f docker-compose.prod.yml config >/dev/null
+
+      - name: Build and deploy production stack
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: '1'
+          COMPOSE_PROJECT_NAME: stackalchemist-prod
+        run: |
+          set -Eeuo pipefail
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+      - name: Show running containers
+        if: always()
+        shell: bash
+        run: docker compose -f docker-compose.prod.yml ps
+
+      - name: Post-deploy Docker cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker image prune -f 2>/dev/null || true
+          docker builder prune -f --filter "until=1h" 2>/dev/null || true
+          df -h / 2>/dev/null || true
