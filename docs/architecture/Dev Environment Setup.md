@@ -34,8 +34,93 @@ A multi-stage root `Dockerfile` supports all environments via targeting:
 *   `sa-engine`: .NET 10 API.
 *   `sa-worker`: .NET 10 Worker + Node.js (for repo validation).
 
+### Production Runtime Recommendation
+For the current platform architecture, production should initially deploy:
+- `sa-web`
+- `sa-engine`
+
+The standalone `sa-worker` container should remain available as a future scale-out option, but it is **not required for the first production rollout** unless compile workloads prove that the in-process worker design is insufficient.
+
+Reasoning:
+- The Engine and compile pipeline are currently designed to run together in-process.
+- A two-service production footprint is simpler to operate on a single EC2 Docker host.
+- Deferring the separate Worker reduces moving parts while preserving the path to scale out later.
+
 ## 6. Local Staging (Proxmox + Cloudflare Tunnels)
 The Test environment runs in a local Proxmox LXC.
 *   **Tunnel:** `stackalchemist-staging`
 *   **Routing:** Maps `https://test.stackalchemist.app` -> `http://sa-web:3000` inside the Docker network.
 *   **Token:** Managed via GitHub Secrets (`CLOUDFLARE_TUNNEL_TOKEN`).
+
+## 7. Production Environment (AWS EC2 + Docker + Cloudflare Tunnel)
+Production runs on a dedicated AWS EC2 instance instead of Proxmox.
+
+*   **Region:** `us-east-1`
+*   **Instance Type:** `t4g.small`
+*   **Architecture:** ARM64 / Graviton (`linux/arm64` container compatibility required)
+*   **Primary Domain:** `stackalchemist.app`
+*   **Ingress:** Cloudflare Tunnel running on the production host
+*   **Runtime Model:** Docker containers on the EC2 host
+*   **Deployment Path:** GitHub Actions via a **self-hosted runner on the EC2 instance**
+*   **SSH Usage:** Allowed for admin / break-glass fixes only, not for normal deployments
+
+### Production Routing
+Use a single public domain:
+- `https://stackalchemist.app/` → Next.js frontend
+- `https://stackalchemist.app/api/*` → .NET Engine API
+
+This avoids unnecessary cross-origin complexity and keeps the first production rollout operationally simple.
+
+### Production Tunnel Recommendation
+Run `cloudflared` as a **Docker container** on the same EC2 host so the production stack remains containerized and managed consistently.
+
+### Production Reverse Proxy Recommendation
+Run an **nginx reverse proxy container** in front of the application services.
+
+Recommended routing:
+- `cloudflared` → `reverse-proxy`
+- `reverse-proxy` routes `/` to `sa-web:3000`
+- `reverse-proxy` routes `/api/*` to `sa-engine:80`
+
+This keeps the public surface on a single domain while avoiding the need for the Next.js app to act as the API gateway.
+
+### Production Deployment Recommendation
+Deploy production using a **self-hosted GitHub Actions runner** installed on the EC2 host.
+
+Benefits:
+- No SSH-based deployments in the normal workflow
+- Direct local Docker access for image build / compose / container restart operations
+- Simpler ARM64 handling because builds and runtime happen on the target host
+- Easier parity with the existing test deployment model
+
+### AWS Authentication Recommendation
+Use **GitHub OIDC** for AWS authentication where AWS API access is required.
+
+Recommended uses:
+- future infrastructure automation
+- secure AWS API access without long-lived GitHub secrets
+- optional SSM / ECR / other AWS integrations as the deployment pipeline matures
+
+### Outstanding Production Inputs
+The following values still need to be finalized before the full production rollout:
+- production Supabase values
+- production Stripe values
+- production Cloudflare Tunnel token
+- production R2 values
+- any final app/API runtime environment values
+
+### Production Compose Layout
+The production stack should be represented by a dedicated `docker-compose.prod.yml` with four containers:
+- `reverse-proxy` (nginx)
+- `sa-web`
+- `sa-engine`
+- `cloudflared`
+
+`sa-worker` remains intentionally excluded from the first production rollout unless compile workload behavior later proves it must be split back out as its own service.
+
+### Production Runner + OIDC Runbook
+See `docs/advanced-docs/prod-ec2-runner-and-oidc.md` for:
+- self-hosted runner setup on the EC2 production host
+- GitHub OIDC walkthrough for AWS
+- production deployment workflow behavior
+- remaining manual setup steps before first prod deploy
