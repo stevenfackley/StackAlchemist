@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Fix Dockerfile syntax and sync frontend lockfile
 - Ensure Docker network exists and robustify fallback logic
 - Deploy engine and worker alongside web and add health checks
+- Add git to web-builder, set engine port, fix healthz endpoint
 
 ### Documentation
 
