@@ -2,8 +2,8 @@ name: Deploy Production Site
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
