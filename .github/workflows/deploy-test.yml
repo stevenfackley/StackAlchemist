@@ -71,6 +71,16 @@ jobs:
           docker image rm -f "$IMAGE_TAG" >/dev/null 2>&1 || true
           echo "✅ Image built and tagged as sa-web-app:test"
 
+      - name: Ensure Docker network and engine
+        run: |
+          docker network create under-construction_default 2>/dev/null || true
+          echo "── Active containers on network ──"
+          docker ps --filter network=under-construction_default --format "table {{.Names}}\t{{.Status}}" || true
+
+          if [ "$(docker inspect -f '{{.State.Running}}' sa-engine 2>/dev/null || echo false)" != "true" ]; then
+            echo "⚠️ Warning: sa-engine is not running. Web app may fail to connect."
+          fi
+
       - name: Swap web container
         run: |
           set -Eeuo pipefail
@@ -135,14 +145,20 @@ jobs:
           echo "⚠️ Deploy failed — restoring under-construction placeholder..."
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
+
+          # Fallback logic: Try to use local files if they exist, otherwise use standard nginx.
+          # This avoids the "mount directory onto file" error if /root/under-construction/nginx.conf is a directory.
+          MOUNTS=""
+          [ -f /root/under-construction/index.html ] && MOUNTS="$MOUNTS -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro"
+          [ -f /root/under-construction/favicon.svg ] && MOUNTS="$MOUNTS -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro"
+          [ -f /root/under-construction/nginx.conf ] && MOUNTS="$MOUNTS -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro"
+
           docker run -d \
             --name sa-web \
             --restart unless-stopped \
             --network under-construction_default \
             -p 3000:3000 \
-            -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro \
-            -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro \
-            -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro \
+            $MOUNTS \
             nginx:alpine
           echo "Placeholder restored."
 
