@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Add git to builder and wget to runtime for sa-web health checks
 - Fix Dockerfile syntax and sync frontend lockfile
 - Ensure Docker network exists and robustify fallback logic
+- Deploy engine and worker alongside web and add health checks
 
 ### Documentation
 
