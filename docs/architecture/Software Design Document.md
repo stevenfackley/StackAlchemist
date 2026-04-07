@@ -26,10 +26,10 @@ StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows
     * **Trigger:** Push to `develop` branch.
     * **Actions:** Build and replace the `sa-web` container on the test host for the public test site.
 * **Stage 3: Production Deployment (Prod)**
-    * **Trigger:** GitHub Release/Tag.
-    * **Actions:** 
-        * **git-cliff:** Automatically generate `CHANGELOG.md` and create a GitHub Release.
-        * **AWS Deploy:** Merge **Supabase `develop` -> `main`** and deploy verified images to AWS.
+    * **Trigger:** Merge to `main` branch.
+    * **Automation:**
+        * **git-cliff:** Automatically update `CHANGELOG.md` and create a GitHub Release for every push to `main`.
+        * **AWS Deploy:** Deploy verified images to the production environment (EC2) automatically.
 
 **5. Core Workflows and Technical Pipelines**
 

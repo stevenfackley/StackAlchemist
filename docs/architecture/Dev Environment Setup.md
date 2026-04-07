@@ -26,7 +26,7 @@ We follow a **Single Project + Branching** model.
 *   **Default Branch:** `develop` (Daily check-ins, auto-deploys to Staging).
 *   **Production Branch:** `main` (Merge from `develop` to trigger AWS deploy).
 *   **Commit Standard:** [Conventional Commits](https://www.conventionalcommits.org/) required for automated changelog generation.
-*   **Release Automation:** Handled by `git-cliff`. Pushing a tag (e.g., `v1.0.0`) triggers a GitHub Release and updates `CHANGELOG.md`.
+*   **Release Automation:** Handled by `git-cliff`. Every push to the `main` branch triggers an update to `CHANGELOG.md` and creates a GitHub Release record using the commit SHA.
 
 ## 5. Containerization (Docker)
 A multi-stage root `Dockerfile` supports all environments via targeting:

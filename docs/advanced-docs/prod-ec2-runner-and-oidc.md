@@ -133,7 +133,6 @@ Replace the repository name only if it ever changes:
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:stevenfackley/StackAlchemist:ref:refs/tags/v*",
             "repo:stevenfackley/StackAlchemist:ref:refs/heads/main",
             "repo:stevenfackley/StackAlchemist:environment:prod"
           ]
@@ -183,11 +182,13 @@ Repository-level:
 
 The production workflow:
 
-- triggers on release tags like `v1.0.0`
+- triggers on pushes to the `main` branch
 - can also be started manually with `workflow_dispatch`
+- automatically updates `CHANGELOG.md` and creates a GitHub Release record
 - generates a `.env` file from GitHub secrets
 - validates `docker-compose.prod.yml`
-- runs `docker compose -f docker-compose.prod.yml up -d --build --remove-orphans`
+- builds and replaces the production stack via `docker compose -f docker-compose.prod.yml up -d`
+- performs post-deploy health checks and site verification
 - prints container status after deploy
 
 This keeps the deployment fully Docker-based and avoids SSH-driven release steps.
