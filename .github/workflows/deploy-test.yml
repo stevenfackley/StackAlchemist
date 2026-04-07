@@ -46,64 +46,53 @@ jobs:
         shell: bash
         run: bash ./scripts/docker-preflight-cleanup.sh
 
-      - name: Build Next.js web image
+      - name: Build Docker images
         env:
           DOCKER_BUILDKIT: '1'
         run: |
           set -Eeuo pipefail
 
-          # Remove any previous image to guarantee a clean tag namespace.
-          docker image rm -f sa-web-app:test >/dev/null 2>&1 || true
+          # Build Engine
+          docker build --target engine --pull --no-cache -t sa-engine:test .
+          # Build Worker
+          docker build --target worker --pull --no-cache -t sa-worker:test .
+          # Build Web
+          docker build --target web --pull --no-cache --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app -t sa-web-app:test .
 
-          IMAGE_TAG="sa-web-app:${GITHUB_SHA::12}"
-          docker build \
-            --target web \
-            --pull \
-            --no-cache \
-            --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
-            -t "$IMAGE_TAG" \
-            .
+          echo "✅ All test images built."
 
-          docker tag "$IMAGE_TAG" sa-web-app:test
-
-          # Remove the SHA-tagged duplicate immediately — :test is the canonical
-          # reference and keeping both wastes disk.
-          docker image rm -f "$IMAGE_TAG" >/dev/null 2>&1 || true
-          echo "✅ Image built and tagged as sa-web-app:test"
-
-      - name: Ensure Docker network and engine
+      - name: Ensure Docker network
         run: |
           docker network create under-construction_default 2>/dev/null || true
-          echo "── Active containers on network ──"
-          docker ps --filter network=under-construction_default --format "table {{.Names}}\t{{.Status}}" || true
 
-          if [ "$(docker inspect -f '{{.State.Running}}' sa-engine 2>/dev/null || echo false)" != "true" ]; then
-            echo "⚠️ Warning: sa-engine is not running. Web app may fail to connect."
-          fi
-
-      - name: Swap web container
+      - name: Deploy Stack
         run: |
           set -Eeuo pipefail
 
-          dump_sa_web_diagnostics() {
-            echo "── docker ps (sa-web) ──"
-            docker ps -a --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+          # 1. Update sa-engine
+          docker stop sa-engine 2>/dev/null || true
+          docker rm sa-engine 2>/dev/null || true
+          docker run -d \
+            --name sa-engine \
+            --restart unless-stopped \
+            --network under-construction_default \
+            -p 5000:80 \
+            --env-file .env \
+            sa-engine:test
 
-            echo "── docker inspect (sa-web) ──"
-            docker inspect sa-web || true
+          # 2. Update sa-worker
+          docker stop sa-worker 2>/dev/null || true
+          docker rm sa-worker 2>/dev/null || true
+          docker run -d \
+            --name sa-worker \
+            --restart unless-stopped \
+            --network under-construction_default \
+            --env-file .env \
+            sa-worker:test
 
-            echo "── docker logs (sa-web) ──"
-            docker logs --tail 200 sa-web || true
-
-            echo "── in-container probe (sa-web) ──"
-            docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then((res) => { console.log('status=' + res.status); process.exit(res.ok ? 0 : 1); }).catch((err) => { console.error(err); process.exit(1); })" || true
-          }
-
-          # Stop and remove the old container (nginx placeholder or previous web app)
+          # 3. Update sa-web
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
-
-          # Start the new Next.js container on the shared tunnel network
           docker run -d \
             --name sa-web \
             --restart unless-stopped \
@@ -114,30 +103,36 @@ jobs:
             -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
             sa-web-app:test
 
-          # Fail the deployment if the container does not stay up and answer HTTP.
-          for i in {1..20}; do
-            if [ "$(docker inspect -f '{{.State.Running}}' sa-web 2>/dev/null || echo false)" != "true" ]; then
-              echo "❌ sa-web exited during startup"
-              dump_sa_web_diagnostics
-              exit 1
-            fi
+          echo "✅ Stack updated. Waiting for health checks..."
 
-            if docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
-              echo "✅ Web app responded successfully."
+      - name: Verify Health
+        run: |
+          set -Eeuo pipefail
+
+          # Wait for engine
+          echo "Checking sa-engine health..."
+          for i in {1..10}; do
+            if docker exec sa-engine wget -qO /dev/null http://localhost:80/health 2>/dev/null; then
+              echo "✅ sa-engine is healthy."
               break
             fi
-
-            if [ "$i" -eq 20 ]; then
-              echo "❌ sa-web did not become healthy in time"
-              dump_sa_web_diagnostics
-              exit 1
-            fi
-
+            [ "$i" -eq 10 ] && echo "❌ sa-engine failed health check" && exit 1
             sleep 3
           done
 
-          echo "✅ Web app deployed."
-          docker ps --filter name=sa-web --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          # Wait for web
+          echo "Checking sa-web health..."
+          for i in {1..10}; do
+            if docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+              echo "✅ sa-web is healthy."
+              break
+            fi
+            [ "$i" -eq 10 ] && echo "❌ sa-web failed health check" && exit 1
+            sleep 3
+          done
+
+          echo "✅ Deployment verified."
+          docker ps --filter network=under-construction_default --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
       - name: Fallback to placeholder on failure
         if: failure()
@@ -146,8 +141,6 @@ jobs:
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
 
-          # Fallback logic: Try to use local files if they exist, otherwise use standard nginx.
-          # This avoids the "mount directory onto file" error if /root/under-construction/nginx.conf is a directory.
           MOUNTS=""
           [ -f /root/under-construction/index.html ] && MOUNTS="$MOUNTS -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro"
           [ -f /root/under-construction/favicon.svg ] && MOUNTS="$MOUNTS -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro"

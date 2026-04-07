@@ -24,6 +24,12 @@ services:
       - "5000:80"
     env_file:
       - .env.development
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   sa-worker:
     build:
