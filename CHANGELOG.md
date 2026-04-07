@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - Ensure Docker network exists and robustify fallback logic
 - Deploy engine and worker alongside web and add health checks
 - Add git to web-builder, set engine port, fix healthz endpoint
+- Copy .env to Next.js project dir so E2E tests get env vars
 
 ### Documentation
 
