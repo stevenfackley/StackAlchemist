@@ -28,6 +28,10 @@ We follow a **Single Project + Branching** model.
 *   **Commit Standard:** [Conventional Commits](https://www.conventionalcommits.org/) required for automated changelog generation.
 *   **Release Automation:** Handled by `git-cliff`. Every push to the `main` branch triggers an update to `CHANGELOG.md` and creates a GitHub Release record using the commit SHA.
 
+### CI/CD Compliance
+*   **Frozen Lockfiles:** The CI pipeline enforces `pnpm install --frozen-lockfile` for the frontend. You **must** run `pnpm install` locally after modifying `package.json` to ensure `pnpm-lock.yaml` is updated before pushing. Failure to do so will cause the "Frontend" quality gate to fail.
+*   **Docker Health Checks:** The `sa-web` and `sa-engine` images include `wget` to support Docker Compose health probes in production. Ensure any base image changes preserve this utility.
+
 ## 5. Containerization (Docker)
 A multi-stage root `Dockerfile` supports all environments via targeting:
 *   `sa-web`: Next.js Frontend (includes `git` for build-time telemetry and `wget` for production health checks).

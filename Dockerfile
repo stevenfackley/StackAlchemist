@@ -77,4 +77,3 @@ COPY --from=worker-builder /app/publish .
 # Install Node.js in the worker container so it can run 'npm build' on generated repos
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
 ENTRYPOINT ["dotnet", "StackAlchemist.Worker.dll"]
-t.Worker.dll"]
