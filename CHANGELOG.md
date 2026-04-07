@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - Harden deploy pipeline for zero-downtime and reboot resilience
+- Add git to builder and wget to runtime for sa-web health checks
 
 ### Documentation
 
