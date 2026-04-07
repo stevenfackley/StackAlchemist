@@ -112,7 +112,7 @@ jobs:
           # Wait for engine
           echo "Checking sa-engine health..."
           for i in {1..10}; do
-            if docker exec sa-engine wget -qO /dev/null http://localhost:80/health 2>/dev/null; then
+            if docker exec sa-engine wget -qO /dev/null http://localhost:80/healthz 2>/dev/null; then
               echo "✅ sa-engine is healthy."
               break
             fi

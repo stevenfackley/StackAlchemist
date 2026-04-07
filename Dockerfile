@@ -5,6 +5,7 @@
 # STAGE 1: NEXT.JS FRONTEND (WEB)
 # ==========================================
 FROM node:20-alpine AS web-builder
+RUN apk add --no-cache git
 WORKDIR /app
 # Accept public env vars at build time so Next.js bakes them into the bundle
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
@@ -50,6 +51,7 @@ RUN dotnet publish ./StackAlchemist.Engine/StackAlchemist.Engine.csproj -c Relea
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS engine
 RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
 EXPOSE 80
