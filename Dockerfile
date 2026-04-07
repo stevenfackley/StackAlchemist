@@ -47,6 +47,7 @@ COPY src/StackAlchemist.Engine/ ./StackAlchemist.Engine/
 RUN dotnet publish ./StackAlchemist.Engine/StackAlchemist.Engine.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS engine
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
 EXPOSE 80

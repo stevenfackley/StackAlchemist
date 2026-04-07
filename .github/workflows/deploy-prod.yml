@@ -23,6 +23,8 @@ jobs:
       - ARM64
       - prod
     environment: prod
+    env:
+      COMPOSE_PROJECT_NAME: stackalchemist-prod
 
     steps:
       - name: Checkout
@@ -77,14 +79,84 @@ jobs:
         shell: bash
         run: docker compose -f docker-compose.prod.yml config >/dev/null
 
+      - name: Setup reboot resilience
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          DEPLOY_DIR="/opt/stackalchemist-prod"
+          sudo mkdir -p "$DEPLOY_DIR"
+          sudo cp docker-compose.prod.yml "$DEPLOY_DIR/"
+          sudo cp .env "$DEPLOY_DIR/"
+          sudo cp -r docker/ "$DEPLOY_DIR/"
+          sudo cp docker/stackalchemist-prod.service /etc/systemd/system/stackalchemist-prod.service
+          sudo systemctl daemon-reload
+          sudo systemctl enable stackalchemist-prod.service
+          echo "✅ Reboot resilience configured at $DEPLOY_DIR"
+
       - name: Build and deploy production stack
         shell: bash
         env:
           DOCKER_BUILDKIT: '1'
-          COMPOSE_PROJECT_NAME: stackalchemist-prod
         run: |
           set -Eeuo pipefail
-          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          docker compose -f docker-compose.prod.yml build
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+      - name: Wait for health checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "Waiting for containers to become healthy..."
+          MAX_WAIT=120
+          INTERVAL=5
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            UNHEALTHY=$(docker compose -f docker-compose.prod.yml ps --format json | \
+              python3 -c "
+          import sys, json
+          unhealthy = 0
+          for line in sys.stdin:
+              line = line.strip()
+              if not line: continue
+              svc = json.loads(line)
+              health = svc.get('Health', '')
+              if health != 'healthy':
+                  unhealthy += 1
+                  print(f\"  {svc.get('Name','?')}: {svc.get('State','?')} ({health or 'no healthcheck'})\", file=sys.stderr)
+          print(unhealthy)
+          " 2>&1)
+            # Extract the count (last line of output)
+            COUNT=$(echo "$UNHEALTHY" | tail -1)
+            if [ "$COUNT" = "0" ]; then
+              echo "✅ All containers healthy after ${ELAPSED}s"
+              break
+            fi
+            echo "⏳ ${COUNT} container(s) not yet healthy (${ELAPSED}s / ${MAX_WAIT}s)..."
+            echo "$UNHEALTHY" | head -n -1
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "❌ FATAL: Containers did not become healthy within ${MAX_WAIT}s"
+            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml logs --tail 30
+            exit 1
+          fi
+
+      - name: Verify site is reachable
+        shell: bash
+        run: |
+          echo "Verifying site via Cloudflare tunnel..."
+          sleep 5
+          HTTP_CODE=$(wget --spider -S --timeout=10 https://stackalchemist.app 2>&1 | grep "HTTP/" | tail -1 | awk '{print $2}' || true)
+          if [ -z "$HTTP_CODE" ]; then
+            echo "⚠️ Could not reach https://stackalchemist.app — tunnel may still be connecting"
+          elif [ "$HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
+            echo "✅ Site returned HTTP ${HTTP_CODE}"
+          else
+            echo "❌ Site returned HTTP ${HTTP_CODE}"
+            exit 1
+          fi
 
       - name: Show running containers
         if: always()

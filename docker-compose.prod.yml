@@ -4,10 +4,18 @@ services:
     container_name: sa-reverse-proxy
     restart: unless-stopped
     depends_on:
-      - sa-web
-      - sa-engine
+      sa-web:
+        condition: service_healthy
+      sa-engine:
+        condition: service_healthy
     volumes:
       - ./docker/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     networks:
       - stackalchemist-prod
 
@@ -32,6 +40,12 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - stackalchemist-prod
 
@@ -60,6 +74,12 @@ services:
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - stackalchemist-prod
 
