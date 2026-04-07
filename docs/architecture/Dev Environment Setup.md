@@ -30,8 +30,8 @@ We follow a **Single Project + Branching** model.
 
 ## 5. Containerization (Docker)
 A multi-stage root `Dockerfile` supports all environments via targeting:
-*   `sa-web`: Next.js Frontend.
-*   `sa-engine`: .NET 10 API.
+*   `sa-web`: Next.js Frontend (includes `git` for build-time telemetry and `wget` for production health checks).
+*   `sa-engine`: .NET 10 API (includes `wget` for production health checks).
 *   `sa-worker`: .NET 10 Worker + Node.js (for repo validation).
 
 ### Production Runtime Recommendation

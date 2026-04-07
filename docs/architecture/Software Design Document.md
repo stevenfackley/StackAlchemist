@@ -30,6 +30,7 @@ StackAlchemist uses a multi-stage, multi-target Docker architecture. This allows
     * **Automation:**
         * **git-cliff:** Automatically update `CHANGELOG.md` and create a GitHub Release for every push to `main`.
         * **AWS Deploy:** Deploy verified images to the production environment (EC2) automatically.
+    * **Health Checks:** Components utilize `wget` for health probes (e.g., `sa-web` and `sa-engine` final stages include `wget` to support Docker Compose health checks).
 
 **5. Core Workflows and Technical Pipelines**
 
