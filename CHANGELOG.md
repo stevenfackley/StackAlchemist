@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### Bug Fixes
+
+- Harden deploy pipeline for zero-downtime and reboot resilience
+
+### Miscellaneous Tasks
+
+- Update release and prod-deploy triggers to auto-release from main
+
 ## [1.0.4] - 2026-04-06
 
 ### \fix
