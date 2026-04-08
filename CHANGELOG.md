@@ -22,6 +22,11 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous Tasks
 
 - Update release and prod-deploy triggers to auto-release from main
+- Add .pnpm-store to .gitignore
+
+### Testing
+
+- Update e2e flows for advanced mode and checkout
 
 ## [1.0.4] - 2026-04-06
 
