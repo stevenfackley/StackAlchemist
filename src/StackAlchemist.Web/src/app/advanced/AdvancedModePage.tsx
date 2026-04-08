@@ -232,9 +232,10 @@ function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSe
     { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK Stack", "Helm Charts", "Deployment Runbook"] },
   ];
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div data-testid="advanced-step-5-tier-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {tiers.map((t) => (
         <button key={t.id} onClick={() => setSelectedTier(t.id)}
+          data-testid={`advanced-tier-option-${t.id}`}
           className={cn("relative rounded-xl border p-5 text-left space-y-3 transition-all duration-300",
             selectedTier === t.id
               ? t.isFree
@@ -490,7 +491,7 @@ export default function AdvancedModePage() {
         onSkip={() => setShowPersonalizationModal(false)}
       />
     )}
-    <div className="h-screen flex flex-col bg-slate-800 overflow-hidden">
+    <div data-testid="advanced-mode-page" className="h-screen flex flex-col bg-slate-800 overflow-hidden">
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 overflow-x-auto">
@@ -501,14 +502,17 @@ export default function AdvancedModePage() {
             </span>
           </Link>
           <span className="text-slate-600 font-mono text-xs shrink-0">|</span>
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div data-testid="advanced-stepper" className="flex items-center gap-1 overflow-x-auto">
             {STEPS.map((s, i) => (
               <div key={s} className="flex items-center gap-1 shrink-0">
                 {i > 0 && <span className="font-mono text-xs text-slate-600 mx-1">&rarr;</span>}
-                <button onClick={() => setStep(i + 1)}
+                <button
+                  onClick={() => setStep(i + 1)}
+                  data-testid={`advanced-stepper-button-${i + 1}`}
                   className={cn("font-mono text-xs tracking-widest uppercase transition-colors px-2 py-0.5 whitespace-nowrap",
                     step === i + 1 ? "text-blue-400 border-b border-blue-400" : step > i + 1 ? "text-emerald-400" : "text-slate-500"
-                  )}>
+                  )}
+                >
                   {i + 1}. {s}
                 </button>
               </div>
@@ -520,13 +524,25 @@ export default function AdvancedModePage() {
       <main className="flex flex-1 min-h-0">
         {/* Left panel */}
         <div className="w-full lg:w-1/2 border-r border-slate-600/30 overflow-y-auto p-5">
-          {step === 1 && <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />}
-          {step === 2 && <StepPlatformSelection selectedProjectType={selectedProjectType} setSelectedProjectType={setSelectedProjectType} />}
-          {step === 3 && <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />}
+          {step === 1 && (
+            <div data-testid="advanced-step-1">
+              <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />
+            </div>
+          )}
+          {step === 2 && (
+            <div data-testid="advanced-step-2">
+              <StepPlatformSelection selectedProjectType={selectedProjectType} setSelectedProjectType={setSelectedProjectType} />
+            </div>
+          )}
+          {step === 3 && (
+            <div data-testid="advanced-step-3">
+              <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />
+            </div>
+          )}
           {step === 4 && (
-            <div className="space-y-4">
+            <div data-testid="advanced-step-4" className="space-y-4">
               <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Make your generated project unique</p>
-              <div className="rounded-2xl border border-slate-600/30 bg-slate-700/20 p-5 space-y-4">
+              <div data-testid="advanced-personalization-section" className="rounded-2xl border border-slate-600/30 bg-slate-700/20 p-5 space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shrink-0">
                     <Zap className="h-4 w-4 text-blue-400" />
@@ -568,6 +584,7 @@ export default function AdvancedModePage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowPersonalizationModal(true)}
+                    data-testid="advanced-personalize-button"
                     className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
                   >
                     {personalization.businessDescription ? "Edit Personalization" : "Personalize \u2192"}
@@ -584,7 +601,11 @@ export default function AdvancedModePage() {
               </div>
             </div>
           )}
-          {step === 5 && <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />}
+          {step === 5 && (
+            <div data-testid="advanced-step-5">
+              <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />
+            </div>
+          )}
         </div>
 
         {/* Right panel: Live preview (hidden on mobile) */}
@@ -611,6 +632,7 @@ export default function AdvancedModePage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {step > 1 ? (
             <button onClick={() => setStep((s) => Math.max(1, s - 1))}
+              data-testid="advanced-previous-button"
               className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
               &larr; Previous
             </button>
@@ -621,11 +643,13 @@ export default function AdvancedModePage() {
           )}
           {step < 5 ? (
             <button onClick={() => setStep((s) => Math.min(5, s + 1))}
+              data-testid="advanced-next-button"
               className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
               Next &rarr;
             </button>
           ) : (
             <button onClick={handleCheckout} disabled={isPending}
+              data-testid="advanced-checkout-button"
               className={cn(
                 "font-mono text-xs text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center gap-2",
                 selectedTier === 0

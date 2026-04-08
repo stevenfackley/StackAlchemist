@@ -165,7 +165,7 @@ function FreeTierPanel({
   const title = `StackAlchemist — ${prompt.slice(0, 50)}`;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div data-testid="generate-free-tier-panel" className="flex flex-col h-full min-h-0">
       {/* Banner */}
       <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -320,7 +320,7 @@ function PaidTierPanel({ generation }: { generation: Generation }) {
   const tierName = TIER_NAMES[generation.tier] ?? "Unknown";
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
+    <div data-testid="generate-paid-tier-panel" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
       {/* Success icon */}
       <div className="relative">
         <div className="h-20 w-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center">
@@ -414,7 +414,7 @@ function InProgressPanel({ generation }: { generation: Generation }) {
   const description = STATUS_DESCRIPTIONS[generation.status];
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-10">
+    <div data-testid="generate-in-progress-panel" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-10">
       {/* Spinner */}
       <div className="relative">
         <div
@@ -484,7 +484,7 @@ function FailedPanel({
   const canRetry = generation.attempt_count < 3;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
+    <div data-testid="generate-failed-panel" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
       <div className="h-20 w-20 rounded-full bg-rose-500/10 border-2 border-rose-500/30 flex items-center justify-center">
         <AlertCircle className="h-10 w-10 text-rose-400" />
       </div>
@@ -607,6 +607,7 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
 
   return (
     <div
+      data-testid="generate-page"
       className={`min-h-screen flex flex-col bg-slate-800 ${
         isComplete && isFree ? "h-screen overflow-hidden" : ""
       }`}
