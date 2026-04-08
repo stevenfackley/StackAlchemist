@@ -595,7 +595,7 @@ export default function SimpleModePage() {
         }}
       />
     )}
-    <div className="min-h-screen flex flex-col bg-slate-800">
+    <div data-testid="simple-mode-page" className="min-h-screen flex flex-col bg-slate-800">
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
@@ -613,17 +613,17 @@ export default function SimpleModePage() {
       </header>
 
       {/* Prompt banner */}
-      <div className="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
+      <div data-testid="simple-prompt-banner" className="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
         <div className="max-w-6xl mx-auto">
           <p className="font-mono text-xs text-slate-500 tracking-widest uppercase mb-1">Prompt</p>
-          <p className="font-mono text-sm text-white">{prompt || "No prompt provided."}</p>
+          <p data-testid="simple-prompt-value" className="font-mono text-sm text-white">{prompt || "No prompt provided."}</p>
         </div>
       </div>
 
       <main className="flex-1 flex flex-col">
         {/* ── Phase: Generating ─────────────────────────────────────────────── */}
         {phase === "generating" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
+          <div data-testid="simple-phase-generating" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
             <div className="w-full max-w-xl space-y-2">
               <div className="flex items-center justify-between font-mono text-xs text-slate-400 uppercase tracking-widest">
                 <span>Extracting Schema</span>
@@ -655,7 +655,7 @@ export default function SimpleModePage() {
 
         {/* ── Phase: Canvas ─────────────────────────────────────────────────── */}
         {phase === "canvas" && (
-          <div className="flex-1 flex flex-col">
+          <div data-testid="simple-phase-canvas" className="flex-1 flex flex-col">
             <div className="border-b border-slate-700/50 px-4 py-3 bg-slate-800">
               <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -673,6 +673,7 @@ export default function SimpleModePage() {
                   </button>
                   <button
                     onClick={() => setPhase("tier")}
+                    data-testid="simple-confirm-tier-button"
                     className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors"
                   >
                     Confirm &amp; Select Tier &rarr;
@@ -681,7 +682,7 @@ export default function SimpleModePage() {
               </div>
             </div>
 
-            <div className="flex-1" style={{ minHeight: "500px" }}>
+            <div data-testid="simple-entity-canvas" className="flex-1" style={{ minHeight: "500px" }}>
               <ReactFlow
                 nodes={nodes} edges={edges}
                 onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
@@ -699,7 +700,7 @@ export default function SimpleModePage() {
 
         {/* ── Phase: Tier Selection ─────────────────────────────────────────── */}
         {phase === "tier" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16">
+          <div data-testid="simple-phase-tier" className="flex-1 flex flex-col items-center justify-center px-4 py-16">
             <div className="w-full max-w-3xl space-y-6">
               <div className="text-center mb-8">
                 <div className="flex items-center justify-center gap-3 mb-3">
@@ -716,6 +717,7 @@ export default function SimpleModePage() {
                   <button
                     key={t.id}
                     onClick={() => setSelectedTier(t.id)}
+                    data-testid={`simple-tier-option-${t.id}`}
                     className={`relative rounded-xl border p-5 text-left space-y-2 transition-all duration-300 ${
                       selectedTier === t.id
                         ? t.isFree
@@ -756,6 +758,7 @@ export default function SimpleModePage() {
                 </button>
                 <button
                   onClick={() => setShowPersonalizationModal(true)}
+                  data-testid="simple-personalize-continue"
                   disabled={isPending}
                   className={`flex-1 font-mono text-xs py-3 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center justify-center gap-2 ${
                     selectedTier === 0
@@ -778,7 +781,7 @@ export default function SimpleModePage() {
 
         {/* ── Phase: Submitting / Submitted ─────────────────────────────────── */}
         {(phase === "submitting" || phase === "submitted") && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
+          <div data-testid="simple-phase-submitting" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
             <div className="w-full max-w-xl space-y-6 text-center">
               <div className="flex items-center justify-center">
                 <div className="h-16 w-16 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
@@ -813,7 +816,7 @@ export default function SimpleModePage() {
 
         {/* ── Phase: Error ──────────────────────────────────────────────────── */}
         {phase === "error" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
+          <div data-testid="simple-phase-error" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
             <div className="w-full max-w-md text-center space-y-4">
               <div className="flex items-center justify-center">
                 <div className="h-16 w-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">

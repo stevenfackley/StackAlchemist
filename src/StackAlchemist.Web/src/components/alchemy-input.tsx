@@ -122,6 +122,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
             onBlur={() => setIsFocused(false)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
+            data-testid="home-prompt-input"
             placeholder="Describe your architecture... e.g., 'A real-time collaborative document editor with CRDT sync, PostgreSQL persistence, and team workspaces'"
             className="min-h-[100px] w-full resize-none bg-transparent font-mono text-sm leading-relaxed text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-40"
             rows={3}
@@ -199,6 +200,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
             type="button"
             onClick={onSubmit}
             disabled={!value.trim() || disabled}
+            data-testid="home-synthesize-button"
             className={`group flex items-center gap-2 rounded-full px-5 py-2 font-medium text-sm transition-all duration-300 whitespace-nowrap ${
               value.trim() && !disabled
                 ? "bg-blue-500 text-white hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"

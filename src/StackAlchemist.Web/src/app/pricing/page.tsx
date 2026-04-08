@@ -147,7 +147,7 @@ function CheckCell({ value }: { value: boolean }) {
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-800">
+    <div data-testid="pricing-page" className="min-h-screen flex flex-col bg-slate-800">
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
         <div
@@ -195,7 +195,7 @@ export default function PricingPage() {
               <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Pricing</span>
               <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
             </div>
-            <h1 className="font-bold text-4xl md:text-5xl text-white tracking-tight leading-tight">
+            <h1 data-testid="pricing-hero-title" className="font-bold text-4xl md:text-5xl text-white tracking-tight leading-tight">
               TRY FREE.
               <br />
               <span className="text-blue-400">OWN IT FOREVER.</span>
@@ -210,7 +210,7 @@ export default function PricingPage() {
         {/* Free Tier Banner */}
         <section className="py-12 px-4 sm:px-8 border-b border-slate-700/50">
           <div className="max-w-6xl mx-auto">
-            <div className="relative rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-slate-700/20 to-slate-700/10 p-8 overflow-hidden">
+            <div data-testid="pricing-tier-spark" className="relative rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-slate-700/20 to-slate-700/10 p-8 overflow-hidden">
               {/* Glow */}
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent" />
               <div
@@ -288,6 +288,7 @@ export default function PricingPage() {
               {tiers.map((tier) => (
                 <div
                   key={tier.id}
+                  data-testid={`pricing-tier-${tier.id}`}
                   className={`relative rounded-xl border p-8 flex flex-col transition-all duration-300 ${
                     tier.highlight
                       ? "border-blue-500/50 bg-slate-700/50 shadow-[0_0_40px_rgba(59,130,246,0.12)]"
@@ -305,7 +306,7 @@ export default function PricingPage() {
                   <div className="mb-1 font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase">{tier.tagline}</div>
                   <div className="mb-4 text-2xl font-bold text-white">{tier.name}</div>
                   <div className="mb-5">
-                    <span className="text-4xl font-bold text-white">${tier.price}</span>
+                    <span data-testid={`pricing-price-${tier.id}`} className="text-4xl font-bold text-white">${tier.price}</span>
                     <span className="ml-2 text-slate-500 text-sm font-mono">one-time</span>
                   </div>
                   <p className="text-slate-400 text-sm leading-relaxed mb-6">{tier.description}</p>

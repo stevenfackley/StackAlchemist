@@ -19,19 +19,20 @@ export default async function GeneratePage({ params, searchParams }: PageProps) 
 
   if (!generation) {
     return (
-      <div className="min-h-screen bg-slate-800 flex flex-col items-center justify-center px-4">
+      <div data-testid="generate-not-found" className="min-h-screen bg-slate-800 flex flex-col items-center justify-center px-4">
         <div className="text-center space-y-6 max-w-md">
           <div className="flex justify-center">
             <Link href="/">
               <Image src="/logo.svg" alt="Stack Alchemist" width={48} height={48} className="opacity-60" />
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-white">Generation Not Found</h1>
+          <h1 data-testid="generate-not-found-heading" className="text-2xl font-bold text-white">Generation Not Found</h1>
           <p className="text-slate-400 text-sm leading-relaxed">
             The generation ID <code className="text-blue-400 font-mono text-xs bg-slate-700/50 px-1.5 py-0.5 rounded">{id}</code> does not exist or has expired.
           </p>
           <Link
             href="/"
+            data-testid="generate-not-found-start-link"
             className="inline-block rounded-full bg-blue-500 text-white px-6 py-2.5 text-sm font-medium hover:bg-blue-400 transition-all duration-300"
           >
             Start a New Generation &rarr;

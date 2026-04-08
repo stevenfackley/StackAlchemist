@@ -8,6 +8,8 @@
     "build": "node ./scripts/build-wrapper.mjs",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "e2e:smoke": "cross-env NEXT_PUBLIC_DEMO_MODE=true pnpm exec playwright test e2e/smoke --project=chromium",
+    "e2e:integration": "cross-env NEXT_PUBLIC_DEMO_MODE=false pnpm exec playwright test e2e/integration --project=chromium",
     "setup-env": "node ./scripts/setup-env-safe.mjs",
     "postinstall": "node ./scripts/setup-env-safe.mjs"
   },
@@ -47,6 +49,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "vitest": "^3.0.0",
-    "@playwright/test": "^1.49.1"
+    "@playwright/test": "^1.49.1",
+    "cross-env": "^7.0.3"
   }
 }

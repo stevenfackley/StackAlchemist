@@ -378,7 +378,7 @@ export default function HomePage() {
               </span>
             </div>
 
-            <h1 className="mb-6 font-bold tracking-tight leading-[0.95] text-white">
+            <h1 data-testid="home-hero-title" className="mb-6 font-bold tracking-tight leading-[0.95] text-white">
               <span className="block" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>SYNTHESIZE</span>
               <span className="block mt-1" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>
                 YOUR <span className="text-blue-400">PLATFORM.</span>
@@ -419,7 +419,7 @@ export default function HomePage() {
       </section>
 
       {/* ─── Launch Console Section ─────────────────────────────────── */}
-      <section className="relative z-10 border-t border-slate-600/30 px-6 py-16 sm:px-8 sm:py-20 lg:px-16">
+      <section data-testid="home-launch-console" className="relative z-10 border-t border-slate-600/30 px-6 py-16 sm:px-8 sm:py-20 lg:px-16">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
@@ -458,6 +458,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
                 <button
                   onClick={() => setMode("simple")}
+                  data-testid="home-mode-simple-button"
                   className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
                     mode === "simple"
                       ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
@@ -468,6 +469,7 @@ export default function HomePage() {
                 </button>
                 <button
                   onClick={() => setMode("advanced")}
+                  data-testid="home-mode-advanced-button"
                   className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
                     mode === "advanced"
                       ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
