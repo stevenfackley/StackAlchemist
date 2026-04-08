@@ -26,8 +26,14 @@ test.describe('Advanced Mode Flow', () => {
     await expect(page.getByRole('button', { name: /add endpoint/i })).toBeVisible();
   });
 
-  test('should complete Step 4: Select Tier and pay', async ({ page }) => {
+  test('should complete Step 4: Personalize', async ({ page }) => {
     await page.goto('/advanced?step=4');
+    await expect(page.getByText(/personalization wizard/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /personalize|edit personalization/i })).toBeVisible();
+  });
+
+  test('should complete Step 5: Select Tier and pay', async ({ page }) => {
+    await page.goto('/advanced?step=5');
     await expect(page.getByText(/select tier/i).first()).toBeVisible();
     await expect(page.getByText(/spark/i).first()).toBeVisible();
     await expect(page.getByText(/boilerplate/i).first()).toBeVisible();
