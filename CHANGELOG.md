@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 
 - Update production release and deployment documentation to reflect automated main branch trigger
+- Sync documentation with current codebase state
 
 ### Miscellaneous Tasks
 
