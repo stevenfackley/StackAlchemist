@@ -1,6 +1,6 @@
 ### Product Design Document (PDD): StackAlchemist
 
-> Implementation status note (2026-04-04): the audited codebase now includes live generation orchestration (template render → LLM → reconstruction → compile queue), compile retry state transitions, Stripe webhook + checkout-session backend endpoint, R2 upload + Supabase delivery services, authenticated dashboard shell, and Supabase-backed schema/status persistence. Items still in design-intent territory are the multi-step personalization wizard and complete BYOK settings persistence UX.
+> Implementation status note (2026-04-07): Phases 1–5 are substantially complete. All features described in this document are implemented unless noted otherwise. The personalization wizard (Section 2, "Personalization Wizard UI") is live with all 4 steps. Multi-ecosystem platform selection (.NET/Next.js or FastAPI/React) is integrated into Advanced Mode Step 2. Remaining design-intent items: BYOK settings persistence UX (dashboard card is placeholder), and the "V1.5" Dapper ↔ EF Core toggle.
 
 **1. System Overview**
 StackAlchemist orchestrates code generation by connecting a Next.js frontend with a Supabase backend. It uses a dual mode intake flow and a hybrid template generation engine to compile custom business logic into a highly optimized .NET/Next.js repository, guaranteeing successful compilation before user delivery.
@@ -31,10 +31,10 @@ Next.js Server Actions manage the core logic to keep secrets secure.
     * Executes the Handlebars compilation for static files.
     * Calls the LLM for dynamic file generation.
     * Reconstructs the directory.
-* **Service: Build Validation**
-    * Planned service that will run the compiler toolchain locally on the Proxmox staging server or the production worker node.
-* **Service: File System & Storage**
-    * Planned service that will compress the validated directory, upload to Cloudflare R2, and generate a 24 hour presigned URL.
+* **Service: Build Validation (`CompileService` + `IBuildStrategy`)**
+    * Implemented. `CompileWorkerService` runs as an in-process `BackgroundService` in the Engine. Dispatches to `DotNetBuildStrategy` or `PythonReactBuildStrategy` based on `ProjectType`. Max 3 retries with LLM error repair.
+* **Service: File System & Storage (`CloudflareR2UploadService`)**
+    * Implemented. Zips validated output directory, uploads to Cloudflare R2 via AWSSDK.S3, returns presigned download URL (168h expiry in production).
 
 **4. V1 to V2 Stack Matrix Management**
 The UI includes a configuration panel before generation begins.

@@ -4,40 +4,65 @@ This diagram defines the strict states a generation job can exist in, ensuring U
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING : Webhook Received
+    [*] --> Pending : Job Enqueued (Webhook or Direct)
     
-    PENDING --> GENERATING : Engine Picked Up Job
+    Pending --> Generating : EnginePickedUp
     
-    state GENERATING {
-        [*] --> FetchingTemplates
-        FetchingTemplates --> CallingLLM
-        CallingLLM --> ParsingOutput
-        ParsingOutput --> HydratingFiles
-        HydratingFiles --> [*]
+    state Generating {
+        [*] --> LoadTemplatesByProjectType
+        LoadTemplatesByProjectType --> RenderHandlebars
+        RenderHandlebars --> CallClaude35Sonnet
+        CallClaude35Sonnet --> ParseDelimitedBlocks
+        ParseDelimitedBlocks --> ReconstructFiles
+        ReconstructFiles --> [*]
     }
     
-    GENERATING --> BUILDING : Code Reconstructed
+    Generating --> Building : CodeReconstructed
     
-    state BUILDING {
-        [*] --> ExecutingDotnetBuild
-        ExecutingDotnetBuild --> CheckExitCode
+    state Building {
+        [*] --> SelectBuildStrategy
         
-        CheckExitCode --> ExecutingNpmBuild : Code 0 (Success)
-        CheckExitCode --> RequestingLLMPatch : Code 1 (Error)
+        SelectBuildStrategy --> DotNetBuildStrategy : ProjectType = DotNetNextJs
+        SelectBuildStrategy --> PythonReactBuildStrategy : ProjectType = PythonReact
         
-        RequestingLLMPatch --> ApplyingPatch
-        ApplyingPatch --> ExecutingDotnetBuild : Retry (Max 3)
-        ApplyingPatch --> FAILED : Exceeded Max Retries
+        state DotNetBuildStrategy {
+            [*] --> RunDotnetBuild
+            RunDotnetBuild --> ExtractCSErrors
+        }
         
-        ExecutingNpmBuild --> [*] : Success
+        state PythonReactBuildStrategy {
+            [*] --> RunPipFlake8Pytest
+            RunPipFlake8Pytest --> RunNpmEslintTsc
+            RunNpmEslintTsc --> ExtractPyTsErrors
+        }
+        
+        DotNetBuildStrategy --> CheckExitCode
+        PythonReactBuildStrategy --> CheckExitCode
+        
+        CheckExitCode --> [*] : Exit Code 0 (Success)
+        CheckExitCode --> RequestLLMPatch : Exit Code 1 (Error)
+        
+        RequestLLMPatch --> ApplyPatch
+        ApplyPatch --> SelectBuildStrategy : Retry (retryCount < 3)
+        ApplyPatch --> Failed : retryCount >= 3
     }
     
-    BUILDING --> PACKING : Build Passed
-    BUILDING --> FAILED : Build Failed (Unrecoverable)
+    Building --> Packing : BuildPassed
+    Building --> Failed : BuildFailed (Max Retries Exceeded)
     
-    PACKING --> UPLOADING : Zip Created
-    UPLOADING --> SUCCESS : Uploaded to R2
+    Packing --> Uploading : ZipCreated
+    Uploading --> Success : UploadedToR2
     
-    SUCCESS --> [*]
-    FAILED --> [*]
+    Success --> [*]
+    Failed --> [*]
 ```
+
+### Implementation Reference
+
+The state machine is implemented in `src/StackAlchemist.Engine/Services/GenerationStateMachine.cs` as a static transition table with special handling for the `BuildFailed` event (retry vs. terminal failure based on `GenerationContext.RetryCount`).
+
+**States** (`GenerationState` enum): `Pending`, `Generating`, `Building`, `Packing`, `Uploading`, `Success`, `Failed`
+
+**Events** (`GenerationEvent` enum): `EnginePickedUp`, `CodeReconstructed`, `BuildPassed`, `BuildFailed`, `ZipCreated`, `UploadedToR2`
+
+**Build Strategy Selection**: The `CompileService` selects between `DotNetBuildStrategy` and `PythonReactBuildStrategy` based on the `ProjectType` field in `GenerationContext`. Both strategies plug into the same retry loop in `CompileWorkerService`.

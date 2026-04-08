@@ -394,3 +394,100 @@ E2E:       4 live assertions, 2 intentional skips (Phase 7)
 - Verified the root Dockerfile remains npm-based for web/worker Node workflows (`npm install`, `npx next build`) and did not regress to pnpm.
 
 ---
+
+## Phase 4.7 — Personalization Wizard (2026-04-05)
+
+### Personalization Model
+`GenerationPersonalization` added to `Models/GenerationModels.cs` with the following structure:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `BusinessDescription` | `string` | 2-3 sentence business context injected into LLM prompt for domain-aware generation |
+| `ProjectName` | `string?` | User-chosen project/company name for README, comments, env config |
+| `Tagline` | `string?` | Optional tagline injected into generated README and landing page |
+| `ColorScheme` | `PersonalizationColorScheme?` | Selected palette (6 presets + custom) → injected into generated `tailwind.config.ts` |
+| `DomainContext` | `Dictionary<string, string>` | Entity name → domain description mapping for realistic code comments and seed data |
+| `FeatureFlags` | `PersonalizationFeatureFlags?` | Auth method (jwt/cookie/oauth/none), soft-delete, audit timestamps, swagger, docker-compose |
+
+### Color Scheme Presets
+`PersonalizationColorScheme` carries: Id, Name, Primary, Secondary, Accent, Background, Surface hex values. Six curated presets available plus fully custom palette via color picker.
+
+### Feature Flags
+`PersonalizationFeatureFlags` defaults: AuthMethod = "jwt", SoftDelete = false, AuditTimestamps = true, IncludeSwagger = true, IncludeDockerCompose = true.
+
+### Storage
+- New Supabase column `personalization_json` (JSONB, nullable) added via migration `20260405000005_add_personalization_to_generations.sql`
+- Stored alongside `schema_json` in the `generations` table
+- Stripe webhook reloads personalization from Supabase before enqueueing generation
+
+### Frontend
+- `personalization-modal.tsx` implements the 4-step wizard (Business Identity → Color Scheme → Domain Context → Feature Toggles)
+- Integrated into both Simple Mode and Advanced Mode flows after schema confirmation
+- Skippable — sensible defaults applied when user opts out
+
+### Orchestrator Integration
+- `GenerateRequest` and `GenerationContext` carry `Personalization` field
+- `PromptBuilderService` injects business description and domain context into the Claude 3.5 generation prompt
+- Color scheme and feature flags injected into Handlebars template context for deterministic config generation
+
+---
+
+## Phase 7 — Security Hardening (2026-04-06)
+
+### Rate Limiting
+Fixed-window rate limiting via `Microsoft.AspNetCore.RateLimiting`:
+
+| Policy | Endpoint | Limit | Window |
+|---|---|---|---|
+| `generate` | `POST /api/generate` | 5 requests | 1 minute |
+| `extract` | `POST /api/extract-schema` | 15 requests | 1 minute |
+| `stripe-session` | `POST /api/stripe/create-session` | 3 requests | 1 minute |
+
+429 responses include JSON error body. Per-IP tracking.
+
+### CORS
+- `Engine:AllowedOrigins` config key (defaults to `http://localhost:3000`)
+- Supports comma-separated origins for multi-domain deployments
+- Applied via `AddCors` / `UseCors("Frontend")` in the middleware pipeline
+
+### Service Key Authentication
+- `X-Engine-Key` header required on all `/api/*` routes (except `/api/webhooks/*`)
+- Configured via `ENGINE_SERVICE_KEY` environment variable
+- When unset, auth check is skipped (local dev / CI works without extra config)
+- Production startup validation fails fast if `ENGINE_SERVICE_KEY` is missing
+
+### Prompt Sanitization
+- Input sanitization applied to LLM-calling routes to mitigate prompt injection against Claude 3.5 calls
+
+### Production Startup Validation
+- `STRIPE_WEBHOOK_SECRET` and `ENGINE_SERVICE_KEY` are required in Production environment
+- Missing values throw `InvalidOperationException` at startup for fail-fast behavior
+
+---
+
+## Multi-Ecosystem Build Strategy (2026-04-05)
+
+### IBuildStrategy Pattern
+`CompileService` was refactored from a monolithic dotnet-only builder to a strategy pattern:
+
+| Strategy | Ecosystem | Validation Steps |
+|---|---|---|
+| `DotNetBuildStrategy` | V1-DotNet-NextJs | `dotnet build` → C# compiler error extraction |
+| `PythonReactBuildStrategy` | V1-Python-React | `pip install` + `flake8` + `pytest --collect-only` (backend) → `npm install` + `eslint` + `tsc` (frontend) → Python/TypeScript/ESLint error extraction |
+
+Both strategies share a common `BuildStrategyBase` and plug into the existing `CompileWorkerService` retry loop unchanged.
+
+### ProjectType Enum
+- `DotNetNextJs` (default) and `PythonReact`
+- Carried through the entire pipeline: `GenerateRequest` → `GenerationContext` → template resolution → build strategy selection
+- Persisted in `generations.project_type` column (migration `20260405000004`)
+- Stripe checkout metadata includes `projectType` for webhook recovery
+
+### Template Expansion
+- `V1-Python-React/` template set added under `src/StackAlchemist.Templates/`
+- FastAPI backend with SQLAlchemy + Alembic migrations + Pydantic schemas
+- React frontend with Vite + TypeScript + Tailwind
+- Shared injection zone naming (`Controllers`, `Models`, `Repositories`, `TypeDefinitions`) for reconstruction compatibility
+- `validate.mjs` updated to render-check both template sets
+
+---

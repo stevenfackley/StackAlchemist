@@ -8,7 +8,7 @@
   [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
   [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com)
   [![Claude](https://img.shields.io/badge/Claude-3.5%20Sonnet-D97757?logo=anthropic)](https://anthropic.com)
-  [![Tests](https://img.shields.io/badge/Tests-96%20passing-success)](#-running-tests)
+  [![Tests](https://img.shields.io/badge/Tests-passing-success)](#-running-tests)
 </div>
 
 ---
@@ -52,7 +52,7 @@ See [LICENSE](LICENSE) for full terms.
 |---|---|
 | .NET SDK | 10.0+ |
 | Node.js | 20+ |
-| pnpm | 9+ |
+| npm | 10+ |
 | Docker | Any recent version (optional — for Supabase local) |
 
 ### Steps
@@ -65,7 +65,7 @@ cd StackAlchemist
 # 2. Install frontend deps
 #    postinstall hook auto-creates .env from .env.example
 cd src/StackAlchemist.Web
-pnpm install
+npm install
 cd ../..
 
 # 3. Configure secrets
@@ -90,7 +90,7 @@ dotnet run --project src/StackAlchemist.Engine
 
 # 6. Run the frontend (Terminal B — listens on :3000)
 cd src/StackAlchemist.Web
-pnpm dev
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -101,7 +101,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
 # Fill in .env first, then:
-docker-compose up
+docker compose up
 ```
 
 ### Running Tests
@@ -114,7 +114,7 @@ dotnet test StackAlchemist.slnx
 dotnet test StackAlchemist.slnx --logger "console;verbosity=quiet"
 ```
 
-Current test counts: **Engine.Tests — 73 passed / 6 skipped · Worker.Tests — 23 passed / 3 skipped · Zero failures.**
+Run `dotnet test StackAlchemist.slnx` for current counts. The suite includes Engine.Tests and Worker.Tests (unit + integration), plus Vitest and Playwright suites for the frontend.
 
 ---
 
@@ -174,13 +174,20 @@ StackAlchemist/
 │   │   ├── Models/                # Generation state machine, schema models
 │   │   └── Prompts/               # V1-generation.md system prompt
 │   ├── StackAlchemist.Worker/     # Standalone worker host (future scale-out)
-│   └── StackAlchemist.Templates/  # V1-DotNet-NextJs Handlebars templates
-│       └── V1-DotNet-NextJs/
-│           ├── dotnet/            # .NET Web API scaffold (Dapper, Minimal API)
-│           ├── nextjs/            # Next.js 15 scaffold
-│           └── infra/             # Docker Compose, Dockerfile
-├── src/StackAlchemist.Engine.Tests/
-└── src/StackAlchemist.Worker.Tests/
+│   ├── StackAlchemist.Templates/  # V1-DotNet-NextJs Handlebars templates
+│   │   ├── V1-Python-React/
+│   │   │   ├── backend/
+│   │   │   ├── frontend/
+│   │   │   └── infra/
+│   │   └── V1-DotNet-NextJs/
+│   │       ├── dotnet/            # .NET Web API scaffold (Dapper, Minimal API)
+│   │       ├── nextjs/            # Next.js 15 scaffold
+│   │       └── infra/             # Docker Compose, Dockerfile
+│   ├── StackAlchemist.Engine.Tests/
+│   └── StackAlchemist.Worker.Tests/
+├── conductor/
+├── scripts/
+├── docker/
 ```
 
 ---

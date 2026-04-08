@@ -1,6 +1,6 @@
 ### Software Design Document (SDD): StackAlchemist
 
-> Implementation status note (2026-04-04): this repository is now beyond Phase 1 scaffold status. The audited codebase includes a live .NET generation orchestrator, compile worker retry loop, Stripe webhook + checkout-session endpoint, Cloudflare R2 upload service, Supabase delivery/status sync, Supabase migrations for `profiles`/`transactions`/`generations`, and authenticated dashboard/login flows. Remaining gaps are primarily end-to-end checkout wiring polish, BYOK settings persistence UI, and the personalization wizard.
+> Implementation status note (2026-04-07): Phases 1–5 are substantially complete. The codebase includes live generation orchestration (template render → LLM → reconstruction → compile retry), multi-ecosystem support (DotNet-NextJs + Python-React via IBuildStrategy pattern), a 4-step personalization wizard, Stripe Checkout + webhook payment gate, Supabase SSR auth with user-linked generations, Cloudflare R2 upload, real-time build log streaming, and security hardening (rate limiting, CORS, service key auth, prompt sanitization). Phase 6 CI/CD and Docker infrastructure are implemented; Tier 3 IaC templates remain pending. Phase 7 security hardening is partially complete; legal pages, transactional emails, error boundaries, and observability metrics remain. BYOK key persistence UI is still placeholder.
 
 **1. System Architecture**
 * **Frontend and API Gateway:** Next.js application (App Router) handling user intake and checkout.
@@ -55,6 +55,7 @@ The system maintains a library of master templates (starting with the V1 .NET/Ne
 For Tier 3 transactions, the system utilizes Handlebars to inject the user's specific environment variables and project naming conventions into pre written AWS CDK scripts, Terraform providers, and **Helm Charts**. A markdown runbook is generated and included in the final root directory of the zip archive.
 
 **6. Supabase Data Schema**
-* Planned Phase 4 schema: `profiles`, `transactions`, and `generations` as documented in the ERD.
-* Current Phase 1 frontend code references a temporary `generations` shape with `mode`, `tier`, `prompt`, `schema_json`, `download_url`, `error_message`, and `attempt_count`.
-* No checked-in production migration or RLS policy currently exists for the live application database; the only SQL artifact in the repo is the template placeholder used for generated projects.
+* Three tables implemented with checked-in Supabase migrations: `profiles`, `transactions`, `generations` — matching the ERD.
+* Five migrations in `supabase/migrations/`: create_profiles, create_transactions, create_generations, add_project_type, add_personalization.
+* RLS enforced: users read/update own profiles; read own transactions; anyone inserts generations (free tier); service role manages updates. Realtime publication enabled on `generations`.
+* `generations` table includes: `schema_json`, `personalization_json`, `build_log`, `preview_files_json`, `project_type`, `download_url`, `status`, `retry_count`, `user_id`.

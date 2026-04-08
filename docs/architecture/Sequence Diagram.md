@@ -13,7 +13,7 @@ sequenceDiagram
     participant Stripe as Stripe API
     participant Engine as .NET Generation Engine
     participant LLM as Claude 3.5 API
-    participant Worker as Build Worker
+    participant Worker as Build Worker (IBuildStrategy)
     participant R2 as Cloudflare R2
     
     %% INTAKE & CHECKOUT
@@ -22,8 +22,13 @@ sequenceDiagram
     API->>LLM: Request JSON Schema
     LLM-->>API: Return JSON Schema
     API-->>Web: Render Node UI
-    User->>Web: Confirms Schema & Selects Tier ($599)
-    Web->>Stripe: Request Checkout Session
+    User->>Web: Confirms Schema
+    User->>Web: Completes Personalization Wizard (optional)
+    User->>Web: Selects Platform & Tier ($599)
+    Web->>Engine: POST /api/stripe/create-session
+    Engine->>Stripe: Create Checkout Session
+    Stripe-->>Engine: Session URL
+    Engine-->>Web: Return Checkout URL
     Stripe-->>Web: Return Checkout URL
     User->>Stripe: Completes Payment
     
@@ -47,7 +52,7 @@ sequenceDiagram
     %% COMPILE GUARANTEE LOOP
     Worker->>DB: Update Status (Status: BUILDING)
     loop Max 3 Retries
-        Worker->>Worker: Run `dotnet build` & `npm run build`
+        Worker->>Worker: Run build via IBuildStrategy (dotnet or pip+npm)
         alt Exit Code 1 (Error)
             Worker->>LLM: Send `stderr` for correction
             LLM-->>Worker: Return patched code blocks
@@ -63,7 +68,7 @@ sequenceDiagram
     Worker->>DB: Update Generation Record (Status: SUCCESS, R2_Key)
     DB-)Web: Broadcast Success & UI Refresh
     Web->>API: Request Presigned URL
-    API->>R2: Generate 24hr Presigned URL
+    API->>R2: Generate Presigned URL (168hr prod / 24hr dev)
     R2-->>API: URL
     API-->>Web: URL
     Web-->>User: Display Download Button
