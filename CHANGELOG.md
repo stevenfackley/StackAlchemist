@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Add git to web-builder, set engine port, fix healthz endpoint
 - Copy .env to Next.js project dir so E2E tests get env vars
 - Stabilize e2e contracts and enforce hybrid github actions gates
+- Stabilize test environment integration workflow
 
 ### Documentation
 
