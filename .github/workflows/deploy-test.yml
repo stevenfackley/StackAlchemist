@@ -27,19 +27,19 @@ jobs:
           api_port: '5000'
           engine_api_url: http://sa-engine
           is_test_site: 'true'
-          supabase_url: ${{ secrets.SUPABASE_URL }}
-          supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
+          supabase_url: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
-          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
-          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          cf_account_id: ${{ secrets.CF_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           r2_bucket_name: stackalchemist-generations-test
           r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
-          cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
-          stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN || secrets.CF_TUNNEL_TOKEN }}
+          stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
 
       - name: Docker pre-flight cleanup
