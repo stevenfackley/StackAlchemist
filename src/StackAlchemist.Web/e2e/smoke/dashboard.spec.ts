@@ -17,11 +17,10 @@ test.describe("Smoke: Auth and Demo Generation Contract", () => {
     await expect(page.getByRole("button", { name: /create account/i })).toBeVisible();
   });
 
-  test("unknown generation follows demo-mode smoke contract", async ({ page }) => {
-    await page.goto("/generate/does-not-exist");
+  test("explicit demo generation follows demo-mode smoke contract", async ({ page }) => {
+    await page.goto("/generate/demo-simple-smoke?tier=0");
 
     await expect(page.getByTestId("generate-page")).toBeVisible();
     await expect(page.getByTestId("generate-free-tier-panel")).toBeVisible();
   });
 });
-

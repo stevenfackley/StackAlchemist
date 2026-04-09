@@ -1,6 +1,8 @@
 services:
   sa-web:
-    image: ghcr.io/${GITHUB_REPOSITORY}/web:latest
+    build:
+      context: ..
+      target: web
     ports:
       - "3000:3000"
     env_file:
@@ -8,7 +10,9 @@ services:
     restart: always
 
   sa-engine:
-    image: ghcr.io/${GITHUB_REPOSITORY}/engine:latest
+    build:
+      context: ..
+      target: engine
     ports:
       - "5000:80"
     env_file:
@@ -16,7 +20,9 @@ services:
     restart: always
 
   sa-worker:
-    image: ghcr.io/${GITHUB_REPOSITORY}/worker:latest
+    build:
+      context: ..
+      target: worker
     env_file:
       - ../.env
     restart: always
