@@ -212,6 +212,7 @@ jobs:
   e2e-integration:
     name: E2E Integration (Playwright, Main/Nightly)
     runs-on: ubuntu-latest
+    environment: Test
     needs: [frontend, backend, docker]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
 
@@ -246,7 +247,7 @@ jobs:
           app_url: https://test.stackalchemist.app
           aspnetcore_environment: Staging
           api_port: "5000"
-          engine_api_url: http://sa-engine
+          engine_api_url: http://localhost:5000
           is_test_site: "true"
           supabase_url: ${{ secrets.SUPABASE_URL }}
           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -261,19 +262,114 @@ jobs:
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+
+      - name: Validate Required Integration Secrets
+        run: |
+          set -euo pipefail
+
+          missing=0
+
+          get_env() {
+            local key="$1"
+            grep -E "^${key}=" .env | head -n1 | cut -d'=' -f2-
+          }
+
+          assert_present() {
+            local key="$1"
+            local value
+            value="$(get_env "$key")"
+            if [ -z "$value" ]; then
+              echo "::error::Missing required secret/env value for ${key} in integration CI."
+              missing=1
+              return 1
+            fi
+          }
+
+          assert_pattern() {
+            local key="$1"
+            local pattern="$2"
+            local message="$3"
+            local value
+            value="$(get_env "$key")"
+            if [ -z "$value" ]; then
+              return 0
+            fi
+            if ! printf '%s' "$value" | grep -Eq "$pattern"; then
+              echo "::error::${key} failed validation: ${message}"
+              missing=1
+            fi
+          }
+
+          assert_not_placeholder() {
+            local key="$1"
+            local value
+            value="$(get_env "$key")"
+            if [ -z "$value" ]; then
+              return 0
+            fi
+            if printf '%s' "$value" | grep -Eqi '(^your[-_]|placeholder|changeme|replace[-_]?me|dummy|example)'; then
+              echo "::error::${key} appears to be a placeholder value."
+              missing=1
+            fi
+          }
+
+          required_keys=(
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            STRIPE_WEBHOOK_SECRET
+            STRIPE_SECRET_KEY
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+            R2_ACCESS_KEY_ID
+            R2_SECRET_ACCESS_KEY
+            CLOUDFLARE_TUNNEL_TOKEN
+            ANTHROPIC_API_KEY
+            R2_ACCOUNT_ID
+            ENGINE_SERVICE_KEY
+          )
+
+          for key in "${required_keys[@]}"; do
+            assert_present "$key" || true
+            assert_not_placeholder "$key"
+          done
+
+          assert_pattern NEXT_PUBLIC_SUPABASE_URL '^https://.+\.supabase\.co/?$' 'expected a Supabase project URL.'
+          assert_pattern NEXT_PUBLIC_SUPABASE_ANON_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like anon key.'
+          assert_pattern SUPABASE_SERVICE_ROLE_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like service role key.'
+          assert_pattern STRIPE_WEBHOOK_SECRET '^whsec_' 'expected a Stripe webhook signing secret.'
+          assert_pattern STRIPE_SECRET_KEY '^sk_' 'expected a Stripe secret key.'
+          assert_pattern NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY '^pk_' 'expected a Stripe publishable key.'
+          assert_pattern ANTHROPIC_API_KEY '^sk-ant-' 'expected an Anthropic API key.'
+          assert_pattern R2_ACCOUNT_ID '^[0-9a-fA-F]{32}$' 'expected a 32-character Cloudflare account id.'
+          assert_pattern ENGINE_SERVICE_KEY '^.{32,}$' 'expected a non-trivial engine service key.'
+          assert_pattern R2_ACCESS_KEY_ID '^.{16,}$' 'expected a non-trivial R2 access key id.'
+          assert_pattern R2_SECRET_ACCESS_KEY '^.{32,}$' 'expected a non-trivial R2 secret access key.'
+          assert_pattern CLOUDFLARE_TUNNEL_TOKEN '^.{32,}$' 'expected a non-trivial Cloudflare tunnel token.'
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Copy .env to Next.js project
         run: cp .env src/StackAlchemist.Web/.env
 
-      - name: Start Backend Services
-        run: docker compose -f docker/docker-compose.test.yml up -d sa-engine sa-worker
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        continue-on-error: true
+      - name: Build and Start Backend Services
+        run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine sa-worker
 
-      - name: Wait for Backend
-        run: sleep 10
-        continue-on-error: true
+      - name: Wait for Backend Health
+        run: |
+          echo "Waiting for Engine API at http://localhost:5000..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
+              echo "✅ Engine healthy after ~${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ Engine health check timed out after 60s."
+          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 30
+          exit 1
 
       - name: Run Playwright Integration Tests
         working-directory: src/StackAlchemist.Web

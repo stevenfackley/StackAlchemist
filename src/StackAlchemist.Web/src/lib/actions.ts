@@ -307,9 +307,15 @@ export async function submitAdvancedGeneration(
    Safe to use in Server Components.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getGeneration(generationId: string, demoTier?: Tier) {
-  if (isDemoMode || !hasServerSupabaseConfig()) {
+  const isExplicitDemoFlow = generationId.startsWith("demo-");
+
+  if (isExplicitDemoFlow && (isDemoMode || !hasServerSupabaseConfig())) {
     const tier = demoTier ?? 0;
     return buildDemoGeneration(generationId, tier);
+  }
+
+  if (!hasServerSupabaseConfig()) {
+    return null;
   }
 
   let db;
