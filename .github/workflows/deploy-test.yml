@@ -11,7 +11,10 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Web App to Test Server
-    runs-on: self-hosted
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
     environment: test
 
     steps:
