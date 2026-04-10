@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
 - Copy .env to Next.js project dir so E2E tests get env vars
 - Stabilize e2e contracts and enforce hybrid github actions gates
 - Stabilize test environment integration workflow
+- Correct secret mapping for e2e and deploy workflows
+- Skip E2E integration gracefully when secrets are placeholder values
 
 ### Documentation
 
