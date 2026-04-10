@@ -4,8 +4,11 @@ using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
+using Serilog;
+using Serilog.Formatting.Compact;
 using Stripe;
 using Stripe.Checkout;
+using StackAlchemist.Engine.Middleware;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
@@ -24,6 +27,32 @@ static string? Ev(string key)
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Serilog ───────────────────────────────────────────────────────────────────
+builder.Host.UseSerilog((ctx, services, cfg) =>
+{
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+       .ReadFrom.Services(services)
+       .Enrich.FromLogContext()
+       .Enrich.WithMachineName()
+       .Enrich.WithThreadId()
+       // Suppress chatty Microsoft/System noise — only warnings and above
+       .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+       .MinimumLevel.Override("Microsoft.Hosting.Lifetime", Serilog.Events.LogEventLevel.Information)
+       .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Warning);
+
+    if (ctx.HostingEnvironment.IsProduction())
+    {
+        // Structured JSON for log aggregators (Seq, Datadog, CloudWatch, etc.)
+        cfg.WriteTo.Console(new CompactJsonFormatter());
+    }
+    else
+    {
+        // Human-readable for local dev
+        cfg.WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}");
+    }
+});
 
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
@@ -187,6 +216,9 @@ builder.Services.AddHostedService<CompileWorkerService>();
 builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
 
 var app = builder.Build();
+
+// Correlation ID must be first so every subsequent log entry carries the ID.
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.UseExceptionHandler();
 
