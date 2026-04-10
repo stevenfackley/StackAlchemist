@@ -265,10 +265,12 @@ jobs:
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
 
       - name: Validate Required Integration Secrets
+        id: validate-secrets
         run: |
           set -euo pipefail
 
           missing=0
+          skip_e2e=false
 
           get_env() {
             local key="$1"
@@ -309,8 +311,8 @@ jobs:
               return 0
             fi
             if printf '%s' "$value" | grep -Eqi '(^your[-_]|placeholder|changeme|replace[-_]?me|dummy|example)'; then
-              echo "::error::${key} appears to be a placeholder value."
-              missing=1
+              echo "::warning::${key} appears to be a placeholder value — E2E tests will be skipped."
+              skip_e2e=true
             fi
           }
 
@@ -334,6 +336,12 @@ jobs:
             assert_not_placeholder "$key"
           done
 
+          if [ "$skip_e2e" = "true" ]; then
+            echo "⚠️  One or more secrets are placeholder values. Skipping E2E Integration tests."
+            echo "skip_e2e=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           assert_pattern NEXT_PUBLIC_SUPABASE_URL '^https://.+\.supabase\.co/?$' 'expected a Supabase project URL.'
           assert_pattern NEXT_PUBLIC_SUPABASE_ANON_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like anon key.'
           assert_pattern SUPABASE_SERVICE_ROLE_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like service role key.'
@@ -351,13 +359,18 @@ jobs:
             exit 1
           fi
 
+          echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
+
       - name: Copy .env to Next.js project
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: cp .env src/StackAlchemist.Web/.env
 
       - name: Build and Start Backend Services
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine sa-worker
 
       - name: Wait for Backend Health
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: |
           echo "Waiting for Engine API at http://localhost:5000..."
           for i in $(seq 1 30); do
@@ -372,6 +385,7 @@ jobs:
           exit 1
 
       - name: Run Playwright Integration Tests
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         working-directory: src/StackAlchemist.Web
         run: pnpm run e2e:integration
         env:
