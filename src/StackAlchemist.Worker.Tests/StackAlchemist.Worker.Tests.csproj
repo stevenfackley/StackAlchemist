@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseAppHost>false</UseAppHost>
     <RootNamespace>StackAlchemist.Worker.Tests</RootNamespace>
   </PropertyGroup>
 
@@ -30,7 +31,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StackAlchemist.Worker\StackAlchemist.Worker.csproj" />
     <ProjectReference Include="..\StackAlchemist.Engine\StackAlchemist.Engine.csproj" />
   </ItemGroup>
 

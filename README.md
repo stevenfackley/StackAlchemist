@@ -107,14 +107,24 @@ docker compose up
 ### Running Tests
 
 ```bash
-# All suites (Engine.Tests + Worker.Tests)
-dotnet test StackAlchemist.slnx
+# Preferred repo-owned runner
+pwsh ./scripts/run-tests.ps1
 
 # Quick summary only
-dotnet test StackAlchemist.slnx --logger "console;verbosity=quiet"
+pwsh ./scripts/run-tests.ps1 -Quiet
 ```
 
-Run `dotnet test StackAlchemist.slnx` for current counts. The suite includes Engine.Tests and Worker.Tests (unit + integration), plus Vitest and Playwright suites for the frontend.
+The PowerShell runner restores the worker host once, then runs `StackAlchemist.Engine.Tests` and `StackAlchemist.Worker.Tests` explicitly with `--no-restore` so failures are isolated to the project that actually broke.
+
+If you want the raw command, it is still:
+
+```bash
+dotnet restore src/StackAlchemist.Worker/StackAlchemist.Worker.csproj
+dotnet test src/StackAlchemist.Engine.Tests/StackAlchemist.Engine.Tests.csproj --no-restore
+dotnet test src/StackAlchemist.Worker.Tests/StackAlchemist.Worker.Tests.csproj --no-restore
+```
+
+The .NET suite includes Engine.Tests and Worker.Tests (unit + integration). Frontend verification remains separate via the workspace `npm` scripts.
 
 ---
 
