@@ -4,6 +4,9 @@ using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Compact;
 using Stripe;
@@ -95,6 +98,35 @@ if (builder.Environment.IsProduction())
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
+
+var stackAlchemistOtlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("StackAlchemist.Engine"))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+
+        if (builder.Environment.IsDevelopment() || string.IsNullOrWhiteSpace(stackAlchemistOtlpEndpoint))
+            tracing.AddConsoleExporter();
+
+        if (!string.IsNullOrWhiteSpace(stackAlchemistOtlpEndpoint))
+            tracing.AddOtlpExporter();
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+
+        if (builder.Environment.IsDevelopment() || string.IsNullOrWhiteSpace(stackAlchemistOtlpEndpoint))
+            metrics.AddConsoleExporter();
+
+        if (!string.IsNullOrWhiteSpace(stackAlchemistOtlpEndpoint))
+            metrics.AddOtlpExporter();
+    });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 // Allow Next.js frontend origin(s). Engine is called server-side from Next.js
@@ -271,6 +303,8 @@ app.MapGet("/healthz", () => Results.Ok(new
 }))
 .WithName("GetHealth")
 .WithSummary("Returns the liveness status for the engine.");
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/api/generate", async (
     GenerateRequest request,
