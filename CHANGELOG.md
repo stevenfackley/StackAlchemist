@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Stabilize test environment integration workflow
 - Correct secret mapping for e2e and deploy workflows
 - Skip E2E integration gracefully when secrets are placeholder values
+- Pin test deploy to x64 self-hosted runner
 
 ### Documentation
 
