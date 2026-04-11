@@ -28,6 +28,7 @@ All notable changes to this project will be documented in this file.
 
 - Update release and prod-deploy triggers to auto-release from main
 - Add .pnpm-store to .gitignore
+- Dependency hygiene and CI restore drift hardening
 
 ### Testing
 
