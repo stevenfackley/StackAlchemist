@@ -1,0 +1,109 @@
+From 1836684f8ee65e99ddcb7e9df9c9fa96ab2bf4af Mon Sep 17 00:00:00 2001
+From: Steve Fackley <stevenfackley@gmail.com>
+Date: Wed, 8 Apr 2026 07:26:40 -0400
+Subject: [PATCH] fix(ci): resolve E2E integration test infrastructure failures
+
+Root cause: docker-compose.test.yml pulled GHCR images that were never
+pushed (Docker Build Validation uses push:false), causing silent backend
+startup failures masked by continue-on-error. Additionally, ENGINE_API_URL
+was set to the Docker-internal hostname (http://sa-engine) but the frontend
+dev server runs on the host and cannot resolve it.
+
+Changes:
+- Switch docker-compose.test.yml from GHCR image pulls to local
+  multi-stage Dockerfile builds (build context + target)
+- Set ENGINE_API_URL to http://localhost:5000 (host-reachable via
+  port mapping 5000:80)
+- Replace blind sleep+continue-on-error with active /healthz polling
+  (up to 60s) and diagnostic log dump on timeout
+- Remove continue-on-error from backend startup so real failures
+  surface immediately instead of causing cryptic Playwright timeouts
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ .github/workflows/ci.yml       | 24 +++++++++++++++---------
+ docker/docker-compose.test.yml | 12 +++++++++---
+ 2 files changed, 24 insertions(+), 12 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 549ce6d..737a43c 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -246,7 +246,7 @@ jobs:
+           app_url: https://test.stackalchemist.app
+           aspnetcore_environment: Staging
+           api_port: "5000"
+-          engine_api_url: http://sa-engine
++          engine_api_url: http://localhost:5000
+           is_test_site: "true"
+           supabase_url: ${{ secrets.SUPABASE_URL }}
+           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY }}
+@@ -265,15 +265,21 @@ jobs:
+       - name: Copy .env to Next.js project
+         run: cp .env src/StackAlchemist.Web/.env
+ 
+-      - name: Start Backend Services
+-        run: docker compose -f docker/docker-compose.test.yml up -d sa-engine sa-worker
+-        env:
+-          GITHUB_REPOSITORY: ${{ github.repository }}
+-        continue-on-error: true
++      - name: Build and Start Backend Services
++        run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine sa-worker
+ 
+-      - name: Wait for Backend
+-        run: sleep 10
+-        continue-on-error: true
++      - name: Wait for Backend Health
++        run: |
++          echo "Waiting for Engine API at http://localhost:5000..."
++          for i in $(seq 1 30); do
++            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
++              echo "✅ Engine healthy after ~${i}s"
++              exit 0
++            fi
++            sleep 2
++          done
++          echo "⚠️ Engine health check timed out after 60s — proceeding anyway"
++          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 30
+ 
+       - name: Run Playwright Integration Tests
+         working-directory: src/StackAlchemist.Web
+diff --git a/docker/docker-compose.test.yml b/docker/docker-compose.test.yml
+index fa3a1c2..7d29dae 100644
+--- a/docker/docker-compose.test.yml
++++ b/docker/docker-compose.test.yml
+@@ -1,6 +1,8 @@
+ services:
+   sa-web:
+-    image: ghcr.io/${GITHUB_REPOSITORY}/web:latest
++    build:
++      context: ..
++      target: web
+     ports:
+       - "3000:3000"
+     env_file:
+@@ -8,7 +10,9 @@ services:
+     restart: always
+ 
+   sa-engine:
+-    image: ghcr.io/${GITHUB_REPOSITORY}/engine:latest
++    build:
++      context: ..
++      target: engine
+     ports:
+       - "5000:80"
+     env_file:
+@@ -16,7 +20,9 @@ services:
+     restart: always
+ 
+   sa-worker:
+-    image: ghcr.io/${GITHUB_REPOSITORY}/worker:latest
++    build:
++      context: ..
++      target: worker
+     env_file:
+       - ../.env
+     restart: always
+-- 
+2.34.1
+
