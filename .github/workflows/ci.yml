@@ -97,7 +97,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          cache: true
+          # setup-dotnet's built-in NuGet cache requires packages.lock.json,
+          # which this repository does not currently commit.
 
       - name: Restore Dependencies
         run: dotnet restore StackAlchemist.slnx --configfile NuGet.Config
