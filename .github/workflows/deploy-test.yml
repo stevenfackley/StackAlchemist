@@ -49,62 +49,19 @@ jobs:
         shell: bash
         run: bash ./scripts/docker-preflight-cleanup.sh
 
-      - name: Build Docker images
+      - name: Build and Deploy Stack
         env:
           DOCKER_BUILDKIT: '1'
+          NEXT_PUBLIC_APP_URL: https://test.stackalchemist.app
         run: |
           set -Eeuo pipefail
 
-          # Build Engine
-          docker build --target engine --pull --no-cache -t sa-engine:test .
-          # Build Worker
-          docker build --target worker --pull --no-cache -t sa-worker:test .
-          # Build Web
-          docker build --target web --pull --no-cache --build-arg NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app -t sa-web-app:test .
+          # 1. Build all components in parallel via BuildKit
+          # --pull ensures we have the latest base images, --no-cache avoids stale layer issues on the runner
+          docker compose -f docker/docker-compose.test.yml build --pull --no-cache
 
-          echo "✅ All test images built."
-
-      - name: Ensure Docker network
-        run: |
-          docker network create under-construction_default 2>/dev/null || true
-
-      - name: Deploy Stack
-        run: |
-          set -Eeuo pipefail
-
-          # 1. Update sa-engine
-          docker stop sa-engine 2>/dev/null || true
-          docker rm sa-engine 2>/dev/null || true
-          docker run -d \
-            --name sa-engine \
-            --restart unless-stopped \
-            --network under-construction_default \
-            -p 5000:80 \
-            --env-file .env \
-            sa-engine:test
-
-          # 2. Update sa-worker
-          docker stop sa-worker 2>/dev/null || true
-          docker rm sa-worker 2>/dev/null || true
-          docker run -d \
-            --name sa-worker \
-            --restart unless-stopped \
-            --network under-construction_default \
-            --env-file .env \
-            sa-worker:test
-
-          # 3. Update sa-web
-          docker stop sa-web 2>/dev/null || true
-          docker rm sa-web 2>/dev/null || true
-          docker run -d \
-            --name sa-web \
-            --restart unless-stopped \
-            --network under-construction_default \
-            -p 3000:3000 \
-            --env-file .env \
-            -e NODE_ENV=production \
-            -e NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app \
-            sa-web-app:test
+          # 2. Recreate the stack (stops, removes, and starts containers)
+          docker compose -f docker/docker-compose.test.yml up -d --force-recreate
 
           echo "✅ Stack updated. Waiting for health checks..."
 

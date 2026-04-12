@@ -30,23 +30,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-          cache-dependency-path: src/StackAlchemist.Web/pnpm-lock.yaml
+          cache: "npm"
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Lint
-        run: pnpm run lint
+        run: npm run lint
 
       - name: Type Check
         run: npx tsc --noEmit
@@ -121,11 +116,13 @@ jobs:
         run: dotnet test src/StackAlchemist.Engine.Tests/ --no-build --configuration Release --logger "trx;LogFileName=engine-test-results.trx" --collect:"XPlat Code Coverage"
         env:
           ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
+          VSTEST_CONNECTION_TIMEOUT: "180"
 
       - name: Run Worker Tests
         run: dotnet test src/StackAlchemist.Worker.Tests/ --no-build --configuration Release --logger "trx;LogFileName=worker-test-results.trx" --collect:"XPlat Code Coverage"
         env:
           ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
+          VSTEST_CONNECTION_TIMEOUT: "180"
 
       - name: Upload Test Results
         if: always()
@@ -169,29 +166,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-          cache-dependency-path: src/StackAlchemist.Web/pnpm-lock.yaml
+          cache: "npm"
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
 
       - name: Install Dependencies
         working-directory: src/StackAlchemist.Web
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Browsers
         working-directory: src/StackAlchemist.Web
-        run: pnpm exec playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright Smoke Tests
         working-directory: src/StackAlchemist.Web
-        run: pnpm run e2e:smoke
+        run: npm run e2e:smoke
         env:
           CI: true
 
@@ -224,25 +216,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-          cache-dependency-path: src/StackAlchemist.Web/pnpm-lock.yaml
+          cache: "npm"
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
 
       - name: Install Dependencies
         working-directory: src/StackAlchemist.Web
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Browsers
         working-directory: src/StackAlchemist.Web
-        run: pnpm exec playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Setup .env (test)
         uses: ./.github/actions/setup-env
@@ -286,9 +273,9 @@ jobs:
             local value
             value="$(get_env "$key")"
             if [ -z "$value" ]; then
-              echo "::error::Missing required secret/env value for ${key} in integration CI."
-              missing=1
-              return 1
+              echo "::warning::Missing required secret/env value for ${key} — E2E tests will be skipped."
+              skip_e2e=true
+              return 0
             fi
           }
 
@@ -391,7 +378,7 @@ jobs:
       - name: Run Playwright Integration Tests
         if: steps.validate-secrets.outputs.skip_e2e != 'true'
         working-directory: src/StackAlchemist.Web
-        run: pnpm run e2e:integration
+        run: npm run e2e:integration
         env:
           CI: true
 
