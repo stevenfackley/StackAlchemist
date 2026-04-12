@@ -56,6 +56,11 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          # 0. Ensure no conflicting placeholder or previous run is locking port 3000
+          echo "Stopping any existing standalone containers..."
+          docker stop sa-web 2>/dev/null || true
+          docker rm sa-web 2>/dev/null || true
+
           # 1. Build all components in parallel via BuildKit
           # --pull ensures we have the latest base images, --no-cache avoids stale layer issues on the runner
           docker compose -f docker/docker-compose.test.yml build --pull --no-cache
@@ -83,6 +88,7 @@ jobs:
           # Wait for web
           echo "Checking sa-web health..."
           for i in {1..10}; do
+            # Use node to check health since web app is Next.js
             if docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
               echo "✅ sa-web is healthy."
               break
@@ -92,16 +98,24 @@ jobs:
           done
 
           echo "✅ Deployment verified."
-          docker ps --filter network=under-construction_default --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
       - name: Fallback to placeholder on failure
         if: failure()
         run: |
           echo "⚠️ Deploy failed — restoring under-construction placeholder..."
+          # Force remove any partial containers from the failed compose project
+          docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
+          
+          # Force remove any conflicting sa-web container
           docker stop sa-web 2>/dev/null || true
           docker rm sa-web 2>/dev/null || true
 
+          # Ensure the expected network exists
+          docker network create under-construction_default 2>/dev/null || true
+
           MOUNTS=""
+          # Ensure paths exist and are files (not directories auto-created by Docker)
           [ -f /root/under-construction/index.html ] && MOUNTS="$MOUNTS -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro"
           [ -f /root/under-construction/favicon.svg ] && MOUNTS="$MOUNTS -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro"
           [ -f /root/under-construction/nginx.conf ] && MOUNTS="$MOUNTS -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro"

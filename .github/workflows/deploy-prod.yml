@@ -80,12 +80,21 @@ jobs:
         shell: bash
         run: docker compose -f docker-compose.prod.yml config >/dev/null
 
+      - name: Build production images
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: '1'
+        run: |
+          echo "Building images in workspace root..."
+          docker compose -f docker-compose.prod.yml build
+
       - name: Setup reboot resilience
         shell: bash
         run: |
           set -Eeuo pipefail
           sudo mkdir -p "$DEPLOY_DIR"
           sudo cp docker-compose.prod.yml "$DEPLOY_DIR/"
+          sudo cp Dockerfile "$DEPLOY_DIR/"
           sudo cp .env "$DEPLOY_DIR/"
           sudo cp -r docker/ "$DEPLOY_DIR/"
           sudo cp docker/stackalchemist-prod.service /etc/systemd/system/stackalchemist-prod.service
@@ -100,7 +109,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
-          docker compose -f docker-compose.prod.yml build
+          # Images are already built in the workspace root and tagged correctly
+          # We just need to bring the stack up
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
       - name: Wait for health checks
