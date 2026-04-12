@@ -43,8 +43,9 @@ public sealed partial class SchemaExtractionService : ISchemaExtractionService
         }
 
         ValidateRelationships(raw);
-
-        return MapToSchema(raw);
+        var schema = MapToSchema(raw);
+        ValidateSizeLimits(schema);
+        return schema;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -105,6 +106,22 @@ public sealed partial class SchemaExtractionService : ISchemaExtractionService
             Type = r.Type,
         }).ToList(),
     };
+
+    private static void ValidateSizeLimits(GenerationSchema schema)
+    {
+        if (schema.Entities.Count > 20)
+            throw new SchemaValidationException("Schema exceeds the maximum of 20 entities.");
+
+        if (schema.Relationships.Count > 30)
+            throw new SchemaValidationException("Schema exceeds the maximum of 30 relationships.");
+
+        var oversizedEntity = schema.Entities.FirstOrDefault(entity => entity.Fields.Count > 30);
+        if (oversizedEntity is not null)
+        {
+            throw new SchemaValidationException(
+                $"Entity '{oversizedEntity.Name}' exceeds the maximum of 30 fields.");
+        }
+    }
 
     [GeneratedRegex(@"```(?:json)?\s*\n?([\s\S]*?)\n?```", RegexOptions.Singleline)]
     private static partial Regex JsonFenceRegex();

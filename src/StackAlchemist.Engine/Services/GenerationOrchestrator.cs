@@ -24,6 +24,7 @@ public sealed class GenerationOrchestrator(
     IReconstructionService reconstructionService,
     ILlmClient llmClient,
     IPromptBuilderService promptBuilder,
+    IDeliveryService deliveryService,
     IFileSystem fileSystem,
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
@@ -66,10 +67,16 @@ public sealed class GenerationOrchestrator(
             // Step 2: Call LLM
             var systemPrompt = LoadPromptTemplate(request);
             var userPrompt = BuildUserPrompt(request);
-            var llmOutput = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
+            var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
+            await deliveryService.UpdateTokenUsageAsync(
+                request.GenerationId,
+                llmResponse.InputTokens,
+                llmResponse.OutputTokens,
+                llmResponse.Model,
+                ct);
 
             // Step 3: Parse LLM output
-            var llmBlocks = reconstructionService.Parse(llmOutput);
+            var llmBlocks = reconstructionService.Parse(llmResponse.Text);
 
             // Step 4: Reconstruct — merge templates + LLM output
             var finalFiles = reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);

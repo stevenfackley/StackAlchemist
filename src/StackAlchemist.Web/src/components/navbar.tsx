@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "./logo";
 import { getServerUser } from "@/lib/supabase-server";
 import { LayoutDashboard, LogOut } from "lucide-react";
+import { NavbarMobileMenu } from "./navbar-mobile-menu";
 
 /**
  * Phase 6 — Navbar is now an async Server Component.
@@ -19,10 +20,10 @@ export async function Navbar() {
 
   return (
     <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
-      <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <Logo />
 
-        <div className="flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-6">
           <Link
             href="/about"
             className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase"
@@ -81,6 +82,11 @@ export async function Navbar() {
             </Link>
           )}
         </div>
+
+        <NavbarMobileMenu
+          userEmail={user?.email ?? null}
+          isAuthenticated={!!user}
+        />
       </nav>
     </header>
   );

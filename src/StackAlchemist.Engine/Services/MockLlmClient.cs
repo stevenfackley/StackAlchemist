@@ -1,3 +1,5 @@
+using StackAlchemist.Engine.Models;
+
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
@@ -6,7 +8,7 @@ namespace StackAlchemist.Engine.Services;
 /// </summary>
 public sealed class MockLlmClient : ILlmClient
 {
-    public Task<string> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+    public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {
         // Return a minimal but compilable set of files for a "Product" entity
         var response = """
@@ -148,6 +150,10 @@ public sealed class MockLlmClient : ILlmClient
             [[END_FILE]]
             """;
 
-        return Task.FromResult(response);
+        return Task.FromResult(new LlmResponse(
+            response,
+            InputTokens: 0,
+            OutputTokens: 0,
+            Model: "mock-llm"));
     }
 }

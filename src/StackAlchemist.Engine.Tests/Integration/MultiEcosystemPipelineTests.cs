@@ -24,6 +24,7 @@ public class MultiEcosystemPipelineTests
         var reconstruction = Substitute.For<IReconstructionService>();
         var llm = Substitute.For<ILlmClient>();
         var promptBuilder = Substitute.For<IPromptBuilderService>();
+        var delivery = Substitute.For<IDeliveryService>();
 
         templates.LoadTemplate(expectedTemplateSet).Returns(new Dictionary<string, string>
         {
@@ -38,8 +39,12 @@ public class MultiEcosystemPipelineTests
             .Returns(call => call.ArgAt<string>(0));
 
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns($"[[FILE:{outputPath}]]\nrendered\n[[END_FILE]]");
-        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType)
+            .Returns(new LlmResponse(
+                $"[[FILE:{outputPath}]]\nrendered\n[[END_FILE]]",
+                10,
+                20,
+                "claude-3-5-sonnet-20241022"));
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>())
             .Returns($"Prompt for {projectType}");
         reconstruction.Parse(Arg.Any<string>()).Returns(new Dictionary<string, string>
         {
@@ -58,6 +63,7 @@ public class MultiEcosystemPipelineTests
             reconstruction,
             llm,
             promptBuilder,
+            delivery,
             fs,
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
@@ -84,7 +90,7 @@ public class MultiEcosystemPipelineTests
         response.ProjectType.Should().Be(projectType);
         response.Status.Should().Be("building");
         templates.Received(1).LoadTemplate(expectedTemplateSet);
-        promptBuilder.Received(1).BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType);
+        promptBuilder.Received(1).BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>());
         queue.Reader.TryRead(out var context).Should().BeTrue();
         context!.ProjectType.Should().Be(projectType);
     }

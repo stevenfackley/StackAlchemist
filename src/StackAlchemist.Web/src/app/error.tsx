@@ -20,7 +20,7 @@ export default function GlobalError({
         <p className="font-mono text-xs tracking-[0.3em] text-rose-400 uppercase">Application Error</p>
         <h1 className="text-3xl font-bold text-white">Something went wrong</h1>
         <p className="text-slate-400 text-sm leading-relaxed">
-          The page failed to render cleanly. In Bolt.new this usually means a backend-only path was reached.
+          The page failed to render cleanly. This usually means a route reached a server-only code path.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button

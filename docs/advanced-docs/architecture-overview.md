@@ -91,8 +91,8 @@ The typical flow for a free-tier (Spark) user generating a project:
 Once generation is enqueued (free or paid):
 
 1. **GenerationOrchestrator** loads the appropriate template set (V1-DotNet-NextJs or V1-Python-React) based on `ProjectType`
-2. **Handlebars rendering** with personalization context (business description, project name, color scheme, feature flags)
-3. **LLM injection**: For each method placeholder in rendered files, call Claude 3.5 to generate business logic
+2. **Handlebars rendering** with sanitized personalization context (business description, project name, color scheme, feature flags)
+3. **LLM injection**: For each method placeholder in rendered files, call Claude 3.5 to generate business logic and persist token usage
 4. **Compile check**: Push rendered files to in-process Channel to CompileWorkerService
 5. **Build execution** via `IBuildStrategy` interface:
    - `DotNetBuildStrategy`: runs `dotnet build`
@@ -224,9 +224,9 @@ The Engine generates a presigned URL upon successful upload, which is stored in 
 All API endpoints implement security controls:
 
 **Rate Limiting:**
-- `/api/generate`: 5 requests per minute (per user)
-- `/api/extract-schema`: 15 requests per minute (per user)
-- `/api/stripe/create-session`: 3 requests per minute (per user)
+- `/api/generate`: 5 requests per minute (per IP)
+- `/api/extract-schema`: 15 requests per minute (per IP)
+- `/api/stripe/create-session`: 3 requests per minute (per IP)
 
 **Authentication:**
 - Most endpoints (`/api/*`) require `X-Engine-Key` header with a valid shared secret

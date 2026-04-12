@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_DATE: getGitCommitDate(),
   },
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   output: "standalone",
   outputFileTracingRoot: __dirname,
   webpack: (config) => {

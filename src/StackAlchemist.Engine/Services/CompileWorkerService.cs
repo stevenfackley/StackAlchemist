@@ -160,10 +160,16 @@ public sealed class CompileWorkerService(
             var retryPrompt = compileService.BuildRetryContext(
                 job.Prompt ?? "Generate code", job.BuildErrorHistory, job.RetryCount);
 
-            var llmOutput = await llmClient.GenerateAsync(
+            var llmResponse = await llmClient.GenerateAsync(
                 "Fix the compilation errors in the generated code.", retryPrompt, ct);
+            await deliveryService.UpdateTokenUsageAsync(
+                job.GenerationId,
+                llmResponse.InputTokens,
+                llmResponse.OutputTokens,
+                llmResponse.Model,
+                ct);
 
-            var fixedBlocks = reconstructionService.Parse(llmOutput);
+            var fixedBlocks = reconstructionService.Parse(llmResponse.Text);
 
             // Overwrite only the files that changed
             foreach (var (relativePath, content) in fixedBlocks)

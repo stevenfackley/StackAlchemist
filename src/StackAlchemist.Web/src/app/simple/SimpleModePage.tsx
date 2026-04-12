@@ -185,7 +185,7 @@ function SchemaEditorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8">
+    <div className="fixed inset-0 z-[100] flex min-h-[100dvh] items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-4 pb-[env(safe-area-inset-bottom)] md:py-8">
       <div className="w-full max-w-3xl bg-slate-800 border border-slate-600/50 rounded-2xl shadow-2xl mx-4">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700/50 px-6 py-4">
@@ -682,11 +682,13 @@ export default function SimpleModePage() {
               </div>
             </div>
 
-            <div data-testid="simple-entity-canvas" className="flex-1" style={{ minHeight: "500px" }}>
+            <div data-testid="simple-entity-canvas" className="flex-1" style={{ minHeight: "250px" }}>
               <ReactFlow
                 nodes={nodes} edges={edges}
                 onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                panOnDrag
+                zoomOnPinch
                 fitView colorMode="dark"
                 style={{ background: "#1e293b" }}
               >

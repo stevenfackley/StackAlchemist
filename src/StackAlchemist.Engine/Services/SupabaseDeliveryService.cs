@@ -81,45 +81,42 @@ public sealed class SupabaseDeliveryService(
         await PatchGenerationAsync(generationId, payload, ct);
     }
 
+    public async Task UpdateTokenUsageAsync(
+        string generationId,
+        int inputTokens,
+        int outputTokens,
+        string model,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            return;
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["gen_id"] = generationId,
+            ["input_delta"] = inputTokens,
+            ["output_delta"] = outputTokens,
+            ["model_name"] = model,
+        };
+
+        await InvokeRpcAsync("increment_token_usage", payload, ct);
+    }
+
     public async Task AppendBuildLogAsync(
         string generationId,
         string logChunk,
         CancellationToken ct)
     {
-        // PostgREST doesn't support append natively, so we use an RPC or
-        // concatenate on the client. For simplicity, we fetch + append + patch.
-        // In production, a Postgres function would be better.
-        var supabaseUrl = config["Supabase:Url"];
-        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
-
-        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+        if (string.IsNullOrWhiteSpace(logChunk))
             return;
 
-        // Fetch current build_log
-        var fetchUrl = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=build_log";
-        var fetchReq = new HttpRequestMessage(HttpMethod.Get, fetchUrl);
-        fetchReq.Headers.Add("apikey", serviceRoleKey);
-        fetchReq.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-
-        try
+        var payload = new Dictionary<string, object?>
         {
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            var fetchRes = await client.SendAsync(fetchReq, ct);
-            var rows = await fetchRes.Content.ReadFromJsonAsync<List<Dictionary<string, object?>>>(ct);
-            var existing = rows?.FirstOrDefault()?["build_log"]?.ToString() ?? "";
+            ["gen_id"] = generationId,
+            ["chunk"] = logChunk,
+        };
 
-            var updated = string.IsNullOrEmpty(existing) ? logChunk : existing + "\n" + logChunk;
-
-            await PatchGenerationAsync(generationId, new Dictionary<string, object?>
-            {
-                ["build_log"] = updated,
-                ["updated_at"] = DateTime.UtcNow.ToString("O"),
-            }, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to append build log for generation {Id}", generationId);
-        }
+        await InvokeRpcAsync("append_build_log", payload, ct);
     }
 
     // ── Shared PATCH helper ─────────────────────────────────────────────────
@@ -165,6 +162,50 @@ public sealed class SupabaseDeliveryService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to patch Supabase for generation {Id}", generationId);
+        }
+    }
+
+    private async Task InvokeRpcAsync(
+        string functionName,
+        Dictionary<string, object?> payload,
+        CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+        {
+            logger.LogDebug("Supabase not configured — skipping RPC {Function}", functionName);
+            return;
+        }
+
+        var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/rpc/{functionName}";
+        var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = JsonContent.Create(payload, options: JsonOpts),
+        };
+        request.Headers.Add("apikey", serviceRoleKey);
+        request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+        request.Headers.Add("Prefer", "return=minimal");
+
+        try
+        {
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                logger.LogWarning(
+                    "Supabase RPC {Function} returned {Code}: {Body}",
+                    functionName,
+                    (int)response.StatusCode,
+                    body);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to invoke Supabase RPC {Function}", functionName);
         }
     }
 }

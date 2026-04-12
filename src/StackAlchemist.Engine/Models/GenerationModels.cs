@@ -97,6 +97,15 @@ public sealed class SchemaEndpoint
 public sealed record LlmOutputBlock(string FilePath, string Content);
 
 /// <summary>
+/// Structured response from an LLM call, including token accounting.
+/// </summary>
+public sealed record LlmResponse(
+    string Text,
+    int InputTokens,
+    int OutputTokens,
+    string Model);
+
+/// <summary>
 /// Variables for Handlebars template rendering.
 /// </summary>
 public sealed class TemplateVariables

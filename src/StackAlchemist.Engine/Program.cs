@@ -61,6 +61,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     // LLM
     ["Anthropic:ApiKey"]              = Ev("ANTHROPIC_API_KEY"),
+    ["Anthropic:Model"]               = Ev("ANTHROPIC_MODEL"),
     // Cloudflare R2
     ["CloudflareR2:AccountId"]        = Ev("R2_ACCOUNT_ID"),
     ["CloudflareR2:AccessKeyId"]      = Ev("R2_ACCESS_KEY_ID"),
@@ -84,6 +85,9 @@ if (builder.Environment.IsProduction())
 {
     var required = new[]
     {
+        ("ANTHROPIC_API_KEY",          builder.Configuration["Anthropic:ApiKey"]),
+        ("SUPABASE_SERVICE_ROLE_KEY",  builder.Configuration["Supabase:ServiceRoleKey"]),
+        ("R2_ACCESS_KEY_ID",           builder.Configuration["CloudflareR2:AccessKeyId"]),
         ("STRIPE_WEBHOOK_SECRET", builder.Configuration["Stripe:WebhookSecret"]),
         ("ENGINE_SERVICE_KEY",    builder.Configuration["Engine:ServiceKey"]),
     };
@@ -222,6 +226,7 @@ if (!string.IsNullOrWhiteSpace(anthropicApiKey))
 else
 {
     builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
+    Log.Warning("MockLlmClient is active. Generated applications will use mock output instead of Anthropic.");
 }
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
@@ -340,8 +345,14 @@ app.MapPost("/api/extract-schema", async (
             systemPrompt,
             request.Prompt,
             ct);
+        await delivery.UpdateTokenUsageAsync(
+            request.GenerationId,
+            llmResponse.InputTokens,
+            llmResponse.OutputTokens,
+            llmResponse.Model,
+            ct);
 
-        var schema = schemaExtractor.ParseExtractionResponse(llmResponse);
+        var schema = schemaExtractor.ParseExtractionResponse(llmResponse.Text);
 
         // Persist extracted schema to Supabase
         await delivery.UpdateSchemaAsync(request.GenerationId, schema, ct);

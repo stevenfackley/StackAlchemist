@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -17,6 +18,12 @@ import {
 import { getServerUser } from "@/lib/supabase-server";
 import { getMyGenerations } from "@/lib/actions";
 import type { Generation } from "@/lib/types";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description:
+    "Track your StackAlchemist generations, downloads, and delivery status.",
+};
 
 /* ─── Tier helpers ───────────────────────────────────────────────────────── */
 const TIER_NAMES: Record<number, string> = {

@@ -12,9 +12,10 @@ public class MockLlmClientTests
 
         var result = await sut.GenerateAsync("system", "user");
 
-        result.Should().Contain("[[FILE:");
-        result.Should().Contain("[[END_FILE]]");
-        result.Should().Contain("src/Models/Product.cs");
+        result.Text.Should().Contain("[[FILE:");
+        result.Text.Should().Contain("[[END_FILE]]");
+        result.Text.Should().Contain("src/Models/Product.cs");
+        result.Model.Should().Be("mock-llm");
     }
 
     [Fact]
@@ -24,8 +25,8 @@ public class MockLlmClientTests
 
         var result = await sut.GenerateAsync("system", "user");
 
-        result.Should().Contain("src/Controllers/ProductEndpoints.cs");
-        result.Should().Contain("src/Repositories/ProductRepository.cs");
-        result.Should().Contain("src/Migrations/001_initial_schema.sql");
+        result.Text.Should().Contain("src/Controllers/ProductEndpoints.cs");
+        result.Text.Should().Contain("src/Repositories/ProductRepository.cs");
+        result.Text.Should().Contain("src/Migrations/001_initial_schema.sql");
     }
 }

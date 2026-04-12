@@ -59,6 +59,7 @@ Use the entity wizard to define your schema step by step:
 
 | Tier | Name | Price | What You Receive |
 |------|------|-------|-----------------|
+| **Tier 0** | Spark | Free | Live preview only, with schema canvas and no download |
 | **Tier 1** | Blueprint | $299 | Architecture documents: ER schema, OpenAPI spec, SQL migration scripts, data flow diagram |
 | **Tier 2** | Boilerplate | $599 | Everything in Blueprint + compiled .NET 10 API, Next.js 15 frontend, PostgreSQL schema, Docker Compose |
 | **Tier 3** | Infrastructure | $999 | Everything in Boilerplate + AWS CDK stack, Helm charts, CI/CD pipeline, deployment runbook |

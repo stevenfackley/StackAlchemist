@@ -41,17 +41,23 @@ public class GenerationOrchestratorTests
 
         var llm = Substitute.For<ILlmClient>();
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("[[FILE:dotnet/Program.cs]]\nvar builder = WebApplication.CreateBuilder(args);\n[[END_FILE]]");
+            .Returns(new LlmResponse(
+                "[[FILE:dotnet/Program.cs]]\nvar builder = WebApplication.CreateBuilder(args);\n[[END_FILE]]",
+                10,
+                20,
+                "claude-3-5-sonnet-20241022"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
-        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>())
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
+        var delivery = Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
             templates,
             reconstruction,
             llm,
             promptBuilder,
+            delivery,
             fs,
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
@@ -111,12 +117,14 @@ public class GenerationOrchestratorTests
         var reconstruction = Substitute.For<IReconstructionService>();
         var llm = Substitute.For<ILlmClient>();
         var promptBuilder = Substitute.For<IPromptBuilderService>();
+        var delivery = Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
             templates,
             reconstruction,
             llm,
             promptBuilder,
+            delivery,
             fs,
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);

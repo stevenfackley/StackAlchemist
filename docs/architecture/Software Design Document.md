@@ -1,11 +1,11 @@
 ### Software Design Document (SDD): StackAlchemist
 
-> Implementation status note (2026-04-07): Phases 1–5 are substantially complete. The codebase includes live generation orchestration (template render → LLM → reconstruction → compile retry), multi-ecosystem support (DotNet-NextJs + Python-React via IBuildStrategy pattern), a 4-step personalization wizard, Stripe Checkout + webhook payment gate, Supabase SSR auth with user-linked generations, Cloudflare R2 upload, real-time build log streaming, and security hardening (rate limiting, CORS, service key auth, prompt sanitization). Phase 6 CI/CD and Docker infrastructure are implemented; Tier 3 IaC templates remain pending. Phase 7 security hardening is partially complete; legal pages, transactional emails, error boundaries, and observability metrics remain. BYOK key persistence UI is still placeholder.
+> Implementation status note (2026-04-12): The current V1 stack is live and production-facing. The codebase includes in-process generation orchestration (template render → LLM → reconstruction → compile retry), multi-ecosystem support (DotNet-NextJs + Python-React via `IBuildStrategy`), personalization, Stripe Checkout + webhook payment gate, Supabase SSR auth with user-linked generations, Cloudflare R2 upload, real-time build log streaming, and security hardening (rate limiting, CORS, service key auth, prompt sanitization, token accounting, schema size limits, mobile navigation, metadata, sitemap, robots, and route error boundaries). Tier 3 IaC templates remain pending.
 
 **1. System Architecture**
 * **Frontend and API Gateway:** Next.js application (App Router) handling user intake and checkout.
 * **State and Identity:** Supabase PostgreSQL for relational data and Auth. Row Level Security restricts generation history access.
-* **Generation Engine:** Claude 3.5 Sonnet API. Local testing utilizes a Proxmox environment running Ollama.
+* **Generation Engine:** Anthropic Claude 3.5 Sonnet API in production, with a mock fallback when no Anthropic key is configured.
 * **Storage Layer:** Cloudflare R2 provides zero egress temporary storage for compiled archives.
 
 **2. DevOps & Environment Strategy**
@@ -47,7 +47,7 @@ The system maintains a library of master templates (starting with the V1 .NET/Ne
 4.  **Reconstruction:** The LLM generated files are injected into the specific placeholders within the master template directory.
 
 **C. The Compile Guarantee CI/CD**
-1.  The future worker process spawns a child process to run `dotnet build` in the temporary reconstruction directory.
+1.  The in-process compile worker runs `dotnet build` in the temporary reconstruction directory.
 2.  If exit code `0` is returned, the process proceeds to compression.
 3.  If exit code `1` is returned, the standard error output is captured and sent back to the LLM with the context of the broken file for an automated fix. Maximum retry limit is set to 3.
 
@@ -56,6 +56,6 @@ For Tier 3 transactions, the system utilizes Handlebars to inject the user's spe
 
 **6. Supabase Data Schema**
 * Three tables implemented with checked-in Supabase migrations: `profiles`, `transactions`, `generations` — matching the ERD.
-* Five migrations in `supabase/migrations/`: create_profiles, create_transactions, create_generations, add_project_type, add_personalization.
+* Six migrations in `supabase/migrations/`: create_profiles, create_transactions, create_generations, add_project_type, add_personalization, add_token_usage_and_atomic_build_log.
 * RLS enforced: users read/update own profiles; read own transactions; anyone inserts generations (free tier); service role manages updates. Realtime publication enabled on `generations`.
-* `generations` table includes: `schema_json`, `personalization_json`, `build_log`, `preview_files_json`, `project_type`, `download_url`, `status`, `retry_count`, `user_id`.
+* `generations` table includes: `schema_json`, `personalization_json`, `build_log`, `preview_files_json`, `project_type`, `download_url`, `status`, `retry_count`, `input_tokens`, `output_tokens`, `model_used`, `user_id`.

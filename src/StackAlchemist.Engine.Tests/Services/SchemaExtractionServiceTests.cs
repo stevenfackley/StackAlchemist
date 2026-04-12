@@ -85,4 +85,54 @@ public class SchemaExtractionServiceTests
         act.Should().Throw<SchemaValidationException>()
            .WithMessage("*NonExistentEntity*");
     }
+
+    [Fact]
+    public void ExtractSchema_WithTooManyEntities_ThrowsSchemaValidationException()
+    {
+        var entities = string.Join(",",
+            Enumerable.Range(1, 21).Select(i => $$"""
+                {
+                  "name": "Entity{{i}}",
+                  "fields": [{ "name": "Id", "type": "uuid", "isPrimaryKey": true }]
+                }
+                """));
+
+        var response = $$"""
+            {
+              "entities": [{{entities}}],
+              "relationships": []
+            }
+            """;
+
+        var act = () => _sut.ParseExtractionResponse(response);
+
+        act.Should().Throw<SchemaValidationException>()
+            .WithMessage("*maximum of 20 entities*");
+    }
+
+    [Fact]
+    public void ExtractSchema_WithTooManyFieldsOnEntity_ThrowsSchemaValidationException()
+    {
+        var fields = string.Join(",",
+            Enumerable.Range(1, 31).Select(i => $$"""
+                { "name": "Field{{i}}", "type": "string", "isPrimaryKey": false }
+                """));
+
+        var response = $$"""
+            {
+              "entities": [
+                {
+                  "name": "Product",
+                  "fields": [{{fields}}]
+                }
+              ],
+              "relationships": []
+            }
+            """;
+
+        var act = () => _sut.ParseExtractionResponse(response);
+
+        act.Should().Throw<SchemaValidationException>()
+            .WithMessage("*maximum of 30 fields*");
+    }
 }

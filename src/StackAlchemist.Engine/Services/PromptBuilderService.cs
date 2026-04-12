@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
@@ -19,6 +20,11 @@ public sealed class PromptBuilderService : IPromptBuilderService
 {
     // Rough budget: keep well under Claude 3.5's 200 k context window.
     private const int MaxRetryPromptChars = 8_000;
+    private static readonly char[] ControlCharsToStrip =
+        Enumerable.Range(0, 32)
+            .Select(i => (char)i)
+            .Where(ch => ch is not '\r' and not '\n' and not '\t')
+            .ToArray();
 
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
@@ -82,24 +88,35 @@ public sealed class PromptBuilderService : IPromptBuilderService
         // ── Personalization context ───────────────────────────────────────────
         if (personalization is not null)
         {
-            if (!string.IsNullOrWhiteSpace(personalization.BusinessDescription))
+            var sanitizedProjectName = SanitizeUserInput(personalization.ProjectName, 50);
+            var sanitizedTagline = SanitizeUserInput(personalization.Tagline, 50);
+            var sanitizedBusinessDescription = SanitizeUserInput(personalization.BusinessDescription, 500);
+            var sanitizedDomainContext = personalization.DomainContext
+                .Select(pair => new KeyValuePair<string, string>(
+                    SanitizeUserInput(pair.Key, 50),
+                    SanitizeUserInput(pair.Value, 500)))
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .ToList();
+            var sanitizedAuthMethod = SanitizeUserInput(personalization.FeatureFlags?.AuthMethod, 50);
+
+            if (!string.IsNullOrWhiteSpace(sanitizedBusinessDescription))
             {
                 sb.AppendLine();
                 sb.AppendLine("## Business Context");
                 sb.AppendLine("Use the following context to inform code comments, seed data, UI copy, validation messages, and README content:");
-                if (!string.IsNullOrWhiteSpace(personalization.ProjectName))
-                    sb.AppendLine($"- **Project name:** {personalization.ProjectName}");
-                if (!string.IsNullOrWhiteSpace(personalization.Tagline))
-                    sb.AppendLine($"- **Tagline:** {personalization.Tagline}");
-                sb.AppendLine($"- **Description:** {personalization.BusinessDescription}");
+                if (!string.IsNullOrWhiteSpace(sanitizedProjectName))
+                    sb.AppendLine($"- **Project name:** {sanitizedProjectName}");
+                if (!string.IsNullOrWhiteSpace(sanitizedTagline))
+                    sb.AppendLine($"- **Tagline:** {sanitizedTagline}");
+                sb.AppendLine($"- **Description:** {sanitizedBusinessDescription}");
             }
 
-            if (personalization.DomainContext.Count > 0)
+            if (sanitizedDomainContext.Count > 0)
             {
                 sb.AppendLine();
                 sb.AppendLine("## Domain Vocabulary");
                 sb.AppendLine("Use realistic domain language in controller logic, validation, comments, and seed data:");
-                foreach (var (entity, context) in personalization.DomainContext)
+                foreach (var (entity, context) in sanitizedDomainContext)
                     sb.AppendLine($"- **{entity}:** {context}");
             }
 
@@ -120,7 +137,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
                 var ff = personalization.FeatureFlags;
                 sb.AppendLine();
                 sb.AppendLine("## Feature Flags");
-                sb.AppendLine($"- Authentication method: {ff.AuthMethod}");
+                sb.AppendLine($"- Authentication method: {sanitizedAuthMethod}");
                 sb.AppendLine($"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
                 sb.AppendLine($"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
                 sb.AppendLine($"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");
@@ -210,5 +227,39 @@ public sealed class PromptBuilderService : IPromptBuilderService
             - Valid field types: uuid, string, integer, decimal, boolean, datetime.
             - Valid relationship types: one-to-many, many-to-many, one-to-one.
             """;
+    }
+
+    internal static string SanitizeUserInput(string? input, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        var sanitized = input.Trim();
+
+        if (sanitized.Length > maxLength)
+            sanitized = sanitized[..maxLength];
+
+        sanitized = Regex.Replace(
+            sanitized,
+            @"\[\[FILE:[^\]]*\]\]",
+            "",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        sanitized = Regex.Replace(
+            sanitized,
+            @"\[\[END_FILE\]\]",
+            "",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        var lines = sanitized
+            .Split('\n')
+            .Select(line => line.TrimEnd('\r'))
+            .Where(line => !line.TrimStart().StartsWith("##", StringComparison.Ordinal))
+            .Select(line => new string(line.Where(ch => !char.IsControl(ch) || ch is '\r' or '\n' or '\t').ToArray()));
+
+        sanitized = string.Join('\n', lines)
+            .Trim()
+            .Trim(ControlCharsToStrip);
+
+        return sanitized;
     }
 }

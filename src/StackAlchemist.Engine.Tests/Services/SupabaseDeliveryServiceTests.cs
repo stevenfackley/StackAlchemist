@@ -120,6 +120,39 @@ public class SupabaseDeliveryServiceTests
             .Should().ContainSingle().Which.Should().StartWith("Bearer ");
     }
 
+    [Fact]
+    public async Task AppendBuildLogAsync_UsesRpcEndpoint()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);
+        var sut = BuildSut(BuildConfig(), handler);
+
+        await sut.AppendBuildLogAsync("gen-log", "hello", CancellationToken.None);
+
+        handler.LastRequest.Should().NotBeNull();
+        handler.LastRequest!.Method.Should().Be(HttpMethod.Post);
+        handler.LastRequest.RequestUri!.ToString().Should().Contain("/rpc/append_build_log");
+        var body = await handler.LastRequest.Content!.ReadAsStringAsync();
+        body.Should().Contain("\"gen_id\":\"gen-log\"");
+        body.Should().Contain("\"chunk\":\"hello\"");
+    }
+
+    [Fact]
+    public async Task UpdateTokenUsageAsync_UsesRpcEndpoint()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);
+        var sut = BuildSut(BuildConfig(), handler);
+
+        await sut.UpdateTokenUsageAsync("gen-usage", 12, 34, "claude-3-5-sonnet-20241022", CancellationToken.None);
+
+        handler.LastRequest.Should().NotBeNull();
+        handler.LastRequest!.Method.Should().Be(HttpMethod.Post);
+        handler.LastRequest.RequestUri!.ToString().Should().Contain("/rpc/increment_token_usage");
+        var body = await handler.LastRequest.Content!.ReadAsStringAsync();
+        body.Should().Contain("\"gen_id\":\"gen-usage\"");
+        body.Should().Contain("\"input_delta\":12");
+        body.Should().Contain("\"output_delta\":34");
+    }
+
     // ── Test double ───────────────────────────────────────────────────────────
 
     private sealed class CapturingHttpHandler(

@@ -68,7 +68,10 @@ public class AnthropicLlmClientTests
 
         var result = await client.GenerateAsync("system", "user");
 
-        result.Should().Be("[[FILE:test.cs]]content[[END_FILE]]");
+        result.Text.Should().Be("[[FILE:test.cs]]content[[END_FILE]]");
+        result.InputTokens.Should().Be(10);
+        result.OutputTokens.Should().Be(5);
+        result.Model.Should().Be("claude-3-5-sonnet-20241022");
     }
 
     [Fact]
@@ -83,14 +86,47 @@ public class AnthropicLlmClientTests
     }
 
     [Fact]
-    public async Task GenerateAsync_ApiReturns429_ThrowsHttpRequestException()
+    public async Task GenerateAsync_RetriesRetryableFailures_ThenReturnsText()
     {
-        var handler = new FakeHttpHandler(HttpStatusCode.TooManyRequests, "rate limited");
+        var handler = new SequencedHttpHandler(
+            new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("rate limited", Encoding.UTF8, "application/json"),
+            },
+            new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("rate limited", Encoding.UTF8, "application/json"),
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    content = new[] { new { type = "text", text = "ok" } },
+                    stop_reason = "end_turn",
+                    usage = new { input_tokens = 2, output_tokens = 3 },
+                }), Encoding.UTF8, "application/json"),
+            });
+        var client = BuildClient(BuildConfig(), handler);
+
+        var result = await client.GenerateAsync("system", "user");
+
+        result.Text.Should().Be("ok");
+        handler.CallCount.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ApiReturnsTooManyRetryableFailures_ThrowsHttpRequestException()
+    {
+        var handler = new SequencedHttpHandler(
+            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"),
+            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"),
+            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"));
         var client = BuildClient(BuildConfig(), handler);
 
         var act = () => client.GenerateAsync("system", "user");
 
         await act.Should().ThrowAsync<HttpRequestException>();
+        handler.CallCount.Should().Be(3);
     }
 
     [Fact]
@@ -158,4 +194,25 @@ public class AnthropicLlmClientTests
             });
         }
     }
+
+    private sealed class SequencedHttpHandler(params HttpResponseMessage[] responses)
+        : HttpMessageHandler
+    {
+        private readonly Queue<HttpResponseMessage> _responses = new(responses);
+
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(_responses.Dequeue());
+        }
+    }
+
+    private static HttpResponseMessage CreateResponse(HttpStatusCode status, string body) =>
+        new(status)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        };
 }

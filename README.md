@@ -34,7 +34,7 @@ See [LICENSE](LICENSE) for full terms.
 |---|---|
 | **Frontend** | Next.js 15 (App Router), React 19, Tailwind CSS 3, `@xyflow/react` |
 | **Generation Engine** | .NET 10 Web API, Handlebars.Net, `System.IO.Abstractions` |
-| **LLM** | Anthropic Claude 3.5 Sonnet (BYOK: Anthropic / OpenAI / OpenRouter) |
+| **LLM** | Anthropic Claude 3.5 Sonnet (configurable via `ANTHROPIC_MODEL`; mock fallback when `ANTHROPIC_API_KEY` is unset) |
 | **Compile Worker** | In-process `BackgroundService` — `dotnet build` + LLM retry loop |
 | **Database & Auth** | Supabase PostgreSQL, Row Level Security, Supabase Auth |
 | **Realtime** | Supabase Realtime (WebSockets — live generation progress) |
@@ -62,11 +62,9 @@ See [LICENSE](LICENSE) for full terms.
 git clone https://github.com/stevenfackley/StackAlchemist.git
 cd StackAlchemist
 
-# 2. Install frontend deps
-#    postinstall hook auto-creates .env from .env.example
-cd src/StackAlchemist.Web
+# 2. Install deps
+#    root postinstall bootstraps the frontend workspace and creates .env from .env.example
 npm install
-cd ../..
 
 # 3. Configure secrets
 #    Open .env at the solution root and fill in real values.
@@ -89,8 +87,7 @@ dotnet restore StackAlchemist.slnx
 dotnet run --project src/StackAlchemist.Engine
 
 # 6. Run the frontend (Terminal B — listens on :3000)
-cd src/StackAlchemist.Web
-npm run dev
+npm run dev --prefix src/StackAlchemist.Web
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -162,11 +159,12 @@ User brief (natural language or entity wizard)
 
 ## 📦 Delivery Tiers
 
-| Tier | Deliverables |
-|---|---|
-| **Tier 1** | Schema JSON + OpenAPI / Markdown docs |
-| **Tier 2** | Everything in Tier 1 + full compilable codebase (zip) |
-| **Tier 3** | Everything in Tier 2 + AWS CDK, Terraform, Helm Charts, deployment runbook |
+| Tier | Name | Price | Deliverables |
+|---|---|---|---|
+| **Tier 0** | Spark | Free | Guided schema capture and prompt planning for evaluation use |
+| **Tier 1** | Blueprint | $299 | Schema JSON, OpenAPI spec, SQL migration scripts, Markdown docs |
+| **Tier 2** | Boilerplate | $599 | Everything in Blueprint + full compilable codebase (zip) |
+| **Tier 3** | Infrastructure | $999 | Everything in Boilerplate + AWS CDK, Terraform, Helm Charts, deployment runbook |
 
 ---
 
@@ -176,7 +174,7 @@ User brief (natural language or entity wizard)
 StackAlchemist/
 ├── .env.example                    # Template — cp to .env and fill in secrets
 ├── scripts/
-│   └── setup-env.mjs              # Auto-creates .env on pnpm install
+│   └── setup-env.mjs              # Auto-creates .env on install
 ├── src/
 │   ├── StackAlchemist.Web/        # Next.js 15 frontend (App Router)
 │   ├── StackAlchemist.Engine/     # .NET 10 Web API + BackgroundService

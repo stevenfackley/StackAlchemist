@@ -39,6 +39,16 @@ public interface IDeliveryService
         CancellationToken ct);
 
     /// <summary>
+    /// Adds token usage from an LLM call to the generation row.
+    /// </summary>
+    Task UpdateTokenUsageAsync(
+        string generationId,
+        int inputTokens,
+        int outputTokens,
+        string model,
+        CancellationToken ct);
+
+    /// <summary>
     /// Appends build output to the build_log column.
     /// </summary>
     Task AppendBuildLogAsync(

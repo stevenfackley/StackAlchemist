@@ -340,6 +340,7 @@ export default function AdvancedModePage() {
   const [selectedTier, setSelectedTier] = useState<Tier>(initialTier);
   const [personalization, setPersonalization] = useState<PersonalizationData>(DEFAULT_PERSONALIZATION);
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
@@ -521,9 +522,9 @@ export default function AdvancedModePage() {
         </div>
       </header>
 
-      <main className="flex flex-1 min-h-0">
+      <main className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Left panel */}
-        <div className="w-full lg:w-1/2 border-r border-slate-600/30 overflow-y-auto p-5">
+        <div className="w-full lg:w-1/2 border-slate-600/30 overflow-y-auto p-5">
           {step === 1 && (
             <div data-testid="advanced-step-1">
               <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />
@@ -608,21 +609,37 @@ export default function AdvancedModePage() {
           )}
         </div>
 
-        {/* Right panel: Live preview (hidden on mobile) */}
-        <div className="hidden lg:flex flex-col w-1/2">
-          <div className="border-b border-slate-600/30 px-4 py-2 bg-slate-800/60">
+        {/* Right panel: Live preview */}
+        <div className="w-full lg:w-1/2 border-t lg:border-t-0 lg:border-l border-slate-600/30 bg-slate-900/40 flex flex-col">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-600/30 px-4 py-2 bg-slate-800/60">
             <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Live Preview</p>
-          </div>
-          <div className="flex-1" style={{ minHeight: "400px" }}>
-            <ReactFlow
-              nodes={entitiesToNodes(entities)} edges={relsToEdges(relationships)}
-              onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-              onConnect={onConnect} fitView colorMode="dark"
-              style={{ background: "#1e293b" }}
+            <button
+              type="button"
+              onClick={() => setShowPreview((value) => !value)}
+              className="lg:hidden rounded-full border border-slate-600/40 px-3 py-1 font-mono text-[10px] tracking-widest uppercase text-slate-300 hover:border-blue-500/40 hover:text-blue-400 transition-colors"
+              aria-expanded={showPreview}
             >
-              <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#334155" />
-              <Controls style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} />
-            </ReactFlow>
+              {showPreview ? "Hide" : "Show"}
+            </button>
+          </div>
+          <div className={cn("overflow-hidden transition-all duration-300 lg:flex-1", showPreview ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0 lg:max-h-none lg:opacity-100")}>
+            <div className="h-full min-h-[240px] md:min-h-[360px] lg:min-h-[400px]">
+              <ReactFlow
+                nodes={entitiesToNodes(entities)}
+                edges={relsToEdges(relationships)}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                fitView
+                colorMode="dark"
+                panOnDrag
+                zoomOnPinch
+                style={{ background: "#1e293b" }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#334155" />
+                <Controls style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} />
+              </ReactFlow>
+            </div>
           </div>
         </div>
       </main>

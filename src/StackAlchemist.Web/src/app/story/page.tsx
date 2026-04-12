@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+
+export const metadata: Metadata = {
+  title: "Story",
+  description:
+    "Read the origin story and naming behind StackAlchemist.",
+};
 
 export default function StoryPage() {
   return (

@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Learn how StackAlchemist turns natural language into compiled SaaS architecture.",
+};
 
 export default function AboutPage() {
   return (

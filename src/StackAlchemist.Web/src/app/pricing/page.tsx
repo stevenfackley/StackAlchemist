@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, Eye, Lock } from "lucide-react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
+
+export const metadata: Metadata = {
+  title: "Pricing",
+  description:
+    "Compare StackAlchemist tiers and pick the handoff depth that fits your project.",
+};
 
 const freeTier = {
   id: "spark",
@@ -137,6 +144,26 @@ const comparison = [
   { label: "Cost Estimation Report",         spark: false, bp: false, bb: false, infra: true },
 ];
 
+const pricingProductJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: "StackAlchemist",
+  description:
+    "Compare StackAlchemist tiers and pick the handoff depth that fits your project.",
+  brand: {
+    "@type": "Brand",
+    name: "StackAlchemist",
+  },
+  offers: tiers.map((tier) => ({
+    "@type": "Offer",
+    name: tier.name,
+    priceCurrency: "USD",
+    price: tier.price,
+    availability: "https://schema.org/InStock",
+    url: tier.href,
+  })),
+};
+
 function CheckCell({ value }: { value: boolean }) {
   return value ? (
     <span className="text-emerald-400">✓</span>
@@ -148,10 +175,16 @@ function CheckCell({ value }: { value: boolean }) {
 export default function PricingPage() {
   return (
     <div data-testid="pricing-page" className="min-h-screen flex flex-col bg-slate-800">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(pricingProductJsonLd),
+        }}
+      />
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
         <div
-          className="absolute top-1/4 -right-1/4 h-[700px] w-[700px] rounded-full animate-pulse-glow"
+          className="absolute top-1/4 -right-1/4 h-[300px] w-[300px] md:h-[600px] md:w-[600px] lg:h-[700px] lg:w-[700px] rounded-full animate-pulse-glow"
           style={{
             backgroundImage:
               "radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.04) 45%, transparent 70%)",
