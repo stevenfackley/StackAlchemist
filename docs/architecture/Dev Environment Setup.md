@@ -29,7 +29,7 @@ We follow a **Single Project + Branching** model.
 *   **Release Automation:** Handled by `git-cliff`. Every push to the `main` branch triggers an update to `CHANGELOG.md` and creates a GitHub Release record using the commit SHA.
 
 ### CI/CD Compliance
-*   **Frozen Lockfiles:** The CI pipeline enforces `pnpm install --frozen-lockfile` for the frontend. You **must** run `pnpm install` locally after modifying `package.json` to ensure `pnpm-lock.yaml` is updated before pushing. Failure to do so will cause the "Frontend" quality gate to fail.
+*   **Frozen Lockfiles:** The CI pipeline enforces `npm ci` for the frontend. You **must** ensure `package-lock.json` is updated before pushing. Failure to do so will cause the "Frontend" quality gate to fail.
 *   **Docker Health Checks:** The `sa-web` and `sa-engine` images include `wget` to support Docker Compose health probes in production. Ensure any base image changes preserve this utility.
 
 ## 5. Containerization (Docker)

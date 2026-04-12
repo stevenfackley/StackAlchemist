@@ -26,7 +26,7 @@ export default defineConfig({
     { name: 'mobile-safari', use: { ...devices['iPhone 13'] } },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
-    command: 'pnpm dev',
+    command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
