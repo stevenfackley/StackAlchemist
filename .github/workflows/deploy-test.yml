@@ -56,10 +56,10 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # 0. Ensure no conflicting placeholder or previous run is locking port 3000
+          # 0. Ensure no conflicting placeholder or previous run is locking ports
           echo "Stopping any existing standalone containers..."
-          docker stop sa-web 2>/dev/null || true
-          docker rm sa-web 2>/dev/null || true
+          docker stop sa-web sa-engine sa-worker 2>/dev/null || true
+          docker rm sa-web sa-engine sa-worker 2>/dev/null || true
 
           # 1. Build all components in parallel via BuildKit
           # --pull ensures we have the latest base images, --no-cache avoids stale layer issues on the runner
@@ -107,9 +107,9 @@ jobs:
           # Force remove any partial containers from the failed compose project
           docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
           
-          # Force remove any conflicting sa-web container
-          docker stop sa-web 2>/dev/null || true
-          docker rm sa-web 2>/dev/null || true
+          # Force remove any conflicting standalone containers
+          docker stop sa-web sa-engine sa-worker 2>/dev/null || true
+          docker rm sa-web sa-engine sa-worker 2>/dev/null || true
 
           # Ensure the expected network exists
           docker network create under-construction_default 2>/dev/null || true
