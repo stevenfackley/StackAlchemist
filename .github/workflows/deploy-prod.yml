@@ -25,6 +25,7 @@ jobs:
     environment: prod
     env:
       COMPOSE_PROJECT_NAME: stackalchemist-prod
+      DEPLOY_DIR: /opt/stackalchemist-prod
 
     steps:
       - name: Checkout
@@ -83,7 +84,6 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          DEPLOY_DIR="/opt/stackalchemist-prod"
           sudo mkdir -p "$DEPLOY_DIR"
           sudo cp docker-compose.prod.yml "$DEPLOY_DIR/"
           sudo cp .env "$DEPLOY_DIR/"
@@ -99,6 +99,7 @@ jobs:
           DOCKER_BUILDKIT: '1'
         run: |
           set -Eeuo pipefail
+          cd "$DEPLOY_DIR"
           docker compose -f docker-compose.prod.yml build
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
@@ -106,6 +107,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          cd "$DEPLOY_DIR"
           echo "Waiting for containers to become healthy..."
           MAX_WAIT=120
           INTERVAL=5
@@ -161,7 +163,10 @@ jobs:
       - name: Show running containers
         if: always()
         shell: bash
-        run: docker compose -f docker-compose.prod.yml ps
+        run: |
+          set -Eeuo pipefail
+          cd "$DEPLOY_DIR"
+          docker compose -f docker-compose.prod.yml ps
 
       - name: Post-deploy Docker cleanup
         if: always()
