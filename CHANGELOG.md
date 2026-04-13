@@ -25,6 +25,8 @@ All notable changes to this project will be documented in this file.
 - Complete transition to npm and stabilize deployments
 - Prevent port conflicts in test deployment by removing all standalone containers
 - Ensure consistent container names in test deployment for health checks
+- Build production images sequentially to reduce runner resource pressure
+- Build production images sequentially to reduce runner resource pressure
 
 ### Documentation
 
