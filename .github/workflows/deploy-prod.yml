@@ -17,6 +17,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy Production Stack
+    timeout-minutes: 45
     runs-on:
       - self-hosted
       - linux
@@ -29,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Explain OIDC usage
         run: |
@@ -37,7 +38,7 @@ jobs:
           echo "The current production deploy runs locally on the EC2 self-hosted runner and does not require SSH deployment."
 
       - name: Configure AWS credentials via GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
@@ -76,6 +77,23 @@ jobs:
         shell: bash
         run: bash ./scripts/docker-preflight-cleanup.sh
 
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "Runner: ${RUNNER_NAME:-unknown} (${RUNNER_OS:-unknown}/${RUNNER_ARCH:-unknown})"
+          echo "Docker version:"
+          docker version
+          echo ""
+          echo "Docker system usage:"
+          docker system df || true
+          echo ""
+          echo "Disk usage:"
+          df -h / || true
+          echo ""
+          echo "Memory:"
+          free -h || true
+
       - name: Verify Docker Compose file
         shell: bash
         run: docker compose -f docker-compose.prod.yml config >/dev/null
@@ -84,10 +102,23 @@ jobs:
         shell: bash
         env:
           DOCKER_BUILDKIT: '1'
+          COMPOSE_PARALLEL_LIMIT: '1'
         run: |
+          set -Eeuo pipefail
           echo "Building images in workspace root (sequentially to save resources)..."
-          docker compose -f docker-compose.prod.yml build sa-web
-          docker compose -f docker-compose.prod.yml build sa-engine
+          for service in sa-web sa-engine; do
+            attempt=1
+            until docker compose -f docker-compose.prod.yml build "$service"; do
+              if [ "$attempt" -ge 2 ]; then
+                echo "❌ Failed to build $service after $attempt attempts."
+                exit 1
+              fi
+              attempt=$((attempt + 1))
+              echo "Retrying build for $service after a short cooldown..."
+              docker builder prune -f --filter "until=1h" 2>/dev/null || true
+              sleep 15
+            done
+          done
 
       - name: Setup reboot resilience
         shell: bash
@@ -107,6 +138,7 @@ jobs:
         shell: bash
         env:
           DOCKER_BUILDKIT: '1'
+          COMPOSE_PARALLEL_LIMIT: '1'
         run: |
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
@@ -170,6 +202,33 @@ jobs:
             echo "❌ Site returned HTTP ${HTTP_CODE}"
             exit 1
           fi
+
+      - name: Capture deploy diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .artifacts/deploy-prod
+          docker ps -a > .artifacts/deploy-prod/docker-ps.txt
+          docker compose -f docker-compose.prod.yml ps > .artifacts/deploy-prod/compose-ps-workspace.txt 2>&1 || true
+          docker compose -f docker-compose.prod.yml logs --tail 200 > .artifacts/deploy-prod/compose-workspace.log 2>&1 || true
+          if [ -d "$DEPLOY_DIR" ]; then
+            cd "$DEPLOY_DIR"
+            docker compose -f docker-compose.prod.yml ps > "$GITHUB_WORKSPACE/.artifacts/deploy-prod/compose-ps-deploy-dir.txt" 2>&1 || true
+            docker compose -f docker-compose.prod.yml logs --tail 200 > "$GITHUB_WORKSPACE/.artifacts/deploy-prod/compose-deploy-dir.log" 2>&1 || true
+          fi
+          docker logs sa-engine > .artifacts/deploy-prod/sa-engine.log 2>&1 || true
+          docker logs sa-web > .artifacts/deploy-prod/sa-web.log 2>&1 || true
+          docker logs sa-reverse-proxy > .artifacts/deploy-prod/sa-reverse-proxy.log 2>&1 || true
+          docker logs sa-tunnel > .artifacts/deploy-prod/sa-tunnel.log 2>&1 || true
+
+      - name: Upload deploy diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-prod-diagnostics
+          path: .artifacts/deploy-prod/
+          retention-days: 7
 
       - name: Show running containers
         if: always()
