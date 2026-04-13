@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - Ensure consistent container names in test deployment for health checks
 - Build production images sequentially to reduce runner resource pressure
 - Build production images sequentially to reduce runner resource pressure
+- Harden self-hosted deploy workflows
 
 ### Documentation
 
