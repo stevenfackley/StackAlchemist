@@ -85,8 +85,9 @@ jobs:
         env:
           DOCKER_BUILDKIT: '1'
         run: |
-          echo "Building images in workspace root..."
-          docker compose -f docker-compose.prod.yml build
+          echo "Building images in workspace root (sequentially to save resources)..."
+          docker compose -f docker-compose.prod.yml build sa-web
+          docker compose -f docker-compose.prod.yml build sa-engine
 
       - name: Setup reboot resilience
         shell: bash
