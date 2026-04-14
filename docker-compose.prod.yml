@@ -84,16 +84,6 @@ services:
     networks:
       - stackalchemist-prod
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: sa-tunnel
-    restart: unless-stopped
-    depends_on:
-      - reverse-proxy
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - stackalchemist-prod
-
 networks:
   stackalchemist-prod:
     name: stackalchemist-prod

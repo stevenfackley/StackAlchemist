@@ -17,7 +17,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy Production Stack
-    timeout-minutes: 45
+    timeout-minutes: 30
     runs-on:
       - self-hosted
       - linux
@@ -98,6 +98,40 @@ jobs:
         shell: bash
         run: docker compose -f docker-compose.prod.yml config >/dev/null
 
+      - name: Start maintenance page
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Tear down old app containers before building so the build doesn't race
+          # with running containers consuming RAM. sa-tunnel is intentionally
+          # excluded — it's a long-lived standalone container that must survive
+          # deploys to avoid Cloudflare Error 1033.
+          docker rm -f sa-web sa-engine sa-worker sa-reverse-proxy 2>/dev/null || true
+
+          # Ensure the prod network exists so the maintenance container and
+          # the persistent tunnel can communicate.
+          docker network create stackalchemist-prod 2>/dev/null || true
+
+          # Swap in a lightweight maintenance nginx as sa-reverse-proxy.
+          # This keeps the tunnel serving real HTTP traffic (maintenance page)
+          # throughout the 4–8 min build window instead of returning a 1033.
+          docker run -d \
+            --name sa-reverse-proxy \
+            --restart no \
+            --network stackalchemist-prod \
+            -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
+            -v "$(pwd)/docker/nginx-maintenance.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine
+
+          # Reconnect the persistent tunnel to the network so it can route to
+          # the maintenance container. Fails silently if tunnel doesn't exist yet.
+          if docker inspect sa-tunnel &>/dev/null; then
+            docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
+            echo "✅ sa-tunnel connected — maintenance page is live."
+          else
+            echo "ℹ️  sa-tunnel not found — tunnel will connect after first manual setup."
+          fi
+
       - name: Build production images
         shell: bash
         env:
@@ -143,13 +177,21 @@ jobs:
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
 
-          # Remove containers by name before compose up. On reboot, Docker's
-          # restart=unless-stopped re-creates containers at the daemon level,
-          # which strips compose project tracking. compose --force-recreate can
-          # only replace containers it owns; standalone ones cause name conflicts.
-          docker rm -f sa-web sa-engine sa-worker sa-reverse-proxy sa-tunnel 2>/dev/null || true
+          # Remove the maintenance sa-reverse-proxy before compose up so
+          # --force-recreate can create the real container without a name conflict.
+          # sa-tunnel is NOT removed — it is a long-lived standalone container
+          # managed outside compose to avoid Cloudflare Error 1033 on every deploy.
+          docker rm -f sa-reverse-proxy 2>/dev/null || true
 
           docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+
+          # Reconnect the persistent tunnel to the freshly-created network.
+          # compose up creates a new stackalchemist-prod network; the standalone
+          # sa-tunnel container loses access to sa-reverse-proxy by container name.
+          if docker inspect sa-tunnel &>/dev/null; then
+            docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
+            echo "✅ sa-tunnel reconnected to stackalchemist-prod network."
+          fi
 
       - name: Wait for health checks
         shell: bash

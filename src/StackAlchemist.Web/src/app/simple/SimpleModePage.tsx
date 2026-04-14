@@ -456,10 +456,18 @@ export default function SimpleModePage() {
       const preResult = await submitSimpleGeneration(prompt, 0);
       const tempGenId = preResult.success ? preResult.generationId : undefined;
 
-      // Call the real schema extraction endpoint
-      const result = tempGenId
-        ? await extractSchema(tempGenId, prompt)
-        : { success: false as const, error: "Failed to create generation record." };
+      // Call the real schema extraction endpoint with a 60s hard client timeout.
+      // extractSchema already has a 45s AbortController on the fetch; this outer
+      // race handles the case where the server action itself hangs.
+      const extractionCall = tempGenId
+        ? extractSchema(tempGenId, prompt)
+        : Promise.resolve({ success: false as const, error: "Failed to create generation record." });
+
+      const timeoutCall = new Promise<{ success: false; error: string }>((resolve) =>
+        setTimeout(() => resolve({ success: false, error: "Timed out after 60 seconds. The engine may be under load — please try again." }), 60_000)
+      );
+
+      const result = await Promise.race([extractionCall, timeoutCall]);
 
       clearInterval(interval);
       if (cancelled) return;
@@ -473,10 +481,13 @@ export default function SimpleModePage() {
         setProgress(100);
         setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 400);
       } else {
-        // Fallback: show error but still allow canvas with defaults
-        setLogLines((l) => [...l, `Schema extraction failed: ${result.error}`, "Falling back to example schema..."]);
-        setProgress(100);
-        setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 800);
+        // Show a visible error state instead of silently falling back.
+        clearInterval(interval);
+        if (!cancelled) {
+          setErrorMsg(result.error ?? "Unknown error");
+          setProgress(0);
+          setPhase("error");
+        }
       }
     }
 
@@ -649,6 +660,43 @@ export default function SimpleModePage() {
                   <span className="mr-2">&rsaquo;</span>_
                 </p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase: Error ──────────────────────────────────────────────────── */}
+        {phase === "error" && (
+          <div data-testid="simple-phase-error" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
+            <div className="h-16 w-16 rounded-full bg-rose-500/10 border-2 border-rose-500/30 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-rose-400" />
+            </div>
+            <div className="text-center space-y-2 max-w-md">
+              <h2 className="text-xl font-bold text-white">Schema Extraction Failed</h2>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                {errorMsg ?? "An error occurred while extracting your schema."}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => {
+                  setLogLines([]);
+                  setProgress(0);
+                  setErrorMsg(null);
+                  setPhase("generating");
+                }}
+                className="flex items-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => {
+                  setErrorMsg(null);
+                  setPhase("canvas");
+                }}
+                className="flex items-center gap-2 rounded-full border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 text-sm font-medium transition-all duration-300"
+              >
+                Use Example Schema
+              </button>
             </div>
           </div>
         )}

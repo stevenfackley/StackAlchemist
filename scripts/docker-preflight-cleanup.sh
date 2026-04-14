@@ -6,8 +6,8 @@
 # Goals:
 #   1. Purge old runner diagnostic logs so the runner can always write new ones.
 #   2. Remove ALL unused Docker images (not just dangling) to reclaim disk.
-#   3. Prune stopped containers, unused volumes, and all build cache.
-#      (The deploy build always uses --no-cache, so cached layers are dead weight.)
+#   3. Prune stopped containers, unused volumes, and stale build cache.
+#      Only cache older than 24h is pruned — recent layers speed up warm builds.
 #   4. Gate on available disk space — abort early if below MIN_FREE_GB.
 #   5. Print disk usage before and after so CI logs are easy to triage.
 # ---------------------------------------------------------------------------
@@ -78,12 +78,13 @@ echo ""
 echo "── Pruning unused volumes ──"
 docker volume prune -f 2>/dev/null || true
 
-# ── 5. Remove ALL build cache ───────────────────────────────────────────────
-#    The deploy workflow always uses --no-cache, so there is no value keeping
-#    any cached build layers between runs.
+# ── 5. Remove stale build cache (>24h old) ──────────────────────────────────
+#    Preserve recent cache layers — npm install / dotnet restore layers from the
+#    last deploy are reusable and dramatically speed up the next build.
+#    Only prune cache older than 24 hours to reclaim disk without cold-building.
 echo ""
-echo "── Pruning ALL build cache ──"
-docker builder prune -af 2>/dev/null || true
+echo "── Pruning build cache older than 24h ──"
+docker builder prune -f --filter "until=24h" 2>/dev/null || true
 
 # ── 6. After snapshot ───────────────────────────────────────────────────────
 echo ""

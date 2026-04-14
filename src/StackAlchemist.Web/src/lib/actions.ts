@@ -171,13 +171,18 @@ export async function extractSchema(
     return { success: true, schema: buildDemoGeneration(generationId).schema_json! };
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+
   try {
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/extract-schema`, {
       method: "POST",
       headers: engineHeaders(),
       body: JSON.stringify({ generationId, prompt: sanitizePrompt(prompt) }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: "Schema extraction failed" }));
@@ -187,6 +192,10 @@ export async function extractSchema(
     const data = await res.json();
     return { success: true, schema: data.schema as GenerationSchema };
   } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      return { success: false, error: "Schema extraction timed out. The engine may be under load — please try again." };
+    }
     console.error("[extractSchema] Failed:", err);
     return { success: false, error: "Failed to reach the generation engine." };
   }
