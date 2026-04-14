@@ -92,6 +92,15 @@ jobs:
           # This replaces the manual polling loop that was error-prone.
           docker compose -f docker/docker-compose.test.yml up -d --force-recreate --wait
 
+          # Reconnect the persistent Cloudflare tunnel container to our network.
+          # sa-test-tunnel is long-lived and not in our compose file. Each deploy
+          # creates a fresh stackalchemist-test network, so the tunnel loses access
+          # to sa-web by container name. Reconnecting here fixes 502s after deploy.
+          if docker inspect sa-test-tunnel &>/dev/null; then
+            docker network connect stackalchemist-test sa-test-tunnel 2>/dev/null || true
+            echo "✅ sa-test-tunnel reconnected to stackalchemist-test network."
+          fi
+
           echo "✅ Stack deployed and healthy."
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
