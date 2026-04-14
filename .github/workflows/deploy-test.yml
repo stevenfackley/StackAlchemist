@@ -76,49 +76,32 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # 0. Ensure no conflicting placeholder or previous run is locking ports
-          echo "Stopping any existing standalone containers..."
-          docker stop sa-web sa-engine sa-worker 2>/dev/null || true
-          docker rm sa-web sa-engine sa-worker 2>/dev/null || true
+          # Force-remove any lingering containers with our names.
+          # Covers: failed deploys, placeholder containers, and docker-daemon restarts
+          # that brought back containers with --restart unless-stopped.
+          docker rm -f sa-web sa-engine sa-worker 2>/dev/null || true
 
-          # 1. Build all components in parallel via BuildKit
-          # --pull ensures we have the latest base images, --no-cache avoids stale layer issues on the runner
-          docker compose -f docker/docker-compose.test.yml build --pull --no-cache
+          # Build using layer cache. The install/restore layers are cached between
+          # runs and only invalidated when package.json / .csproj files change.
+          # --pull refreshes base images (security patches) without blowing away
+          # intermediate layers.
+          docker compose -f docker/docker-compose.test.yml build --pull
 
-          # 2. Recreate the stack (stops, removes, and starts containers)
-          docker compose -f docker/docker-compose.test.yml up -d --force-recreate
+          # Recreate the stack and block until all services report healthy.
+          # Health checks are defined in docker-compose.test.yml.
+          # This replaces the manual polling loop that was error-prone.
+          docker compose -f docker/docker-compose.test.yml up -d --force-recreate --wait
 
-          echo "✅ Stack updated. Waiting for health checks..."
+          # Reconnect the persistent Cloudflare tunnel container to our network.
+          # sa-test-tunnel is long-lived and not in our compose file. Each deploy
+          # creates a fresh stackalchemist-test network, so the tunnel loses access
+          # to sa-web by container name. Reconnecting here fixes 502s after deploy.
+          if docker inspect sa-test-tunnel &>/dev/null; then
+            docker network connect stackalchemist-test sa-test-tunnel 2>/dev/null || true
+            echo "✅ sa-test-tunnel reconnected to stackalchemist-test network."
+          fi
 
-      - name: Verify Health
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          # Wait for engine
-          echo "Checking sa-engine health..."
-          for i in {1..20}; do
-            if docker exec sa-engine wget -qO /dev/null http://localhost:80/healthz 2>/dev/null; then
-              echo "✅ sa-engine is healthy."
-              break
-            fi
-            [ "$i" -eq 20 ] && echo "❌ sa-engine failed health check" && exit 1
-            sleep 5
-          done
-
-          # Wait for web
-          echo "Checking sa-web health..."
-          for i in {1..20}; do
-            # Use node to check health since web app is Next.js
-            if docker exec sa-web node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
-              echo "✅ sa-web is healthy."
-              break
-            fi
-            [ "$i" -eq 20 ] && echo "❌ sa-web failed health check" && exit 1
-            sleep 5
-          done
-
-          echo "✅ Deployment verified."
+          echo "✅ Stack deployed and healthy."
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
       - name: Capture deploy diagnostics
@@ -147,25 +130,25 @@ jobs:
         shell: bash
         run: |
           echo "⚠️ Deploy failed — restoring under-construction placeholder..."
-          # Force remove any partial containers from the failed compose project
           docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
-          
-          # Force remove any conflicting standalone containers
-          docker stop sa-web sa-engine sa-worker 2>/dev/null || true
-          docker rm sa-web sa-engine sa-worker 2>/dev/null || true
 
-          # Ensure the expected network exists
+          # Remove any partial containers left from the failed deploy
+          docker rm -f sa-web sa-engine sa-worker 2>/dev/null || true
+
+          # Ensure the expected network exists for the placeholder
           docker network create under-construction_default 2>/dev/null || true
 
           MOUNTS=""
-          # Ensure paths exist and are files (not directories auto-created by Docker)
           [ -f /root/under-construction/index.html ] && MOUNTS="$MOUNTS -v /root/under-construction/index.html:/usr/share/nginx/html/index.html:ro"
           [ -f /root/under-construction/favicon.svg ] && MOUNTS="$MOUNTS -v /root/under-construction/favicon.svg:/usr/share/nginx/html/favicon.svg:ro"
-          [ -f /root/under-construction/nginx.conf ] && MOUNTS="$MOUNTS -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro"
+          [ -f /root/under-construction/nginx.conf ]  && MOUNTS="$MOUNTS -v /root/under-construction/nginx.conf:/etc/nginx/nginx.conf:ro"
 
+          # --restart no: placeholder is intentionally transient.
+          # The next successful deploy will bring up the real stack.
+          # Using --restart unless-stopped was causing name conflicts on daemon restart.
           docker run -d \
             --name sa-web \
-            --restart unless-stopped \
+            --restart no \
             --network under-construction_default \
             -p 3000:3000 \
             $MOUNTS \
@@ -176,8 +159,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          # Prune any dangling layers and build cache produced by this run.
-          # Runs even on failure so disk is reclaimed regardless of outcome.
           docker image prune -f 2>/dev/null || true
           docker builder prune -f --filter "until=1h" 2>/dev/null || true
           echo "── Post-deploy disk usage ──"
