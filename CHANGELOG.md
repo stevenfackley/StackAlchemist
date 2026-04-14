@@ -28,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - Build production images sequentially to reduce runner resource pressure
 - Build production images sequentially to reduce runner resource pressure
 - Harden self-hosted deploy workflows
+- Force-recreate on prod deploy to handle restart=always containers after reboot
 
 ### Documentation
 
