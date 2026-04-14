@@ -29,17 +29,25 @@ All notable changes to this project will be documented in this file.
 - Build production images sequentially to reduce runner resource pressure
 - Harden self-hosted deploy workflows
 - Force-recreate on prod deploy to handle restart=always containers after reboot
+- Eliminate band-aids with permanent root-cause fixes
+- Fix prod deploy cancellation and test tunnel network disconnect
+- Force-recreate on prod deploy to handle restart=always containers after reboot
 
 ### Documentation
 
 - Update production release and deployment documentation to reflect automated main branch trigger
 - Sync documentation with current codebase state
 
+### Features
+
+- Extend modal with creative non-technical steps
+
 ### Miscellaneous Tasks
 
 - Update release and prod-deploy triggers to auto-release from main
 - Add .pnpm-store to .gitignore
 - Dependency hygiene and CI restore drift hardening
+- Retrigger test deploy for tunnel fix
 
 ### Testing
 
