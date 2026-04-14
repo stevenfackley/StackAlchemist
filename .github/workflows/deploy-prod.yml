@@ -142,8 +142,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
-          # Images are already built in the workspace root and tagged correctly
-          # We just need to bring the stack up
+
+          # Remove containers by name before compose up. On reboot, Docker's
+          # restart=unless-stopped re-creates containers at the daemon level,
+          # which strips compose project tracking. compose --force-recreate can
+          # only replace containers it owns; standalone ones cause name conflicts.
+          docker rm -f sa-web sa-engine sa-worker sa-reverse-proxy sa-tunnel 2>/dev/null || true
+
           docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
       - name: Wait for health checks
