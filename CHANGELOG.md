@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - Eliminate band-aids with permanent root-cause fixes
 - Fix prod deploy cancellation and test tunnel network disconnect
 - Force-recreate on prod deploy to handle restart=always containers after reboot
+- Rm named containers before compose-up; add maintenance page for both envs
 
 ### Documentation
 
