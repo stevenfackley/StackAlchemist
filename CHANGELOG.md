@@ -18,6 +18,16 @@ All notable changes to this project will be documented in this file.
 - Correct secret mapping for e2e and deploy workflows
 - Skip E2E integration gracefully when secrets are placeholder values
 - Pin test deploy to x64 self-hosted runner
+- Stabilize infrastructure and switch to npm
+- Complete transition to npm and stabilize deployments
+- Prevent port conflicts in test deployment by removing all standalone containers
+- Ensure consistent container names in test deployment for health checks
+- Complete transition to npm and stabilize deployments
+- Prevent port conflicts in test deployment by removing all standalone containers
+- Ensure consistent container names in test deployment for health checks
+- Build production images sequentially to reduce runner resource pressure
+- Build production images sequentially to reduce runner resource pressure
+- Harden self-hosted deploy workflows
 
 ### Documentation
 

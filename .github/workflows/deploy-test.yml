@@ -11,15 +11,18 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Web App to Test Server
+    timeout-minutes: 30
     runs-on:
       - self-hosted
       - Linux
       - X64
     environment: test
+    env:
+      COMPOSE_PROJECT_NAME: stackalchemist-test
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .env (test)
         uses: ./.github/actions/setup-env
@@ -49,6 +52,23 @@ jobs:
         shell: bash
         run: bash ./scripts/docker-preflight-cleanup.sh
 
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "Runner: ${RUNNER_NAME:-unknown} (${RUNNER_OS:-unknown}/${RUNNER_ARCH:-unknown})"
+          echo "Docker version:"
+          docker version
+          echo ""
+          echo "Docker system usage:"
+          docker system df || true
+          echo ""
+          echo "Disk usage:"
+          df -h / || true
+          echo ""
+          echo "Memory:"
+          free -h || true
+
       - name: Build and Deploy Stack
         env:
           DOCKER_BUILDKIT: '1'
@@ -75,8 +95,30 @@ jobs:
           echo "✅ Stack deployed and healthy."
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
+      - name: Capture deploy diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p .artifacts/deploy-test
+          docker ps -a > .artifacts/deploy-test/docker-ps.txt
+          docker compose -f docker/docker-compose.test.yml ps > .artifacts/deploy-test/compose-ps.txt 2>&1
+          docker logs sa-engine > .artifacts/deploy-test/sa-engine.log 2>&1 || true
+          docker logs sa-web > .artifacts/deploy-test/sa-web.log 2>&1 || true
+          docker logs sa-worker > .artifacts/deploy-test/sa-worker.log 2>&1 || true
+          docker compose -f docker/docker-compose.test.yml logs --tail 200 > .artifacts/deploy-test/compose.log 2>&1 || true
+
+      - name: Upload deploy diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-test-diagnostics
+          path: .artifacts/deploy-test/
+          retention-days: 7
+
       - name: Fallback to placeholder on failure
         if: failure()
+        shell: bash
         run: |
           echo "⚠️ Deploy failed — restoring under-construction placeholder..."
           docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
@@ -106,6 +148,7 @@ jobs:
 
       - name: Post-deploy Docker cleanup
         if: always()
+        shell: bash
         run: |
           docker image prune -f 2>/dev/null || true
           docker builder prune -f --filter "until=1h" 2>/dev/null || true
