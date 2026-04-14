@@ -10,6 +10,7 @@ services:
         condition: service_healthy
     volumes:
       - ./docker/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/ || exit 1"]
       interval: 10s
