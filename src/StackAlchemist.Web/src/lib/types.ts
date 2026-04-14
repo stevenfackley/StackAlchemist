@@ -200,11 +200,18 @@ export interface PersonalizationFeatureFlags {
   includeDockerCompose: boolean;
 }
 
+export type AppVibe = "friendly" | "professional" | "bold" | "minimal" | "playful" | "trustworthy";
+export type AppComplexity = "simple" | "standard" | "full";
+
 export interface PersonalizationData {
   businessDescription: string;
   projectName?: string;
   tagline?: string;
   colorScheme: ColorPalette;
+  appVibe?: AppVibe;
+  targetAudience?: string;
+  inspirationApps?: string[];
+  appComplexity?: AppComplexity;
   /** entity name → what it represents in this business */
   domainContext: Record<string, string>;
   featureFlags: PersonalizationFeatureFlags;
