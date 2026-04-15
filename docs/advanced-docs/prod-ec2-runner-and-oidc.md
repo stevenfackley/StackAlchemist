@@ -205,14 +205,52 @@ Before the first real production deployment, complete these items:
 4. Confirm the production secrets in GitHub are correct.
 5. Optionally create the AWS OIDC provider + IAM role for future workflow AWS API access.
 
+### Cloudflare Tunnel — long-lived standalone container (required one-time setup)
+
+`cloudflared` is **not** managed by `docker-compose.prod.yml`. It is a long-lived
+standalone container (`sa-tunnel`) that survives every deploy. This prevents
+Cloudflare Error 1033 that used to occur because every compose-up killed and
+recreated the tunnel.
+
+**One-time setup on the EC2 host** (run once after the first deploy):
+
+```bash
+# Remove any old tunnel container that compose may have managed
+docker rm -f sa-tunnel 2>/dev/null || true
+
+# Start the standalone long-lived tunnel
+docker run -d \
+  --name sa-tunnel \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token <CLOUDFLARE_TUNNEL_TOKEN>
+
+# Connect it to the prod network (the deploy workflow reconnects it on every deploy)
+docker network connect stackalchemist-prod sa-tunnel
+```
+
+Replace `<CLOUDFLARE_TUNNEL_TOKEN>` with the value from the `CLOUDFLARE_TUNNEL_TOKEN`
+GitHub secret (or the `.env` file in `$DEPLOY_DIR`).
+
+The deploy workflow (`deploy-prod.yml`) automatically runs
+`docker network connect stackalchemist-prod sa-tunnel` after each `compose up`
+because compose recreates the `stackalchemist-prod` network, which disconnects
+any external containers.
+
+**Add swap to prevent OOM-induced runner failures** (one-time, also on EC2 host):
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+The `t4g.small` instance has only 2 GB RAM. Without swap, Docker builds for
+Next.js + .NET can OOM-kill the GitHub Actions runner process mid-deploy.
+
 ### Cloudflare Tunnel checklist for production
-
-The repository-side production wiring is already aligned for this topology:
-
-- `cloudflared` runs in `docker-compose.prod.yml`
-- it authenticates with `CLOUDFLARE_TUNNEL_TOKEN`
-- it reaches the internal `reverse-proxy` service on the shared Docker network
-- nginx routes `/` to `sa-web:3000` and `/api/*` to `sa-engine:80`
 
 What still must exist in Cloudflare is the **tunnel-side hostname mapping**.
 
@@ -235,7 +273,7 @@ After saving the hostname, verify all of the following:
 1. `stackalchemist.app` is proxied by Cloudflare DNS.
 2. SSL mode is **Full (Strict)**.
 3. The tunnel token stored in GitHub `prod` secrets matches that exact production tunnel.
-4. The first production deploy brings up `reverse-proxy`, `sa-web`, `sa-engine`, and `cloudflared` successfully.
+4. The first production deploy brings up `reverse-proxy`, `sa-web`, `sa-engine`, and `sa-tunnel` (standalone) successfully.
 5. `https://stackalchemist.app/` loads the frontend and `https://stackalchemist.app/api/health` responds from the engine.
 
 ---

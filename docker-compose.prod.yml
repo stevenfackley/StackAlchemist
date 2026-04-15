@@ -12,7 +12,7 @@ services:
       - ./docker/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -74,6 +74,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5-20250929}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || exit 1"]
@@ -81,16 +82,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks:
-      - stackalchemist-prod
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: sa-tunnel
-    restart: unless-stopped
-    depends_on:
-      - reverse-proxy
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - stackalchemist-prod
 
