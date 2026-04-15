@@ -38,6 +38,7 @@ All notable changes to this project will be documented in this file.
 - Use 127.0.0.1 in nginx healthcheck (localhost resolves to IPv6 in alpine)
 - Add ANTHROPIC_MODEL env var to prod compose; switch to claude-sonnet-4-5-20250929
 - Deserialize ProjectType enum from JSON string + add ANTHROPIC_MODEL to prod compose
+- Rename simple-mode-schema.ts → .tsx (contains JSX, lint parse error)
 
 ### Documentation
 
