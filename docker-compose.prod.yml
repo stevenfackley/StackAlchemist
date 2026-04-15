@@ -74,6 +74,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5-20250929}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || exit 1"]
