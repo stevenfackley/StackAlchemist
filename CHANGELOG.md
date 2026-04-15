@@ -39,6 +39,8 @@ All notable changes to this project will be documented in this file.
 - Add ANTHROPIC_MODEL env var to prod compose; switch to claude-sonnet-4-5-20250929
 - Deserialize ProjectType enum from JSON string + add ANTHROPIC_MODEL to prod compose
 - Rename simple-mode-schema.ts → .tsx (contains JSX, lint parse error)
+- Correct secret mapping for e2e and deploy workflows
+- Skip E2E integration gracefully when secrets are placeholder values
 
 ### Documentation
 
@@ -56,6 +58,7 @@ All notable changes to this project will be documented in this file.
 - Dependency hygiene and CI restore drift hardening
 - Retrigger test deploy for tunnel fix
 - Merge develop into main — resolve deploy-prod.yml conflict
+- Merge fix/ci-e2e-integration into main
 
 ### Testing
 
