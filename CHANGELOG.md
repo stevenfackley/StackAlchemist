@@ -33,6 +33,11 @@ All notable changes to this project will be documented in this file.
 - Fix prod deploy cancellation and test tunnel network disconnect
 - Force-recreate on prod deploy to handle restart=always containers after reboot
 - Rm named containers before compose-up; add maintenance page for both envs
+- Rm named containers before compose-up; add maintenance page for both envs
+- Harden tunnel, CI/CD runner, and LLM error surfacing
+- Use 127.0.0.1 in nginx healthcheck (localhost resolves to IPv6 in alpine)
+- Add ANTHROPIC_MODEL env var to prod compose; switch to claude-sonnet-4-5-20250929
+- Deserialize ProjectType enum from JSON string + add ANTHROPIC_MODEL to prod compose
 
 ### Documentation
 
@@ -49,6 +54,7 @@ All notable changes to this project will be documented in this file.
 - Add .pnpm-store to .gitignore
 - Dependency hygiene and CI restore drift hardening
 - Retrigger test deploy for tunnel fix
+- Merge develop into main — resolve deploy-prod.yml conflict
 
 ### Testing
 
