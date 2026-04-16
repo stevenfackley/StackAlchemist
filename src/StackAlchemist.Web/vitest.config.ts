@@ -23,6 +23,7 @@ export default defineConfig({
     outputFile: { junit: './test-results/junit.xml' },
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, '.') },
+    // Mirror Next.js tsconfig paths: "@/*" -> "./src/*"
+    alias: { '@': path.resolve(__dirname, 'src') },
   },
 });
