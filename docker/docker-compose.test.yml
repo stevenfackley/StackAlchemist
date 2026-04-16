@@ -43,7 +43,9 @@ services:
       sa-engine:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/ || exit 1"]
+      # Use /api/healthz — exempt from Basic Auth and always returns 200.
+      # Hitting / would fail once Basic Auth is configured.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

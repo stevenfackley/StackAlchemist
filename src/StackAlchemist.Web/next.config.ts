@@ -32,7 +32,8 @@ const nextConfig: NextConfig = {
     return config;
   },
   async headers() {
-    return [
+    const isTestSite = process.env.NEXT_PUBLIC_IS_TEST_SITE === "true";
+    const baseHeaders = [
       {
         // StackBlitz WebContainers requires cross-origin isolation (SharedArrayBuffer).
         // Apply COOP + COEP headers to the generate result page only.
@@ -49,6 +50,22 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+
+    // Defence-in-depth noindex on the test mirror: the layout already emits a
+    // meta robots tag, but some crawlers honour the response header only.
+    if (isTestSite) {
+      baseHeaders.push({
+        source: "/:path*",
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+      });
+    }
+
+    return baseHeaders;
   },
 };
 

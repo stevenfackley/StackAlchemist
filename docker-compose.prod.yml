@@ -41,8 +41,12 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
+      # SEO / Analytics — only populated on prod, empty elsewhere.
+      NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/ || exit 1"]
+      # /api/healthz is exempt from Basic Auth; keeps probes healthy across envs.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/api/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
