@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
 - Rename simple-mode-schema.ts → .tsx (contains JSX, lint parse error)
 - Correct secret mapping for e2e and deploy workflows
 - Skip E2E integration gracefully when secrets are placeholder values
+- Add parserOptions.ecmaFeatures.jsx to eslintrc — fix parse error in .tsx files
 
 ### Documentation
 
