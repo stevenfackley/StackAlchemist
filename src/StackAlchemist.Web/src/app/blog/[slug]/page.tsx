@@ -6,6 +6,7 @@ import { DocsMarkdown } from "@/components/docs-markdown";
 import { ContentHeader } from "@/components/content-header";
 import { getBlogPostBySlug } from "@/lib/blog";
 import { getAllBlogSlugs, getSortedBlogPosts } from "@/lib/blog-manifest";
+import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -49,44 +50,12 @@ export default async function BlogPostPage({ params }: Props) {
 
   const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-  const articleJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.meta.title,
-    description: post.meta.description,
-    datePublished: post.meta.publishedAt,
-    dateModified: post.meta.publishedAt,
-    author: {
-      "@type": "Person",
-      name: post.meta.author,
-      url: `${siteUrl}/about`,
-    },
-    publisher: {
-      "@type": "Organization",
-      name: "StackAlchemist",
-      url: siteUrl,
-    },
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": `${siteUrl}/blog/${slug}`,
-    },
-    keywords: post.meta.tags.join(", "),
-  };
-
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: `${siteUrl}/` },
-      { "@type": "ListItem", position: 2, name: "Blog", item: `${siteUrl}/blog` },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: post.meta.title,
-        item: `${siteUrl}/blog/${slug}`,
-      },
-    ],
-  };
+  const articleLd = blogPostingJsonLd(siteUrl, slug, post.meta);
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: "Home", item: `${siteUrl}/` },
+    { name: "Blog", item: `${siteUrl}/blog` },
+    { name: post.meta.title, item: `${siteUrl}/blog/${slug}` },
+  ]);
 
   const sorted = getSortedBlogPosts();
   const idx = sorted.findIndex((p) => p.slug === slug);
@@ -100,11 +69,11 @@ export default async function BlogPostPage({ params }: Props) {
         <article className="max-w-3xl mx-auto py-16 px-6">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }}
           />
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
           />
 
           <Link

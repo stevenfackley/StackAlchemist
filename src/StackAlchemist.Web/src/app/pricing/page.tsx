@@ -3,11 +3,13 @@ import Link from "next/link";
 import { Check, Eye, Lock } from "lucide-react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
+import { pricingProductJsonLd } from "@/lib/jsonld";
 
 export const metadata: Metadata = {
-  title: "Pricing",
+  title: "Pricing — One Payment, Own It Forever",
   description:
-    "Compare StackAlchemist tiers and pick the handoff depth that fits your project.",
+    "Compare StackAlchemist tiers: Spark (free preview), Blueprint ($299), Boilerplate ($599), and Infrastructure ($999). One-time payment, no subscription, full source ownership.",
+  alternates: { canonical: "/pricing" },
 };
 
 const freeTier = {
@@ -144,25 +146,6 @@ const comparison = [
   { label: "Cost Estimation Report",         spark: false, bp: false, bb: false, infra: true },
 ];
 
-const pricingProductJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Product",
-  name: "StackAlchemist",
-  description:
-    "Compare StackAlchemist tiers and pick the handoff depth that fits your project.",
-  brand: {
-    "@type": "Brand",
-    name: "StackAlchemist",
-  },
-  offers: tiers.map((tier) => ({
-    "@type": "Offer",
-    name: tier.name,
-    priceCurrency: "USD",
-    price: tier.price,
-    availability: "https://schema.org/InStock",
-    url: tier.href,
-  })),
-};
 
 function CheckCell({ value }: { value: boolean }) {
   return value ? (
@@ -177,9 +160,7 @@ export default function PricingPage() {
     <div data-testid="pricing-page" className="min-h-screen flex flex-col bg-slate-800">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(pricingProductJsonLd),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingProductJsonLd(tiers.map((t) => ({ name: t.name, price: t.price, href: t.href })))) }}
       />
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>

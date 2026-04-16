@@ -6,6 +6,7 @@ import { DocsMarkdown } from "@/components/docs-markdown";
 import { ContentHeader } from "@/components/content-header";
 import { getCompareBySlug } from "@/lib/compare";
 import { getAllCompareSlugs } from "@/lib/compare-manifest";
+import { breadcrumbJsonLd } from "@/lib/jsonld";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -45,20 +46,11 @@ export default async function ComparePage({ params }: Props) {
 
   const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: `${siteUrl}/` },
-      { "@type": "ListItem", position: 2, name: "Compare", item: `${siteUrl}/compare` },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: `vs ${entry.meta.competitorName}`,
-        item: `${siteUrl}/compare/${slug}`,
-      },
-    ],
-  };
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: "Home", item: `${siteUrl}/` },
+    { name: "Compare", item: `${siteUrl}/compare` },
+    { name: `vs ${entry.meta.competitorName}`, item: `${siteUrl}/compare/${slug}` },
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-void">
@@ -67,7 +59,7 @@ export default async function ComparePage({ params }: Props) {
         <article className="max-w-3xl mx-auto py-16 px-6">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
           />
 
           <Link

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getSortedBlogPosts } from "@/lib/blog-manifest";
 import { ContentHeader } from "@/components/content-header";
+import { blogIndexJsonLd } from "@/lib/jsonld";
 
 export const metadata: Metadata = {
   title: "Blog — AI Codegen, SaaS Generation, and the Compile Guarantee",
@@ -29,22 +30,7 @@ export default function BlogIndexPage() {
   const posts = getSortedBlogPosts();
   const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-  const blogJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Blog",
-    name: "StackAlchemist Blog",
-    url: `${siteUrl}/blog`,
-    description:
-      "Founder-written essays on AI code generation, verified codegen, and the economics of AI-generated SaaS.",
-    blogPost: posts.map((p) => ({
-      "@type": "BlogPosting",
-      headline: p.title,
-      description: p.description,
-      datePublished: p.publishedAt,
-      author: { "@type": "Person", name: p.author },
-      url: `${siteUrl}/blog/${p.slug}`,
-    })),
-  };
+  const ldJson = blogIndexJsonLd(siteUrl, posts);
 
   return (
     <div className="min-h-screen flex flex-col bg-void">
@@ -53,7 +39,7 @@ export default function BlogIndexPage() {
         <article className="max-w-4xl mx-auto py-16 px-6">
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(ldJson) }}
           />
 
           <header className="mb-14">

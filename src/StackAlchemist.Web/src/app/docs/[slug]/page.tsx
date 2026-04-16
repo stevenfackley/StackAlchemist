@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getDocBySlug, getAllSlugs, DOCS } from "@/lib/docs";
 import { DocsMarkdown } from "@/components/docs-markdown";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { breadcrumbJsonLd } from "@/lib/jsonld";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -13,14 +14,53 @@ export async function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
 }
 
+/**
+ * Pull a search-friendly excerpt out of the markdown body. Strips fenced
+ * code, headings, list markers, link syntax, images, inline markers, and
+ * returns the first meaningful paragraph trimmed to ~160 chars.
+ */
+function extractExcerpt(markdown: string, max = 160): string {
+  const stripped = markdown
+    .replace(/```[\s\S]*?```/g, "") // fenced code blocks
+    .replace(/`[^`]*`/g, "") // inline code
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "") // images
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links → link text
+    .replace(/^---[\s\S]*?---/m, ""); // yaml frontmatter
+
+  const firstParagraph =
+    stripped
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .find((block) => block.length > 0 && !block.startsWith("#") && !block.startsWith(">")) ?? "";
+
+  const clean = firstParagraph
+    .replace(/^[-*+]\s+/gm, "") // list markers
+    .replace(/[*_~]/g, "") // bold/italic/strike markers
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1).trimEnd()}…`;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const doc = getDocBySlug(slug);
   if (!doc) return {};
 
+  const excerpt = extractExcerpt(doc.content);
+  const description = excerpt || `StackAlchemist documentation: ${doc.meta.title}.`;
+
   return {
     title: `${doc.meta.title} — StackAlchemist Docs`,
-    description: `StackAlchemist documentation: ${doc.meta.title}`,
+    description,
+    alternates: { canonical: `/docs/${slug}` },
+    openGraph: {
+      title: `${doc.meta.title} — StackAlchemist Docs`,
+      description,
+      url: `/docs/${slug}`,
+      type: "article",
+    },
   };
 }
 
@@ -36,8 +76,19 @@ export default async function DocPage({ params }: Props) {
   const prev = idx > 0 ? allDocs[idx - 1] : null;
   const next = idx < allDocs.length - 1 ? allDocs[idx + 1] : null;
 
+  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const breadcrumbLd = breadcrumbJsonLd([
+    { name: "Home", item: `${siteUrl}/` },
+    { name: "Docs", item: `${siteUrl}/docs` },
+    { name: doc.meta.title, item: `${siteUrl}/docs/${slug}` },
+  ]);
+
   return (
     <article className="max-w-3xl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
 
       {/* Section badge */}
       <div className="mb-6 flex items-center gap-2">
