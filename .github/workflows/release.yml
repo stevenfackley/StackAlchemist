@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write  # needed to push CHANGELOG.md and create GitHub Releases
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   changelog:
     name: Generate Changelog

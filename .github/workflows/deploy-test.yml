@@ -8,6 +8,9 @@ concurrency:
   group: deploy-test
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deploy:
     name: Deploy Web App to Test Server
