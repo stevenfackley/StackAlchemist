@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Logo } from "@/components/logo";
 
 export const metadata: Metadata = {
-  title: "Story",
+  title: "Our Story",
   description:
-    "Read the origin story and naming behind StackAlchemist.",
+    "The origin story behind StackAlchemist — how a frustration with AI codegen that doesn't compile became a platform for AI-generated SaaS you actually own.",
+  alternates: { canonical: "/story" },
 };
 
 export default function StoryPage() {

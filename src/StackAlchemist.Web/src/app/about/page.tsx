@@ -5,7 +5,8 @@ import { Logo } from "@/components/logo";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn how StackAlchemist turns natural language into compiled SaaS architecture.",
+    "How StackAlchemist uses the Swiss Cheese Method — deterministic Handlebars templates plus LLM-generated business logic plus a compiler auto-correction loop — to turn plain-English specs into production .NET + Next.js repositories.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {
