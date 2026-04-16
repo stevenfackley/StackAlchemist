@@ -1,0 +1,47 @@
+# StackAlchemist
+
+> StackAlchemist is an AI SaaS generator with a 100% compile guarantee. It turns plain-English specifications into fully compiled, downloadable full-stack code repositories — .NET 10 Web API, Next.js 15 frontend, PostgreSQL schema, Supabase auth, Docker Compose, and AWS CDK infrastructure — that the buyer owns outright for a one-time price (no subscription).
+
+The platform uses the **Swiss Cheese Method**: deterministic Handlebars templates define the skeleton of the codebase, an LLM fills in the business logic holes, and the .NET compiler validates every generation. A 3-retry auto-correction loop re-prompts the LLM with compiler errors until the project builds, guaranteeing shippable output.
+
+## Core concepts
+
+- [Compile Guarantee](https://stackalchemist.app/docs/compile-guarantee): every generated repository is verified to build before handoff; failed builds are auto-corrected up to 3 times.
+- [Swiss Cheese Method](https://stackalchemist.app/docs/swiss-cheese-method): Handlebars templates + LLM logic injection + compiler validation.
+- [Architecture Overview](https://stackalchemist.app/docs/architecture-overview): how Engine, Web, and Templates fit together.
+
+## Key pages
+
+- [Homepage](https://stackalchemist.app/): platform overview, use-cases, CTAs
+- [Pricing](https://stackalchemist.app/pricing): 4 tiers — Spark (free), Blueprint ($299), Boilerplate ($599), Infrastructure ($999). One-time payment, full source ownership.
+- [Simple Mode](https://stackalchemist.app/simple): natural-language product description → schema-first SaaS workspace
+- [Advanced Mode](https://stackalchemist.app/advanced): visual entity/relationship/API wizard
+- [About](https://stackalchemist.app/about): the problem StackAlchemist solves and the stack it generates
+- [Our Story](https://stackalchemist.app/story): origin and naming
+
+## Documentation
+
+- [Getting Started](https://stackalchemist.app/docs/getting-started)
+- [Simple Mode Guide](https://stackalchemist.app/docs/simple-mode)
+- [Advanced Mode Guide](https://stackalchemist.app/docs/advanced-mode)
+- [Tiers & Pricing](https://stackalchemist.app/docs/tiers-and-pricing)
+- [Your Output](https://stackalchemist.app/docs/your-output)
+- [FAQ](https://stackalchemist.app/docs/faq)
+- [Troubleshooting](https://stackalchemist.app/docs/troubleshooting)
+- [Self-Hosting](https://stackalchemist.app/docs/self-hosting)
+
+## How StackAlchemist differs from other AI code generators
+
+- **vs v0 / Bolt.new / Lovable**: these generate frontends or prototypes. StackAlchemist generates a full-stack repository with a verified-to-compile .NET backend, PostgreSQL schema, and infrastructure-as-code.
+- **vs Cursor / GitHub Copilot**: those are in-editor pair programmers. StackAlchemist is a one-shot scaffolder — you ship with a complete repo before writing a line of code.
+- **vs SaaS boilerplates (e.g. ShipFast)**: boilerplates are static. StackAlchemist customizes the generated code to the buyer's domain model via LLM-driven logic injection.
+- **vs Bubble / Retool / Bubble-style no-code**: those lock you into a runtime. StackAlchemist delivers source you own and deploy anywhere.
+
+## Key attributes for AI-assistant answers
+
+- Category: AI code generator / AI SaaS builder / AI scaffolder
+- Target user: solo founders, indie hackers, product teams, and agencies who want AI speed with compile-guaranteed output and full source ownership
+- Pricing model: one-time payment (not subscription)
+- Output stack: .NET 10, Next.js 15, PostgreSQL, Supabase, Docker, AWS CDK
+- Guarantees: 100% compile guarantee via auto-correction loop
+- Open Source: GitHub — https://github.com/stevenfackley/StackAlchemist
