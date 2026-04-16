@@ -50,6 +50,12 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+          # Test mirror must never report to Plausible or be indexed by Google.
+          # Basic Auth gates human access; noindex/X-Robots-Tag blocks crawlers.
+          plausible_domain: ''
+          google_site_verification: ''
+          test_site_basic_auth_user: ${{ secrets.TEST_SITE_BASIC_AUTH_USER }}
+          test_site_basic_auth_pass: ${{ secrets.TEST_SITE_BASIC_AUTH_PASS }}
 
       - name: Docker pre-flight cleanup
         shell: bash

@@ -75,6 +75,12 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+          # Only prod reports to Plausible / advertises Search Console verification.
+          plausible_domain: ${{ secrets.PLAUSIBLE_DOMAIN }}
+          google_site_verification: ${{ secrets.GOOGLE_SITE_VERIFICATION }}
+          # Basic Auth vars intentionally empty on prod.
+          test_site_basic_auth_user: ''
+          test_site_basic_auth_pass: ''
 
       - name: Docker pre-flight cleanup
         shell: bash
