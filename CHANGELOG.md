@@ -41,6 +41,16 @@ All notable changes to this project will be documented in this file.
 - Rename simple-mode-schema.ts → .tsx (contains JSX, lint parse error)
 - Correct secret mapping for e2e and deploy workflows
 - Skip E2E integration gracefully when secrets are placeholder values
+- Add parserOptions.ecmaFeatures.jsx to eslintrc — fix parse error in .tsx files
+
+### Dependencies
+
+- Bump softprops/action-gh-release from 2 to 3 ([#25](https://github.com/stevenfackley/StackAlchemist/issues/25))
+- Bump actions/setup-node from 5 to 6 ([#27](https://github.com/stevenfackley/StackAlchemist/issues/27))
+- Bump aws-actions/configure-aws-credentials from 5 to 6 ([#29](https://github.com/stevenfackley/StackAlchemist/issues/29))
+- Bump actions/checkout from 5 to 6 ([#26](https://github.com/stevenfackley/StackAlchemist/issues/26))
+- Bump styled-jsx in /src/StackAlchemist.Web ([#16](https://github.com/stevenfackley/StackAlchemist/issues/16))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#14](https://github.com/stevenfackley/StackAlchemist/issues/14))
 
 ### Documentation
 
@@ -59,6 +69,12 @@ All notable changes to this project will be documented in this file.
 - Retrigger test deploy for tunnel fix
 - Merge develop into main — resolve deploy-prod.yml conflict
 - Merge fix/ci-e2e-integration into main
+- Add dependabot config
+- Bump postcss in /src/StackAlchemist.Web ([#20](https://github.com/stevenfackley/StackAlchemist/issues/20))
+- Bump autoprefixer in /src/StackAlchemist.Web ([#18](https://github.com/stevenfackley/StackAlchemist/issues/18))
+- Bump msw in /src/StackAlchemist.Web ([#13](https://github.com/stevenfackley/StackAlchemist/issues/13))
+- Bump the testing group ([#11](https://github.com/stevenfackley/StackAlchemist/issues/11))
+- Apply workspace baseline (sweep)
 
 ### Testing
 
