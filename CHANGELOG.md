@@ -72,6 +72,7 @@ All notable changes to this project will be documented in this file.
 - Bump postcss in /src/StackAlchemist.Web ([#20](https://github.com/stevenfackley/StackAlchemist/issues/20))
 - Bump autoprefixer in /src/StackAlchemist.Web ([#18](https://github.com/stevenfackley/StackAlchemist/issues/18))
 - Bump msw in /src/StackAlchemist.Web ([#13](https://github.com/stevenfackley/StackAlchemist/issues/13))
+- Bump the testing group ([#11](https://github.com/stevenfackley/StackAlchemist/issues/11))
 
 ### Testing
 
