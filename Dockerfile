@@ -4,7 +4,7 @@
 # ==========================================
 # STAGE 1: NEXT.JS FRONTEND (WEB)
 # ==========================================
-FROM node:20-alpine AS web-builder
+FROM node:25-alpine AS web-builder
 RUN apk add --no-cache git
 WORKDIR /app
 # Accept public env vars at build time so Next.js bakes them into the bundle
@@ -26,7 +26,7 @@ COPY src/StackAlchemist.Web/ .
 RUN npx next build \
   && rm -rf /root/.npm /tmp/*
 
-FROM node:20-alpine AS web
+FROM node:25-alpine AS web
 # Install wget for production health checks
 RUN apk add --no-cache wget
 WORKDIR /app
