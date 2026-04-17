@@ -50,6 +50,7 @@ All notable changes to this project will be documented in this file.
 - Bump aws-actions/configure-aws-credentials from 5 to 6 ([#29](https://github.com/stevenfackley/StackAlchemist/issues/29))
 - Bump actions/checkout from 5 to 6 ([#26](https://github.com/stevenfackley/StackAlchemist/issues/26))
 - Bump styled-jsx in /src/StackAlchemist.Web ([#16](https://github.com/stevenfackley/StackAlchemist/issues/16))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#14](https://github.com/stevenfackley/StackAlchemist/issues/14))
 
 ### Documentation
 
