@@ -60,6 +60,7 @@ All notable changes to this project will be documented in this file.
 - Retrigger test deploy for tunnel fix
 - Merge develop into main — resolve deploy-prod.yml conflict
 - Merge fix/ci-e2e-integration into main
+- Add dependabot config
 
 ### Testing
 
