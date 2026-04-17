@@ -367,6 +367,7 @@ export default function HomePage() {
         </div>
       )}
 
+      <main>
       {/* ─── Hero Section ───────────────────────────────────────────── */}
       <section className="relative z-10 min-h-[calc(100vh-72px)] px-6 py-12 sm:px-8 sm:py-16 lg:px-16 lg:py-0">
         <div className="mx-auto flex min-h-[calc(100vh-120px)] max-w-7xl items-center justify-center">
@@ -807,6 +808,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      </main>
 
       {/* ─── Footer ──────────────────────────────────────────────────── */}
       <footer className="relative z-10 border-t border-slate-600/30 py-10 px-6 sm:px-8 lg:px-16">

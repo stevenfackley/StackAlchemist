@@ -228,8 +228,11 @@ function RegisterPageContent() {
 // in a component that could be statically prerendered.
 export default function RegisterPage() {
   return (
-    <Suspense>
-      <RegisterPageContent />
-    </Suspense>
+    <>
+      <h1 className="sr-only">Create Your StackAlchemist Account</h1>
+      <Suspense>
+        <RegisterPageContent />
+      </Suspense>
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { faqPageJsonLd } from "@/lib/jsonld";
 export const metadata: Metadata = {
   title: "FAQ — StackAlchemist",
   description:
-    "Common questions about StackAlchemist: the Compile Guarantee, Swiss Cheese Method, pricing tiers, how it compares to v0 / Bolt.new / Lovable, what stack the generated code uses, and more.",
+    "Short answers on the Compile Guarantee, Swiss Cheese Method, pricing tiers, v0/Bolt/Lovable comparisons, and the stack we ship.",
   alternates: { canonical: "/faq" },
   openGraph: {
     title: "StackAlchemist FAQ — AI SaaS Generator",
@@ -68,9 +68,9 @@ export default function FaqPage() {
                           <a
                             href={`#${anchor}`}
                             className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-electric transition-colors mt-0.5 shrink-0"
-                            aria-label="Link to this answer"
                           >
-                            #
+                            <span aria-hidden="true">#</span>
+                            <span className="sr-only">Link to: {entry.question}</span>
                           </a>
                           {entry.question}
                         </h2>

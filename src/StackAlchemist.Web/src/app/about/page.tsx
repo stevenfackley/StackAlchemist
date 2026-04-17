@@ -5,7 +5,7 @@ import { ContentHeader } from "@/components/content-header";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "How StackAlchemist uses the Swiss Cheese Method — deterministic Handlebars templates plus LLM-generated business logic plus a compiler auto-correction loop — to turn plain-English specs into production .NET + Next.js repositories.",
+    "How the Swiss Cheese Method — deterministic templates plus LLM logic plus a compiler auto-correction loop — turns plain-English specs into verified repos.",
   alternates: { canonical: "/about" },
 };
 

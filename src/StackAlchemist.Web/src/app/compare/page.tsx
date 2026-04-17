@@ -4,7 +4,7 @@ import { ContentHeader } from "@/components/content-header";
 import { COMPARE_ENTRIES } from "@/lib/compare-manifest";
 
 export const metadata: Metadata = {
-  title: "Compare StackAlchemist — honest side-by-side vs v0, Bolt.new, and more",
+  title: "Compare StackAlchemist vs v0, Bolt.new, Lovable",
   description:
     "Honest, founder-written comparisons between StackAlchemist and other AI code generators. Where they win, where we win, and when to pick which.",
   alternates: { canonical: "/compare" },

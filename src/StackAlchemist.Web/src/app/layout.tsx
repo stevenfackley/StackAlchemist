@@ -25,7 +25,7 @@ const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
 
 const defaultDescription =
-  "StackAlchemist is the AI SaaS generator with a 100% compile guarantee. Turn natural language into production-ready .NET 10 + Next.js 15 + PostgreSQL repositories you own for a one-time price — no subscriptions, no lock-in.";
+  "AI SaaS generator with a 100% compile guarantee. Turn plain English into a .NET 10 + Next.js 15 + Postgres repo you own — one-time price, no lock-in.";
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
@@ -98,6 +98,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark`}>
         <body className="min-h-screen bg-void text-white font-sans antialiased">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[9999] focus:rounded-md focus:bg-blue-500 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:shadow-lg"
+          >
+            Skip to main content
+          </a>
           <TestSiteBanner />
           <script
             type="application/ld+json"
@@ -119,7 +125,7 @@ export default function RootLayout({
               defer
             />
           ) : null}
-          {children}
+          <div id="main-content">{children}</div>
         </body>
     </html>
   );

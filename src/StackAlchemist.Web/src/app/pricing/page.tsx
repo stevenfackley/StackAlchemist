@@ -9,7 +9,7 @@ import { SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Pricing — One Payment, Own It Forever",
   description:
-    "Compare StackAlchemist tiers: Spark (free preview), Blueprint ($299), Boilerplate ($599), and Infrastructure ($999). One-time payment, no subscription, full source ownership.",
+    "Compare tiers: Spark (free), Blueprint $299, Boilerplate $599, Infrastructure $999. One-time payment, no subscription, full source ownership.",
   alternates: { canonical: "/pricing" },
 };
 

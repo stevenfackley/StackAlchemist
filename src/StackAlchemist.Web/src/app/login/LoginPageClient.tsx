@@ -215,8 +215,11 @@ function LoginPageContent() {
 // in a component that could be statically prerendered.
 export default function LoginPage() {
   return (
-    <Suspense>
-      <LoginPageContent />
-    </Suspense>
+    <>
+      <h1 className="sr-only">Sign In to StackAlchemist</h1>
+      <Suspense>
+        <LoginPageContent />
+      </Suspense>
+    </>
   );
 }

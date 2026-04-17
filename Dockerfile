@@ -20,6 +20,12 @@ RUN npm install --include=dev --ignore-scripts
 
 COPY src/StackAlchemist.Web/ .
 
+# Docs, blog, compare, and solutions pages resolve their markdown via
+# process.cwd()/../../<folder> at build time. CWD is /app, so these trees must
+# live at /docs and /content for generateStaticParams + generateMetadata to read.
+COPY docs/ /docs/
+COPY content/ /content/
+
 # Build the Next.js app and clean build cache.
 # We invoke next build directly because the npm script wrapper
 # (scripts/build-wrapper.mjs) is only needed on Windows+pnpm.

@@ -6,9 +6,9 @@ import { blogIndexJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Blog — AI Codegen, SaaS Generation, and the Compile Guarantee",
+  title: "Blog — AI Codegen & the Compile Guarantee",
   description:
-    "Founder-written essays on AI code generation, the Swiss Cheese Method, and why StackAlchemist ships verified full-stack SaaS repos instead of broken zips. By Steve Ackley.",
+    "Founder essays on AI code generation, the Swiss Cheese Method, and why we ship verified full-stack SaaS repos — not broken zips.",
   alternates: { canonical: "/blog" },
   openGraph: {
     title: "StackAlchemist Blog",
