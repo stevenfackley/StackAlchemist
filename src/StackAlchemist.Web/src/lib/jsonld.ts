@@ -44,13 +44,15 @@ export function websiteJsonLd(siteUrl: string, description: string): object {
 
 export type PricingOfferLd = { name: string; price: number; href: string };
 
-export function pricingProductJsonLd(offers: PricingOfferLd[]): object {
+export function pricingProductJsonLd(siteUrl: string, offers: PricingOfferLd[]): object {
+  const base = siteUrl.replace(/\/$/, "");
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: SITE_NAME,
     description: "Compare StackAlchemist tiers and pick the handoff depth that fits your project.",
     brand: { "@type": "Brand", name: SITE_NAME },
+    image: `${base}/opengraph-image`,
     offers: offers.map((o) => ({
       "@type": "Offer",
       name: o.name,

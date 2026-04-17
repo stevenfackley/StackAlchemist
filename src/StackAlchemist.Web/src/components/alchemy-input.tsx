@@ -123,6 +123,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
             onKeyDown={handleKeyDown}
             disabled={disabled}
             data-testid="home-prompt-input"
+            aria-label="Synthesis prompt — describe the architecture you want to generate"
             placeholder="Describe your architecture... e.g., 'A real-time collaborative document editor with CRDT sync, PostgreSQL persistence, and team workspaces'"
             className="min-h-[100px] w-full resize-none bg-transparent font-mono text-sm leading-relaxed text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-40"
             rows={3}

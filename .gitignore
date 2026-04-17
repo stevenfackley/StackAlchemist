@@ -52,3 +52,8 @@ docs/DEV_PROMPT.md
 # Design reference extracts
 style-extracted/
 .pnpm-store/
+
+# Squirrelscan audit output (snapshots, not source)
+squirrel-audit-*.txt
+squirrel-audit-*.json
+squirrel-audit-*.html

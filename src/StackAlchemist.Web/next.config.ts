@@ -35,6 +35,19 @@ const nextConfig: NextConfig = {
     const isTestSite = process.env.NEXT_PUBLIC_IS_TEST_SITE === "true";
     const baseHeaders = [
       {
+        // Baseline security headers. Applied to every path so CF edge + nginx
+        // forwarding preserve them consistently. HSTS is safe even on the test
+        // mirror — both sites live under *.stackalchemist.app with HTTPS only.
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+        ],
+      },
+      {
         // StackBlitz WebContainers requires cross-origin isolation (SharedArrayBuffer).
         // Apply COOP + COEP headers to the generate result page only.
         source: "/generate/:id*",

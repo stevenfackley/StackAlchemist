@@ -124,10 +124,13 @@ jobs:
           # Swap in a lightweight maintenance nginx as sa-reverse-proxy.
           # This keeps the tunnel serving real HTTP traffic (maintenance page)
           # throughout the 4–8 min build window instead of returning a 1033.
+          # --network-alias mirrors the compose alias so CF tunnel ingress keeps
+          # resolving whichever hostname it's pointed at.
           docker run -d \
             --name sa-reverse-proxy \
             --restart no \
             --network stackalchemist-prod \
+            --network-alias reverse-proxy \
             -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
             -v "$(pwd)/docker/nginx-maintenance.conf:/etc/nginx/conf.d/default.conf:ro" \
             nginx:alpine
@@ -244,20 +247,35 @@ jobs:
             exit 1
           fi
 
-      - name: Verify site is reachable
+      - name: Verify site is reachable (end-to-end via CF tunnel)
         shell: bash
         run: |
-          echo "Verifying site via Cloudflare tunnel..."
-          sleep 5
-          HTTP_CODE=$(wget --spider -S --timeout=10 https://stackalchemist.app 2>&1 | grep "HTTP/" | tail -1 | awk '{print $2}' || true)
-          if [ -z "$HTTP_CODE" ]; then
-            echo "⚠️ Could not reach https://stackalchemist.app — tunnel may still be connecting"
-          elif [ "$HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
-            echo "✅ Site returned HTTP ${HTTP_CODE}"
-          else
-            echo "❌ Site returned HTTP ${HTTP_CODE}"
-            exit 1
-          fi
+          set -Eeuo pipefail
+          # Probes /api/healthz end-to-end through Cloudflare → tunnel → nginx
+          # → sa-web. /api/healthz is auth-exempt and a 200 proves every hop is
+          # reachable — including the tunnel ingress hostname. Retries for up
+          # to 120s because CF Tunnel can take a few seconds to reattach after
+          # the deploy re-creates the stackalchemist-prod network.
+          URL="https://stackalchemist.app/api/healthz"
+          MAX_WAIT=120
+          INTERVAL=5
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            HTTP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ $URL returned 200 after ${ELAPSED}s"
+              exit 0
+            fi
+            echo "⏳ $URL → ${HTTP_CODE} (${ELAPSED}s / ${MAX_WAIT}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          echo "❌ FATAL: $URL did not return 200 within ${MAX_WAIT}s"
+          echo "--- sa-tunnel logs (last 40) ---"
+          docker logs sa-tunnel --tail 40 2>&1 || true
+          echo "--- sa-reverse-proxy logs (last 40) ---"
+          docker logs sa-reverse-proxy --tail 40 2>&1 || true
+          exit 1
 
       - name: Capture deploy diagnostics
         if: failure()

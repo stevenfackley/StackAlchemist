@@ -607,6 +607,7 @@ export default function SimpleModePage() {
       />
     )}
     <div data-testid="simple-mode-page" className="min-h-screen flex flex-col bg-slate-800">
+      <h1 className="sr-only">Simple Mode — Generate a Full-Stack App From a Prompt</h1>
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">

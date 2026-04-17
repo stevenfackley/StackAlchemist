@@ -258,13 +258,23 @@ In the Cloudflare Zero Trust dashboard, the production tunnel should have a publ
 
 - **Hostname:** `stackalchemist.app`
 - **Service type:** `HTTP`
-- **URL / Service:** `http://reverse-proxy:80`
+- **URL / Service:** `http://sa-reverse-proxy:80` _(or `http://reverse-proxy:80` — both resolve)_
 
 Optional additional hostname:
 
 - **Hostname:** `www.stackalchemist.app`
 - **Service type:** `HTTP`
-- **URL / Service:** `http://reverse-proxy:80`
+- **URL / Service:** `http://sa-reverse-proxy:80`
+
+> **Why both hostnames work:** `docker-compose.prod.yml` attaches a network alias
+> `reverse-proxy` to the `sa-reverse-proxy` container on the `stackalchemist-prod`
+> network. The deploy workflow does the same for the maintenance-page container
+> via `--network-alias reverse-proxy`. This keeps the tunnel ingress working
+> regardless of whether the CF dashboard points at the container_name or the
+> alias, so future renames in compose don't silently break production. If you
+> ever need to change the nginx container name again, update the alias list in
+> `docker-compose.prod.yml` and the `--network-alias` flag in `deploy-prod.yml`
+> together.
 
 If you manage the tunnel from the host with `cloudflared tunnel route dns`, the effective intent is the same: bind the production tunnel to `stackalchemist.app` and forward traffic to the internal reverse proxy.
 

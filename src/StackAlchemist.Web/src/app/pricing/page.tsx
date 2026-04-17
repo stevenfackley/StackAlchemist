@@ -4,6 +4,7 @@ import { Check, Eye, Lock } from "lucide-react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
 import { pricingProductJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Pricing — One Payment, Own It Forever",
@@ -156,11 +157,14 @@ function CheckCell({ value }: { value: boolean }) {
 }
 
 export default function PricingPage() {
+  const productLdJson = JSON.stringify(
+    pricingProductJsonLd(SITE_URL, tiers.map((t) => ({ name: t.name, price: t.price, href: t.href }))),
+  );
   return (
     <div data-testid="pricing-page" className="min-h-screen flex flex-col bg-slate-800">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingProductJsonLd(tiers.map((t) => ({ name: t.name, price: t.price, href: t.href })))) }}
+        dangerouslySetInnerHTML={{ __html: productLdJson }}
       />
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>

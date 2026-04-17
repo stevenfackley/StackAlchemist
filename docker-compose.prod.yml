@@ -18,7 +18,12 @@ services:
       retries: 3
       start_period: 5s
     networks:
-      - stackalchemist-prod
+      stackalchemist-prod:
+        # `reverse-proxy` alias keeps the Cloudflare Tunnel ingress working
+        # regardless of whether `container_name` carries the `sa-` prefix.
+        # Prevents Error 1033/502 drift between compose and CF dashboard.
+        aliases:
+          - reverse-proxy
 
   sa-web:
     build:
