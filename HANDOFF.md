@@ -2,8 +2,8 @@
 
 **Session:** SEO Week 1–3 + code audit + test coverage + infra hardening
 **Branch:** `develop`
-**As of:** 2026-04-17
-**Build status:** green — deploy test passing, 53 unit tests, 24/24 e2e smoke
+**As of:** 2026-04-17 (session 3, end)
+**Build status:** green — deploy test passing, 54 unit tests, 24/24 e2e smoke
 **Site:** https://stackalchemist.app (prod) / https://test.stackalchemist.app (test mirror, noindex + basic auth)
 
 ---
@@ -50,11 +50,19 @@
 - **CI env wiring** — `setup-env` action + both deploy workflows now pass `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`, `GOOGLE_SITE_VERIFICATION`, `TEST_SITE_BASIC_AUTH_USER/PASS`
 - **SEO metadata** — `/about`, `/advanced`, `/simple`, `/story`, `/` all have updated keyword-rich descriptions and canonical alternates
 
-### Tests (53 unit, 24 e2e smoke)
+### Session 3 additions
+
+- **Error boundaries** — `src/app/blog/[slug]/error.tsx`, `src/app/compare/[slug]/error.tsx`, `src/app/solutions/[vertical]/error.tsx`. Graceful fallback + "Back to index" link.
+- **SITE_URL constant** — `src/lib/constants.ts` replaces 8+ scattered `process.env.NEXT_PUBLIC_APP_URL` reads.
+- **Manifest literal narrowing** — BLOG/COMPARE/SOLUTIONS/FAQ manifests upgraded to `as const satisfies readonly X[]` for literal-type slug narrowing.
+- **FAQ deep-link anchors** — `/faq` articles get `id={questionToAnchor(q)}` + hover-reveal `#` link; `questionToAnchor` extracted to `src/lib/faq-manifest.ts` for testability.
+- **Demo mode boot warning** — `src/lib/runtime-config.ts` emits a one-time `console.warn` on server start when demo mode is auto-enabled because Supabase envs are missing (non-prod only).
+
+### Tests (54 unit, 24 e2e smoke)
 
 | File | Tests |
 |------|-------|
-| `__tests__/lib/content-manifests.test.ts` | 23 |
+| `__tests__/lib/content-manifests.test.ts` | 24 |
 | `__tests__/lib/content-loaders.test.ts` | 7 |
 | `__tests__/components/content-header.test.tsx` | 2 |
 | `e2e/smoke/seo-content-routes.spec.ts` | 13 |
@@ -89,27 +97,23 @@ e2e smoke requires `pnpm exec playwright install chromium` on a fresh machine (o
 
 ### This week — code work
 
-3. **Audit MED: error boundaries** — add `app/error.tsx` + per-segment error boundaries on `/blog/[slug]`, `/compare/[slug]`, `/solutions/[vertical]`. No graceful fallback today.
+3. **ContentHeader on remaining pages** — `/pricing`, `/simple`, `/advanced`, `/login`, `/register` all have their own inline headers. These were intentionally skipped (different bg theme or auth-page minimal nav). Evaluate whether to unify or fork `ContentHeader` with a variant.
 
-4. **Audit MED: SITE_URL constant** — `process.env.NEXT_PUBLIC_APP_URL` read in 8+ places. Extract to `src/lib/constants.ts`. 15-min job.
-
-5. **Audit MED: manifest `satisfies`** — upgrade manifests to `as const satisfies readonly X[]` for literal-type slug narrowing.
-
-6. **ContentHeader on remaining pages** — `/pricing`, `/simple`, `/advanced`, `/login`, `/register` all have their own inline headers. These were intentionally skipped (different bg theme or auth-page minimal nav). Evaluate whether to unify or fork `ContentHeader` with a variant.
+4. **Root `app/error.tsx`** — segment boundaries shipped; a top-level fallback for layout-level crashes is still open.
 
 ### Pre-launch press
 
-7. **Product Hunt hunter outreach** — pick 5 Cat-A + 5 Cat-B from `content/press/product-hunt-hunter-strategy.md`, set a launch date, send first 3 emails.
+5. **Product Hunt hunter outreach** — pick 5 Cat-A + 5 Cat-B from `content/press/product-hunt-hunter-strategy.md`, set a launch date, send first 3 emails.
 
-8. **Show HN submission** — schedule per `content/press/show-hn.md` — Tuesday 9am ET, 2+ weeks before PH launch.
+6. **Show HN submission** — schedule per `content/press/show-hn.md` — Tuesday 9am ET, 2+ weeks before PH launch.
 
-9. **Demo video** — 90-sec recording (user task, blocked on user).
+7. **Demo video** — 90-sec recording (user task, blocked on user).
 
 ### Post-launch content cadence
 
-10. 2 blog posts/month starting May.
-11. 1 new `/compare/*` page per month (lovable, cursor, replit-agent, bubble, retool).
-12. Roll out remaining 15 `/solutions/*` pages over 3 months.
+8. 2 blog posts/month starting May.
+9. 1 new `/compare/*` page per month (lovable, cursor, replit-agent, bubble, retool).
+10. Roll out remaining 15 `/solutions/*` pages over 3 months.
 
 ---
 

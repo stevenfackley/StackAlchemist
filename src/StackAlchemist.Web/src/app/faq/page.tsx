@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
-import { FAQS, FAQ_CATEGORIES } from "@/lib/faq-manifest";
+import { FAQS, FAQ_CATEGORIES, questionToAnchor } from "@/lib/faq-manifest";
 import { faqPageJsonLd } from "@/lib/jsonld";
 
 export const metadata: Metadata = {
@@ -17,14 +17,6 @@ export const metadata: Metadata = {
 };
 
 const faqLd = faqPageJsonLd(FAQS);
-
-function questionToAnchor(q: string): string {
-  return q
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .trim()
-    .replace(/\s+/g, "-");
-}
 
 export default function FaqPage() {
   return (

@@ -17,7 +17,7 @@ import {
   getAllSolutionSlugs,
 } from "../../src/lib/solutions-manifest";
 import { DOCS, DOC_SECTIONS } from "../../src/lib/docs-manifest";
-import { FAQS, FAQ_CATEGORIES } from "../../src/lib/faq-manifest";
+import { FAQS, FAQ_CATEGORIES, questionToAnchor } from "../../src/lib/faq-manifest";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const KEBAB_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -178,6 +178,15 @@ describe("faq-manifest", () => {
     for (const faq of FAQS) {
       expect(validCategories.has(faq.category), `${faq.question} -> ${faq.category}`).toBe(true);
     }
+  });
+
+  it("questionToAnchor yields unique, non-empty slugs for every FAQ", () => {
+    const anchors = FAQS.map((f) => questionToAnchor(f.question));
+    for (const a of anchors) {
+      expect(a.length, `empty anchor for one of the FAQs`).toBeGreaterThan(0);
+      expect(a, `anchor "${a}" must be kebab-case`).toMatch(KEBAB_SLUG);
+    }
+    expect(new Set(anchors).size, "FAQ anchors must be unique").toBe(anchors.length);
   });
 
   it("answers stay within the 4-sentence citation budget the manifest comment claims", () => {

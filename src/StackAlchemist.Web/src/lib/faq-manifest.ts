@@ -11,6 +11,14 @@ export interface FaqEntry {
   answer: string;
 }
 
+export function questionToAnchor(q: string): string {
+  return q
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
 export const FAQ_CATEGORIES = [
   { slug: "general", label: "General" },
   { slug: "generation", label: "Generation" },
