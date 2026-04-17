@@ -43,6 +43,12 @@ All notable changes to this project will be documented in this file.
 - Skip E2E integration gracefully when secrets are placeholder values
 - Add parserOptions.ecmaFeatures.jsx to eslintrc — fix parse error in .tsx files
 
+### Dependencies
+
+- Bump softprops/action-gh-release from 2 to 3 ([#25](https://github.com/stevenfackley/StackAlchemist/issues/25))
+- Bump actions/setup-node from 5 to 6 ([#27](https://github.com/stevenfackley/StackAlchemist/issues/27))
+- Bump aws-actions/configure-aws-credentials from 5 to 6 ([#29](https://github.com/stevenfackley/StackAlchemist/issues/29))
+
 ### Documentation
 
 - Update production release and deployment documentation to reflect automated main branch trigger
@@ -61,6 +67,7 @@ All notable changes to this project will be documented in this file.
 - Merge develop into main — resolve deploy-prod.yml conflict
 - Merge fix/ci-e2e-integration into main
 - Add dependabot config
+- Bump postcss in /src/StackAlchemist.Web ([#20](https://github.com/stevenfackley/StackAlchemist/issues/20))
 
 ### Testing
 
