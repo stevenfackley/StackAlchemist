@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { ContentHeader } from "@/components/content-header";
 
 export const metadata: Metadata = {
   title: "About",
@@ -12,20 +12,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-void">
-      {/* Header */}
-      <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
-        <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo />
-          <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Pricing</Link>
-            <Link href="/story" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Our Story</Link>
-            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Build</Link>
-            <Link href="/login" className="text-xs font-mono tracking-widest border border-electric text-electric hover:bg-electric hover:text-white transition-colors px-3 py-1.5 uppercase">
-              Login
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <ContentHeader />
 
       <main className="flex-1">
 
