@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { ContentHeader } from "@/components/content-header";
 import { FAQS, FAQ_CATEGORIES } from "@/lib/faq-manifest";
 import { faqPageJsonLd } from "@/lib/jsonld";
 
@@ -18,22 +18,18 @@ export const metadata: Metadata = {
 
 const faqLd = faqPageJsonLd(FAQS);
 
+function questionToAnchor(q: string): string {
+  return q
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
 export default function FaqPage() {
   return (
     <div className="min-h-screen flex flex-col bg-void">
-      <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
-        <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Logo />
-          <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Pricing</Link>
-            <Link href="/about" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">About</Link>
-            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-electric transition-colors uppercase">Build</Link>
-            <Link href="/login" className="text-xs font-mono tracking-widest border border-electric text-electric hover:bg-electric hover:text-white transition-colors px-3 py-1.5 uppercase">
-              Login
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <ContentHeader />
 
       <main className="flex-1">
         <script
@@ -72,16 +68,26 @@ export default function FaqPage() {
                   {cat.label}
                 </p>
                 <div className="space-y-10">
-                  {entries.map((entry) => (
-                    <article key={entry.question} className="space-y-3">
-                      <h2 className="font-mono text-lg font-bold text-white leading-snug">
-                        {entry.question}
-                      </h2>
-                      <p className="text-slate-400 text-sm leading-relaxed">
-                        {entry.answer}
-                      </p>
-                    </article>
-                  ))}
+                  {entries.map((entry) => {
+                    const anchor = questionToAnchor(entry.question);
+                    return (
+                      <article key={entry.question} id={anchor} className="space-y-3 scroll-mt-16">
+                        <h2 className="font-mono text-lg font-bold text-white leading-snug group flex items-start gap-2">
+                          <a
+                            href={`#${anchor}`}
+                            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-electric transition-colors mt-0.5 shrink-0"
+                            aria-label="Link to this answer"
+                          >
+                            #
+                          </a>
+                          {entry.question}
+                        </h2>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                          {entry.answer}
+                        </p>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
             </section>
