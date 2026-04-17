@@ -5,6 +5,7 @@ import { getDocBySlug, getAllSlugs, DOCS } from "@/lib/docs";
 import { DocsMarkdown } from "@/components/docs-markdown";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { breadcrumbJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -76,7 +77,7 @@ export default async function DocPage({ params }: Props) {
   const prev = idx > 0 ? allDocs[idx - 1] : null;
   const next = idx < allDocs.length - 1 ? allDocs[idx + 1] : null;
 
-  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = SITE_URL;
   const breadcrumbLd = breadcrumbJsonLd([
     { name: "Home", item: `${siteUrl}/` },
     { name: "Docs", item: `${siteUrl}/docs` },

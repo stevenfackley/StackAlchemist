@@ -7,6 +7,7 @@ import { ContentHeader } from "@/components/content-header";
 import { getCompareBySlug } from "@/lib/compare";
 import { getAllCompareSlugs } from "@/lib/compare-manifest";
 import { breadcrumbJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -44,7 +45,7 @@ export default async function ComparePage({ params }: Props) {
   const entry = getCompareBySlug(slug);
   if (!entry) notFound();
 
-  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = SITE_URL;
 
   const breadcrumbLd = breadcrumbJsonLd([
     { name: "Home", item: `${siteUrl}/` },

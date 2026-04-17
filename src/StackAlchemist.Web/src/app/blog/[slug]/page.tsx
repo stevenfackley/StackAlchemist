@@ -7,6 +7,7 @@ import { ContentHeader } from "@/components/content-header";
 import { getBlogPostBySlug } from "@/lib/blog";
 import { getAllBlogSlugs, getSortedBlogPosts } from "@/lib/blog-manifest";
 import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -48,7 +49,7 @@ export default async function BlogPostPage({ params }: Props) {
   const post = getBlogPostBySlug(slug);
   if (!post) notFound();
 
-  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = SITE_URL;
 
   const articleLd = blogPostingJsonLd(siteUrl, slug, post.meta);
   const breadcrumbLd = breadcrumbJsonLd([

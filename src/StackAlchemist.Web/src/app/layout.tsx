@@ -18,7 +18,8 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000");
+import { SITE_URL } from "@/lib/constants";
+const siteUrl = new URL(SITE_URL);
 const isTestSite = process.env.NEXT_PUBLIC_IS_TEST_SITE === "true";
 const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;

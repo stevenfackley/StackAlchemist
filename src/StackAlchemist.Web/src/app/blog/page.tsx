@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getSortedBlogPosts } from "@/lib/blog-manifest";
 import { ContentHeader } from "@/components/content-header";
 import { blogIndexJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Blog — AI Codegen, SaaS Generation, and the Compile Guarantee",
@@ -28,7 +29,7 @@ function formatDate(iso: string): string {
 
 export default function BlogIndexPage() {
   const posts = getSortedBlogPosts();
-  const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = SITE_URL;
 
   const ldJson = blogIndexJsonLd(siteUrl, posts);
 
