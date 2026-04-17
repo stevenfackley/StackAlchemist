@@ -35,12 +35,15 @@
 Thumbs.db
 
 # ─── Docs / scripts / docker config (not needed inside images) ───────────────
-docs/
+# NOTE: docs/ is intentionally NOT ignored — web-builder COPY docs/ /docs/ uses
+# it for /docs/[...slug] prerendering. content/ is also required for blog,
+# compare, and solutions prerendering.
 scripts/
 docker/
 
 # ─── Misc project files ───────────────────────────────────────────────────────
-*.md
+# Scoped to repo root so content/**/*.md and docs/**/*.md reach the build context.
+/*.md
 LICENSE
 cliff.toml
 products.csv
