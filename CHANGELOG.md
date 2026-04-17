@@ -41,6 +41,9 @@ All notable changes to this project will be documented in this file.
 - Rename simple-mode-schema.ts → .tsx (contains JSX, lint parse error)
 - Correct secret mapping for e2e and deploy workflows
 - Skip E2E integration gracefully when secrets are placeholder values
+- Align @ alias with Next.js tsconfig paths
+- Add missing files that were never committed
+- Harden CF tunnel routing + close SEO/a11y audit gaps
 - Add parserOptions.ecmaFeatures.jsx to eslintrc — fix parse error in .tsx files
 
 ### Dependencies
@@ -56,10 +59,22 @@ All notable changes to this project will be documented in this file.
 
 - Update production release and deployment documentation to reflect automated main branch trigger
 - Sync documentation with current codebase state
+- Add Show HN draft + Product Hunt hunter strategy
+- Add CODE_AUDIT.md and HANDOFF.md
+- Update with session 2 progress
+- Correct scope — root error.tsx pre-existed
 
 ### Features
 
 - Extend modal with creative non-technical steps
+- Scaffold /blog route + seed 5 launch posts
+- Scaffold /compare route + seed v0, bolt-new
+- Scaffold /solutions route + seed 3 verticals
+- Extract ContentHeader used by new content routes
+- Sitemap and robots include new SEO surfaces
+- Add Basic Auth gate for test mirror
+- Add per-segment error boundaries on dynamic content routes
+- Deep-link anchors + ContentHeader + isDemoMode boot warning
 
 ### Miscellaneous Tasks
 
@@ -68,17 +83,43 @@ All notable changes to this project will be documented in this file.
 - Dependency hygiene and CI restore drift hardening
 - Retrigger test deploy for tunnel fix
 - Merge develop into main — resolve deploy-prod.yml conflict
+- Trigger test deploy [skip release]
+- Merge fix/ci-e2e-integration into develop
 - Merge fix/ci-e2e-integration into main
+- Merge main into develop — sync changelog and ci-e2e fixes
+- Opt into Node.js 24 for GitHub Actions
+- Remove static og-image.png replaced by dynamic opengraph-image.tsx
+- Update playwright report — 24/24 smoke passing
 - Add dependabot config
 - Bump postcss in /src/StackAlchemist.Web ([#20](https://github.com/stevenfackley/StackAlchemist/issues/20))
 - Bump autoprefixer in /src/StackAlchemist.Web ([#18](https://github.com/stevenfackley/StackAlchemist/issues/18))
 - Bump msw in /src/StackAlchemist.Web ([#13](https://github.com/stevenfackley/StackAlchemist/issues/13))
 - Bump the testing group ([#11](https://github.com/stevenfackley/StackAlchemist/issues/11))
 - Apply workspace baseline (sweep)
+- Merge main into develop
+
+### Refactoring
+
+- Extract JSON-LD builders into src/lib/jsonld.ts
+- Adopt ContentHeader on /about and /story
+- Extract SITE_URL constant from 8 repeated env reads
+- Upgrade manifests to as const satisfies
+- Extract questionToAnchor + cover uniqueness
 
 ### Testing
 
 - Update e2e flows for advanced mode and checkout
+- Cover manifests and content loaders
+- Cover ContentHeader
+- Smoke for /blog /compare /solutions /faq
+
+### Ci
+
+- Wire Plausible, GSC, and Basic Auth env vars through pipeline
+
+### Seo
+
+- Improve page metadata descriptions and canonical URLs
 
 ## [1.0.4] - 2026-04-06
 
