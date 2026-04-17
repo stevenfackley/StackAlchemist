@@ -11,7 +11,7 @@ export interface BlogPostMeta {
 
 export const BLOG_AUTHOR = "Steve Ackley";
 
-export const BLOG_POSTS: BlogPostMeta[] = [
+export const BLOG_POSTS = [
   {
     slug: "compile-guarantee-why-ai-codegen-must-verify",
     title: "The Compile Guarantee: why AI codegen must verify, not just generate",
@@ -67,7 +67,7 @@ export const BLOG_POSTS: BlogPostMeta[] = [
     relativePath: "why-we-charge-once-not-monthly.md",
     readingTimeMinutes: 7,
   },
-];
+] as const satisfies readonly BlogPostMeta[];
 
 export function getBlogPostMetaBySlug(slug: string): BlogPostMeta | undefined {
   return BLOG_POSTS.find((p) => p.slug === slug);

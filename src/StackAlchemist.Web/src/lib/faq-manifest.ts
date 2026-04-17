@@ -11,15 +11,15 @@ export interface FaqEntry {
   answer: string;
 }
 
-export const FAQ_CATEGORIES: FaqCategory[] = [
+export const FAQ_CATEGORIES = [
   { slug: "general", label: "General" },
   { slug: "generation", label: "Generation" },
   { slug: "pricing", label: "Pricing & Licensing" },
   { slug: "output", label: "The Output" },
   { slug: "technical", label: "Technical" },
-];
+] as const satisfies readonly FaqCategory[];
 
-export const FAQS: FaqEntry[] = [
+export const FAQS = [
   {
     category: "general",
     question: "What is StackAlchemist?",
@@ -120,4 +120,4 @@ export const FAQS: FaqEntry[] = [
     answer:
       "Yes. The platform itself ships as a Docker Compose stack, so self-hosting is supported for teams that want to run generations entirely inside their own infrastructure. See the Self-Hosting documentation for setup details.",
   },
-];
+] as const satisfies readonly FaqEntry[];

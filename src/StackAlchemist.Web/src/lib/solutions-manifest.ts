@@ -10,7 +10,7 @@ export interface SolutionEntry {
   updatedAt: string;
 }
 
-export const SOLUTION_ENTRIES: SolutionEntry[] = [
+export const SOLUTION_ENTRIES = [
   {
     slug: "ai-ecommerce-platform",
     vertical: "AI E-commerce Platform",
@@ -88,7 +88,7 @@ export const SOLUTION_ENTRIES: SolutionEntry[] = [
     ],
     updatedAt: "2026-04-16",
   },
-];
+] as const satisfies readonly SolutionEntry[];
 
 export function getSolutionBySlug(slug: string): SolutionEntry | undefined {
   return SOLUTION_ENTRIES.find((e) => e.slug === slug);

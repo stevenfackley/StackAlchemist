@@ -9,7 +9,7 @@ export interface CompareEntry {
   updatedAt: string;
 }
 
-export const COMPARE_ENTRIES: CompareEntry[] = [
+export const COMPARE_ENTRIES = [
   {
     slug: "v0",
     competitorName: "v0 by Vercel",
@@ -52,7 +52,7 @@ export const COMPARE_ENTRIES: CompareEntry[] = [
       "Bolt is the right tool for prototyping JS ideas in an afternoon. StackAlchemist is the right tool when you need a SaaS you can actually deploy and sell.",
     updatedAt: "2026-04-22",
   },
-];
+] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {
   return COMPARE_ENTRIES.find((e) => e.slug === slug);

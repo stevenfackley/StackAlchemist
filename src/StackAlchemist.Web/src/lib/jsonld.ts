@@ -133,7 +133,7 @@ export function breadcrumbJsonLd(items: BreadcrumbItemLd[]): object {
 
 export type FaqEntryLd = { question: string; answer: string };
 
-export function faqPageJsonLd(entries: FaqEntryLd[]): object {
+export function faqPageJsonLd(entries: readonly FaqEntryLd[]): object {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",

@@ -14,9 +14,9 @@ export const DOC_SECTIONS = [
     label: "Advanced",
     key: "advanced" as const,
   },
-];
+] as const;
 
-export const DOCS: DocMeta[] = [
+export const DOCS = [
   {
     slug: "getting-started",
     title: "Getting Started",
@@ -83,4 +83,4 @@ export const DOCS: DocMeta[] = [
     section: "advanced",
     relativePath: "advanced-docs/self-hosting.md",
   },
-];
+] as const satisfies readonly DocMeta[];
