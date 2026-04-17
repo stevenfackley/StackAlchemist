@@ -38,7 +38,7 @@ jobs:
           echo "The current production deploy runs locally on the EC2 self-hosted runner and does not require SSH deployment."
 
       - name: Configure AWS credentials via GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
