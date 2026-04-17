@@ -46,6 +46,7 @@ All notable changes to this project will be documented in this file.
 - Harden CF tunnel routing + close SEO/a11y audit gaps
 - Add parserOptions.ecmaFeatures.jsx to eslintrc — fix parse error in .tsx files
 - Batch A — SSR h1s, landmarks, metadata, docs/content COPY
+- Un-ignore docs/ and scope *.md to repo root
 
 ### Dependencies
 
