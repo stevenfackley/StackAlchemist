@@ -48,6 +48,7 @@ All notable changes to this project will be documented in this file.
 - Bump softprops/action-gh-release from 2 to 3 ([#25](https://github.com/stevenfackley/StackAlchemist/issues/25))
 - Bump actions/setup-node from 5 to 6 ([#27](https://github.com/stevenfackley/StackAlchemist/issues/27))
 - Bump aws-actions/configure-aws-credentials from 5 to 6 ([#29](https://github.com/stevenfackley/StackAlchemist/issues/29))
+- Bump actions/checkout from 5 to 6 ([#26](https://github.com/stevenfackley/StackAlchemist/issues/26))
 
 ### Documentation
 
