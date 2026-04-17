@@ -52,7 +52,7 @@
 
 ### Session 3 additions
 
-- **Error boundaries** — `src/app/blog/[slug]/error.tsx`, `src/app/compare/[slug]/error.tsx`, `src/app/solutions/[vertical]/error.tsx`. Graceful fallback + "Back to index" link.
+- **Error boundaries** — per-segment `src/app/blog/[slug]/error.tsx`, `src/app/compare/[slug]/error.tsx`, `src/app/solutions/[vertical]/error.tsx`. Graceful fallback + "Back to index" link. (Root `src/app/error.tsx` was already in place.)
 - **SITE_URL constant** — `src/lib/constants.ts` replaces 8+ scattered `process.env.NEXT_PUBLIC_APP_URL` reads.
 - **Manifest literal narrowing** — BLOG/COMPARE/SOLUTIONS/FAQ manifests upgraded to `as const satisfies readonly X[]` for literal-type slug narrowing.
 - **FAQ deep-link anchors** — `/faq` articles get `id={questionToAnchor(q)}` + hover-reveal `#` link; `questionToAnchor` extracted to `src/lib/faq-manifest.ts` for testability.
@@ -99,7 +99,7 @@ e2e smoke requires `pnpm exec playwright install chromium` on a fresh machine (o
 
 3. **ContentHeader on remaining pages** — `/pricing`, `/simple`, `/advanced`, `/login`, `/register` all have their own inline headers. These were intentionally skipped (different bg theme or auth-page minimal nav). Evaluate whether to unify or fork `ContentHeader` with a variant.
 
-4. **Root `app/error.tsx`** — segment boundaries shipped; a top-level fallback for layout-level crashes is still open.
+4. **`global-error.tsx`** — segment + root boundaries in place; add a `global-error.tsx` for root-layout crashes.
 
 ### Pre-launch press
 
