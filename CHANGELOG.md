@@ -78,6 +78,7 @@ All notable changes to this project will be documented in this file.
 - Add Basic Auth gate for test mirror
 - Add per-segment error boundaries on dynamic content routes
 - Deep-link anchors + ContentHeader + isDemoMode boot warning
+- Batch B — CSP-Report-Only, legal pages, byline, contrast
 
 ### Miscellaneous Tasks
 
