@@ -16,17 +16,11 @@ const ELECTRIC = "#4da6ff";
 const EMERALD = "#10b981";
 const SLATE = "#94a3b8";
 
-export async function generateImageMetadata({ params }: { params: { slug: string } }) {
-  const post = getBlogPostMetaBySlug(params.slug);
-  return [
-    {
-      id: params.slug,
-      alt: post ? `${post.title} — StackAlchemist Blog` : "StackAlchemist Blog",
-      contentType,
-      size,
-    },
-  ];
-}
+// alt is served by generateMetadata on the blog page (og:image:alt is per-post).
+// generateImageMetadata is intentionally omitted: adding it rewrites the URL to
+// /opengraph-image/<id> which requires id-keyed dispatch in the handler and
+// 404'd in prod until removed.
+export const alt = "StackAlchemist Blog";
 
 export function generateStaticParams() {
   return getAllBlogSlugs().map((slug) => ({ slug }));
