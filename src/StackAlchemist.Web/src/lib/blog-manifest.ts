@@ -80,3 +80,25 @@ export function getAllBlogSlugs(): string[] {
 export function getSortedBlogPosts(): BlogPostMeta[] {
   return [...BLOG_POSTS].sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
 }
+
+// Return posts most similar to `slug` by tag overlap, excluding the source post
+// itself. Ties break on recency. Used for the in-article "Related reading"
+// module to keep readers on-site after finishing a post.
+export function getRelatedBlogPosts(slug: string, limit = 2): BlogPostMeta[] {
+  const source = getBlogPostMetaBySlug(slug);
+  if (!source) return [];
+  const sourceTags = new Set(source.tags);
+
+  return getSortedBlogPosts()
+    .filter((p) => p.slug !== slug)
+    .map((p) => ({
+      post: p,
+      overlap: p.tags.filter((t) => sourceTags.has(t)).length,
+    }))
+    .sort((a, b) => {
+      if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+      return a.post.publishedAt < b.post.publishedAt ? 1 : -1;
+    })
+    .slice(0, limit)
+    .map((r) => r.post);
+}

@@ -9,7 +9,12 @@ export const metadata: Metadata = {
   title: "Blog — AI Codegen & the Compile Guarantee",
   description:
     "Founder essays on AI code generation, the Swiss Cheese Method, and why we ship verified full-stack SaaS repos — not broken zips.",
-  alternates: { canonical: "/blog" },
+  alternates: {
+    canonical: "/blog",
+    types: {
+      "application/rss+xml": [{ url: "/blog/rss.xml", title: "StackAlchemist Blog" }],
+    },
+  },
   openGraph: {
     title: "StackAlchemist Blog",
     description:

@@ -2,10 +2,20 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDocBySlug, getAllSlugs, DOCS } from "@/lib/docs";
+import { getBlogPostMetaBySlug } from "@/lib/blog-manifest";
 import { DocsMarkdown } from "@/components/docs-markdown";
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, BookOpen } from "lucide-react";
 import { breadcrumbJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
+
+// Docs → blog cross-links for concept pages where the founder essay gives
+// deeper "why we built it this way" context than the reference page can. Key
+// off doc slug; lookup the blog post at render time so metadata stays in sync.
+const DOC_TO_BLOG: Record<string, string> = {
+  "swiss-cheese-method": "swiss-cheese-method-deterministic-templates-llm-logic",
+  "compile-guarantee": "compile-guarantee-why-ai-codegen-must-verify",
+  "tiers-and-pricing": "why-we-charge-once-not-monthly",
+};
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -109,6 +119,32 @@ export default async function DocPage({ params }: Props) {
 
       {/* Markdown content */}
       <DocsMarkdown content={doc.content} />
+
+      {/* Founder-essay cross-link for concept pages */}
+      {(() => {
+        const relatedBlogSlug = DOC_TO_BLOG[slug];
+        const relatedPost = relatedBlogSlug ? getBlogPostMetaBySlug(relatedBlogSlug) : undefined;
+        if (!relatedPost) return null;
+        return (
+          <Link
+            href={`/blog/${relatedPost.slug}`}
+            className="group mt-10 flex items-start gap-4 p-5 border border-slate-700/40 rounded-lg hover:border-electric/50 hover:bg-slate-800/30 transition-all"
+          >
+            <BookOpen className="h-5 w-5 text-electric mt-0.5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <div className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric mb-1">
+                Read the essay
+              </div>
+              <h3 className="text-base font-semibold text-white group-hover:text-electric transition-colors leading-tight">
+                {relatedPost.title}
+              </h3>
+              <p className="mt-2 text-slate-300 text-sm leading-relaxed">
+                {relatedPost.description}
+              </p>
+            </div>
+          </Link>
+        );
+      })()}
 
       {/* Prev / Next footer */}
       <div className="mt-14 pt-6 border-t border-slate-700/50 grid grid-cols-2 gap-4">

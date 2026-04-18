@@ -5,7 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { DocsMarkdown } from "@/components/docs-markdown";
 import { ContentHeader } from "@/components/content-header";
 import { getBlogPostBySlug } from "@/lib/blog";
-import { getAllBlogSlugs, getSortedBlogPosts } from "@/lib/blog-manifest";
+import { getAllBlogSlugs, getRelatedBlogPosts, getSortedBlogPosts } from "@/lib/blog-manifest";
 import { blogPostingJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
 
@@ -62,6 +62,7 @@ export default async function BlogPostPage({ params }: Props) {
   const idx = sorted.findIndex((p) => p.slug === slug);
   const prev = idx < sorted.length - 1 ? sorted[idx + 1] : null;
   const next = idx > 0 ? sorted[idx - 1] : null;
+  const related = getRelatedBlogPosts(slug, 2);
 
   return (
     <div className="min-h-screen flex flex-col bg-void">
@@ -105,6 +106,33 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
 
           <DocsMarkdown content={post.content} />
+
+          {related.length > 0 && (
+            <aside className="mt-16 pt-8 border-t border-slate-700/50">
+              <h2 className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric mb-5">
+                Related reading
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {related.map((r) => (
+                  <Link
+                    key={r.slug}
+                    href={`/blog/${r.slug}`}
+                    className="group block p-5 border border-slate-700/40 rounded-lg hover:border-electric/50 hover:bg-slate-800/30 transition-all"
+                  >
+                    <h3 className="text-base font-semibold text-white group-hover:text-electric transition-colors leading-tight">
+                      {r.title}
+                    </h3>
+                    <p className="mt-2 text-slate-300 text-sm leading-relaxed">
+                      {r.description}
+                    </p>
+                    <div className="mt-3 font-mono text-[10px] tracking-widest text-slate-400 uppercase">
+                      {r.readingTimeMinutes} min read
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </aside>
+          )}
 
           <div className="mt-16 pt-6 border-t border-slate-700/50 grid grid-cols-2 gap-4">
             <div>
