@@ -79,6 +79,7 @@ All notable changes to this project will be documented in this file.
 - Add per-segment error boundaries on dynamic content routes
 - Deep-link anchors + ContentHeader + isDemoMode boot warning
 - Batch B — CSP-Report-Only, legal pages, byline, contrast
+- Batch C — RSS, per-post OG, related posts, CSP plan
 
 ### Miscellaneous Tasks
 
