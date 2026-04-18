@@ -21,6 +21,9 @@ const publicRoutes = [
   { url: "/blog", priority: 0.8, changeFrequency: "weekly" as const },
   { url: "/compare", priority: 0.8, changeFrequency: "monthly" as const },
   { url: "/solutions", priority: 0.8, changeFrequency: "monthly" as const },
+  { url: "/contact", priority: 0.5, changeFrequency: "yearly" as const },
+  { url: "/privacy", priority: 0.3, changeFrequency: "yearly" as const },
+  { url: "/terms", priority: 0.3, changeFrequency: "yearly" as const },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

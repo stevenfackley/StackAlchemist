@@ -828,12 +828,15 @@ export default function HomePage() {
               </span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-6">
-              <Link href="/pricing" className="font-mono text-xs text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest">Pricing</Link>
-              <Link href="/about" className="font-mono text-xs text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest">About</Link>
-              <Link href="/story" className="font-mono text-xs text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest">Story</Link>
-              <Link href="/docs" className="font-mono text-xs text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest">Docs</Link>
+              <Link href="/pricing" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Pricing</Link>
+              <Link href="/about" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">About</Link>
+              <Link href="/story" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Story</Link>
+              <Link href="/docs" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Docs</Link>
+              <Link href="/privacy" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Privacy</Link>
+              <Link href="/terms" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Terms</Link>
+              <Link href="/contact" className="font-mono text-xs text-slate-300 hover:text-white transition-colors uppercase tracking-widest">Contact</Link>
             </div>
-            <p className="font-mono text-xs text-slate-600">
+            <p className="font-mono text-xs text-slate-400">
               &copy; {new Date().getFullYear()} StackAlchemist
             </p>
           </div>

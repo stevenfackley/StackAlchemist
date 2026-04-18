@@ -53,6 +53,8 @@ function checkTestSiteBasicAuth(request: NextRequest): NextResponse | null {
 
   // Exempt Docker/tunnel healthcheck so deployments don't break.
   if (request.nextUrl.pathname.startsWith("/api/healthz")) return null;
+  // Exempt CSP violation reports — browsers don't send credentials with them.
+  if (request.nextUrl.pathname.startsWith("/api/csp-report")) return null;
 
   const header = request.headers.get("authorization") ?? "";
   if (!header.toLowerCase().startsWith("basic ")) return basicAuthChallenge();

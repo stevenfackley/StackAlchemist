@@ -64,11 +64,11 @@ export default function BlogIndexPage() {
                 className="group block py-8 hover:bg-slate-800/30 -mx-4 px-4 rounded-lg transition-colors"
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <time className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                  <time className="font-mono text-[10px] tracking-widest text-slate-300 uppercase">
                     {formatDate(post.publishedAt)}
                   </time>
-                  <span className="text-slate-700">·</span>
-                  <span className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                  <span className="text-slate-500">·</span>
+                  <span className="font-mono text-[10px] tracking-widest text-slate-300 uppercase">
                     {post.readingTimeMinutes} min read
                   </span>
                 </div>
@@ -80,7 +80,7 @@ export default function BlogIndexPage() {
                   {post.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="font-mono text-[10px] tracking-wider text-slate-500 px-2 py-0.5 border border-slate-700/60 rounded"
+                      className="font-mono text-[10px] tracking-wider text-slate-300 px-2 py-0.5 border border-slate-600 rounded"
                     >
                       {tag}
                     </span>

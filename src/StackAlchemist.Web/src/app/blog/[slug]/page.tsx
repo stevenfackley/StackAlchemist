@@ -79,11 +79,30 @@ export default async function BlogPostPage({ params }: Props) {
 
           <Link
             href="/blog"
-            className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300 font-mono text-[10px] tracking-widest uppercase mb-8"
+            className="inline-flex items-center gap-1 text-slate-300 hover:text-white font-mono text-[10px] tracking-widest uppercase mb-8"
           >
             <ChevronLeft className="h-3 w-3" />
             Back to blog
           </Link>
+
+          <div className="mb-8 pb-6 border-b border-slate-700/50">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono tracking-widest uppercase text-slate-400">
+              <span>
+                By{" "}
+                <Link href="/about" className="text-white hover:text-electric transition-colors">
+                  {post.meta.author}
+                </Link>
+              </span>
+              <span className="text-slate-600">·</span>
+              <time dateTime={post.meta.publishedAt}>
+                {new Date(post.meta.publishedAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
+            </div>
+          </div>
 
           <DocsMarkdown content={post.content} />
 

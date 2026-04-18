@@ -45,10 +45,10 @@ export default function CompareIndexPage() {
                 className="group block p-6 border border-slate-700/50 rounded-lg hover:border-electric/50 hover:bg-slate-800/30 transition-all"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                  <span className="font-mono text-[10px] tracking-widest text-slate-300 uppercase">
                     vs
                   </span>
-                  <span className="font-mono text-[10px] tracking-widest text-slate-600 uppercase">
+                  <span className="font-mono text-[10px] tracking-widest text-slate-400 uppercase">
                     Updated {entry.updatedAt}
                   </span>
                 </div>
