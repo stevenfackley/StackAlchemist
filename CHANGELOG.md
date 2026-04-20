@@ -48,6 +48,7 @@ All notable changes to this project will be documented in this file.
 - Batch A — SSR h1s, landmarks, metadata, docs/content COPY
 - Un-ignore docs/ and scope *.md to repo root
 - Drop generateImageMetadata — 404'd with id-keyed URL
+- Unblock CA2007 analyzer + vitest IntersectionObserver constructor
 
 ### Dependencies
 
