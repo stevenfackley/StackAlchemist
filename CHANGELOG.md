@@ -65,6 +65,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/ssr in /src/StackAlchemist.Web ([#39](https://github.com/stevenfackley/StackAlchemist/issues/39))
 - Bump docker/build-push-action from 6 to 7 ([#35](https://github.com/stevenfackley/StackAlchemist/issues/35))
 - Bump docker/setup-buildx-action from 3 to 4 ([#34](https://github.com/stevenfackley/StackAlchemist/issues/34))
+- Bump actions/upload-artifact from 4 to 7 ([#33](https://github.com/stevenfackley/StackAlchemist/issues/33))
 
 ### Documentation
 
