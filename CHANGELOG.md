@@ -51,6 +51,7 @@ All notable changes to this project will be documented in this file.
 - Unblock CA2007 analyzer + vitest IntersectionObserver constructor
 - Unblock CI — dedupe h1s, scope test CA2007
 - Suppress CA2007 in Worker.Tests (symmetry with Engine.Tests)
+- Migrate PostCSS pipeline to Tailwind v4 ([#46](https://github.com/stevenfackley/StackAlchemist/issues/46))
 
 ### Dependencies
 
