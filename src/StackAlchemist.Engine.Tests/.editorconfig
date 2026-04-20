@@ -1,0 +1,3 @@
+[*.cs]
+# Test assembly for the Engine app — ConfigureAwait is noise. See docs/architecture/CI_AUDIT_2026-04-19.md.
+dotnet_diagnostic.CA2007.severity = none

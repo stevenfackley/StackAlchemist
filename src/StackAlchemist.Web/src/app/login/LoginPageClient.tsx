@@ -80,7 +80,7 @@ function LoginPageContent() {
         <div className="w-full max-w-md space-y-6">
           {/* Title */}
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Sign In</h1>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Sign In</h2>
             <p className="text-slate-400 text-sm">
               Track your generations and access your downloads.
             </p>

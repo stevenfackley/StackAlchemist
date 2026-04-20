@@ -81,7 +81,7 @@ function RegisterPageContent() {
               <CheckCircle2 className="h-8 w-8 text-emerald-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white mb-2">Check your inbox</h1>
+              <h2 className="text-2xl font-bold text-white mb-2">Check your inbox</h2>
               <p className="text-slate-400 text-sm leading-relaxed">
                 We&apos;ve sent a confirmation link to <span className="text-white font-medium">{email}</span>.
                 Click the link to activate your account and sign in.
@@ -117,7 +117,7 @@ function RegisterPageContent() {
         <div className="w-full max-w-md space-y-6">
           {/* Title */}
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Create Account</h1>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Create Account</h2>
             <p className="text-slate-400 text-sm">
               Free to register. Track your generations and retrieve downloads anytime.
             </p>

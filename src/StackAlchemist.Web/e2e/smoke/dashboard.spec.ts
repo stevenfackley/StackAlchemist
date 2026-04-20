@@ -9,11 +9,11 @@ test.describe("Smoke: Auth and Demo Generation Contract", () => {
 
   test("login and register entry points render", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /sign in/i })).toBeAttached();
     await expect(page.getByRole("button", { name: /sign in|send magic link/i })).toBeVisible();
 
     await page.goto("/register");
-    await expect(page.getByRole("heading", { name: /create account/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /create your stackalchemist account/i })).toBeAttached();
     await expect(page.getByRole("button", { name: /create account/i })).toBeVisible();
   });
 

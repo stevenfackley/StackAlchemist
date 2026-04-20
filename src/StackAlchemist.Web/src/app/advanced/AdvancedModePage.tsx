@@ -493,7 +493,6 @@ export default function AdvancedModePage() {
       />
     )}
     <div data-testid="advanced-mode-page" className="h-screen flex flex-col bg-slate-800 overflow-hidden">
-      <h1 className="sr-only">Advanced Mode — Design Entities, Relationships, and Endpoints</h1>
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 overflow-x-auto">
