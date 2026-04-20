@@ -107,6 +107,7 @@ All notable changes to this project will be documented in this file.
 - Bump the testing group ([#11](https://github.com/stevenfackley/StackAlchemist/issues/11))
 - Apply workspace baseline (sweep)
 - Merge main into develop
+- Bump tailwindcss in /src/StackAlchemist.Web ([#45](https://github.com/stevenfackley/StackAlchemist/issues/45))
 
 ### Refactoring
 
