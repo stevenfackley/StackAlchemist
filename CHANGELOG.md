@@ -90,6 +90,7 @@ All notable changes to this project will be documented in this file.
 - Deep-link anchors + ContentHeader + isDemoMode boot warning
 - Batch B — CSP-Report-Only, legal pages, byline, contrast
 - Batch C — RSS, per-post OG, related posts, CSP plan
+- Add /compare/lovable page ([#47](https://github.com/stevenfackley/StackAlchemist/issues/47))
 
 ### Miscellaneous Tasks
 
