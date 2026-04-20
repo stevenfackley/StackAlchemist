@@ -114,6 +114,7 @@ All notable changes to this project will be documented in this file.
 - Bump cross-env in /src/StackAlchemist.Web ([#41](https://github.com/stevenfackley/StackAlchemist/issues/41))
 - Bump @types/node in /src/StackAlchemist.Web ([#40](https://github.com/stevenfackley/StackAlchemist/issues/40))
 - Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#38](https://github.com/stevenfackley/StackAlchemist/issues/38))
+- Bump eslint in /src/StackAlchemist.Web ([#37](https://github.com/stevenfackley/StackAlchemist/issues/37))
 
 ### Refactoring
 
