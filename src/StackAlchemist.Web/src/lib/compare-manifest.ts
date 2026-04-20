@@ -52,6 +52,27 @@ export const COMPARE_ENTRIES = [
       "Bolt is the right tool for prototyping JS ideas in an afternoon. StackAlchemist is the right tool when you need a SaaS you can actually deploy and sell.",
     updatedAt: "2026-04-22",
   },
+  {
+    slug: "lovable",
+    competitorName: "Lovable",
+    tagline: "StackAlchemist vs Lovable — owned full-stack repo vs hosted in-browser iteration",
+    relativePath: "lovable.md",
+    winsForCompetitor: [
+      "Best-in-class live-preview iteration loop",
+      "Zero install, zero local tooling",
+      "Thoughtful Supabase integration",
+      "Frictionless for non-technical founders",
+    ],
+    winsForUs: [
+      "Real .NET 10 backend, not just edge functions",
+      "Compile-gated verified output",
+      "Owned repo — docker compose up, deploy anywhere",
+      "One-time pricing, no message-metered subscription",
+    ],
+    verdict:
+      "Lovable is the best in-browser iteration loop for a full app. StackAlchemist is the right tool when the goal shifts from sketching a product to owning a SaaS you can sell.",
+    updatedAt: "2026-04-20",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {
