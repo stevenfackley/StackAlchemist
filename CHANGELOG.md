@@ -49,6 +49,7 @@ All notable changes to this project will be documented in this file.
 - Un-ignore docs/ and scope *.md to repo root
 - Drop generateImageMetadata — 404'd with id-keyed URL
 - Unblock CA2007 analyzer + vitest IntersectionObserver constructor
+- Unblock CI — dedupe h1s, scope test CA2007
 
 ### Dependencies
 
