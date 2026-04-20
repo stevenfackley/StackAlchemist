@@ -1,0 +1,3 @@
+[*.cs]
+# Test assembly — ConfigureAwait is noise under xUnit. See docs/architecture/CI_AUDIT_2026-04-19.md.
+dotnet_diagnostic.CA2007.severity = none
