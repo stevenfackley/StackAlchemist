@@ -63,6 +63,7 @@ All notable changes to this project will be documented in this file.
 - Bump pytest 8.3.3 -> 9.0.3 in V1-Python-React template
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#43](https://github.com/stevenfackley/StackAlchemist/issues/43))
 - Bump @supabase/ssr in /src/StackAlchemist.Web ([#39](https://github.com/stevenfackley/StackAlchemist/issues/39))
+- Bump docker/build-push-action from 6 to 7 ([#35](https://github.com/stevenfackley/StackAlchemist/issues/35))
 
 ### Documentation
 
