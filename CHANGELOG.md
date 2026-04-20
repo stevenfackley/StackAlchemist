@@ -61,6 +61,7 @@ All notable changes to this project will be documented in this file.
 - Bump styled-jsx in /src/StackAlchemist.Web ([#16](https://github.com/stevenfackley/StackAlchemist/issues/16))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#14](https://github.com/stevenfackley/StackAlchemist/issues/14))
 - Bump pytest 8.3.3 -> 9.0.3 in V1-Python-React template
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#43](https://github.com/stevenfackley/StackAlchemist/issues/43))
 
 ### Documentation
 
