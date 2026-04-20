@@ -111,6 +111,7 @@ All notable changes to this project will be documented in this file.
 - Bump tailwindcss in /src/StackAlchemist.Web ([#45](https://github.com/stevenfackley/StackAlchemist/issues/45))
 - Bump typescript in /src/StackAlchemist.Web ([#44](https://github.com/stevenfackley/StackAlchemist/issues/44))
 - Bump cross-env in /src/StackAlchemist.Web ([#41](https://github.com/stevenfackley/StackAlchemist/issues/41))
+- Bump @types/node in /src/StackAlchemist.Web ([#40](https://github.com/stevenfackley/StackAlchemist/issues/40))
 
 ### Refactoring
 
