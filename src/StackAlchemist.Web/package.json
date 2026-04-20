@@ -33,6 +33,9 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@tailwindcss/postcss": "^4.2.3",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
@@ -41,6 +44,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "cross-env": "^10.1.0",
     "eslint": "^10",
     "eslint-config-next": "^15.3.0",
     "jsdom": "^29.0.2",
@@ -48,8 +52,6 @@
     "postcss": "^8",
     "tailwindcss": "^4.2.2",
     "typescript": "^6",
-    "vitest": "^4.1.4",
-    "@playwright/test": "^1.49.1",
-    "cross-env": "^10.1.0"
+    "vitest": "^4.1.4"
   }
 }
