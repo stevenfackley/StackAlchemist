@@ -50,6 +50,7 @@ All notable changes to this project will be documented in this file.
 - Drop generateImageMetadata — 404'd with id-keyed URL
 - Unblock CA2007 analyzer + vitest IntersectionObserver constructor
 - Unblock CI — dedupe h1s, scope test CA2007
+- Suppress CA2007 in Worker.Tests (symmetry with Engine.Tests)
 
 ### Dependencies
 
