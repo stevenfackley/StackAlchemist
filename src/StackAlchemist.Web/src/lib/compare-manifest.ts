@@ -73,6 +73,27 @@ export const COMPARE_ENTRIES = [
       "Lovable is the best in-browser iteration loop for a full app. StackAlchemist is the right tool when the goal shifts from sketching a product to owning a SaaS you can sell.",
     updatedAt: "2026-04-20",
   },
+  {
+    slug: "cursor",
+    competitorName: "Cursor",
+    tagline: "StackAlchemist vs Cursor — SaaS generator vs AI-native IDE (use both)",
+    relativePath: "cursor.md",
+    winsForCompetitor: [
+      "Best AI-native IDE on the market",
+      "Composer / agent mode on real repos",
+      "VS Code-compatible — your setup carries over",
+      "Thoughtful context handling on large codebases",
+    ],
+    winsForUs: [
+      "Generate a full repo from a prompt — not file-by-file",
+      "Compile-gated output: frontend + backend + DB + auth + Stripe",
+      "One-time price for the artifact, not monthly seats",
+      "Starts the repo; Cursor is perfect for the rest of its life",
+    ],
+    verdict:
+      "Different categories. Cursor is the best AI IDE once you have a repo. StackAlchemist creates the repo. Use StackAlchemist to generate, then Cursor forever after.",
+    updatedAt: "2026-04-20",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {

@@ -65,8 +65,8 @@ export default function CompareIndexPage() {
               More coming
             </h3>
             <p className="text-slate-400 text-sm">
-              We ship one new comparison per month. Next up: Cursor, Replit Agent. Have a tool you
-              want us to cover? Reach out.
+              We ship one new comparison per month. Next up: Replit Agent. Have a tool you want us
+              to cover? Reach out.
             </p>
           </section>
         </article>
