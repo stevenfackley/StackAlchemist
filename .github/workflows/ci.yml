@@ -47,6 +47,9 @@ jobs:
       - name: Type Check
         run: npx tsc --noEmit
 
+      - name: Build
+        run: npm run build
+
       - name: Unit & Integration Tests
         run: npx vitest run --reporter=junit --outputFile=test-results/junit.xml
 

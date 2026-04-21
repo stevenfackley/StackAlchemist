@@ -7,7 +7,7 @@
     "prebuild": "node ./scripts/prebuild-clean.mjs",
     "build": "node ./scripts/build-wrapper.mjs",
     "start": "next start",
-    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx --max-warnings 0",
+    "lint": "cross-env NODE_PATH=./node_modules/eslint-config-next/node_modules eslint . --ext .ts,.tsx --max-warnings 0",
     "e2e:smoke": "cross-env NEXT_PUBLIC_DEMO_MODE=true npx playwright test e2e/smoke --project=chromium",
     "e2e:integration": "cross-env NEXT_PUBLIC_DEMO_MODE=false npx playwright test e2e/integration --project=chromium",
     "setup-env": "node ./scripts/setup-env-safe.mjs",
