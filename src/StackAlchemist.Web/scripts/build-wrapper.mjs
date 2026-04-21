@@ -13,6 +13,7 @@
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import nextPackageJson from '../node_modules/next/package.json' with { type: 'json' };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const patchPath = join(__dirname, 'normalize-win32-paths.cjs').replace(/\\/g, '/');
@@ -30,8 +31,17 @@ const env = { ...process.env, NODE_OPTIONS: finalOpts };
 // Using process.execPath (current node binary) + the next CLI module avoids
 // shell=true cross-platform differences.
 const nextCli = join(dirname(__dirname), 'node_modules', '.bin', 'next');
+const nextMajorVersion = Number.parseInt(nextPackageJson.version.split('.')[0] ?? '0', 10);
+const buildArgs = ['build'];
 
-const result = spawnSync(nextCli, ['build'], {
+// Next 16+ defaults to Turbopack during production builds. This repo still
+// relies on a custom webpack hook for path normalization, so force webpack to
+// keep local builds, Docker, and CI consistent across dependency bumps.
+if (nextMajorVersion >= 16) {
+  buildArgs.push('--webpack');
+}
+
+const result = spawnSync(nextCli, buildArgs, {
   stdio: 'inherit',
   env,
   // shell: true is required on Windows to execute .cmd wrappers in .bin/
