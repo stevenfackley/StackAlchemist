@@ -57,3 +57,4 @@ style-extracted/
 squirrel-audit-*.txt
 squirrel-audit-*.json
 squirrel-audit-*.html
+*.lscache
