@@ -1,0 +1,12 @@
+{{ProjectName}} has been deployed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+If ingress is enabled:
+{{- range .Values.ingress.hosts }}
+  http://{{ .host }}
+{{- end }}
+
+If ingress is disabled:
+  kubectl port-forward svc/{{ include "{{ProjectNameKebab}}.fullname" . }} 8080:{{ .Values.service.port }}

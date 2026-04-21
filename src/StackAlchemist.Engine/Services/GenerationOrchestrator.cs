@@ -29,6 +29,8 @@ public sealed class GenerationOrchestrator(
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
+    private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
+
     private static string ResolveTemplateSet(ProjectType projectType) => projectType switch
     {
         ProjectType.DotNetNextJs => "V1-DotNet-NextJs",
@@ -80,6 +82,7 @@ public sealed class GenerationOrchestrator(
 
             // Step 4: Reconstruct — merge templates + LLM output
             var finalFiles = reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
+            AppendTier3InfrastructureFiles(request, variables, finalFiles);
 
             // Step 5: Write to temp directory
             var outputDir = WriteFilesToDisk(request.GenerationId, finalFiles);
@@ -108,6 +111,30 @@ public sealed class GenerationOrchestrator(
             Status = context.State.ToString().ToLowerInvariant(),
             ProjectType = request.ProjectType,
         };
+    }
+
+    private void AppendTier3InfrastructureFiles(
+        GenerateRequest request,
+        TemplateVariables variables,
+        Dictionary<string, string> finalFiles)
+    {
+        if (request.Tier != 3)
+        {
+            return;
+        }
+
+        var infrastructureTemplates = templateProvider.LoadTemplate(Tier3InfrastructureTemplateSet);
+        var renderedInfrastructureFiles = templateProvider.Render(infrastructureTemplates, variables);
+
+        foreach (var (path, content) in renderedInfrastructureFiles)
+        {
+            finalFiles[path] = content;
+        }
+
+        logger.LogInformation(
+            "Generation {Id} appended {Count} Tier 3 infrastructure files",
+            request.GenerationId,
+            renderedInfrastructureFiles.Count);
     }
 
     private static TemplateVariables BuildVariables(GenerateRequest request)

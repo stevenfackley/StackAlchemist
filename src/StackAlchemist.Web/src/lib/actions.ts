@@ -1,5 +1,7 @@
 "use server";
 
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createServerClient } from "./supabase";
 import { getServerUser } from "./supabase-server";
@@ -13,10 +15,20 @@ import type {
   EngineGenerateRequest,
   ProjectType,
   PersonalizationData,
+  ProfileSettings,
+  SaveProfileSettingsState,
 } from "./types";
 import { DEFAULT_PERSONALIZATION } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const DEFAULT_MODEL = "claude-3-5-sonnet-20241022";
+const ALLOWED_PROFILE_MODELS = new Set([
+  DEFAULT_MODEL,
+  "claude-3-5-haiku-20241022",
+  "openai/gpt-4o-mini",
+  "openrouter/anthropic/claude-3.5-sonnet",
+]);
 
 /** Returns headers for all Engine API calls, including the service key when set. */
 function engineHeaders(): Record<string, string> {
@@ -53,6 +65,157 @@ function resolveEngineUrl() {
   }
 
   throw new Error("ENGINE_API_URL must be configured in production.");
+}
+
+function normalizePreferredModel(model: string | null | undefined) {
+  return model && ALLOWED_PROFILE_MODELS.has(model) ? model : DEFAULT_MODEL;
+}
+
+function getByokEncryptionSecret() {
+  return process.env.BYOK_ENCRYPTION_KEY ?? process.env.ENGINE_SERVICE_KEY ?? "";
+}
+
+function encryptApiKeyOverride(apiKey: string) {
+  const secret = getByokEncryptionSecret();
+  if (secret.length < 32) {
+    throw new Error("BYOK_ENCRYPTION_KEY must be configured with at least 32 characters before storing API keys.");
+  }
+
+  const key = scryptSync(secret, "stackalchemist-byok-v1", 32);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(apiKey, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return `v1:${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
+}
+
+function parseOptionalApiKey(formData: FormData) {
+  const rawValue = formData.get("apiKeyOverride");
+  if (typeof rawValue !== "string") {
+    return "";
+  }
+
+  return rawValue.trim();
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   getProfileSettings / saveProfileSettings
+   Dashboard BYOK persistence. API keys are AES-GCM encrypted before storage.
+───────────────────────────────────────────────────────────────────────────── */
+export async function getProfileSettings(): Promise<ProfileSettings> {
+  const user = await getServerUser();
+  if (!user || !hasServerSupabaseConfig()) {
+    return {
+      email: user?.email ?? "",
+      hasApiKeyOverride: false,
+      preferredModel: DEFAULT_MODEL,
+    };
+  }
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch (err) {
+    console.error("[getProfileSettings] Supabase config error:", err);
+    return {
+      email: user.email ?? "",
+      hasApiKeyOverride: false,
+      preferredModel: DEFAULT_MODEL,
+    };
+  }
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("email, api_key_override, preferred_model")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[getProfileSettings] Query error:", error);
+  }
+
+  return {
+    email: data?.email ?? user.email ?? "",
+    hasApiKeyOverride: Boolean(data?.api_key_override),
+    preferredModel: normalizePreferredModel(data?.preferred_model),
+  };
+}
+
+export async function saveProfileSettings(
+  _previousState: SaveProfileSettingsState,
+  formData: FormData
+): Promise<SaveProfileSettingsState> {
+  const user = await getServerUser();
+  if (!user) {
+    return { status: "error", message: "Sign in before saving API settings." };
+  }
+
+  if (!hasServerSupabaseConfig()) {
+    return { status: "error", message: "Supabase server configuration is incomplete." };
+  }
+
+  const preferredModelValue = formData.get("preferredModel");
+  const preferredModel = typeof preferredModelValue === "string"
+    ? preferredModelValue
+    : DEFAULT_MODEL;
+
+  if (!ALLOWED_PROFILE_MODELS.has(preferredModel)) {
+    return { status: "error", message: "Choose a supported model before saving." };
+  }
+
+  const apiKey = parseOptionalApiKey(formData);
+  const clearApiKey = formData.get("clearApiKey") === "true";
+
+  if (apiKey && apiKey.length < 20) {
+    return { status: "error", message: "API key looks too short. Paste the full provider key." };
+  }
+
+  let apiKeyOverride: string | null | undefined;
+  try {
+    apiKeyOverride = apiKey ? encryptApiKeyOverride(apiKey) : clearApiKey ? null : undefined;
+  } catch (err) {
+    console.error("[saveProfileSettings] Encryption error:", err);
+    return {
+      status: "error",
+      message: "BYOK encryption is not configured. Set BYOK_ENCRYPTION_KEY before storing keys.",
+    };
+  }
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch (err) {
+    console.error("[saveProfileSettings] Supabase config error:", err);
+    return { status: "error", message: "Supabase server configuration is incomplete." };
+  }
+
+  const profile = {
+    id: user.id,
+    email: user.email ?? "",
+    preferred_model: preferredModel,
+    ...(apiKeyOverride !== undefined ? { api_key_override: apiKeyOverride } : {}),
+  };
+
+  const { error } = await db
+    .from("profiles")
+    .upsert(profile, { onConflict: "id" });
+
+  if (error) {
+    console.error("[saveProfileSettings] Upsert error:", error);
+    return { status: "error", message: "Failed to save API settings." };
+  }
+
+  revalidatePath("/dashboard");
+
+  return {
+    status: "success",
+    message: apiKey
+      ? "API settings saved. The key was encrypted before storage."
+      : clearApiKey
+        ? "API settings saved. Stored API key cleared."
+        : "Preferred model saved.",
+  };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
