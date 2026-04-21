@@ -91,6 +91,7 @@ All notable changes to this project will be documented in this file.
 - Batch B — CSP-Report-Only, legal pages, byline, contrast
 - Batch C — RSS, per-post OG, related posts, CSP plan
 - Add /compare/lovable page ([#47](https://github.com/stevenfackley/StackAlchemist/issues/47))
+- Add /compare/cursor page ([#48](https://github.com/stevenfackley/StackAlchemist/issues/48))
 
 ### Miscellaneous Tasks
 
