@@ -94,6 +94,27 @@ export const COMPARE_ENTRIES = [
       "Different categories. Cursor is the best AI IDE once you have a repo. StackAlchemist creates the repo. Use StackAlchemist to generate, then Cursor forever after.",
     updatedAt: "2026-04-20",
   },
+  {
+    slug: "replit-agent",
+    competitorName: "Replit Agent",
+    tagline: "StackAlchemist vs Replit Agent — owned repo on your infra vs hosted Replit workspace",
+    relativePath: "replit-agent.md",
+    winsForCompetitor: [
+      "Zero-to-running in minutes on Replit's runtime",
+      "Flexible stack — Python, Node, Go, whatever",
+      "Built-in hosting, no infra decisions",
+      "Great for teaching, hobby projects, hack weekends",
+    ],
+    winsForUs: [
+      "Real repo on your GitHub, under your license",
+      "Specific production stack: Next.js 15 + .NET 10 + Postgres",
+      "Compile-gated output — every build passes before download",
+      "One-time price, not hosted subscription",
+    ],
+    verdict:
+      "Replit Agent is excellent for shipping inside the Replit ecosystem. StackAlchemist is the right tool when the goal is a SaaS you own, on your infra, under your license — a business you can run and sell.",
+    updatedAt: "2026-04-20",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {
