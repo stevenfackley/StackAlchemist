@@ -101,11 +101,9 @@ jobs:
 
       - name: Build Engine
         run: dotnet build src/StackAlchemist.Engine/ --no-restore --configuration Release
-        continue-on-error: true
 
       - name: Build Worker
         run: dotnet build src/StackAlchemist.Worker/ --no-restore --configuration Release
-        continue-on-error: true
 
       - name: Build Engine Tests
         run: dotnet build src/StackAlchemist.Engine.Tests/ --no-restore --configuration Release

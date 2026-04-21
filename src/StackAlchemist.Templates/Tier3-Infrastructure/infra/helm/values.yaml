@@ -1,0 +1,71 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/example/{{ProjectNameKebab}}
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: {{ProjectNameKebab}}.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+env:
+  ASPNETCORE_ENVIRONMENT: Production
+  NEXT_PUBLIC_APP_URL: https://{{ProjectNameKebab}}.example.com
+
+secrets:
+  databaseUrl: ""
+  anthropicApiKey: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

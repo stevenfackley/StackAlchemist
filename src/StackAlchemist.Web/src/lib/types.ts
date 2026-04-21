@@ -89,6 +89,17 @@ export interface Profile {
   created_at: string;
 }
 
+export interface ProfileSettings {
+  email: string;
+  hasApiKeyOverride: boolean;
+  preferredModel: string;
+}
+
+export interface SaveProfileSettingsState {
+  status: "idle" | "success" | "error";
+  message: string;
+}
+
 // ─── Transaction Record ─────────────────────────────────────────────────────
 export type TransactionStatus = "pending" | "completed" | "failed" | "refunded";
 

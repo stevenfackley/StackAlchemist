@@ -87,6 +87,86 @@ public class GenerationOrchestratorTests
     }
 
     [Fact]
+    public async Task EnqueueAsync_ForTier3_AppendsInfrastructureFiles()
+    {
+        var fs = new MockFileSystem();
+        var queue = Channel.CreateUnbounded<GenerationContext>();
+
+        var templates = Substitute.For<ITemplateProvider>();
+        templates.LoadTemplate("V1-DotNet-NextJs").Returns(new Dictionary<string, string>
+        {
+            ["dotnet/Program.cs"] = "var builder = WebApplication.CreateBuilder(args);",
+        });
+        templates.LoadTemplate("Tier3-Infrastructure").Returns(new Dictionary<string, string>
+        {
+            ["DEPLOYMENT.md"] = "# {{ProjectName}}",
+            ["infra/helm/Chart.yaml"] = "name: {{ProjectNameKebab}}",
+            ["infra/cdk/lib/{{ProjectNameKebab}}-stack.ts"] = "export const stack = '{{ProjectName}}';",
+        });
+        templates
+            .Render(Arg.Any<Dictionary<string, string>>(), Arg.Any<TemplateVariables>())
+            .Returns(call =>
+            {
+                var input = call.ArgAt<Dictionary<string, string>>(0);
+                var vars = call.ArgAt<TemplateVariables>(1);
+
+                return input.ToDictionary(
+                    pair => pair.Key
+                        .Replace("{{ProjectName}}", vars.ProjectName)
+                        .Replace("{{ProjectNameKebab}}", vars.ProjectNameKebab),
+                    pair => pair.Value
+                        .Replace("{{ProjectName}}", vars.ProjectName)
+                        .Replace("{{ProjectNameKebab}}", vars.ProjectNameKebab));
+            });
+
+        var reconstruction = Substitute.For<IReconstructionService>();
+        reconstruction.Parse(Arg.Any<string>()).Returns([]);
+        reconstruction
+            .Reconstruct(Arg.Any<Dictionary<string, string>>(), Arg.Any<Dictionary<string, string>>(), templates)
+            .Returns(new Dictionary<string, string>
+            {
+                ["dotnet/Program.cs"] = "var builder = WebApplication.CreateBuilder(args);",
+            });
+
+        var llm = Substitute.For<ILlmClient>();
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LlmResponse("", 10, 20, "claude-3-5-sonnet-20241022"));
+
+        var promptBuilder = Substitute.For<IPromptBuilderService>();
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
+            .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
+        var delivery = Substitute.For<IDeliveryService>();
+
+        var sut = new GenerationOrchestrator(
+            templates,
+            reconstruction,
+            llm,
+            promptBuilder,
+            delivery,
+            fs,
+            queue.Writer,
+            NullLogger<GenerationOrchestrator>.Instance);
+
+        var response = await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 3,
+            Schema = new GenerationSchema(),
+            Personalization = new GenerationPersonalization
+            {
+                ProjectName = "Task Manager",
+            },
+        });
+
+        response.Status.Should().Be("building");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        fs.File.Exists(fs.Path.Combine(ctx!.OutputDirectory!, "DEPLOYMENT.md")).Should().BeTrue();
+        fs.File.Exists(fs.Path.Combine(ctx.OutputDirectory!, "infra/helm/Chart.yaml")).Should().BeTrue();
+        fs.File.Exists(fs.Path.Combine(ctx.OutputDirectory!, "infra/cdk/lib/task-manager-stack.ts")).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EnqueueAsync_WhenLlmFails_ReturnsFailedAndDoesNotQueue()
     {
         var (sut, llm, queue, _) = BuildSut();
