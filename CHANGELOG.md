@@ -92,6 +92,7 @@ All notable changes to this project will be documented in this file.
 - Batch C — RSS, per-post OG, related posts, CSP plan
 - Add /compare/lovable page ([#47](https://github.com/stevenfackley/StackAlchemist/issues/47))
 - Add /compare/cursor page ([#48](https://github.com/stevenfackley/StackAlchemist/issues/48))
+- Add /compare/replit-agent page ([#50](https://github.com/stevenfackley/StackAlchemist/issues/50))
 
 ### Miscellaneous Tasks
 
