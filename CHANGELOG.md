@@ -68,6 +68,9 @@ All notable changes to this project will be documented in this file.
 - Bump docker/setup-buildx-action from 3 to 4 ([#34](https://github.com/stevenfackley/StackAlchemist/issues/34))
 - Bump actions/upload-artifact from 4 to 7 ([#33](https://github.com/stevenfackley/StackAlchemist/issues/33))
 - Bump python-dotenv ([#52](https://github.com/stevenfackley/StackAlchemist/issues/52))
+- Bump lucide-react in /src/StackAlchemist.Web ([#55](https://github.com/stevenfackley/StackAlchemist/issues/55))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#60](https://github.com/stevenfackley/StackAlchemist/issues/60))
+- Bump the next-react group across 1 directory with 4 updates ([#53](https://github.com/stevenfackley/StackAlchemist/issues/53))
 
 ### Documentation
 
@@ -77,6 +80,7 @@ All notable changes to this project will be documented in this file.
 - Add CODE_AUDIT.md and HANDOFF.md
 - Update with session 2 progress
 - Correct scope — root error.tsx pre-existed
+- Note AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1 majors from 2026-04-28 sweep
 
 ### Features
 
@@ -123,6 +127,11 @@ All notable changes to this project will be documented in this file.
 - Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#38](https://github.com/stevenfackley/StackAlchemist/issues/38))
 - Bump eslint in /src/StackAlchemist.Web ([#37](https://github.com/stevenfackley/StackAlchemist/issues/37))
 - Bump eslint in /src/StackAlchemist.Web ([#59](https://github.com/stevenfackley/StackAlchemist/issues/59))
+- Bump msw in /src/StackAlchemist.Web ([#58](https://github.com/stevenfackley/StackAlchemist/issues/58))
+- Bump tailwindcss in /src/StackAlchemist.Web ([#56](https://github.com/stevenfackley/StackAlchemist/issues/56))
+- Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#62](https://github.com/stevenfackley/StackAlchemist/issues/62))
+- Bump postcss in /src/StackAlchemist.Web ([#61](https://github.com/stevenfackley/StackAlchemist/issues/61))
+- Bump the testing group ([#54](https://github.com/stevenfackley/StackAlchemist/issues/54))
 
 ### Refactoring
 
