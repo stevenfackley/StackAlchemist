@@ -44,6 +44,7 @@ public sealed class GenerationContext
     public GenerationSchema? Schema { get; init; }
     public GenerationPersonalization? Personalization { get; init; }
     public GenerationState State { get; set; } = GenerationState.Pending;
+    public DateTimeOffset StartedAt { get; init; } = DateTimeOffset.UtcNow;
     public int RetryCount { get; set; }
     public List<string> BuildErrorHistory { get; } = [];
     public string? OutputDirectory { get; set; }

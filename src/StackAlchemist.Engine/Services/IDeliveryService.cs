@@ -55,4 +55,11 @@ public interface IDeliveryService
         string generationId,
         string logChunk,
         CancellationToken ct);
+
+    /// <summary>
+    /// Looks up the email address of the user who owns the given generation, by
+    /// joining the generations row to its profile. Returns null when the user is
+    /// anonymous, the generation does not exist, or Supabase is not configured.
+    /// </summary>
+    Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct);
 }

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.IO.Abstractions;
 using System.Text.Json;
 using System.Threading.Channels;
 using StackAlchemist.Engine.Models;
+using StackAlchemist.Engine.Telemetry;
 
 namespace StackAlchemist.Engine.Services;
 
@@ -50,6 +52,8 @@ public sealed class GenerationOrchestrator(
             Schema = request.Schema,
             Personalization = request.Personalization,
         };
+
+        Meters.Started.Add(1, BuildTags(request));
 
         // Transition: pending → generating
         context.State = GenerationStateMachine.Transition(
@@ -103,6 +107,11 @@ public sealed class GenerationOrchestrator(
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
             logger.LogError(ex, "Generation {Id} failed during orchestration", request.GenerationId);
+
+            Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
+            Meters.DurationMs.Record(
+                (DateTimeOffset.UtcNow - context.StartedAt).TotalMilliseconds,
+                BuildTags(request, stage: "orchestration", outcome: "failed"));
         }
 
         return new GenerateResponse
@@ -111,6 +120,19 @@ public sealed class GenerationOrchestrator(
             Status = context.State.ToString().ToLowerInvariant(),
             ProjectType = request.ProjectType,
         };
+    }
+
+    private static TagList BuildTags(GenerateRequest request, string? stage = null, string? outcome = null)
+    {
+        var t = new TagList
+        {
+            { "tier", request.Tier },
+            { "project_type", request.ProjectType.ToString() },
+            { "mode", request.Mode },
+        };
+        if (stage is not null) t.Add("stage", stage);
+        if (outcome is not null) t.Add("outcome", outcome);
+        return t;
     }
 
     private void AppendTier3InfrastructureFiles(

@@ -14,6 +14,7 @@ using Stripe.Checkout;
 using StackAlchemist.Engine.Middleware;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
+using StackAlchemist.Engine.Telemetry;
 
 // ── Load .env file ────────────────────────────────────────────────────────────
 // TraversePath() walks up from cwd until it finds .env (e.g. solution root).
@@ -77,6 +78,9 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // Engine hardening
     ["Engine:ServiceKey"]             = Ev("ENGINE_SERVICE_KEY"),
     ["Engine:AllowedOrigins"]         = Ev("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000",
+    // Resend transactional email
+    ["Resend:ApiKey"]                 = Ev("RESEND_API_KEY"),
+    ["Resend:FromEmail"]              = Ev("RESEND_FROM_EMAIL"),
 }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value));
 
 // ── Production startup validation ────────────────────────────────────────────
@@ -124,6 +128,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics =>
     {
         metrics
+            .AddMeter(Meters.GenerationMeterName)
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation();
 
@@ -195,6 +200,8 @@ builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
 });
 
 builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
+builder.Services.AddHttpClient(StripeWebhookHandler.HttpClientName);
+builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
 
 // ── File system abstraction ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
@@ -253,6 +260,20 @@ builder.Services.AddHostedService<CompileWorkerService>();
 
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
+
+// ── Stripe webhook handler ────────────────────────────────────────────────────
+builder.Services.AddSingleton<IStripeWebhookHandler, StripeWebhookHandler>();
+
+// ── Transactional email — Resend when configured, NoOp otherwise ─────────────
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))
+{
+    builder.Services.AddSingleton<IEmailService, ResendEmailService>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailService, NoOpEmailService>();
+    Log.Warning("RESEND_API_KEY not set — transactional emails are disabled (NoOpEmailService).");
+}
 
 var app = builder.Build();
 
@@ -475,7 +496,7 @@ app.MapPost("/api/stripe/create-session", async (
 // receives the unmodified bytes.
 app.MapPost("/api/webhooks/stripe", async (
     HttpRequest req,
-    IGenerationOrchestrator orchestrator,
+    IStripeWebhookHandler webhookHandler,
     IConfiguration config,
     ILogger<Program> logger,
     CancellationToken ct) =>
@@ -502,151 +523,16 @@ app.MapPost("/api/webhooks/stripe", async (
         return Results.Unauthorized();
     }
 
-    // Idempotency — the Supabase generations table deduplicates on generationId.
     logger.LogInformation("Stripe event received: {Type} / {Id}", stripeEvent.Type, stripeEvent.Id);
 
-    if (stripeEvent.Type == "checkout.session.completed"
-        && stripeEvent.Data.Object is Stripe.Checkout.Session session)
-    {
-        if (!int.TryParse(
-            session.Metadata?.GetValueOrDefault("tier") ?? "2",
-            out var tier))
-        {
-            tier = 2;
-        }
-
-        var prompt = session.Metadata?.GetValueOrDefault("prompt");
-        var generationId = session.Metadata?.GetValueOrDefault("generationId")
-                           ?? Guid.NewGuid().ToString();
-        var projectType = Enum.TryParse<ProjectType>(
-            session.Metadata?.GetValueOrDefault("projectType"),
-            ignoreCase: true,
-            out var parsedProjectType)
-            ? parsedProjectType
-            : ProjectType.DotNetNextJs;
-        var mode = prompt is not null ? "simple" : "advanced";
-        GenerationSchema? schema = null;
-        GenerationPersonalization? personalization = null;
-
-        // Recover the original generation payload so paid advanced-mode jobs keep their
-        // saved schema and platform selection after redirecting through Stripe Checkout.
-        var supabaseUrl = config["Supabase:Url"];
-        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
-        if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
-        {
-            try
-            {
-                var generationEndpoint =
-                    $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=mode,prompt,schema_json,project_type,personalization_json";
-
-                using var httpClient = new HttpClient();
-                using var generationRequest = new HttpRequestMessage(HttpMethod.Get, generationEndpoint);
-                generationRequest.Headers.Add("apikey", serviceRoleKey);
-                generationRequest.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-
-                using var generationResponse = await httpClient.SendAsync(generationRequest, ct);
-                generationResponse.EnsureSuccessStatusCode();
-
-                var payload = await generationResponse.Content.ReadAsStringAsync(ct);
-                using var document = System.Text.Json.JsonDocument.Parse(payload);
-
-                if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
-                    document.RootElement.GetArrayLength() > 0)
-                {
-                    var row = document.RootElement[0];
-
-                    if (row.TryGetProperty("mode", out var modeElement) &&
-                        modeElement.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        mode = modeElement.GetString() ?? mode;
-                    }
-
-                    if (row.TryGetProperty("prompt", out var promptElement) &&
-                        promptElement.ValueKind == System.Text.Json.JsonValueKind.String &&
-                        string.IsNullOrWhiteSpace(prompt))
-                    {
-                        prompt = promptElement.GetString();
-                    }
-
-                    if (row.TryGetProperty("project_type", out var projectTypeElement) &&
-                        projectTypeElement.ValueKind == System.Text.Json.JsonValueKind.String &&
-                        Enum.TryParse<ProjectType>(projectTypeElement.GetString(), ignoreCase: true, out var storedProjectType))
-                    {
-                        projectType = storedProjectType;
-                    }
-
-                    if (row.TryGetProperty("schema_json", out var schemaElement) &&
-                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
-                        schemaElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
-                    {
-                        schema = System.Text.Json.JsonSerializer.Deserialize<GenerationSchema>(schemaElement.GetRawText());
-                    }
-
-                    if (row.TryGetProperty("personalization_json", out var personalizationElement) &&
-                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Null &&
-                        personalizationElement.ValueKind != System.Text.Json.JsonValueKind.Undefined)
-                    {
-                        var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                        personalization = System.Text.Json.JsonSerializer.Deserialize<GenerationPersonalization>(personalizationElement.GetRawText(), opts);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to reload generation payload for {GenerationId}", generationId);
-            }
-        }
-
-        // ── Insert transaction row into Supabase ─────────────────────────────
-        if (!string.IsNullOrWhiteSpace(supabaseUrl) && !string.IsNullOrWhiteSpace(serviceRoleKey))
-        {
-            try
-            {
-                var txEndpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/transactions";
-                var txPayload = new
-                {
-                    stripe_session_id = session.Id,
-                    tier              = tier,
-                    amount            = session.AmountTotal ?? 0,
-                    status            = "completed",
-                };
-
-                using var httpClient = new HttpClient();
-                var txReq = new HttpRequestMessage(HttpMethod.Post, txEndpoint)
-                {
-                    Content = JsonContent.Create(txPayload),
-                };
-                txReq.Headers.Add("apikey", serviceRoleKey);
-                txReq.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-                txReq.Headers.Add("Prefer", "return=minimal");
-                await httpClient.SendAsync(txReq, ct);
-
-                logger.LogInformation(
-                    "Transaction row inserted for Stripe session {SessionId}", session.Id);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to insert transaction for session {SessionId}", session.Id);
-                // Non-fatal: still enqueue generation
-            }
-        }
-
-        await orchestrator.EnqueueAsync(new GenerateRequest
-        {
-            GenerationId  = generationId,
-            Mode          = mode,
-            Tier          = tier,
-            ProjectType   = projectType,
-            Prompt        = prompt,
-            Schema        = schema,
-            Personalization = personalization,
-        }, ct);
-    }
+    var result = await webhookHandler.HandleAsync(stripeEvent, ct);
+    if (!result.Processed)
+        logger.LogInformation("Stripe event {Id} skipped: {Reason}", stripeEvent.Id, result.Reason);
 
     return Results.Ok();
 })
 .WithName("StripeWebhook")
-.WithSummary("Handles Stripe checkout.session.completed events and enqueues generation jobs.");
+.WithSummary("Handles Stripe webhook events: checkout completion, payment failure, refund, and dispute.");
 
 app.Run();
 

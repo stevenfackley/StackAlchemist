@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 using StackAlchemist.Engine.Models;
+using StackAlchemist.Engine.Telemetry;
 
 namespace StackAlchemist.Engine.Services;
 
@@ -15,6 +17,7 @@ public sealed class CompileWorkerService(
     IReconstructionService reconstructionService,
     IR2UploadService r2UploadService,
     IDeliveryService deliveryService,
+    IEmailService emailService,
     ILogger<CompileWorkerService> logger) : BackgroundService
 {
     private const int MaxRetries = 3;
@@ -35,6 +38,11 @@ public sealed class CompileWorkerService(
                 job.State = GenerationState.Failed;
                 job.ErrorMessage = ex.Message;
 
+                Meters.Failed.Add(1, BuildJobTags(job, stage: "worker_unhandled"));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+                    BuildJobTags(job, stage: "worker_unhandled", outcome: "failed"));
+
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
                     errorMessage: ex.Message, ct: stoppingToken);
@@ -44,6 +52,19 @@ public sealed class CompileWorkerService(
                 CleanupTempDirectory(job);
             }
         }
+    }
+
+    private static TagList BuildJobTags(GenerationContext job, string? stage = null, string? outcome = null)
+    {
+        var t = new TagList
+        {
+            { "tier", job.Tier },
+            { "project_type", job.ProjectType.ToString() },
+            { "mode", job.Mode },
+        };
+        if (stage is not null) t.Add("stage", stage);
+        if (outcome is not null) t.Add("outcome", outcome);
+        return t;
     }
 
     private async Task ProcessJobAsync(GenerationContext job, CancellationToken ct)
@@ -58,6 +79,12 @@ public sealed class CompileWorkerService(
             {
                 job.State = GenerationState.Failed;
                 job.ErrorMessage = "No output directory set on the generation context.";
+
+                Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+                    BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
+
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
                     errorMessage: job.ErrorMessage, ct: ct);
@@ -114,9 +141,21 @@ public sealed class CompileWorkerService(
                     job.GenerationId, GenerationState.Success,
                     downloadUrl: downloadUrl, ct: ct);
 
+                Meters.Succeeded.Add(1, BuildJobTags(job));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+                    BuildJobTags(job, outcome: "succeeded"));
+
                 logger.LogInformation(
                     "Generation {Id} completed successfully after {Retries} retries",
                     job.GenerationId, job.RetryCount);
+
+                var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
+                if (!string.IsNullOrWhiteSpace(ownerEmail))
+                {
+                    var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
+                    await emailService.SendAsync(ownerEmail, subject, html, ct);
+                }
                 return;
             }
 
@@ -147,11 +186,18 @@ public sealed class CompileWorkerService(
                     "Generation {Id} failed permanently after {Max} retries",
                     job.GenerationId, MaxRetries);
 
+                Meters.Failed.Add(1, BuildJobTags(job, stage: "build_retries_exhausted"));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+                    BuildJobTags(job, outcome: "failed"));
+
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
                     errorMessage: job.ErrorMessage, ct: ct);
                 return;
             }
+
+            Meters.BuildRetried.Add(1, BuildJobTags(job));
 
             // ── Retry: re-call LLM with error context ─────────────────────────
             await deliveryService.UpdateStatusAsync(

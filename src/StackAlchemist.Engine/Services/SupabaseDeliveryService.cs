@@ -119,6 +119,47 @@ public sealed class SupabaseDeliveryService(
         await InvokeRpcAsync("append_build_log", payload, ct);
     }
 
+    public async Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return null;
+
+        try
+        {
+            // PostgREST embedded resource: select profile email through the user_id FK.
+            var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=profiles(email)";
+            var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                return null;
+
+            var row = doc.RootElement[0];
+            if (!row.TryGetProperty("profiles", out var profiles) ||
+                profiles.ValueKind != JsonValueKind.Object)
+                return null;
+
+            return profiles.TryGetProperty("email", out var email) && email.ValueKind == JsonValueKind.String
+                ? email.GetString()
+                : null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to look up owner email for generation {Id}", generationId);
+            return null;
+        }
+    }
+
     // ── Shared PATCH helper ─────────────────────────────────────────────────
 
     private async Task PatchGenerationAsync(

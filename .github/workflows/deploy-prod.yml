@@ -81,6 +81,7 @@ jobs:
           # Basic Auth vars intentionally empty on prod.
           test_site_basic_auth_user: ''
           test_site_basic_auth_pass: ''
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
 
       - name: Docker pre-flight cleanup
         shell: bash

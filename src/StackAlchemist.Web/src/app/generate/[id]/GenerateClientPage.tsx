@@ -20,6 +20,7 @@ import type { Generation } from "@/lib/types";
 import dynamic from "next/dynamic";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
+import { SectionErrorBoundary } from "@/components/error-boundary";
 
 // Lazy-load the IDE embed so StackBlitz SDK is only bundled when needed
 const MicroIdeEmbed = dynamic(
@@ -198,15 +199,17 @@ function FreeTierPanel({
 
       {/* IDE or fallback */}
       <div className="flex-1 min-h-0 p-4">
-        {hasFiles ? (
-          <MicroIdeEmbed
-            files={generation.preview_files_json!}
-            title={title}
-            openFile="src/app/page.tsx"
-          />
-        ) : (
-          <SchemaFallbackView generation={generation} />
-        )}
+        <SectionErrorBoundary section="Code Preview">
+          {hasFiles ? (
+            <MicroIdeEmbed
+              files={generation.preview_files_json!}
+              title={title}
+              openFile="src/app/page.tsx"
+            />
+          ) : (
+            <SchemaFallbackView generation={generation} />
+          )}
+        </SectionErrorBoundary>
       </div>
     </div>
   );
@@ -455,7 +458,9 @@ function InProgressPanel({ generation }: { generation: Generation }) {
       <ProgressStepper status={generation.status} />
 
       {/* Build log stream */}
-      <BuildLogConsole log={generation.build_log} />
+      <SectionErrorBoundary section="Build Log">
+        <BuildLogConsole log={generation.build_log} />
+      </SectionErrorBoundary>
 
       {/* Generation ID */}
       <div className="w-full max-w-sm rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1">

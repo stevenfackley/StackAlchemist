@@ -15,6 +15,7 @@ import {
 import { getServerUser } from "@/lib/supabase-server";
 import { getMyGenerations, getProfileSettings } from "@/lib/actions";
 import { ByokSettingsForm } from "./ByokSettingsForm";
+import { SectionErrorBoundary } from "@/components/error-boundary";
 import type { Generation } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -255,6 +256,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Generation list ──────────────────────────────────────────────── */}
+        <SectionErrorBoundary section="Generations">
         <div className="rounded-2xl border border-slate-600/40 bg-slate-700/10 overflow-hidden">
           {/* Table header */}
           <div className="px-5 py-3 border-b border-slate-600/30 bg-slate-700/20 hidden sm:grid grid-cols-[auto_1fr_auto_auto] gap-4">
@@ -290,14 +292,17 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
+        </SectionErrorBoundary>
 
         {/* ── BYOK / API Settings ─────────────────────────────────────────── */}
-        <ByokSettingsForm
-          settings={{
-            ...profileSettings,
-            email: user.email ?? profileSettings.email,
-          }}
-        />
+        <SectionErrorBoundary section="API Settings">
+          <ByokSettingsForm
+            settings={{
+              ...profileSettings,
+              email: user.email ?? profileSettings.email,
+            }}
+          />
+        </SectionErrorBoundary>
 
         {/* ── New generation CTA ──────────────────────────────────────────── */}
         <div className="pt-2 text-center">
