@@ -547,16 +547,15 @@ interface Props {
 }
 
 export function GenerateClientPage({ initialGeneration, generationId }: Props) {
-  const [generation, setGeneration] = useState<Generation>(initialGeneration);
+  const [generation, setGeneration] = useState<Generation>(() =>
+    isDemoMode && initialGeneration.status !== "success"
+      ? { ...initialGeneration, status: "success" }
+      : initialGeneration
+  );
   const [isPending, startTransition] = useTransition();
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {
-    if (isDemoMode && generation.status !== "success") {
-      setGeneration((current) => ({ ...current, status: "success" }));
-      return;
-    }
-
     if (!supabase) return;
     if (generation.status === "success" || generation.status === "failed") return;
 

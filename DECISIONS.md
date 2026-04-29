@@ -39,6 +39,24 @@ ADR log. One entry per architectural decision. Append-only; supersede with a new
 
 ---
 
+## 2026-04-29 — Pin eslint at ^9, complete eslint-config-next 16 + flat-config migration, opt build out of Turbopack
+
+**Status:** accepted (supersedes the eslint 9→10 portion of the 2026-04-28 entry)
+**Context:** Dependabot PR #53 (next-react group: next 15→16, eslint-config-next 15→16) merged but only updated `next`/`react`/`react-dom` in `package.json`, leaving `eslint-config-next` at `^15.3.0` while the lockfile pinned it at `16.2.4`. `npm ci` failed on every CI run for the lockfile mismatch. Investigating turned up two more issues: (a) PR #59 (eslint 9→10) was premature — every plugin in the chain (`@typescript-eslint/utils 8.59`, `eslint-plugin-react 7.37`, `eslint-plugin-react-hooks 7.1`, `eslint-plugin-import 2.32`, `eslint-plugin-jsx-a11y 6.10`) caps `eslint` peer at `^9`, and `typescript-eslint` calls `scopeManager.addGlobals(...)` which eslint 10 removed → runtime `TypeError`; (b) `eslint-config-next` 16 dropped legacy `.eslintrc.*` support entirely, so the existing `cross-env ESLINT_USE_FLAT_CONFIG=false` shim no longer works.
+**Decision:**
+- **Pin `eslint` at `^9.39.4`** in `package.json` until the typescript-eslint / next ecosystem ships eslint-10 peers (effectively a partial revert of PR #59).
+- **Complete the eslint-config-next bump** to `^16.2.4` in `package.json` (matches the lockfile dependabot already wrote).
+- **Migrate to flat config**: new `eslint.config.mjs` extends `eslint-config-next/core-web-vitals`, registers `react-hooks` plugin in the same config object as the rule override (flat-config plugin scoping), preserves the prior custom rules. Delete `.eslintrc.json`. Lint script becomes `eslint --max-warnings 0` (drop `cross-env ESLINT_USE_FLAT_CONFIG=false` and `--ext`).
+- **Refactor `GenerateClientPage` demo init** out of the effect into a lazy `useState` initializer (the new `react-hooks/set-state-in-effect` rule in plugin v7 caught the pattern; refactor is the proper fix, not a disable).
+- **Pass `--webpack` in `build-wrapper.mjs`** to opt out of Turbopack (now the default in Next 16). The custom `webpack` hook in `next.config.ts` exists specifically for the Windows + pnpm symlink-casing static-prerender bug; removing it would re-break that, and migrating it to a Turbopack equivalent is out of scope for a "make CI green" PR.
+**Consequences:**
+- CI green again on `main`. `npm ci` succeeds. lint, typecheck, 54 unit tests all pass. `next build` produces a normal standalone bundle.
+- Dependabot will retry eslint 10 every cycle. When the plugin ecosystem catches up (typescript-eslint v9, eslint-plugin-react ^9.7+ for eslint 10, etc.), unblock by bumping `eslint` and re-running the lint suite.
+- Next.js 16 also auto-rewrote `next-env.d.ts` (now `import` instead of `///<reference path>`) and `tsconfig.json` (`jsx: preserve → react-jsx`, added `.next/dev/types/**/*.ts` to includes). Both files Next owns; behavior unchanged.
+- Build emits a warning that the `middleware` file convention is deprecated in Next 16 (rename to `proxy`). Functional today; left for a follow-up.
+
+---
+
 ## 2026-04-28 — Dependabot sweep: AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1, plus minors
 
 **Status:** accepted (awareness-only stub per saved sweep policy)

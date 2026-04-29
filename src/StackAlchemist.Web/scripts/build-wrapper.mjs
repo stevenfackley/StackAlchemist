@@ -31,7 +31,10 @@ const env = { ...process.env, NODE_OPTIONS: finalOpts };
 // shell=true cross-platform differences.
 const nextCli = join(dirname(__dirname), 'node_modules', '.bin', 'next');
 
-const result = spawnSync(nextCli, ['build'], {
+// --webpack opts out of Turbopack (default in Next 16). The custom webpack hook
+// in next.config.ts (resolve.symlinks=false) only runs under webpack, and removing
+// it would re-break the Windows + pnpm symlink-casing static-prerender bug.
+const result = spawnSync(nextCli, ['build', '--webpack'], {
   stdio: 'inherit',
   env,
   // shell: true is required on Windows to execute .cmd wrappers in .bin/
