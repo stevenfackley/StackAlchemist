@@ -29,7 +29,11 @@ COPY content/ /content/
 # Build the Next.js app and clean build cache.
 # We invoke next build directly because the npm script wrapper
 # (scripts/build-wrapper.mjs) is only needed on Windows+pnpm.
-RUN npx next build \
+# --webpack opts out of Turbopack (Next 16 default); the custom webpack hook
+# in next.config.ts (resolve.symlinks=false) only runs under webpack and is
+# load-bearing for static prerendering on Windows local dev — keep webpack
+# everywhere so Linux CI and Windows local stay in sync.
+RUN npx next build --webpack \
   && rm -rf /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
