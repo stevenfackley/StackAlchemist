@@ -12,5 +12,5 @@ try {
     process.exit(result.status ?? 1);
   }
 } catch {
-  console.log("[setup-env-safe] Skipping repo-level env bootstrap.");
+  console.warn("[setup-env-safe] Skipping repo-level env bootstrap.");
 }
