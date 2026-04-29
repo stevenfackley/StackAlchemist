@@ -57,9 +57,10 @@ test.describe("Smoke: SEO content routes", () => {
       const jsonLd = page.locator('script[type="application/ld+json"]');
       expect(await jsonLd.count(), `${path} JSON-LD count`).toBeGreaterThan(0);
 
-      // At least one of the JSON-LD blocks references schema.org.
+      // At least one of the JSON-LD blocks references schema.org as the @context URL.
+      // Anchored to the URL scheme so e.g. `evil-schema.org.example.com` cannot satisfy it.
       const scripts = await jsonLd.allTextContents();
-      const hasSchemaOrg = scripts.some((s) => s.includes("schema.org"));
+      const hasSchemaOrg = scripts.some((s) => /https?:\/\/schema\.org(?:["/]|$)/.test(s));
       expect(hasSchemaOrg, `${path} schema.org reference`).toBe(true);
     });
   }
