@@ -27,9 +27,9 @@ COPY docs/ /docs/
 COPY content/ /content/
 
 # Build the Next.js app and clean build cache.
-# We invoke next build directly because the npm script wrapper
-# (scripts/build-wrapper.mjs) is only needed on Windows+pnpm.
-RUN npx next build \
+# The wrapper keeps Docker aligned with local/CI behavior, including the
+# Windows path normalization hook and explicit webpack selection on newer Next.
+RUN npm run build \
   && rm -rf /root/.npm /tmp/*
 
 FROM node:20-alpine AS web
