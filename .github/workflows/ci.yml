@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: "24"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
