@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "prebuild": "node ./scripts/prebuild-clean.mjs",
     "build": "node ./scripts/build-wrapper.mjs",
     "start": "next start",
