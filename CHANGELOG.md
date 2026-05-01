@@ -72,6 +72,7 @@ All notable changes to this project will be documented in this file.
 - Bump lucide-react in /src/StackAlchemist.Web ([#55](https://github.com/stevenfackley/StackAlchemist/issues/55))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#60](https://github.com/stevenfackley/StackAlchemist/issues/60))
 - Bump the next-react group across 1 directory with 4 updates ([#53](https://github.com/stevenfackley/StackAlchemist/issues/53))
+- Bump Node 20 → 22 (Node 20 LTS ended 2026-04-30)
 
 ### Documentation
 
