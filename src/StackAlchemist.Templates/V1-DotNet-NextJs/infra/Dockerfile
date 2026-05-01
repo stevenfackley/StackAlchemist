@@ -4,7 +4,7 @@
 # ============================================================
 
 # ---- Base: Node ----
-FROM node:22-alpine AS node-base
+FROM node:24-alpine AS node-base
 WORKDIR /app
 
 # ---- Base: .NET SDK ----
@@ -22,7 +22,7 @@ COPY nextjs/ ./
 COPY --from=web-deps /app/node_modules ./node_modules
 RUN npm run build
 
-FROM node:22-alpine AS web
+FROM node:24-alpine AS web
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
