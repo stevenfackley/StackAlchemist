@@ -136,6 +136,7 @@ All notable changes to this project will be documented in this file.
 - Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#62](https://github.com/stevenfackley/StackAlchemist/issues/62))
 - Bump postcss in /src/StackAlchemist.Web ([#61](https://github.com/stevenfackley/StackAlchemist/issues/61))
 - Bump the testing group ([#54](https://github.com/stevenfackley/StackAlchemist/issues/54))
+- Bump jsdom ([#67](https://github.com/stevenfackley/StackAlchemist/issues/67))
 
 ### Refactoring
 
