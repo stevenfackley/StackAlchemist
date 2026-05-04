@@ -75,6 +75,7 @@ All notable changes to this project will be documented in this file.
 - Bump Node 20 → 22 (Node 20 LTS ended 2026-04-30)
 - Bump Node 22 → 24 (skip the layover, latest LTS)
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#71](https://github.com/stevenfackley/StackAlchemist/issues/71))
+- Bump lucide-react in /src/StackAlchemist.Web ([#70](https://github.com/stevenfackley/StackAlchemist/issues/70))
 
 ### Documentation
 
