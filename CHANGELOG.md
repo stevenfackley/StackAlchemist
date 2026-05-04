@@ -139,6 +139,7 @@ All notable changes to this project will be documented in this file.
 - Bump the testing group ([#54](https://github.com/stevenfackley/StackAlchemist/issues/54))
 - Bump jsdom ([#67](https://github.com/stevenfackley/StackAlchemist/issues/67))
 - Bump eslint in /src/StackAlchemist.Web ([#72](https://github.com/stevenfackley/StackAlchemist/issues/72))
+- Bump msw in /src/StackAlchemist.Web ([#68](https://github.com/stevenfackley/StackAlchemist/issues/68))
 
 ### Refactoring
 
