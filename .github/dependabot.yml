@@ -29,6 +29,13 @@ updates:
         patterns: ["next", "react*", "eslint-config-next"]
       testing:
         patterns: ["vitest*", "@testing-library/*", "@playwright/*", "jsdom"]
+    ignore:
+      # eslint pinned to ^9 because eslint-plugin-react (transitive via eslint-config-next)
+      # uses context.getFilename() which was removed in ESLint 10.
+      # Re-evaluate when eslint-config-next ships an eslint-plugin-react that uses context.filename.
+      # See PRs #65 (original pin) and the follow-up that re-pinned after Dependabot bypassed via #72.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /src/StackAlchemist.Templates
