@@ -202,7 +202,143 @@ public class GenerationPipelineTests
 
     // Compile-retry coverage (build-failure-retry, max-retries-exhausted) lives in
     // CompileWorkerRetryTests.cs since it drives CompileWorkerService directly,
-    // not the orchestrator. Tier 3 IaC test lands in a follow-on PR.
+    // not the orchestrator.
+
+    [Fact]
+    public async Task Tier3_FullPipeline_AppendsIaCAndHelmAndRunbook()
+    {
+        // V1 templates + Tier3-Infrastructure templates are both required: the orchestrator
+        // first renders the chosen project type's templates, then layers Tier 3 infra
+        // files on top via AppendTier3InfrastructureFiles.
+        var fs = BuildFileSystemWithV1DotNetTemplates();
+        AddTier3InfrastructureTemplates(fs);
+
+        var (orchestrator, queue) = BuildV1Orchestrator(fs);
+
+        var response = await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = "tier3-iac-" + Guid.NewGuid(),
+            Mode = "advanced",
+            Tier = 3,
+            ProjectType = ProjectType.DotNetNextJs,
+            Schema = new GenerationSchema
+            {
+                Entities =
+                [
+                    new SchemaEntity
+                    {
+                        Name = "Order",
+                        Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }],
+                    },
+                ],
+            },
+            Personalization = new GenerationPersonalization { ProjectName = "TaskManager" },
+        });
+
+        response.Status.Should().Be("building");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        var outputDir = ctx!.OutputDirectory!;
+        var emitted = fs.AllFiles
+            .Where(p => p.StartsWith(outputDir, StringComparison.Ordinal))
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+
+        // Tier 3 still includes the codegen output that Tier 2 produces.
+        emitted.Should().Contain(p => p.EndsWith("Models/Product.cs", StringComparison.Ordinal),
+            "Tier 3 layers infra ON TOP of Tier 2 codegen, not instead of it");
+
+        // Runbook present.
+        emitted.Should().Contain(p => p.EndsWith("/DEPLOYMENT.md", StringComparison.Ordinal));
+
+        // CDK assets present.
+        emitted.Should().Contain(p => p.EndsWith("infra/cdk/bin/app.ts", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("infra/cdk/lib/task-manager-stack.ts", StringComparison.Ordinal),
+            "stack file path should be rendered with the kebab-cased project name");
+
+        // Helm chart with Chart.yaml + values + at least one template manifest.
+        emitted.Should().Contain(p => p.EndsWith("infra/helm/Chart.yaml", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("infra/helm/values.yaml", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("infra/helm/templates/deployment.yaml", StringComparison.Ordinal));
+
+        // Terraform.
+        emitted.Should().Contain(p => p.EndsWith("infra/terraform/main.tf", StringComparison.Ordinal));
+
+        // Helm Chart.yaml interpolates the project name (kebab-case).
+        var chartPath = emitted.First(p => p.EndsWith("infra/helm/Chart.yaml", StringComparison.Ordinal));
+        var chartContent = fs.File.ReadAllText(chartPath.Replace('/', Path.DirectorySeparatorChar));
+        chartContent.Should().Contain("name: task-manager");
+
+        // DEPLOYMENT.md interpolates the project name (PascalCase).
+        var runbookPath = emitted.First(p => p.EndsWith("/DEPLOYMENT.md", StringComparison.Ordinal));
+        var runbookContent = fs.File.ReadAllText(runbookPath.Replace('/', Path.DirectorySeparatorChar));
+        runbookContent.Should().Contain("TaskManager");
+    }
+
+    [Fact]
+    public async Task Tier2_DoesNotAppendTier3InfrastructureFiles()
+    {
+        // Regression guard: AppendTier3InfrastructureFiles must early-return for Tier != 3.
+        var fs = BuildFileSystemWithV1DotNetTemplates();
+        AddTier3InfrastructureTemplates(fs);
+        var (orchestrator, queue) = BuildV1Orchestrator(fs);
+
+        await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = "tier2-no-iac-" + Guid.NewGuid(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = ProjectType.DotNetNextJs,
+            Schema = new GenerationSchema
+            {
+                Entities = [new SchemaEntity { Name = "Order", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] }],
+            },
+        });
+
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        var outputDir = ctx!.OutputDirectory!;
+        var emitted = fs.AllFiles
+            .Where(p => p.StartsWith(outputDir, StringComparison.Ordinal))
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+
+        emitted.Should().NotContain(p => p.Contains("infra/cdk/", StringComparison.Ordinal));
+        emitted.Should().NotContain(p => p.Contains("infra/helm/", StringComparison.Ordinal));
+        emitted.Should().NotContain(p => p.Contains("infra/terraform/", StringComparison.Ordinal));
+        emitted.Should().NotContain(p => p.EndsWith("/DEPLOYMENT.md", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Adds a representative subset of the Tier3-Infrastructure templates to the
+    /// mock file system: DEPLOYMENT.md (uses {{ProjectName}}), CDK app + stack
+    /// (latter uses {{ProjectNameKebab}} in its filename), Helm chart + values +
+    /// one templates/deployment.yaml manifest, and a Terraform main.tf.
+    /// Keeps test fast without enumerating every real Tier 3 template.
+    /// </summary>
+    private static void AddTier3InfrastructureTemplates(MockFileSystem fs)
+    {
+        const string root = TemplatesRoot + "/Tier3-Infrastructure";
+        // Note: paths are NOT interpolated strings — using $"{{...}}" would escape
+        // the braces and the template renderer would never see the Handlebars tokens.
+        const string kebabToken = "{{ProjectNameKebab}}";
+
+        fs.AddDirectory(root);
+
+        fs.AddFile(root + "/DEPLOYMENT.md",
+            new MockFileData("# {{ProjectName}} Deployment Runbook\n"));
+        fs.AddFile(root + "/infra/cdk/bin/app.ts",
+            new MockFileData("// CDK app entrypoint for {{ProjectName}}\n"));
+        fs.AddFile(root + "/infra/cdk/lib/" + kebabToken + "-stack.ts",
+            new MockFileData("// CDK stack for {{ProjectName}}\n"));
+        fs.AddFile(root + "/infra/helm/Chart.yaml",
+            new MockFileData("apiVersion: v2\nname: " + kebabToken + "\nversion: 0.1.0\n"));
+        fs.AddFile(root + "/infra/helm/values.yaml",
+            new MockFileData("image:\n  repository: " + kebabToken + "\n"));
+        fs.AddFile(root + "/infra/helm/templates/deployment.yaml",
+            new MockFileData("apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: " + kebabToken + "\n"));
+        fs.AddFile(root + "/infra/terraform/main.tf",
+            new MockFileData("terraform { required_version = \">= 1.5\" }\n"));
+    }
+
 
     // ── Wiring ────────────────────────────────────────────────────────────────
 
