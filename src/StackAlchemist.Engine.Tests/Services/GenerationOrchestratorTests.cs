@@ -1,6 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
 using System.Threading.Channels;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -11,6 +12,14 @@ namespace StackAlchemist.Engine.Tests.Services;
 
 public class GenerationOrchestratorTests
 {
+    private static IConfiguration EmptyConfig() =>
+        new ConfigurationBuilder().Build();
+
+    private static IConfiguration ConfigWith(params (string Key, string Value)[] entries) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(entries.ToDictionary(e => e.Key, e => (string?)e.Value))
+            .Build();
+
     private static (GenerationOrchestrator Sut, ILlmClient Llm, Channel<GenerationContext> Queue, MockFileSystem Fs) BuildSut()
     {
         var fs = new MockFileSystem();
@@ -50,6 +59,7 @@ public class GenerationOrchestratorTests
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
+        var injectionEngine = Substitute.For<IInjectionEngine>();
         var delivery = Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
@@ -57,8 +67,10 @@ public class GenerationOrchestratorTests
             reconstruction,
             llm,
             promptBuilder,
+            injectionEngine,
             delivery,
             fs,
+            EmptyConfig(),
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
 
@@ -135,6 +147,7 @@ public class GenerationOrchestratorTests
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
+        var injectionEngine = Substitute.For<IInjectionEngine>();
         var delivery = Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
@@ -142,8 +155,10 @@ public class GenerationOrchestratorTests
             reconstruction,
             llm,
             promptBuilder,
+            injectionEngine,
             delivery,
             fs,
+            EmptyConfig(),
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
 
@@ -197,6 +212,7 @@ public class GenerationOrchestratorTests
         var reconstruction = Substitute.For<IReconstructionService>();
         var llm = Substitute.For<ILlmClient>();
         var promptBuilder = Substitute.For<IPromptBuilderService>();
+        var injectionEngine = Substitute.For<IInjectionEngine>();
         var delivery = Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
@@ -204,8 +220,10 @@ public class GenerationOrchestratorTests
             reconstruction,
             llm,
             promptBuilder,
+            injectionEngine,
             delivery,
             fs,
+            EmptyConfig(),
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
 
@@ -218,5 +236,100 @@ public class GenerationOrchestratorTests
         });
 
         response.Status.Should().Be("failed");
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_WithSwissCheeseFlag_UsesV2TemplatesAndInjectionEngine()
+    {
+        var fs = new MockFileSystem();
+        var queue = Channel.CreateUnbounded<GenerationContext>();
+
+        var templates = Substitute.For<ITemplateProvider>();
+        templates.LoadTemplate("V2-DotNet-NextJs").Returns(new Dictionary<string, string>
+        {
+            ["dotnet/Repositories/{{EntityName}}Repository.cs"] = "class {{EntityName}}Repository {}",
+        });
+        templates.Render(Arg.Any<Dictionary<string, string>>(), Arg.Any<TemplateVariables>())
+            .Returns(new Dictionary<string, string>
+            {
+                ["dotnet/Repositories/ProductRepository.cs"] = "class ProductRepository {}",
+            });
+
+        var reconstruction = Substitute.For<IReconstructionService>();
+        var llm = Substitute.For<ILlmClient>();
+        var promptBuilder = Substitute.For<IPromptBuilderService>();
+        var delivery = Substitute.For<IDeliveryService>();
+
+        var injectionEngine = Substitute.For<IInjectionEngine>();
+        injectionEngine.FillZonesAsync(
+                Arg.Any<Dictionary<string, string>>(),
+                Arg.Any<GenerationSchema>(),
+                Arg.Any<TemplateVariables>(),
+                Arg.Any<ProjectType>(),
+                Arg.Any<GenerationPersonalization?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new InjectionResult(
+                FilledTemplates: new Dictionary<string, string>
+                {
+                    ["dotnet/Repositories/ProductRepository.cs"] = "class ProductRepository { /* filled */ }",
+                },
+                TotalInputTokens: 500,
+                TotalOutputTokens: 1200,
+                Model: "claude-3-5-sonnet-20241022",
+                ZonesFilled: 5));
+
+        var sut = new GenerationOrchestrator(
+            templates,
+            reconstruction,
+            llm,
+            promptBuilder,
+            injectionEngine,
+            delivery,
+            fs,
+            ConfigWith(("Generation:UseSwissCheese", "true")),
+            queue.Writer,
+            NullLogger<GenerationOrchestrator>.Instance);
+
+        var response = await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = ProjectType.DotNetNextJs,
+            Schema = new GenerationSchema
+            {
+                Entities = [new SchemaEntity { Name = "Product", Fields = [] }],
+            },
+        });
+
+        response.Status.Should().Be("building");
+        templates.Received(1).LoadTemplate("V2-DotNet-NextJs");
+        await injectionEngine.Received(1).FillZonesAsync(
+            Arg.Any<Dictionary<string, string>>(),
+            Arg.Any<GenerationSchema>(),
+            Arg.Any<TemplateVariables>(),
+            Arg.Any<ProjectType>(),
+            Arg.Any<GenerationPersonalization?>(),
+            Arg.Any<CancellationToken>());
+        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).UpdateTokenUsageAsync(
+            Arg.Any<string>(), 500, 1200, "claude-3-5-sonnet-20241022", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_DefaultConfig_StillUsesV1OneShot()
+    {
+        var (sut, llm, queue, _) = BuildSut();
+
+        await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "simple",
+            Tier = 2,
+            Prompt = "Build a task manager",
+        });
+
+        // Default config (no UseSwissCheese set) → V1 path → llmClient.GenerateAsync called.
+        await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

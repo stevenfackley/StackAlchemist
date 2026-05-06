@@ -116,6 +116,131 @@ public class PromptBuilderTests
             "prompt should stay well under Claude 3.5's context limit");
     }
 
+    // ── BuildInjectionPrompt (Swiss Cheese, per-zone) ─────────────────────────
+
+    private static InjectionPromptContext SampleInjectionContext(string zoneName = "GetAllImpl")
+    {
+        const string fileTemplate = """
+            using Dapper;
+            namespace MyApp.Repositories;
+            public class ProductRepository(IDbConnectionFactory db) : IProductRepository
+            {
+                public async Task<IEnumerable<Product>> GetAllAsync()
+                {
+                    using var conn = db.CreateConnection();
+                    [[LLM_INJECTION_START: __ZONE__]]
+                    [[LLM_INJECTION_END: __ZONE__]]
+                }
+            }
+            """;
+
+        return new InjectionPromptContext(
+            FilePath: "src/Repositories/ProductRepository.cs",
+            ZoneName: zoneName,
+            RenderedFileContent: fileTemplate.Replace("__ZONE__", zoneName),
+            Schema: new GenerationSchema
+            {
+                Entities =
+                [
+                    new SchemaEntity
+                    {
+                        Name = "Product",
+                        Fields =
+                        [
+                            new SchemaField { Name = "Id", Type = "uuid", Pk = true },
+                            new SchemaField { Name = "Name", Type = "string" },
+                        ],
+                    },
+                ],
+            })
+        {
+            Entity = new TemplateEntity
+            {
+                Name = "Product",
+                NameLower = "product",
+                TableName = "products",
+                Fields =
+                [
+                    new TemplateField { Name = "Id", NameLower = "id", Type = "Guid", SqlType = "UUID", IsPrimaryKey = true },
+                    new TemplateField { Name = "Name", NameLower = "name", Type = "string", SqlType = "TEXT" },
+                ],
+            },
+        };
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_IncludesZoneNameAndFilePath()
+    {
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext("GetAllImpl"));
+
+        prompt.Should().Contain("GetAllImpl");
+        prompt.Should().Contain("ProductRepository.cs");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_IncludesRenderedFileContent()
+    {
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext());
+
+        prompt.Should().Contain("ProductRepository(IDbConnectionFactory db)");
+        prompt.Should().Contain("[[LLM_INJECTION_START: GetAllImpl]]");
+        prompt.Should().Contain("[[LLM_INJECTION_END: GetAllImpl]]");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_ForbidsFileBlockSyntaxInOutput()
+    {
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext());
+
+        prompt.Should().Contain("Do NOT use [[FILE:...]] / [[END_FILE]] block syntax");
+        prompt.Should().Contain("markdown fences");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_DotNet_IncludesDapperConstraint()
+    {
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext());
+
+        prompt.Should().Contain("Dapper");
+        prompt.Should().Contain("parameterized SQL");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_PythonReact_SwapsConstraintSection()
+    {
+        var ctx = SampleInjectionContext() with { ProjectType = ProjectType.PythonReact };
+
+        var prompt = _sut.BuildInjectionPrompt(ctx);
+
+        prompt.Should().Contain("## Python Constraints");
+        prompt.Should().NotContain("## .NET Constraints");
+        prompt.Should().Contain("SQLAlchemy");
+        prompt.Should().Contain("Pydantic");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_IncludesEntityFieldsWhenProvided()
+    {
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext());
+
+        prompt.Should().Contain("Entity: Product");
+        prompt.Should().Contain("Table: `products`");
+        prompt.Should().Contain("`Id`");
+        prompt.Should().Contain("(PK)");
+        prompt.Should().Contain("`Name`");
+    }
+
+    [Fact]
+    public void BuildInjectionPrompt_TokenCount_StaysCompact()
+    {
+        // Per-zone prompts should be small — they're called many times per generation.
+        var prompt = _sut.BuildInjectionPrompt(SampleInjectionContext());
+
+        var estimatedTokens = prompt.Length / 4;
+        estimatedTokens.Should().BeLessThan(2_000,
+            "per-zone prompts should be tight; full-codebase prompts are not");
+    }
+
     [Fact]
     public void BuildGenerationPrompt_SanitizesPersonalizationFields()
     {

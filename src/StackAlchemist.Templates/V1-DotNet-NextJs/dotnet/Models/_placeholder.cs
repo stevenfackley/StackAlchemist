@@ -1,4 +1,4 @@
-{{!-- LLM_INJECTION_START: Models --}}
+[[LLM_INJECTION_START: Models]]
 {{!--
   The LLM will generate one C# record per entity here.
   Expected output format per entity:
@@ -11,4 +11,4 @@
       DateTime CreatedAt
   );
 --}}
-{{!-- LLM_INJECTION_END: Models --}}
+[[LLM_INJECTION_END: Models]]

@@ -18,11 +18,11 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-{{!-- LLM_INJECTION_START: RouteRegistrations --}}
+[[LLM_INJECTION_START: RouteRegistrations]]
 # LLM generates:
 # from app.routers import entity_router
 # app.include_router(entity_router.router, prefix="/api/v1", tags=["entities"])
-{{!-- LLM_INJECTION_END: RouteRegistrations --}}
+[[LLM_INJECTION_END: RouteRegistrations]]
 
 
 @app.get("/healthz")

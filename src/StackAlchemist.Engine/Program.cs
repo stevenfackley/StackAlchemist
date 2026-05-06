@@ -258,6 +258,18 @@ builder.Services.AddSingleton(channel.Reader);
 // Register the compile worker as an in-process background service.
 builder.Services.AddHostedService<CompileWorkerService>();
 
+// ── Swiss Cheese injection engine (per-zone parallel LLM dispatch) ───────────
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    return new InjectionEngineOptions
+    {
+        MaxConcurrency = config.GetValue("Generation:Injection:MaxConcurrency", 4),
+        MaxAttemptsPerZone = config.GetValue("Generation:Injection:MaxAttemptsPerZone", 2),
+    };
+});
+builder.Services.AddSingleton<IInjectionEngine, InjectionEngine>();
+
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
 

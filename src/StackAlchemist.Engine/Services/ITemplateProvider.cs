@@ -25,4 +25,10 @@ public interface ITemplateProvider
     /// Inject content between LLM_INJECTION_START and LLM_INJECTION_END markers for the given zone.
     /// </summary>
     string InjectIntoZone(string template, string zoneName, string content);
+
+    /// <summary>
+    /// Remove all [[LLM_INJECTION_START/END: zone]] marker lines from the content.
+    /// Call after all per-zone injections are complete so generated output compiles.
+    /// </summary>
+    string StripInjectionMarkers(string content);
 }
