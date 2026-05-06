@@ -19,10 +19,11 @@ public sealed class ResendEmailService(
     {
         var apiKey = config["Resend:ApiKey"];
         var from = config["Resend:FromEmail"] ?? "StackAlchemist <noreply@stackalchemist.app>";
+        var maskedTo = MaskEmail(to);
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogDebug("Resend not configured — skipping email to {To} ({Subject})", to, subject);
+            logger.LogDebug("Resend not configured — skipping email to {To} ({Subject})", maskedTo, subject);
             return;
         }
 
@@ -53,16 +54,29 @@ public sealed class ResendEmailService(
                 var body = await res.Content.ReadAsStringAsync(ct);
                 logger.LogWarning(
                     "Resend returned {Code} for email to {To}: {Body}",
-                    (int)res.StatusCode, to, body);
+                    (int)res.StatusCode, maskedTo, body);
                 return;
             }
 
-            logger.LogInformation("Sent transactional email to {To}: {Subject}", to, subject);
+            logger.LogInformation("Sent transactional email to {To}: {Subject}", maskedTo, subject);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to send transactional email to {To}", to);
+            logger.LogError(ex, "Failed to send transactional email to {To}", maskedTo);
         }
+    }
+
+    /// <summary>
+    /// Masks an email for logging so structured logs/aggregators don't ingest raw PII
+    /// (GDPR/CCPA). Keeps the first character of the local-part and the full domain
+    /// for support diagnostics: <c>jane.doe@example.com</c> → <c>j***@example.com</c>.
+    /// </summary>
+    public static string MaskEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return string.Empty;
+        var at = email.IndexOf('@', StringComparison.Ordinal);
+        if (at <= 0) return "***";
+        return email[..1] + "***" + email[at..];
     }
 }
 
@@ -74,7 +88,7 @@ public sealed class NoOpEmailService(ILogger<NoOpEmailService> logger) : IEmailS
 {
     public Task SendAsync(string to, string subject, string html, CancellationToken ct = default)
     {
-        logger.LogInformation("[NoOp email] would send to {To}: {Subject}", to, subject);
+        logger.LogInformation("[NoOp email] would send to {To}: {Subject}", ResendEmailService.MaskEmail(to), subject);
         return Task.CompletedTask;
     }
 }
