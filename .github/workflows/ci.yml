@@ -408,6 +408,19 @@ jobs:
         env:
           CI: true
 
+      - name: Dump backend container logs (always, on failure)
+        if: always() && steps.validate-secrets.outputs.skip_e2e != 'true'
+        run: |
+          # Without these, an Engine error during Playwright surfaces only as
+          # a generic "Schema extraction failed" in the page snapshot — the
+          # actual stack trace is locked inside the container.
+          echo "::group::sa-engine logs"
+          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 200 || true
+          echo "::endgroup::"
+          echo "::group::sa-worker logs"
+          docker compose -f docker/docker-compose.test.yml logs sa-worker --tail 200 || true
+          echo "::endgroup::"
+
       - name: Upload Integration Playwright Report
         if: always()
         uses: actions/upload-artifact@v7
