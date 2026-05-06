@@ -175,6 +175,7 @@ All notable changes to this project will be documented in this file.
 ### Ci
 
 - Wire Plausible, GSC, and Basic Auth env vars through pipeline
+- Mask service role key + tighten E2E Integration permissions ([#88](https://github.com/stevenfackley/StackAlchemist/issues/88))
 
 ### Seo
 
