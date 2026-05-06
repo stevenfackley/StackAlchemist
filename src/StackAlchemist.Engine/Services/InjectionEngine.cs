@@ -173,8 +173,12 @@ public sealed partial class InjectionEngine(
 
     private static TemplateEntity? FindEntityForFile(string filePath, List<TemplateEntity> entities)
     {
+        // Match against both PascalCase Name (.NET paths use {{EntityName}}) and
+        // lowercase NameLower (TS/Python paths use {{EntityNameLower}}). Longest
+        // match wins so e.g. ProductCategory beats Product.
         return entities
-            .Where(e => filePath.Contains(e.Name, StringComparison.Ordinal))
+            .Where(e => filePath.Contains(e.Name, StringComparison.Ordinal)
+                     || filePath.Contains(e.NameLower, StringComparison.Ordinal))
             .OrderByDescending(e => e.Name.Length)
             .FirstOrDefault();
     }
