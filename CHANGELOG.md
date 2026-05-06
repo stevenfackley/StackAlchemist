@@ -169,6 +169,7 @@ All notable changes to this project will be documented in this file.
 - Smoke for /blog /compare /solutions /faq
 - Add V1 one-shot pipeline integration tests ([#83](https://github.com/stevenfackley/StackAlchemist/issues/83))
 - Integration coverage for CompileWorkerService retry loop ([#85](https://github.com/stevenfackley/StackAlchemist/issues/85))
+- Tier 3 IaC + Helm + runbook integration coverage ([#86](https://github.com/stevenfackley/StackAlchemist/issues/86))
 
 ### Ci
 
