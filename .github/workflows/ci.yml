@@ -7,6 +7,7 @@ on:
     branches: [main]
   schedule:
     - cron: "0 6 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -214,7 +215,7 @@ jobs:
     permissions:
       contents: read
     needs: [frontend, backend, docker]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
 
     steps:
       - name: Checkout
