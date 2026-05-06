@@ -57,6 +57,7 @@ All notable changes to this project will be documented in this file.
 - Close 10 code-scanning alerts
 - Mask email PII in logs + bump postcss to ^8.5.10 ([#78](https://github.com/stevenfackley/StackAlchemist/issues/78))
 - Wire ITierGatingService into orchestrator + skip codegen on Tier 1 ([#84](https://github.com/stevenfackley/StackAlchemist/issues/84))
+- Serialize Release workflow to prevent changelog-commit race ([#87](https://github.com/stevenfackley/StackAlchemist/issues/87))
 
 ### Dependencies
 
