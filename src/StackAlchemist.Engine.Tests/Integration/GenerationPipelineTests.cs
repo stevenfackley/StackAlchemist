@@ -200,9 +200,9 @@ public class GenerationPipelineTests
         docsContent.Should().Contain("DELETE /api/v1/orders/{id}");
     }
 
-    // ── Stubs for tests #2 + #3 + #5 land in subsequent PRs ───────────────────
-    // PR 3: WithBuildFailure_RetriesSuccessfully + MaxRetriesExceeded_MarksAsFailed
-    // PR 4: Tier3_IncludesIaCAndHelmCharts
+    // Compile-retry coverage (build-failure-retry, max-retries-exhausted) lives in
+    // CompileWorkerRetryTests.cs since it drives CompileWorkerService directly,
+    // not the orchestrator. Tier 3 IaC test lands in a follow-on PR.
 
     // ── Wiring ────────────────────────────────────────────────────────────────
 
