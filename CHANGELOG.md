@@ -176,6 +176,7 @@ All notable changes to this project will be documented in this file.
 
 - Wire Plausible, GSC, and Basic Auth env vars through pipeline
 - Mask service role key + tighten E2E Integration permissions ([#88](https://github.com/stevenfackley/StackAlchemist/issues/88))
+- Always dump sa-engine + sa-worker logs after E2E Integration ([#89](https://github.com/stevenfackley/StackAlchemist/issues/89))
 
 ### Seo
 
