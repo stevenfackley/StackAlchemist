@@ -7,6 +7,7 @@ on:
     branches: [main]
   schedule:
     - cron: "0 6 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -211,12 +212,23 @@ jobs:
     name: E2E Integration (Playwright, Main/Nightly)
     runs-on: ubuntu-latest
     environment: test
+    permissions:
+      contents: read
     needs: [frontend, backend, docker]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Self-test — refuse to run if a SERVICE_ROLE variable is echoed in any workflow
+        run: |
+          set -euo pipefail
+          # Refuse to load secrets if any workflow expands a *_SERVICE_ROLE_* variable
+          # into an echo. Annotation messages (no $ before the name) are allowed.
+          if grep -rEn 'echo[^|&]*\$[^|&]*SERVICE_ROLE' .github/workflows/ ; then
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -256,6 +268,18 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+
+      - name: Re-mask sensitive .env values
+        run: |
+          set -euo pipefail
+          # GitHub auto-masks `${{ secrets.X }}` literals, but values round-tripped
+          # through .env can leak via derived/substring forms. Re-register them.
+          for key in SUPABASE_SERVICE_ROLE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+            value="$(grep -E "^${key}=" .env | head -n1 | cut -d'=' -f2-)"
+            if [ -n "$value" ]; then
+              echo "::add-mask::${value}"
+            fi
+          done
 
       - name: Validate Required Integration Secrets
         id: validate-secrets
