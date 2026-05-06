@@ -56,6 +56,7 @@ All notable changes to this project will be documented in this file.
 - Re-pin eslint ^9, ignore eslint majors in dependabot.yml ([#73](https://github.com/stevenfackley/StackAlchemist/issues/73))
 - Close 10 code-scanning alerts
 - Mask email PII in logs + bump postcss to ^8.5.10 ([#78](https://github.com/stevenfackley/StackAlchemist/issues/78))
+- Wire ITierGatingService into orchestrator + skip codegen on Tier 1 ([#84](https://github.com/stevenfackley/StackAlchemist/issues/84))
 
 ### Dependencies
 
