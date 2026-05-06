@@ -10,7 +10,7 @@ namespace StackAlchemist.Engine.Services;
 /// Production LLM client that calls the Anthropic Messages API (Claude 3.5 Sonnet).
 /// Registered when <c>Anthropic:ApiKey</c> is set; falls back to <see cref="MockLlmClient"/> otherwise.
 /// </summary>
-public sealed class AnthropicLlmClient(
+public sealed partial class AnthropicLlmClient(
     IHttpClientFactory httpClientFactory,
     IConfiguration config,
     ILogger<AnthropicLlmClient> logger) : ILlmClient
@@ -32,8 +32,7 @@ public sealed class AnthropicLlmClient(
         var model = config["Anthropic:Model"] ?? "claude-3-5-sonnet-20241022";
         var maxTokens = int.TryParse(config["Anthropic:MaxTokens"], out var mt) ? mt : 8_192;
         var client = httpClientFactory.CreateClient(HttpClientName);
-        logger.LogInformation(
-            "Calling Anthropic API (model={Model}, maxTokens={MaxTokens})", model, maxTokens);
+        LogCallingApi(logger, model, maxTokens);
         for (var attempt = 0; ; attempt++)
         {
             using var httpReq = BuildRequest(apiKey, model, maxTokens, systemPrompt, userPrompt);
@@ -48,11 +47,7 @@ public sealed class AnthropicLlmClient(
                     ?? throw new InvalidOperationException(
                         "Anthropic API response contained no text content block.");
 
-                logger.LogInformation(
-                    "Anthropic API response: stopReason={Stop}, inputTokens={In}, outputTokens={Out}",
-                    result.StopReason,
-                    result.Usage?.InputTokens,
-                    result.Usage?.OutputTokens);
+                LogApiResponse(logger, result.StopReason, result.Usage?.InputTokens ?? 0, result.Usage?.OutputTokens ?? 0);
 
                 return new LlmResponse(
                     text,
@@ -66,16 +61,12 @@ public sealed class AnthropicLlmClient(
 
             if (!retryable || attempt >= 2)
             {
-                logger.LogError("Anthropic API error {Code}: {Body}", (int)response.StatusCode, body);
+                LogApiError(logger, (int)response.StatusCode, body);
                 response.EnsureSuccessStatusCode();
             }
 
             var delay = GetRetryDelay(response, attempt);
-            logger.LogWarning(
-                "Anthropic API error {Code} on attempt {Attempt}; retrying in {DelayMs} ms",
-                (int)response.StatusCode,
-                attempt + 1,
-                delay.TotalMilliseconds);
+            LogApiRetry(logger, (int)response.StatusCode, attempt + 1, delay.TotalMilliseconds);
 
             await Task.Delay(delay, ct);
         }
@@ -190,4 +181,18 @@ public sealed class AnthropicLlmClient(
         [JsonPropertyName("output_tokens")]
         public int OutputTokens { get; init; }
     }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 800, Level = LogLevel.Information, Message = "Calling Anthropic API (model={Model}, maxTokens={MaxTokens})")]
+    private static partial void LogCallingApi(ILogger logger, string model, int maxTokens);
+
+    [LoggerMessage(EventId = 801, Level = LogLevel.Information, Message = "Anthropic API response: stopReason={Stop}, inputTokens={In}, outputTokens={Out}")]
+    private static partial void LogApiResponse(ILogger logger, string? stop, int @in, int @out);
+
+    [LoggerMessage(EventId = 802, Level = LogLevel.Error, Message = "Anthropic API error {Code}: {Body}")]
+    private static partial void LogApiError(ILogger logger, int code, string body);
+
+    [LoggerMessage(EventId = 803, Level = LogLevel.Warning, Message = "Anthropic API error {Code} on attempt {Attempt}; retrying in {DelayMs} ms")]
+    private static partial void LogApiRetry(ILogger logger, int code, int attempt, double delayMs);
 }

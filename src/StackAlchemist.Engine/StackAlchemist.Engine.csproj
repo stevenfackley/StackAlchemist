@@ -8,6 +8,19 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <UserSecretsId>stackalchemist-engine</UserSecretsId>
+    <!--
+      CA1716: interface params named `to`/`template` conflict with VB.NET keywords.
+              We don't ship VB-callable APIs; rename would churn IEmailService
+              and ITemplateProvider and break callers for no real benefit.
+      CA1873: warns when log args contain method calls or LINQ — assumes
+              expensive evaluation if the level is filtered out. We've adopted
+              LoggerMessage source-gen for emission perf (CA1848); the residual
+              arg-eval cost on a few hot paths (Distinct().Count(), MaskEmail)
+              is small enough that gating with IsEnabled() would just add noise.
+      CS1668: warns about a stale path in the LIB env var leaking from VS Build
+              Tools install. Unfixable from the project; environmental.
+    -->
+    <NoWarn>$(NoWarn);CA1716;CA1873;CS1668</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

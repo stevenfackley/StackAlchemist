@@ -22,7 +22,7 @@ public interface IGenerationOrchestrator
 /// 5. Write output to temp directory
 /// 6. Push job to compile worker queue
 /// </summary>
-public sealed class GenerationOrchestrator(
+public sealed partial class GenerationOrchestrator(
     ITemplateProvider templateProvider,
     IReconstructionService reconstructionService,
     ILlmClient llmClient,
@@ -35,6 +35,8 @@ public sealed class GenerationOrchestrator(
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
+
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 
     private bool UseSwissCheese => configuration.GetValue("Generation:UseSwissCheese", false);
 
@@ -66,8 +68,7 @@ public sealed class GenerationOrchestrator(
         context.State = GenerationStateMachine.Transition(
             context.State, GenerationEvent.EnginePickedUp, context);
 
-        logger.LogInformation("Generation {Id} started — mode={Mode}, tier={Tier}",
-            request.GenerationId, request.Mode, request.Tier);
+        LogGenerationStarted(logger, request.GenerationId, request.Mode, request.Tier);
 
         try
         {
@@ -99,9 +100,7 @@ public sealed class GenerationOrchestrator(
 
                 finalFiles = injection.FilledTemplates;
 
-                logger.LogInformation(
-                    "Generation {Id} Swiss Cheese: filled {Zones} zones",
-                    request.GenerationId, injection.ZonesFilled);
+                LogSwissCheeseFilled(logger, request.GenerationId, injection.ZonesFilled);
             }
             else
             {
@@ -133,14 +132,13 @@ public sealed class GenerationOrchestrator(
             // Step 6: Push to compile worker queue
             await jobQueue.WriteAsync(context, ct);
 
-            logger.LogInformation("Generation {Id} enqueued for compilation at {Dir}",
-                request.GenerationId, outputDir);
+            LogGenerationEnqueued(logger, request.GenerationId, outputDir);
         }
         catch (Exception ex)
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
-            logger.LogError(ex, "Generation {Id} failed during orchestration", request.GenerationId);
+            LogOrchestrationFailed(logger, ex, request.GenerationId);
 
             Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
             Meters.DurationMs.Record(
@@ -187,10 +185,7 @@ public sealed class GenerationOrchestrator(
             finalFiles[path] = content;
         }
 
-        logger.LogInformation(
-            "Generation {Id} appended {Count} Tier 3 infrastructure files",
-            request.GenerationId,
-            renderedInfrastructureFiles.Count);
+        LogTier3Appended(logger, request.GenerationId, renderedInfrastructureFiles.Count);
     }
 
     private static TemplateVariables BuildVariables(GenerateRequest request)
@@ -304,7 +299,7 @@ public sealed class GenerationOrchestrator(
         {
             var template = fileSystem.File.ReadAllText(promptPath);
             var schemaJson = request.Schema is not null
-                ? JsonSerializer.Serialize(request.Schema, new JsonSerializerOptions { WriteIndented = true })
+                ? JsonSerializer.Serialize(request.Schema, IndentedJson)
                 : "{}";
             return template
                 .Replace("{{SCHEMA_JSON}}", schemaJson)
@@ -324,7 +319,7 @@ public sealed class GenerationOrchestrator(
 
         if (request.Schema is not null)
         {
-            return $"Generate code for this schema:\n\n{JsonSerializer.Serialize(request.Schema, new JsonSerializerOptions { WriteIndented = true })}";
+            return $"Generate code for this schema:\n\n{JsonSerializer.Serialize(request.Schema, IndentedJson)}";
         }
 
         return "Generate a sample CRUD application with a Product entity.";
@@ -373,4 +368,26 @@ public sealed class GenerationOrchestrator(
         "datetime" or "date" => "TIMESTAMPTZ",
         _ => "TEXT",
     };
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 200, Level = LogLevel.Information,
+        Message = "Generation {Id} started — mode={Mode}, tier={Tier}")]
+    private static partial void LogGenerationStarted(ILogger logger, string id, string mode, int tier);
+
+    [LoggerMessage(EventId = 201, Level = LogLevel.Information,
+        Message = "Generation {Id} Swiss Cheese: filled {Zones} zones")]
+    private static partial void LogSwissCheeseFilled(ILogger logger, string id, int zones);
+
+    [LoggerMessage(EventId = 202, Level = LogLevel.Information,
+        Message = "Generation {Id} enqueued for compilation at {Dir}")]
+    private static partial void LogGenerationEnqueued(ILogger logger, string id, string dir);
+
+    [LoggerMessage(EventId = 203, Level = LogLevel.Error,
+        Message = "Generation {Id} failed during orchestration")]
+    private static partial void LogOrchestrationFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 204, Level = LogLevel.Information,
+        Message = "Generation {Id} appended {Count} Tier 3 infrastructure files")]
+    private static partial void LogTier3Appended(ILogger logger, string id, int count);
 }

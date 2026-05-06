@@ -194,7 +194,7 @@ Zero failures across both suites.
 ### Template Structure
 - Location: `src/StackAlchemist.Templates/V1-DotNet-NextJs/`
 - Three subdirs: `dotnet/`, `nextjs/`, `infra/`
-- Validation script: `src/StackAlchemist.Templates/validate.mjs` — run with `node validate.mjs`
+- Validation: `src/StackAlchemist.Engine.Tests/Services/TemplateProviderTests.cs` (unit) and `Integration/SwissCheeseEndToEndTests.cs` (e2e). The standalone `validate.mjs` Node script was removed in 2026-05; the C# tests cover both V1 and V2 template sets.
 
 ### Handlebars Variables
 | Variable | Usage |
@@ -378,7 +378,7 @@ E2E:       4 live assertions, 2 intentional skips (Phase 7)
 - `GenerationOrchestrator` resolves template roots by `ProjectType` and uses `PromptBuilderService.BuildGenerationPrompt(schema, projectType)` for schema-backed generation requests.
 - `V1-Python-React/` now includes the shared injection zone names expected by reconstruction (`Controllers`, `Models`, `Repositories`, `TypeDefinitions`, etc.).
 - Added Python/React validation assets: `.flake8`, `pytest.ini`, sample backend health test, and a modern `eslint.config.js`.
-- `validate.mjs` now render-checks both `V1-DotNet-NextJs` and `V1-Python-React`.
+- Render validation lives in C# (`TemplateProviderTests`, `SwissCheeseEndToEndTests`) — covers both V1 and V2 template sets. The Node `validate.mjs` was retired in 2026-05.
 
 ### Paid checkout reliability
 - Stripe Checkout session metadata now carries `projectType`.
@@ -488,6 +488,6 @@ Both strategies share a common `BuildStrategyBase` and plug into the existing `C
 - FastAPI backend with SQLAlchemy + Alembic migrations + Pydantic schemas
 - React frontend with Vite + TypeScript + Tailwind
 - Shared injection zone naming (`Controllers`, `Models`, `Repositories`, `TypeDefinitions`) for reconstruction compatibility
-- `validate.mjs` updated to render-check both template sets
+- (Historical) `validate.mjs` updated to render-check both template sets — script retired 2026-05; replaced by C# template tests.
 
 ---

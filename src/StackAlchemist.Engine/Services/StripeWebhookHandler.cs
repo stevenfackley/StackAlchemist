@@ -17,7 +17,7 @@ public sealed record StripeWebhookResult(bool Processed, string? Reason = null);
 /// Dispatches Stripe webhook events to the right side-effect handler.
 /// Idempotency is enforced via the stripe_events Supabase table.
 /// </summary>
-public sealed class StripeWebhookHandler(
+public sealed partial class StripeWebhookHandler(
     IGenerationOrchestrator orchestrator,
     IConfiguration config,
     IHttpClientFactory httpClientFactory,
@@ -25,6 +25,8 @@ public sealed class StripeWebhookHandler(
     ILogger<StripeWebhookHandler> logger) : IStripeWebhookHandler
 {
     public const string HttpClientName = "SupabaseAdmin";
+
+    private static readonly JsonSerializerOptions CaseInsensitiveJson = new() { PropertyNameCaseInsensitive = true };
 
     public async Task<StripeWebhookResult> HandleAsync(Event stripeEvent, CancellationToken ct)
     {
@@ -120,7 +122,7 @@ public sealed class StripeWebhookHandler(
                 ct);
         }
 
-        logger.LogWarning("Stripe checkout async payment failed for session {SessionId}", session.Id);
+        LogStripeAsyncPaymentFailed(logger, session.Id);
         return new StripeWebhookResult(true);
     }
 
@@ -139,8 +141,7 @@ public sealed class StripeWebhookHandler(
                 ct);
         }
 
-        logger.LogWarning("Stripe payment intent {Id} failed: {Reason}",
-            intent.Id, intent.LastPaymentError?.Message);
+        LogStripePaymentIntentFailed(logger, intent.Id, intent.LastPaymentError?.Message);
         return new StripeWebhookResult(true);
     }
 
@@ -171,8 +172,7 @@ public sealed class StripeWebhookHandler(
             }
         }
 
-        logger.LogInformation("Stripe charge {ChargeId} refunded (intent={IntentId})",
-            charge.Id, paymentIntentId);
+        LogStripeChargeRefunded(logger, charge.Id, paymentIntentId);
         return new StripeWebhookResult(true);
     }
 
@@ -191,8 +191,7 @@ public sealed class StripeWebhookHandler(
                 ct);
         }
 
-        logger.LogError("Stripe dispute opened on charge {ChargeId}: reason={Reason}",
-            dispute.ChargeId, dispute.Reason);
+        LogStripeDisputeOpened(logger, dispute.ChargeId, dispute.Reason);
         return new StripeWebhookResult(true);
     }
 
@@ -225,7 +224,7 @@ public sealed class StripeWebhookHandler(
         {
             // Fail-open: if the idempotency log is unavailable, still process —
             // logging double-charges is preferable to dropping legitimate events.
-            logger.LogWarning(ex, "Failed to record Stripe event {Id} for idempotency", stripeEvent.Id);
+            LogStripeEventRecordFailed(logger, ex, stripeEvent.Id);
             return true;
         }
     }
@@ -281,7 +280,7 @@ public sealed class StripeWebhookHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to upsert transaction for session {SessionId}", tx.StripeSessionId);
+            LogTxUpsertFailed(logger, ex, tx.StripeSessionId);
         }
     }
 
@@ -332,7 +331,7 @@ public sealed class StripeWebhookHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to update transaction (filter={Filter}, status={Status})", filter, status);
+            LogTxUpdateFailed(logger, ex, filter, status);
             return null;
         }
     }
@@ -362,7 +361,7 @@ public sealed class StripeWebhookHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to cancel undelivered generation {Id}", generationId);
+            LogGenerationCancelFailed(logger, ex, generationId);
         }
     }
 
@@ -402,16 +401,44 @@ public sealed class StripeWebhookHandler(
             if (row.TryGetProperty("personalization_json", out var pj) &&
                 pj.ValueKind != JsonValueKind.Null && pj.ValueKind != JsonValueKind.Undefined)
             {
-                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                personalization = JsonSerializer.Deserialize<GenerationPersonalization>(pj.GetRawText(), opts);
+                personalization = JsonSerializer.Deserialize<GenerationPersonalization>(pj.GetRawText(), CaseInsensitiveJson);
             }
 
             return (mode, prompt, projectType, schema, personalization);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to load generation payload for {Id}", generationId);
+            LogGenerationPayloadLoadFailed(logger, ex, generationId);
             return (null, null, null, null, null);
         }
     }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 300, Level = LogLevel.Warning, Message = "Stripe checkout async payment failed for session {SessionId}")]
+    private static partial void LogStripeAsyncPaymentFailed(ILogger logger, string sessionId);
+
+    [LoggerMessage(EventId = 301, Level = LogLevel.Warning, Message = "Stripe payment intent {Id} failed: {Reason}")]
+    private static partial void LogStripePaymentIntentFailed(ILogger logger, string id, string? reason);
+
+    [LoggerMessage(EventId = 302, Level = LogLevel.Information, Message = "Stripe charge {ChargeId} refunded (intent={IntentId})")]
+    private static partial void LogStripeChargeRefunded(ILogger logger, string chargeId, string? intentId);
+
+    [LoggerMessage(EventId = 303, Level = LogLevel.Error, Message = "Stripe dispute opened on charge {ChargeId}: reason={Reason}")]
+    private static partial void LogStripeDisputeOpened(ILogger logger, string chargeId, string? reason);
+
+    [LoggerMessage(EventId = 304, Level = LogLevel.Warning, Message = "Failed to record Stripe event {Id} for idempotency")]
+    private static partial void LogStripeEventRecordFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 305, Level = LogLevel.Error, Message = "Failed to upsert transaction for session {SessionId}")]
+    private static partial void LogTxUpsertFailed(ILogger logger, Exception ex, string sessionId);
+
+    [LoggerMessage(EventId = 306, Level = LogLevel.Error, Message = "Failed to update transaction (filter={Filter}, status={Status})")]
+    private static partial void LogTxUpdateFailed(ILogger logger, Exception ex, string filter, string status);
+
+    [LoggerMessage(EventId = 307, Level = LogLevel.Error, Message = "Failed to cancel undelivered generation {Id}")]
+    private static partial void LogGenerationCancelFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 308, Level = LogLevel.Warning, Message = "Failed to load generation payload for {Id}")]
+    private static partial void LogGenerationPayloadLoadFailed(ILogger logger, Exception ex, string id);
 }

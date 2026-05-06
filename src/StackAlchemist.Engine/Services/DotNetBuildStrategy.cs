@@ -14,9 +14,12 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
         if (!Directory.Exists(dotnetDir))
             dotnetDir = projectDirectory;
 
-        Logger.LogInformation("Running dotnet build in {Dir}", dotnetDir);
+        LogRunningBuild(Logger, dotnetDir);
         return await RunProcessAsync("dotnet", "build --no-restore", dotnetDir, ct);
     }
+
+    [LoggerMessage(EventId = 1100, Level = LogLevel.Information, Message = "Running dotnet build in {Dir}")]
+    private static partial void LogRunningBuild(ILogger logger, string dir);
 
     public override List<string> ExtractBuildErrors(string buildOutput)
     {
