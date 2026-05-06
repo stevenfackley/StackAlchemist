@@ -55,6 +55,7 @@ All notable changes to this project will be documented in this file.
 - Unbreak CI — pin eslint ^9, complete eslint-config-next 16, migrate to flat config ([#65](https://github.com/stevenfackley/StackAlchemist/issues/65))
 - Re-pin eslint ^9, ignore eslint majors in dependabot.yml ([#73](https://github.com/stevenfackley/StackAlchemist/issues/73))
 - Close 10 code-scanning alerts
+- Mask email PII in logs + bump postcss to ^8.5.10 ([#78](https://github.com/stevenfackley/StackAlchemist/issues/78))
 
 ### Dependencies
 
