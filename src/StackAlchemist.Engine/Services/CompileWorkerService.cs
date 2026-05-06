@@ -71,21 +71,27 @@ public sealed partial class CompileWorkerService(
     {
         LogProcessingJob(logger, job.GenerationId, job.State, job.RetryCount);
 
+        // Tier 1 (Blueprint) path — orchestrator handed us an already-packing job
+        // with schema.json + api-docs.md on disk and no build to run.
+        if (job.State == GenerationState.Packing)
+        {
+            if (job.OutputDirectory is null)
+            {
+                await FailMissingOutputDir(job, ct);
+                return;
+            }
+
+            await deliveryService.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Packing, ct: ct);
+            await PackUploadAndNotifyAsync(job, ct);
+            return;
+        }
+
         while (job.State == GenerationState.Building && job.RetryCount <= MaxRetries)
         {
             if (job.OutputDirectory is null)
             {
-                job.State = GenerationState.Failed;
-                job.ErrorMessage = "No output directory set on the generation context.";
-
-                Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Failed,
-                    errorMessage: job.ErrorMessage, ct: ct);
+                await FailMissingOutputDir(job, ct);
                 return;
             }
 
@@ -119,39 +125,7 @@ public sealed partial class CompileWorkerService(
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Packing, ct: ct);
 
-                // ── Zip and upload to Cloudflare R2 ───────────────────────────
-                var downloadUrl = await r2UploadService.UploadZipAsync(
-                    job.GenerationId, job.OutputDirectory!, ct);
-                job.DownloadUrl = downloadUrl;
-
-                // Packing → Uploading
-                job.State = GenerationStateMachine.Transition(
-                    job.State, GenerationEvent.ZipCreated, job);
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Uploading, ct: ct);
-
-                // Uploading → Success
-                job.State = GenerationStateMachine.Transition(
-                    job.State, GenerationEvent.UploadedToR2, job);
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Success,
-                    downloadUrl: downloadUrl, ct: ct);
-
-                Meters.Succeeded.Add(1, BuildJobTags(job));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, outcome: "succeeded"));
-
-                LogJobCompleted(logger, job.GenerationId, job.RetryCount);
-
-                var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
-                if (!string.IsNullOrWhiteSpace(ownerEmail))
-                {
-                    var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
-                    await emailService.SendAsync(ownerEmail, subject, html, ct);
-                }
+                await PackUploadAndNotifyAsync(job, ct);
                 return;
             }
 
@@ -222,6 +196,62 @@ public sealed partial class CompileWorkerService(
             job.State = GenerationStateMachine.Transition(
                 job.State, GenerationEvent.CodeReconstructed, job);
         }
+    }
+
+    /// <summary>
+    /// Zips <paramref name="job"/>'s output directory, uploads to R2, transitions
+    /// Packing → Uploading → Success, and emails the customer the download URL.
+    /// Used by both the Tier-2/3 build-success path and the Tier-1 skip-build path.
+    /// </summary>
+    private async Task PackUploadAndNotifyAsync(GenerationContext job, CancellationToken ct)
+    {
+        var downloadUrl = await r2UploadService.UploadZipAsync(
+            job.GenerationId, job.OutputDirectory!, ct);
+        job.DownloadUrl = downloadUrl;
+
+        // Packing → Uploading
+        job.State = GenerationStateMachine.Transition(
+            job.State, GenerationEvent.ZipCreated, job);
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Uploading, ct: ct);
+
+        // Uploading → Success
+        job.State = GenerationStateMachine.Transition(
+            job.State, GenerationEvent.UploadedToR2, job);
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Success,
+            downloadUrl: downloadUrl, ct: ct);
+
+        Meters.Succeeded.Add(1, BuildJobTags(job));
+        Meters.DurationMs.Record(
+            (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+            BuildJobTags(job, outcome: "succeeded"));
+
+        LogJobCompleted(logger, job.GenerationId, job.RetryCount);
+
+        var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
+        if (!string.IsNullOrWhiteSpace(ownerEmail))
+        {
+            var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
+            await emailService.SendAsync(ownerEmail, subject, html, ct);
+        }
+    }
+
+    private async Task FailMissingOutputDir(GenerationContext job, CancellationToken ct)
+    {
+        job.State = GenerationState.Failed;
+        job.ErrorMessage = "No output directory set on the generation context.";
+
+        Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
+        Meters.DurationMs.Record(
+            (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+            BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Failed,
+            errorMessage: job.ErrorMessage, ct: ct);
     }
 
     private void CleanupTempDirectory(GenerationContext job)

@@ -69,6 +69,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -157,6 +158,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -192,7 +194,7 @@ public class GenerationOrchestratorTests
         {
             GenerationId = Guid.NewGuid().ToString(),
             Mode = "simple",
-            Tier = 1,
+            Tier = 2, // Tier 1 (Blueprint) deliberately skips the LLM; this test exercises the codegen-path failure mode.
             Prompt = "Build an app",
         });
 
@@ -222,6 +224,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -285,6 +288,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             ConfigWith(("Generation:UseSwissCheese", "true")),
             queue.Writer,
@@ -353,6 +357,7 @@ public class GenerationOrchestratorTests
             Substitute.For<IPromptBuilderService>(),
             injectionEngine,
             Substitute.For<IDeliveryService>(),
+            new TierGatingService(),
             fs,
             ConfigWith(("Generation:UseSwissCheese", "true")),
             queue.Writer,
