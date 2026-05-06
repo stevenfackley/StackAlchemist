@@ -94,6 +94,54 @@ public class SwissCheeseEndToEndTests
     }
 
     [Fact]
+    public async Task V2DotNetNextJs_NextjsFrontend_EmitsPerEntityPagesAndDeterministicLib()
+    {
+        var fs = BuildFileSystemWithV2DotNetTemplates();
+        var (orchestrator, queue) = BuildSwissCheeseOrchestrator(fs);
+
+        var response = await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = "smoke-nextjs-" + Guid.NewGuid(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = ProjectType.DotNetNextJs,
+            Schema = new GenerationSchema
+            {
+                Entities =
+                [
+                    new SchemaEntity { Name = "Product", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+                    new SchemaEntity { Name = "Order", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+                ],
+            },
+        });
+
+        response.Status.Should().Be("building");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        var outputDir = ctx!.OutputDirectory!;
+        // Normalize Windows backslashes for cross-platform assertions.
+        var emitted = fs.AllFiles
+            .Where(p => p.StartsWith(outputDir, StringComparison.Ordinal))
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+
+        // Per-entity nextjs pages: one per entity at /<entitylower>s/page.tsx.
+        emitted.Should().Contain(p => p.EndsWith("nextjs/src/app/products/page.tsx", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("nextjs/src/app/orders/page.tsx", StringComparison.Ordinal));
+
+        // Schema-wide api.ts: rendered once with both entity helpers, no markers.
+        var apiPath = emitted.First(p => p.EndsWith("nextjs/src/lib/api.ts", StringComparison.Ordinal));
+        var apiContent = fs.File.ReadAllText(apiPath.Replace('/', Path.DirectorySeparatorChar));
+        apiContent.Should().Contain("getProducts");
+        apiContent.Should().Contain("getOrders");
+
+        // Per-entity page should have its zone filled via the stub LLM.
+        var productPagePath = emitted.First(p => p.EndsWith("nextjs/src/app/products/page.tsx", StringComparison.Ordinal));
+        var productPage = fs.File.ReadAllText(productPagePath.Replace('/', Path.DirectorySeparatorChar));
+        productPage.Should().Contain("STUB:ListContent-for-Product");
+        productPage.Should().NotContain("[[LLM_INJECTION_");
+    }
+
+    [Fact]
     public async Task V2_WithEmptySchema_StillRendersSchemaWideFiles()
     {
         var fs = BuildFileSystemWithV2DotNetTemplates();
@@ -193,6 +241,19 @@ public class SwissCheeseEndToEndTests
         fs.AddFile(
             $"{TemplatesRoot}/V2-DotNet-NextJs/dotnet/Models/{{{{EntityName}}}}.cs",
             new MockFileData("public record {{EntityName}}(Guid Id);\n"));
+
+        // Schema-wide nextjs file: api.ts uses {{#each Entities}} for deterministic helpers.
+        fs.AddFile($"{TemplatesRoot}/V2-DotNet-NextJs/nextjs/src/lib/api.ts",
+            new MockFileData("{{#each Entities}}\nexport const get{{Name}}s = () => fetch('/api/{{NameLower}}s');\n{{/each}}\n"));
+
+        // Per-entity nextjs file: list page with one zone for the table rendering.
+        fs.AddFile(
+            $"{TemplatesRoot}/V2-DotNet-NextJs/nextjs/src/app/{{{{EntityNameLower}}}}s/page.tsx",
+            new MockFileData(
+                "export default function {{EntityName}}sPage() {\n" +
+                "    [[LLM_INJECTION_START: ListContent]]\n" +
+                "    [[LLM_INJECTION_END: ListContent]]\n" +
+                "}\n"));
 
         return fs;
     }
