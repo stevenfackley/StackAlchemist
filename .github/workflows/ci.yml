@@ -416,6 +416,20 @@ jobs:
         env:
           CI: true
 
+      - name: Run Playwright Nightly Tests (real APIs, non-blocking)
+        # Nightly tests exercise the full external stack (Anthropic, Supabase,
+        # R2, Engine). They are slow, cost real API calls, and are flake-prone
+        # by design. Run only on schedule + manual dispatch, never block the
+        # gate. See e2e/nightly/README or repo issues for known failures.
+        if: |
+          steps.validate-secrets.outputs.skip_e2e != 'true' &&
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        working-directory: src/StackAlchemist.Web
+        continue-on-error: true
+        run: npm run e2e:nightly
+        env:
+          CI: true
+
       - name: Dump backend container logs (always, on failure)
         if: always() && steps.validate-secrets.outputs.skip_e2e != 'true'
         run: |
