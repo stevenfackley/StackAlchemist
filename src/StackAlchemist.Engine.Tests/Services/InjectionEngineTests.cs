@@ -237,6 +237,61 @@ public class InjectionEngineTests
         capturedPrompt.Should().Contain("Table: `products`");
     }
 
+    [Fact]
+    public async Task FillZonesAsync_ParallelDispatch_BeatsSerialBaseline()
+    {
+        // 24 zones × 100ms simulated LLM latency. Serial would take 2400ms.
+        // At concurrency=6, expect ceil(24/6) × 100ms = 400ms + overhead.
+        // Test asserts well under serial baseline (3x speedup minimum).
+        const int zoneCount = 24;
+        const int simulatedLatencyMs = 100;
+        const int concurrency = 6;
+
+        var rendered = new Dictionary<string, string>();
+        for (var i = 0; i < zoneCount; i++)
+        {
+            rendered[$"file_{i}.cs"] = $"[[LLM_INJECTION_START: Z{i}]]\n[[LLM_INJECTION_END: Z{i}]]";
+        }
+
+        var engine = BuildEngine(async _ =>
+        {
+            await Task.Delay(simulatedLatencyMs);
+            return new LlmResponse("// done", 0, 0, "stub");
+        }, options: new InjectionEngineOptions { MaxConcurrency = concurrency });
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await engine.FillZonesAsync(rendered, OneEntitySchema(), OneEntityVars(), ProjectType.DotNetNextJs, null);
+        sw.Stop();
+
+        var serialBaselineMs = zoneCount * simulatedLatencyMs;
+        var theoreticalParallelMs = (int)Math.Ceiling((double)zoneCount / concurrency) * simulatedLatencyMs;
+
+        sw.ElapsedMilliseconds.Should().BeLessThan(serialBaselineMs / 3,
+            $"parallel dispatch should be at least 3x faster than {serialBaselineMs}ms serial baseline");
+        sw.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(theoreticalParallelMs,
+            $"physics floor: at least {theoreticalParallelMs}ms for {zoneCount} calls at concurrency {concurrency}");
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_TokenAccounting_AggregatesAcrossZones()
+    {
+        var rendered = new Dictionary<string, string>();
+        for (var i = 0; i < 5; i++)
+        {
+            rendered[$"file_{i}.cs"] = $"[[LLM_INJECTION_START: Z{i}]]\n[[LLM_INJECTION_END: Z{i}]]";
+        }
+
+        var engine = BuildEngine(_ => Task.FromResult(
+            new LlmResponse("// ok", InputTokens: 100, OutputTokens: 50, Model: "claude-3-5-sonnet-20241022")));
+
+        var result = await engine.FillZonesAsync(rendered, OneEntitySchema(), OneEntityVars(), ProjectType.DotNetNextJs, null);
+
+        result.ZonesFilled.Should().Be(5);
+        result.TotalInputTokens.Should().Be(500);
+        result.TotalOutputTokens.Should().Be(250);
+        result.Model.Should().Be("claude-3-5-sonnet-20241022");
+    }
+
     private sealed class StubLlmClient(Func<string, Task<LlmResponse>> handler) : ILlmClient
     {
         public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
