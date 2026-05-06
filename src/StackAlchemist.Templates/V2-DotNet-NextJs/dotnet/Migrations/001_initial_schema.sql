@@ -1,0 +1,21 @@
+-- Schema migration 001
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+{{#each Entities}}
+CREATE TABLE IF NOT EXISTS {{TableName}} (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    {{#each Fields}}{{#unless IsPrimaryKey}}
+    {{NameLower}} {{SqlType}} NOT NULL,
+    {{/unless}}{{/each}}
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE {{TableName}} ENABLE ROW LEVEL SECURITY;
+
+{{/each}}
+
+[[LLM_INJECTION_START: ForeignKeyConstraints]]
+-- LLM fills: ALTER TABLE ... ADD CONSTRAINT for each schema relationship.
+-- Pattern: ALTER TABLE child_table ADD CONSTRAINT fk_name FOREIGN KEY (parent_id) REFERENCES parent_table(id);
+[[LLM_INJECTION_END: ForeignKeyConstraints]]

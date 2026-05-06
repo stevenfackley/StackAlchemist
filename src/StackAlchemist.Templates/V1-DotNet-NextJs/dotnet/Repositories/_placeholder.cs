@@ -1,4 +1,4 @@
-{{!-- LLM_INJECTION_START: Repositories --}}
+[[LLM_INJECTION_START: Repositories]]
 {{!--
   The LLM will generate one Dapper repository class per entity here.
   Expected output format per entity:
@@ -15,4 +15,4 @@
       public async Task<bool> DeleteAsync(Guid id) { ... }
   }
 --}}
-{{!-- LLM_INJECTION_END: Repositories --}}
+[[LLM_INJECTION_END: Repositories]]

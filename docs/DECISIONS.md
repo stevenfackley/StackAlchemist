@@ -206,7 +206,7 @@ Zero failures across both suites.
 | `{{FrontendUrl}}` | CORS allowed origin |
 
 ### LLM Injection Zones
-All zones use `{{!-- LLM_INJECTION_START: ZoneName --}}` / `{{!-- LLM_INJECTION_END: ZoneName --}}` comments.
+All zones use `[[LLM_INJECTION_START: ZoneName]]` / `[[LLM_INJECTION_END: ZoneName]]` comments.
 
 | Zone | File | Purpose |
 |---|---|---|

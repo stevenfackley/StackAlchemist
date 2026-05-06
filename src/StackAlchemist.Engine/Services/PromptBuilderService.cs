@@ -10,6 +10,7 @@ public interface IPromptBuilderService
     string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null);
     string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt);
     string BuildSchemaExtractionPrompt(string userPrompt);
+    string BuildInjectionPrompt(InjectionPromptContext context);
 }
 
 /// <summary>
@@ -189,6 +190,87 @@ public sealed class PromptBuilderService : IPromptBuilderService
         foreach (var s in sections)
             sb.Append(s);
         sb.Append(footer);
+
+        return sb.ToString();
+    }
+
+    // ── Injection prompt (Swiss Cheese, per-zone) ─────────────────────────────
+
+    public string BuildInjectionPrompt(InjectionPromptContext context)
+    {
+        var sb = new StringBuilder();
+
+        var stackDescription = context.ProjectType switch
+        {
+            ProjectType.PythonReact =>
+                "You are an expert Python (FastAPI, SQLAlchemy, Pydantic) and React (TypeScript, Tailwind) developer.",
+            _ =>
+                "You are an expert .NET 10 (Minimal API, Dapper, PostgreSQL) developer.",
+        };
+
+        sb.AppendLine(stackDescription);
+        sb.AppendLine();
+        sb.AppendLine($"Fill exactly one LLM injection zone in `{context.FilePath}`.");
+        sb.AppendLine($"Zone name: `{context.ZoneName}`");
+        sb.AppendLine();
+        sb.AppendLine("## Output Rules");
+        sb.AppendLine("- Output ONLY the body of the zone — raw code only.");
+        sb.AppendLine($"- Your output replaces everything between [[LLM_INJECTION_START: {context.ZoneName}]] and [[LLM_INJECTION_END: {context.ZoneName}]].");
+        sb.AppendLine("- Do NOT include the marker lines themselves.");
+        sb.AppendLine("- Do NOT wrap the response in markdown fences (no ```).");
+        sb.AppendLine("- Do NOT use [[FILE:...]] / [[END_FILE]] block syntax.");
+        sb.AppendLine("- Do NOT add prose, comments outside the zone, or explanations.");
+        sb.AppendLine("- Match the surrounding file's indentation and code style.");
+        sb.AppendLine();
+        sb.AppendLine("## Surrounding File (zone is between START/END markers)");
+        sb.AppendLine();
+        sb.AppendLine("```");
+        sb.Append(context.RenderedFileContent);
+        if (!context.RenderedFileContent.EndsWith('\n'))
+            sb.AppendLine();
+        sb.AppendLine("```");
+
+        if (context.Entity is not null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"## Entity: {context.Entity.Name}");
+            sb.AppendLine($"- Table: `{context.Entity.TableName}`");
+            if (context.Entity.Fields.Count > 0)
+            {
+                sb.AppendLine("- Fields:");
+                foreach (var field in context.Entity.Fields)
+                {
+                    var pk = field.IsPrimaryKey ? " (PK)" : string.Empty;
+                    sb.AppendLine($"  - `{field.Name}` ({field.Type} / {field.SqlType}){pk}");
+                }
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("## Full Schema (for cross-entity references)");
+        sb.AppendLine();
+        sb.AppendLine("```json");
+        sb.AppendLine(JsonSerializer.Serialize(context.Schema, IndentedJson));
+        sb.AppendLine("```");
+
+        if (context.ProjectType == ProjectType.DotNetNextJs)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## .NET Constraints");
+            sb.AppendLine("- Use Dapper for data access (not Entity Framework).");
+            sb.AppendLine("- Use parameterized SQL — no string interpolation in queries.");
+            sb.AppendLine("- All async methods use `await`. Never `.Result` or `.Wait()`.");
+            sb.AppendLine("- Use `Guid` for IDs, `DateTime` for timestamps.");
+            sb.AppendLine("- The `db` parameter (IDbConnectionFactory) is already in scope.");
+        }
+        else
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Python Constraints");
+            sb.AppendLine("- Use SQLAlchemy ORM with async sessions.");
+            sb.AppendLine("- Use Pydantic v2 for request/response schemas.");
+            sb.AppendLine("- Type-annotate everything.");
+        }
 
         return sb.ToString();
     }

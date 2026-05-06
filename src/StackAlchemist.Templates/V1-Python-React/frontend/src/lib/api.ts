@@ -11,8 +11,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json() as Promise<T>;
 }
 
-{{!-- LLM_INJECTION_START: ApiRouteHandlers --}}
+[[LLM_INJECTION_START: ApiRouteHandlers]]
 // LLM generates per-entity helpers:
 // export function getProducts() { return apiFetch<Product[]>("/api/v1/products"); }
 // export function getProduct(id: string) { return apiFetch<Product>(`/api/v1/products/${id}`); }
-{{!-- LLM_INJECTION_END: ApiRouteHandlers --}}
+[[LLM_INJECTION_END: ApiRouteHandlers]]

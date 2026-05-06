@@ -192,7 +192,7 @@ The ReconstructionService is the most critical component in the system. It parse
 |-----------|-------------------|
 | **Render all variables** | `{{ProjectName}}`, `{{DbConnectionString}}`, etc. replaced correctly |
 | **Missing required variable** | Throws `MissingTemplateVariableException` (never silently outputs `{{var}}`) |
-| **LLM injection zones identified** | All `{{!-- LLM_INJECTION_START/END --}}` zones found and listed |
+| **LLM injection zones identified** | All `[[LLM_INJECTION_START/END: ...]]` zones found and listed |
 | **Injection into zones** | LLM content placed between START/END markers |
 | **Template not found** | Throws `TemplateNotFoundException` with available templates listed |
 | **Nested partials** | Handlebars partials resolve correctly |

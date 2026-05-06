@@ -1,6 +1,7 @@
 using System.IO.Abstractions.TestingHelpers;
 using System.Threading.Channels;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackAlchemist.Engine.Models;
@@ -58,13 +59,16 @@ public class MultiEcosystemPipelineTests
                 [outputPath] = "rendered",
             });
 
+        var injectionEngine = Substitute.For<IInjectionEngine>();
         var sut = new GenerationOrchestrator(
             templates,
             reconstruction,
             llm,
             promptBuilder,
+            injectionEngine,
             delivery,
             fs,
+            new ConfigurationBuilder().Build(),
             queue.Writer,
             NullLogger<GenerationOrchestrator>.Instance);
 

@@ -1,5 +1,7 @@
 using Serilog;
+using {{ProjectName}}.Controllers;
 using {{ProjectName}}.Infrastructure;
+using {{ProjectName}}.Repositories;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -13,25 +15,21 @@ try
         .ReadFrom.Configuration(ctx.Configuration)
         .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"));
 
-    // CORS
     builder.Services.AddCors(options =>
     {
         options.AddDefaultPolicy(policy =>
         {
             var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-            policy.WithOrigins(origins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
+            policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
         });
     });
 
-    // Database
     builder.Services.AddSingleton<IDbConnectionFactory>(
         new NpgsqlConnectionFactory(builder.Configuration.GetConnectionString("DefaultConnection")!));
 
-    // Repositories
-    [[LLM_INJECTION_START: RepositoryRegistrations]]
-    [[LLM_INJECTION_END: RepositoryRegistrations]]
+    {{#each Entities}}
+    builder.Services.AddScoped<I{{Name}}Repository, {{Name}}Repository>();
+    {{/each}}
 
     builder.Services.AddOpenApi();
 
@@ -45,9 +43,9 @@ try
     app.UseCors();
     app.UseSerilogRequestLogging();
 
-    // API Routes
-    [[LLM_INJECTION_START: RouteRegistrations]]
-    [[LLM_INJECTION_END: RouteRegistrations]]
+    {{#each Entities}}
+    app.MapGroup("/api/{{NameLower}}s").Map{{Name}}Endpoints();
+    {{/each}}
 
     app.Run();
 }

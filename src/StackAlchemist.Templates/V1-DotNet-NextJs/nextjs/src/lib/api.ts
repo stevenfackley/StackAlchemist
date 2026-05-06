@@ -9,7 +9,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json() as Promise<T>;
 }
 
-{{!-- LLM_INJECTION_START: ApiRouteHandlers --}}
+[[LLM_INJECTION_START: ApiRouteHandlers]]
 {{!--
   The LLM will generate typed fetch helper functions per entity here.
   Expected format per entity:
@@ -34,4 +34,4 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     return apiFetch<void>(`/api/v1/{entityLower}s/${id}`, { method: "DELETE" });
   }
 --}}
-{{!-- LLM_INJECTION_END: ApiRouteHandlers --}}
+[[LLM_INJECTION_END: ApiRouteHandlers]]

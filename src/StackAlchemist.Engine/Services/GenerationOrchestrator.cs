@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Abstractions;
 using System.Text.Json;
 using System.Threading.Channels;
+using Microsoft.Extensions.Configuration;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Telemetry;
 
@@ -26,17 +27,22 @@ public sealed class GenerationOrchestrator(
     IReconstructionService reconstructionService,
     ILlmClient llmClient,
     IPromptBuilderService promptBuilder,
+    IInjectionEngine injectionEngine,
     IDeliveryService deliveryService,
     IFileSystem fileSystem,
+    IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
 
-    private static string ResolveTemplateSet(ProjectType projectType) => projectType switch
+    private bool UseSwissCheese => configuration.GetValue("Generation:UseSwissCheese", false);
+
+    private static string ResolveTemplateSet(ProjectType projectType, bool useSwissCheese) => (projectType, useSwissCheese) switch
     {
-        ProjectType.DotNetNextJs => "V1-DotNet-NextJs",
-        ProjectType.PythonReact => "V1-Python-React",
+        (ProjectType.DotNetNextJs, true) => "V2-DotNet-NextJs",
+        (ProjectType.DotNetNextJs, false) => "V1-DotNet-NextJs",
+        (ProjectType.PythonReact, _) => "V1-Python-React",  // V2 not yet authored for Python-React
         _ => "V1-DotNet-NextJs",
     };
 
@@ -65,27 +71,54 @@ public sealed class GenerationOrchestrator(
         try
         {
             // Step 1: Load and render templates
-            var templateSet = ResolveTemplateSet(request.ProjectType);
+            var swissCheese = UseSwissCheese;
+            var templateSet = ResolveTemplateSet(request.ProjectType, swissCheese);
             var rawTemplates = templateProvider.LoadTemplate(templateSet);
             var variables = BuildVariables(request);
             var renderedTemplates = templateProvider.Render(rawTemplates, variables);
 
-            // Step 2: Call LLM
-            var systemPrompt = LoadPromptTemplate(request);
-            var userPrompt = BuildUserPrompt(request);
-            var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
-            await deliveryService.UpdateTokenUsageAsync(
-                request.GenerationId,
-                llmResponse.InputTokens,
-                llmResponse.OutputTokens,
-                llmResponse.Model,
-                ct);
+            Dictionary<string, string> finalFiles;
+            if (swissCheese)
+            {
+                // Swiss Cheese: per-zone parallel LLM dispatch.
+                var injection = await injectionEngine.FillZonesAsync(
+                    renderedTemplates,
+                    request.Schema ?? new GenerationSchema(),
+                    variables,
+                    request.ProjectType,
+                    request.Personalization,
+                    ct);
 
-            // Step 3: Parse LLM output
-            var llmBlocks = reconstructionService.Parse(llmResponse.Text);
+                await deliveryService.UpdateTokenUsageAsync(
+                    request.GenerationId,
+                    injection.TotalInputTokens,
+                    injection.TotalOutputTokens,
+                    injection.Model,
+                    ct);
 
-            // Step 4: Reconstruct — merge templates + LLM output
-            var finalFiles = reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
+                finalFiles = injection.FilledTemplates;
+
+                logger.LogInformation(
+                    "Generation {Id} Swiss Cheese: filled {Zones} zones",
+                    request.GenerationId, injection.ZonesFilled);
+            }
+            else
+            {
+                // V1 one-shot path: whole-codebase LLM call + Reconstruct.
+                var systemPrompt = LoadPromptTemplate(request);
+                var userPrompt = BuildUserPrompt(request);
+                var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
+                await deliveryService.UpdateTokenUsageAsync(
+                    request.GenerationId,
+                    llmResponse.InputTokens,
+                    llmResponse.OutputTokens,
+                    llmResponse.Model,
+                    ct);
+
+                var llmBlocks = reconstructionService.Parse(llmResponse.Text);
+                finalFiles = reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
+            }
+
             AppendTier3InfrastructureFiles(request, variables, finalFiles);
 
             // Step 5: Write to temp directory

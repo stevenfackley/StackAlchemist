@@ -1,18 +1,24 @@
 using System.IO.Abstractions;
 using System.Text.RegularExpressions;
+using HandlebarsDotNet;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
 
 public sealed partial class TemplateProvider : ITemplateProvider
 {
+    private const string EntityNameToken = "{{EntityName}}";
+
     private readonly IFileSystem _fs;
     private readonly string _templatesRoot;
+    private readonly IHandlebars _handlebars;
 
     public TemplateProvider(IFileSystem fileSystem, string templatesRoot)
     {
         _fs = fileSystem;
         _templatesRoot = templatesRoot;
+        _handlebars = Handlebars.Create();
+        _handlebars.Configuration.NoEscape = true;
     }
 
     public Dictionary<string, string> LoadTemplate(string templateSetName)
@@ -43,9 +49,24 @@ public sealed partial class TemplateProvider : ITemplateProvider
 
         foreach (var (path, content) in templates)
         {
-            var renderedPath = ApplyTemplateVariables(path, variables);
-            var renderedContent = ApplyTemplateVariables(content, variables);
-            result[renderedPath] = renderedContent;
+            if (path.Contains(EntityNameToken, StringComparison.Ordinal))
+            {
+                // Per-entity template: render once per schema entity.
+                foreach (var entity in variables.Entities)
+                {
+                    var ctx = BuildEntityContext(variables, entity);
+                    var renderedPath = RenderString(path, ctx);
+                    var renderedContent = RenderString(content, ctx);
+                    result[renderedPath] = renderedContent;
+                }
+            }
+            else
+            {
+                // Schema-wide template: render once with full variables.
+                var renderedPath = RenderString(path, variables);
+                var renderedContent = RenderString(content, variables);
+                result[renderedPath] = renderedContent;
+            }
         }
 
         return result;
@@ -62,42 +83,39 @@ public sealed partial class TemplateProvider : ITemplateProvider
 
     public string InjectIntoZone(string template, string zoneName, string content)
     {
-        var pattern = $@"({{{{!-- LLM_INJECTION_START: {Regex.Escape(zoneName)} --}}}})(\r?\n)?(.*?)({{{{!-- LLM_INJECTION_END: {Regex.Escape(zoneName)} --}}}})";
+        var pattern = $@"(\[\[LLM_INJECTION_START:\s*{Regex.Escape(zoneName)}\s*\]\])(\r?\n)?(.*?)(\[\[LLM_INJECTION_END:\s*{Regex.Escape(zoneName)}\s*\]\])";
         var replacement = $"${{1}}\n{content}\n${{4}}";
-        var result = Regex.Replace(template, pattern, replacement, RegexOptions.Singleline);
-        return result;
+        return Regex.Replace(template, pattern, replacement, RegexOptions.Singleline);
     }
 
-    private static string ApplyTemplateVariables(string input, TemplateVariables vars)
+    public string StripInjectionMarkers(string content)
     {
-        // Handle {{#each Entities}}...{{/each}} blocks first
-        var processed = EachBlockRegex().Replace(input, m =>
-        {
-            var varName = m.Groups[1].Value.Trim();
-            var body = m.Groups[2].Value;
-            if (varName == "Entities")
-            {
-                return string.Concat(vars.Entities.Select(entity =>
-                    body
-                        .Replace("{{Name}}", entity.Name)
-                        .Replace("{{NameLower}}", entity.NameLower)
-                        .Replace("{{TableName}}", entity.TableName)));
-            }
-            return string.Empty;
-        });
-
-        // Scalar substitutions
-        return processed
-            .Replace("{{ProjectName}}", vars.ProjectName)
-            .Replace("{{ProjectNameKebab}}", vars.ProjectNameKebab)
-            .Replace("{{ProjectNameLower}}", vars.ProjectNameLower)
-            .Replace("{{DbConnectionString}}", vars.DbConnectionString)
-            .Replace("{{FrontendUrl}}", vars.FrontendUrl);
+        return InjectionMarkerLineRegex().Replace(content, string.Empty);
     }
 
-    [GeneratedRegex(@"\{\{!-- LLM_INJECTION_START:\s*(.+?)\s*--\}\}")]
+    private string RenderString(string input, object ctx)
+    {
+        var template = _handlebars.Compile(input);
+        return template(ctx);
+    }
+
+    private static object BuildEntityContext(TemplateVariables variables, TemplateEntity entity) => new
+    {
+        variables.ProjectName,
+        variables.ProjectNameKebab,
+        variables.ProjectNameLower,
+        variables.DbConnectionString,
+        variables.FrontendUrl,
+        variables.Entities,
+        EntityName = entity.Name,
+        EntityNameLower = entity.NameLower,
+        TableName = entity.TableName,
+        Fields = entity.Fields,
+    };
+
+    [GeneratedRegex(@"\[\[LLM_INJECTION_START:\s*(.+?)\s*\]\]")]
     private static partial Regex InjectionZoneRegex();
 
-    [GeneratedRegex(@"\{\{#each\s+(\w+)\}\}(.*?)\{\{/each\}\}", RegexOptions.Singleline)]
-    private static partial Regex EachBlockRegex();
+    [GeneratedRegex(@"^[ \t]*\[\[LLM_INJECTION_(START|END):\s*[^\]]+\]\][ \t]*\r?\n?", RegexOptions.Multiline)]
+    private static partial Regex InjectionMarkerLineRegex();
 }

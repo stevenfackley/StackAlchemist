@@ -237,6 +237,32 @@ public sealed class GenerateResponse
 }
 
 /// <summary>
+/// Aggregate result from running the Swiss Cheese injection path: filled templates
+/// plus accumulated token usage across all per-zone LLM calls.
+/// </summary>
+public sealed record InjectionResult(
+    Dictionary<string, string> FilledTemplates,
+    int TotalInputTokens,
+    int TotalOutputTokens,
+    string Model,
+    int ZonesFilled);
+
+/// <summary>
+/// Per-zone targeted prompt context for the Swiss Cheese injection path.
+/// One context = one LLM call that fills a single zone in a rendered template file.
+/// </summary>
+public sealed record InjectionPromptContext(
+    string FilePath,
+    string ZoneName,
+    string RenderedFileContent,
+    GenerationSchema Schema)
+{
+    public ProjectType ProjectType { get; init; } = ProjectType.DotNetNextJs;
+    public GenerationPersonalization? Personalization { get; init; }
+    public TemplateEntity? Entity { get; init; }
+}
+
+/// <summary>
 /// Result of running a build command.
 /// </summary>
 public sealed class BuildResult

@@ -1,4 +1,4 @@
-{{!-- LLM_INJECTION_START: Controllers --}}
+[[LLM_INJECTION_START: Controllers]]
 {{!--
   The LLM will generate one minimal API endpoint group per entity here.
   Expected output format per entity:
@@ -20,4 +20,4 @@
 
   ... (POST, PUT, DELETE)
 --}}
-{{!-- LLM_INJECTION_END: Controllers --}}
+[[LLM_INJECTION_END: Controllers]]
