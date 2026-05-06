@@ -5,6 +5,14 @@ on:
     branches:
       - main
 
+# Serialize Release runs so two concurrent pushes to main don't race on
+# the auto-changelog commit (observed failure: run 25420585778 — git push
+# rejected non-fast-forward when the previous run's CHANGELOG commit landed
+# during this run's commit step).
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 permissions:
   contents: write  # needed to push CHANGELOG.md and create GitHub Releases
 
@@ -35,8 +43,15 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add CHANGELOG.md
-          git commit -m "chore(release): auto-update changelog for ${{ github.sha }} [skip ci]" || echo "No changes to commit"
-          git push origin HEAD:main
+          git commit -m "chore(release): auto-update changelog for ${{ github.sha }} [skip ci]" || { echo "No changes to commit"; exit 0; }
+          # Belt-and-suspenders rebase in case another commit landed on main
+          # between checkout and push (concurrency group should prevent this,
+          # but keeps us safe if it's ever disabled).
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && break
+            echo "push attempt $attempt failed; retrying"
+            sleep $((attempt * 5))
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
