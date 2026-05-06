@@ -166,6 +166,7 @@ All notable changes to this project will be documented in this file.
 - Cover manifests and content loaders
 - Cover ContentHeader
 - Smoke for /blog /compare /solutions /faq
+- Add V1 one-shot pipeline integration tests ([#83](https://github.com/stevenfackley/StackAlchemist/issues/83))
 
 ### Ci
 
