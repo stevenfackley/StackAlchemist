@@ -109,6 +109,7 @@ All notable changes to this project will be documented in this file.
 - Add /compare/replit-agent page ([#50](https://github.com/stevenfackley/StackAlchemist/issues/50))
 - Close Phase 7 production hardening — webhooks, metrics, emails, error boundaries
 - V2-Python-React Swiss Cheese + e2e smoke + tuning docs ([#77](https://github.com/stevenfackley/StackAlchemist/issues/77))
+- V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
 
 ### Miscellaneous Tasks
 
@@ -147,6 +148,7 @@ All notable changes to this project will be documented in this file.
 - Bump eslint in /src/StackAlchemist.Web ([#72](https://github.com/stevenfackley/StackAlchemist/issues/72))
 - Bump msw in /src/StackAlchemist.Web ([#68](https://github.com/stevenfackley/StackAlchemist/issues/68))
 - Bump postcss in /src/StackAlchemist.Web ([#69](https://github.com/stevenfackley/StackAlchemist/issues/69))
+- Drop validate.mjs Node toolchain + sweep analyzer warnings to 0 ([#79](https://github.com/stevenfackley/StackAlchemist/issues/79))
 
 ### Refactoring
 
