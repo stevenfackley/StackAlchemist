@@ -110,6 +110,7 @@ All notable changes to this project will be documented in this file.
 - Close Phase 7 production hardening — webhooks, metrics, emails, error boundaries
 - V2-Python-React Swiss Cheese + e2e smoke + tuning docs ([#77](https://github.com/stevenfackley/StackAlchemist/issues/77))
 - V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
+- V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
 
 ### Miscellaneous Tasks
 
@@ -149,6 +150,7 @@ All notable changes to this project will be documented in this file.
 - Bump msw in /src/StackAlchemist.Web ([#68](https://github.com/stevenfackley/StackAlchemist/issues/68))
 - Bump postcss in /src/StackAlchemist.Web ([#69](https://github.com/stevenfackley/StackAlchemist/issues/69))
 - Drop validate.mjs Node toolchain + sweep analyzer warnings to 0 ([#79](https://github.com/stevenfackley/StackAlchemist/issues/79))
+- Enable Generation:UseSwissCheese in dev + document rollout ([#82](https://github.com/stevenfackley/StackAlchemist/issues/82))
 
 ### Refactoring
 
