@@ -142,6 +142,50 @@ public class SwissCheeseEndToEndTests
     }
 
     [Fact]
+    public async Task V2PythonReact_Frontend_EmitsPerEntityPagesAndDeterministicLib()
+    {
+        var fs = BuildFileSystemWithV2PythonReactTemplates();
+        var (orchestrator, queue) = BuildSwissCheeseOrchestrator(fs);
+
+        var response = await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = "smoke-py-" + Guid.NewGuid(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = ProjectType.PythonReact,
+            Schema = new GenerationSchema
+            {
+                Entities =
+                [
+                    new SchemaEntity { Name = "Product", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+                    new SchemaEntity { Name = "Order", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+                ],
+            },
+        });
+
+        response.Status.Should().Be("building");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        var outputDir = ctx!.OutputDirectory!;
+        var emitted = fs.AllFiles
+            .Where(p => p.StartsWith(outputDir, StringComparison.Ordinal))
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+
+        emitted.Should().Contain(p => p.EndsWith("frontend/src/pages/products.tsx", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("frontend/src/pages/orders.tsx", StringComparison.Ordinal));
+
+        var apiPath = emitted.First(p => p.EndsWith("frontend/src/lib/api.ts", StringComparison.Ordinal));
+        var apiContent = fs.File.ReadAllText(apiPath.Replace('/', Path.DirectorySeparatorChar));
+        apiContent.Should().Contain("getProducts");
+        apiContent.Should().Contain("getOrders");
+
+        var productPagePath = emitted.First(p => p.EndsWith("frontend/src/pages/products.tsx", StringComparison.Ordinal));
+        var productPage = fs.File.ReadAllText(productPagePath.Replace('/', Path.DirectorySeparatorChar));
+        productPage.Should().Contain("STUB:ListContent-for-Product");
+        productPage.Should().NotContain("[[LLM_INJECTION_");
+    }
+
+    [Fact]
     public async Task V2_WithEmptySchema_StillRendersSchemaWideFiles()
     {
         var fs = BuildFileSystemWithV2DotNetTemplates();
@@ -254,6 +298,36 @@ public class SwissCheeseEndToEndTests
                 "    [[LLM_INJECTION_START: ListContent]]\n" +
                 "    [[LLM_INJECTION_END: ListContent]]\n" +
                 "}\n"));
+
+        return fs;
+    }
+
+    private static MockFileSystem BuildFileSystemWithV2PythonReactTemplates()
+    {
+        var fs = new MockFileSystem();
+        fs.AddDirectory(TemplatesRoot);
+        fs.AddDirectory($"{TemplatesRoot}/V2-Python-React");
+
+        // Schema-wide: api.ts uses {{#each Entities}} for deterministic helpers.
+        fs.AddFile($"{TemplatesRoot}/V2-Python-React/frontend/src/lib/api.ts",
+            new MockFileData("{{#each Entities}}\nexport const get{{Name}}s = () => fetch('/api/{{NameLower}}s');\n{{/each}}\n"));
+
+        // Per-entity: list page with one zone.
+        fs.AddFile(
+            $"{TemplatesRoot}/V2-Python-React/frontend/src/pages/{{{{EntityNameLower}}}}s.tsx",
+            new MockFileData(
+                "export default function {{EntityName}}sPage() {\n" +
+                "    [[LLM_INJECTION_START: ListContent]]\n" +
+                "    [[LLM_INJECTION_END: ListContent]]\n" +
+                "}\n"));
+
+        // Per-entity backend file (Python repository) with one zone — exercises NameLower path detection on .py.
+        fs.AddFile(
+            $"{TemplatesRoot}/V2-Python-React/backend/app/repositories/{{{{EntityNameLower}}}}.py",
+            new MockFileData(
+                "def get_all():\n" +
+                "    [[LLM_INJECTION_START: GetAllImpl]]\n" +
+                "    [[LLM_INJECTION_END: GetAllImpl]]\n"));
 
         return fs;
     }
