@@ -283,6 +283,25 @@ public class TemplateProviderTests
     }
 
     [Fact]
+    public void Render_PerEntityTemplate_DetectsEntityNameLowerToken()
+    {
+        // Python templates use {{EntityNameLower}} in path (e.g. app/models/{{EntityNameLower}}.py).
+        // The detector must treat that as a per-entity signal even when {{EntityName}} doesn't appear.
+        var templates = new Dictionary<string, string>
+        {
+            ["app/models/{{EntityNameLower}}.py"] = "class {{EntityName}}: table = '{{TableName}}'",
+        };
+        var vars = TwoEntityVariables();
+
+        var result = _sut.Render(templates, vars);
+
+        result.Should().HaveCount(2);
+        result.Should().ContainKey("app/models/user.py");
+        result.Should().ContainKey("app/models/post.py");
+        result["app/models/user.py"].Should().Contain("class User: table = 'users'");
+    }
+
+    [Fact]
     public void Render_PerEntityTemplate_PreservesInjectionZones()
     {
         var templates = new Dictionary<string, string>

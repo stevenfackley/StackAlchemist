@@ -316,6 +316,60 @@ public class GenerationOrchestratorTests
             Arg.Any<string>(), 500, 1200, "claude-3-5-sonnet-20241022", Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(ProjectType.DotNetNextJs, "V2-DotNet-NextJs")]
+    [InlineData(ProjectType.PythonReact, "V2-Python-React")]
+    public async Task EnqueueAsync_SwissCheeseTrue_LoadsCorrectV2TemplateSetPerProjectType(
+        ProjectType projectType,
+        string expectedTemplateSet)
+    {
+        var fs = new MockFileSystem();
+        var queue = Channel.CreateUnbounded<GenerationContext>();
+
+        var templates = Substitute.For<ITemplateProvider>();
+        templates.LoadTemplate(Arg.Any<string>()).Returns(new Dictionary<string, string>
+        {
+            ["placeholder.txt"] = "rendered",
+        });
+        templates.Render(Arg.Any<Dictionary<string, string>>(), Arg.Any<TemplateVariables>())
+            .Returns(new Dictionary<string, string> { ["placeholder.txt"] = "rendered" });
+
+        var injectionEngine = Substitute.For<IInjectionEngine>();
+        injectionEngine.FillZonesAsync(
+                Arg.Any<Dictionary<string, string>>(),
+                Arg.Any<GenerationSchema>(),
+                Arg.Any<TemplateVariables>(),
+                Arg.Any<ProjectType>(),
+                Arg.Any<GenerationPersonalization?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new InjectionResult(
+                new Dictionary<string, string> { ["placeholder.txt"] = "filled" },
+                100, 200, "stub", 1));
+
+        var sut = new GenerationOrchestrator(
+            templates,
+            Substitute.For<IReconstructionService>(),
+            Substitute.For<ILlmClient>(),
+            Substitute.For<IPromptBuilderService>(),
+            injectionEngine,
+            Substitute.For<IDeliveryService>(),
+            fs,
+            ConfigWith(("Generation:UseSwissCheese", "true")),
+            queue.Writer,
+            NullLogger<GenerationOrchestrator>.Instance);
+
+        await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = projectType,
+            Schema = new GenerationSchema { Entities = [new SchemaEntity { Name = "Item", Fields = [] }] },
+        });
+
+        templates.Received(1).LoadTemplate(expectedTemplateSet);
+    }
+
     [Fact]
     public async Task EnqueueAsync_DefaultConfig_StillUsesV1OneShot()
     {

@@ -42,7 +42,8 @@ public sealed class GenerationOrchestrator(
     {
         (ProjectType.DotNetNextJs, true) => "V2-DotNet-NextJs",
         (ProjectType.DotNetNextJs, false) => "V1-DotNet-NextJs",
-        (ProjectType.PythonReact, _) => "V1-Python-React",  // V2 not yet authored for Python-React
+        (ProjectType.PythonReact, true) => "V2-Python-React",
+        (ProjectType.PythonReact, false) => "V1-Python-React",
         _ => "V1-DotNet-NextJs",
     };
 
