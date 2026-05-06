@@ -10,6 +10,7 @@
     "lint": "eslint --max-warnings 0",
     "e2e:smoke": "cross-env NEXT_PUBLIC_DEMO_MODE=true npx playwright test e2e/smoke --project=chromium",
     "e2e:integration": "cross-env NEXT_PUBLIC_DEMO_MODE=false npx playwright test e2e/integration --project=chromium",
+    "e2e:nightly": "cross-env NEXT_PUBLIC_DEMO_MODE=false npx playwright test e2e/nightly --project=chromium",
     "setup-env": "node ./scripts/setup-env-safe.mjs",
     "postinstall": "node ./scripts/setup-env-safe.mjs"
   },
