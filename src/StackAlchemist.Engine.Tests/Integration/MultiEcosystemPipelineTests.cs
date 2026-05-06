@@ -67,6 +67,7 @@ public class MultiEcosystemPipelineTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             new ConfigurationBuilder().Build(),
             queue.Writer,

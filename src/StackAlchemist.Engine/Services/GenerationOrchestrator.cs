@@ -29,6 +29,7 @@ public sealed partial class GenerationOrchestrator(
     IPromptBuilderService promptBuilder,
     IInjectionEngine injectionEngine,
     IDeliveryService deliveryService,
+    ITierGatingService tierGating,
     IFileSystem fileSystem,
     IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
@@ -72,11 +73,37 @@ public sealed partial class GenerationOrchestrator(
 
         try
         {
-            // Step 1: Load and render templates
+            var variables = BuildVariables(request);
+
+            // Tier 1 (Blueprint) — skip LLM/codegen entirely; emit schema.json + api-docs.md
+            // and route the job straight to Packing so the worker only zips and uploads.
+            // This is the gate that keeps Tier-1 customers from triggering paid Anthropic calls.
+            if (!tierGating.ShouldTriggerCodeGeneration(request.Tier))
+            {
+                var blueprintFiles = Tier1ArtifactBuilder.Build(request.Schema, variables);
+                var blueprintDir = WriteFilesToDisk(request.GenerationId, blueprintFiles);
+                context.OutputDirectory = blueprintDir;
+
+                // Generating → Packing
+                context.State = GenerationStateMachine.Transition(
+                    context.State, GenerationEvent.BlueprintCompleted, context);
+
+                await jobQueue.WriteAsync(context, ct);
+
+                LogBlueprintEnqueued(logger, request.GenerationId, blueprintDir);
+
+                return new GenerateResponse
+                {
+                    JobId = request.GenerationId,
+                    Status = context.State.ToString().ToLowerInvariant(),
+                    ProjectType = request.ProjectType,
+                };
+            }
+
+            // Step 1: Load and render templates (Tier 2/3 codegen path)
             var swissCheese = UseSwissCheese;
             var templateSet = ResolveTemplateSet(request.ProjectType, swissCheese);
             var rawTemplates = templateProvider.LoadTemplate(templateSet);
-            var variables = BuildVariables(request);
             var renderedTemplates = templateProvider.Render(rawTemplates, variables);
 
             Dictionary<string, string> finalFiles;
@@ -390,4 +417,8 @@ public sealed partial class GenerationOrchestrator(
     [LoggerMessage(EventId = 204, Level = LogLevel.Information,
         Message = "Generation {Id} appended {Count} Tier 3 infrastructure files")]
     private static partial void LogTier3Appended(ILogger logger, string id, int count);
+
+    [LoggerMessage(EventId = 205, Level = LogLevel.Information,
+        Message = "Generation {Id} Tier 1 Blueprint deliverables enqueued at {Dir} — codegen skipped")]
+    private static partial void LogBlueprintEnqueued(ILogger logger, string id, string dir);
 }

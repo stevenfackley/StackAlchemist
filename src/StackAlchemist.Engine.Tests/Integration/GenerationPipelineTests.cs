@@ -121,8 +121,86 @@ public class GenerationPipelineTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── Stubs for tests #2-#5 land in subsequent PRs ──────────────────────────
-    // PR 2: Tier1_SkipsCodeGeneration (requires wiring ITierGatingService into orchestrator)
+    [Fact]
+    public async Task Tier1_SkipsCodeGeneration_EmitsBlueprintArtifacts()
+    {
+        var fs = BuildFileSystemWithV1DotNetTemplates();
+        var llmClient = new V1StubLlmClient();
+        var delivery = Substitute.For<IDeliveryService>();
+        var (orchestrator, queue) = BuildV1Orchestrator(fs, delivery, llmClient);
+
+        var response = await orchestrator.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = "tier1-blueprint-" + Guid.NewGuid(),
+            Mode = "advanced",
+            Tier = 1,
+            ProjectType = ProjectType.DotNetNextJs,
+            Schema = new GenerationSchema
+            {
+                Entities =
+                [
+                    new SchemaEntity
+                    {
+                        Name = "Product",
+                        Fields =
+                        [
+                            new SchemaField { Name = "Id", Type = "uuid", Pk = true },
+                            new SchemaField { Name = "Name", Type = "string" },
+                            new SchemaField { Name = "Price", Type = "decimal" },
+                        ],
+                    },
+                    new SchemaEntity
+                    {
+                        Name = "Order",
+                        Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }],
+                    },
+                ],
+            },
+        });
+
+        // Tier 1 routes Generating → Packing directly, skipping the build loop.
+        response.Status.Should().Be("packing");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        ctx.Should().NotBeNull();
+        ctx!.State.Should().Be(GenerationState.Packing);
+
+        // CRITICAL: Tier 1 must NOT trigger an LLM call — that would be a billing leak
+        // (Tier 1 is $299 Blueprint, codegen is paid Anthropic tokens we'd lose money on).
+        llmClient.CallCount.Should().Be(0);
+        await delivery.DidNotReceive().UpdateTokenUsageAsync(
+            Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // Output contains the two Blueprint deliverables.
+        var outputDir = ctx.OutputDirectory!;
+        var emitted = fs.AllFiles
+            .Where(p => p.StartsWith(outputDir, StringComparison.Ordinal))
+            .Select(p => p.Replace('\\', '/'))
+            .ToList();
+
+        emitted.Should().Contain(p => p.EndsWith("/schema.json", StringComparison.Ordinal));
+        emitted.Should().Contain(p => p.EndsWith("/api-docs.md", StringComparison.Ordinal));
+
+        // CRITICAL: no codegen output — no .cs / .ts / .tsx files.
+        emitted.Where(p => p.EndsWith(".cs", StringComparison.Ordinal)
+                        || p.EndsWith(".tsx", StringComparison.Ordinal)
+                        || p.EndsWith(".ts", StringComparison.Ordinal))
+            .Should().BeEmpty("Tier 1 deliberately skips code generation");
+
+        // schema.json round-trips both entities.
+        var schemaPath = emitted.First(p => p.EndsWith("/schema.json", StringComparison.Ordinal));
+        var schemaContent = fs.File.ReadAllText(schemaPath.Replace('/', Path.DirectorySeparatorChar));
+        schemaContent.Should().Contain("\"Product\"").And.Contain("\"Order\"");
+
+        // api-docs.md contains CRUD endpoints for each entity.
+        var docsPath = emitted.First(p => p.EndsWith("/api-docs.md", StringComparison.Ordinal));
+        var docsContent = fs.File.ReadAllText(docsPath.Replace('/', Path.DirectorySeparatorChar));
+        docsContent.Should().Contain("## Product").And.Contain("## Order");
+        docsContent.Should().Contain("GET /api/v1/products").And.Contain("GET /api/v1/orders");
+        docsContent.Should().Contain("POST /api/v1/products");
+        docsContent.Should().Contain("DELETE /api/v1/orders/{id}");
+    }
+
+    // ── Stubs for tests #2 + #3 + #5 land in subsequent PRs ───────────────────
     // PR 3: WithBuildFailure_RetriesSuccessfully + MaxRetriesExceeded_MarksAsFailed
     // PR 4: Tier3_IncludesIaCAndHelmCharts
 
@@ -130,12 +208,13 @@ public class GenerationPipelineTests
 
     private static (GenerationOrchestrator Sut, Channel<GenerationContext> Queue) BuildV1Orchestrator(
         MockFileSystem fs,
-        IDeliveryService? delivery = null)
+        IDeliveryService? delivery = null,
+        V1StubLlmClient? llmClient = null)
     {
         var queue = Channel.CreateUnbounded<GenerationContext>();
         var templateProvider = new TemplateProvider(fs, TemplatesRoot);
         var promptBuilder = new PromptBuilderService();
-        var llmClient = new V1StubLlmClient();
+        llmClient ??= new V1StubLlmClient();
         var reconstruction = new ReconstructionService();
 
         // V2-only InjectionEngine is wired but not invoked when UseSwissCheese=false.
@@ -153,6 +232,7 @@ public class GenerationPipelineTests
             promptBuilder,
             injectionEngine,
             delivery ?? Substitute.For<IDeliveryService>(),
+            new TierGatingService(),
             fs,
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
@@ -197,8 +277,12 @@ public class GenerationPipelineTests
         public const int StubOutputTokens = 240;
         public const string StubModel = "v1-stub";
 
+        private int _callCount;
+        public int CallCount => _callCount;
+
         public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
         {
+            Interlocked.Increment(ref _callCount);
             const string body = """
                 [[FILE:Models/Product.cs]]
                 namespace GeneratedApp.Models;

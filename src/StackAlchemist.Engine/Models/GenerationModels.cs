@@ -19,6 +19,7 @@ public enum GenerationEvent
 {
     EnginePickedUp,
     CodeReconstructed,
+    BlueprintCompleted, // Tier 1 — schema/api-docs emitted, no codegen → straight to Packing
     BuildPassed,
     BuildFailed,
     ZipCreated,
