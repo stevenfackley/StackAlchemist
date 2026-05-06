@@ -67,8 +67,8 @@ public sealed partial class InjectionEngine(
                 ZonesFilled: 0);
         }
 
-        logger.LogInformation(
-            "InjectionEngine: filling {ZoneCount} zones across {FileCount} files (concurrency={Concurrency})",
+        LogFillZonesStart(
+            logger,
             workItems.Count,
             workItems.Select(w => w.FilePath).Distinct().Count(),
             _options.MaxConcurrency);
@@ -145,9 +145,7 @@ public sealed partial class InjectionEngine(
                 var response = await llmClient.GenerateAsync(systemPrompt: string.Empty, userPrompt: prompt, ct);
                 if (string.IsNullOrWhiteSpace(response.Text))
                 {
-                    logger.LogWarning(
-                        "Empty LLM response for zone {Zone} in {File} (attempt {Attempt}/{Max})",
-                        item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);
+                    LogEmptyLlmResponse(logger, item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);
                     continue;
                 }
 
@@ -156,10 +154,7 @@ public sealed partial class InjectionEngine(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 lastException = ex;
-                logger.LogWarning(
-                    ex,
-                    "LLM call failed for zone {Zone} in {File} (attempt {Attempt}/{Max})",
-                    item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);
+                LogLlmCallFailed(logger, ex, item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);
             }
         }
 
@@ -189,4 +184,18 @@ public sealed partial class InjectionEngine(
 
     [GeneratedRegex(@"\[\[(FILE:[^\]]*|END_FILE)\]\]\s*\n?")]
     private static partial Regex StrayFileMarkerRegex();
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 100, Level = LogLevel.Information,
+        Message = "InjectionEngine: filling {ZoneCount} zones across {FileCount} files (concurrency={Concurrency})")]
+    private static partial void LogFillZonesStart(ILogger logger, int zoneCount, int fileCount, int concurrency);
+
+    [LoggerMessage(EventId = 101, Level = LogLevel.Warning,
+        Message = "Empty LLM response for zone {Zone} in {File} (attempt {Attempt}/{Max})")]
+    private static partial void LogEmptyLlmResponse(ILogger logger, string zone, string file, int attempt, int max);
+
+    [LoggerMessage(EventId = 102, Level = LogLevel.Warning,
+        Message = "LLM call failed for zone {Zone} in {File} (attempt {Attempt}/{Max})")]
+    private static partial void LogLlmCallFailed(ILogger logger, Exception ex, string zone, string file, int attempt, int max);
 }

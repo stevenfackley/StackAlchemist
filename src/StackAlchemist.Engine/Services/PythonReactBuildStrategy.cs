@@ -15,7 +15,7 @@ public sealed partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStr
 
         if (Directory.Exists(pythonDir))
         {
-            Logger.LogInformation("Running Python validation in {Dir}", pythonDir);
+            LogRunningPython(Logger, pythonDir);
 
             var pipResult = await RunProcessAsync("python", "-m pip install -r requirements.txt --quiet", pythonDir, ct);
             if (!pipResult.IsSuccess)
@@ -32,7 +32,7 @@ public sealed partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStr
 
         if (Directory.Exists(reactDir))
         {
-            Logger.LogInformation("Running React validation in {Dir}", reactDir);
+            LogRunningReact(Logger, reactDir);
 
             var npmInstallResult = await RunProcessAsync("npm", "install --silent", reactDir, ct);
             if (!npmInstallResult.IsSuccess)
@@ -67,4 +67,10 @@ public sealed partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStr
         @"^.+:\d+:\d+:\s*(?:E|W|F|C)\d+\s+.+$|^\s*\d+:\d+\s+error\s+.+$|^.+:\s*error\s+TS\d+:.+$|^ERROR\s+.+$|^FAILED\s+.+$",
         RegexOptions.Multiline)]
     private static partial Regex PythonAndFrontendErrorRegex();
+
+    [LoggerMessage(EventId = 1200, Level = LogLevel.Information, Message = "Running Python validation in {Dir}")]
+    private static partial void LogRunningPython(ILogger logger, string dir);
+
+    [LoggerMessage(EventId = 1201, Level = LogLevel.Information, Message = "Running React validation in {Dir}")]
+    private static partial void LogRunningReact(ILogger logger, string dir);
 }

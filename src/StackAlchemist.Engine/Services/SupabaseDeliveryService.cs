@@ -8,7 +8,7 @@ namespace StackAlchemist.Engine.Services;
 /// Updates the <c>generations</c> table in Supabase via its PostgREST HTTP API so the
 /// frontend receives real-time status updates through Supabase Realtime.
 /// </summary>
-public sealed class SupabaseDeliveryService(
+public sealed partial class SupabaseDeliveryService(
     IHttpClientFactory httpClientFactory,
     IConfiguration config,
     ILogger<SupabaseDeliveryService> logger) : IDeliveryService
@@ -43,7 +43,7 @@ public sealed class SupabaseDeliveryService(
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
 
         await PatchGenerationAsync(generationId, payload, ct);
-        logger.LogInformation("Supabase updated: generation {Id} → {State}", generationId, state);
+        LogSupabaseUpdated(logger, generationId, state);
     }
 
     public async Task UpdateStatusAsync(
@@ -155,7 +155,7 @@ public sealed class SupabaseDeliveryService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to look up owner email for generation {Id}", generationId);
+            LogOwnerEmailLookupFailed(logger, ex, generationId);
             return null;
         }
     }
@@ -172,8 +172,7 @@ public sealed class SupabaseDeliveryService(
 
         if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
         {
-            logger.LogDebug(
-                "Supabase not configured — skipping patch for {Id}", generationId);
+            LogSupabasePatchSkipped(logger, generationId);
             return;
         }
 
@@ -195,14 +194,12 @@ public sealed class SupabaseDeliveryService(
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
-                logger.LogWarning(
-                    "Supabase PATCH returned {Code} for generation {Id}: {Body}",
-                    (int)response.StatusCode, generationId, body);
+                LogSupabasePatchNonOk(logger, (int)response.StatusCode, generationId, body);
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to patch Supabase for generation {Id}", generationId);
+            LogSupabasePatchFailed(logger, ex, generationId);
         }
     }
 
@@ -216,7 +213,7 @@ public sealed class SupabaseDeliveryService(
 
         if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
         {
-            logger.LogDebug("Supabase not configured — skipping RPC {Function}", functionName);
+            LogSupabaseRpcSkipped(logger, functionName);
             return;
         }
 
@@ -237,16 +234,38 @@ public sealed class SupabaseDeliveryService(
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
-                logger.LogWarning(
-                    "Supabase RPC {Function} returned {Code}: {Body}",
-                    functionName,
-                    (int)response.StatusCode,
-                    body);
+                LogSupabaseRpcNonOk(logger, functionName, (int)response.StatusCode, body);
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to invoke Supabase RPC {Function}", functionName);
+            LogSupabaseRpcFailed(logger, ex, functionName);
         }
     }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 500, Level = LogLevel.Information, Message = "Supabase updated: generation {Id} → {State}")]
+    private static partial void LogSupabaseUpdated(ILogger logger, string id, GenerationState state);
+
+    [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id}")]
+    private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 502, Level = LogLevel.Debug, Message = "Supabase not configured — skipping patch for {Id}")]
+    private static partial void LogSupabasePatchSkipped(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 503, Level = LogLevel.Warning, Message = "Supabase PATCH returned {Code} for generation {Id}: {Body}")]
+    private static partial void LogSupabasePatchNonOk(ILogger logger, int code, string id, string body);
+
+    [LoggerMessage(EventId = 504, Level = LogLevel.Error, Message = "Failed to patch Supabase for generation {Id}")]
+    private static partial void LogSupabasePatchFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 505, Level = LogLevel.Debug, Message = "Supabase not configured — skipping RPC {Function}")]
+    private static partial void LogSupabaseRpcSkipped(ILogger logger, string function);
+
+    [LoggerMessage(EventId = 506, Level = LogLevel.Warning, Message = "Supabase RPC {Function} returned {Code}: {Body}")]
+    private static partial void LogSupabaseRpcNonOk(ILogger logger, string function, int code, string body);
+
+    [LoggerMessage(EventId = 507, Level = LogLevel.Error, Message = "Failed to invoke Supabase RPC {Function}")]
+    private static partial void LogSupabaseRpcFailed(ILogger logger, Exception ex, string function);
 }

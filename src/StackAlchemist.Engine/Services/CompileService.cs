@@ -6,7 +6,7 @@ namespace StackAlchemist.Engine.Services;
 /// Selects the appropriate ecosystem-specific build strategy and constructs retry prompts
 /// for the LLM repair loop.
 /// </summary>
-public sealed class CompileService(
+public sealed partial class CompileService(
     IEnumerable<IBuildStrategy> strategies,
     ILogger<CompileService> logger) : ICompileService
 {
@@ -72,7 +72,10 @@ public sealed class CompileService(
         if (_strategies.TryGetValue(projectType, out var strategy))
             return strategy;
 
-        logger.LogError("No build strategy registered for project type {ProjectType}", projectType);
+        LogNoBuildStrategy(logger, projectType);
         throw new ArgumentOutOfRangeException(nameof(projectType), projectType, "Unsupported project type");
     }
+
+    [LoggerMessage(EventId = 1000, Level = LogLevel.Error, Message = "No build strategy registered for project type {ProjectType}")]
+    private static partial void LogNoBuildStrategy(ILogger logger, ProjectType projectType);
 }

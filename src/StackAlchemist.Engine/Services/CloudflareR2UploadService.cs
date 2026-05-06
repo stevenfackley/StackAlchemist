@@ -10,7 +10,7 @@ namespace StackAlchemist.Engine.Services;
 /// Zips the generated project directory and uploads it to Cloudflare R2 (S3-compatible)
 /// using the AWS SDK, then returns a presigned HTTPS download URL.
 /// </summary>
-public sealed class CloudflareR2UploadService(
+public sealed partial class CloudflareR2UploadService(
     IConfiguration config,
     ILogger<CloudflareR2UploadService> logger) : IR2UploadService
 {
@@ -36,9 +36,7 @@ public sealed class CloudflareR2UploadService(
         ZipFile.CreateFromDirectory(directoryPath, memStream);
         memStream.Position = 0;
 
-        logger.LogInformation(
-            "Uploading zip for {Id} ({Bytes:N0} bytes) → R2 bucket {Bucket}/{Key}",
-            generationId, memStream.Length, bucket, key);
+        LogUploadingZip(logger, generationId, memStream.Length, bucket, key);
 
         // ── 2. Upload via AWS SDK (R2 is S3-compatible) ───────────────────────
         var credentials = new BasicAWSCredentials(accessKey, secretKey);
@@ -72,7 +70,15 @@ public sealed class CloudflareR2UploadService(
         };
         var url = s3.GetPreSignedURL(presignRequest);
 
-        logger.LogInformation("Presigned URL created for {Id} (expires +{Hours}h)", generationId, expiryHours);
+        LogPresignedUrlCreated(logger, generationId, expiryHours);
         return url;
     }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 900, Level = LogLevel.Information, Message = "Uploading zip for {Id} ({Bytes:N0} bytes) → R2 bucket {Bucket}/{Key}")]
+    private static partial void LogUploadingZip(ILogger logger, string id, long bytes, string bucket, string key);
+
+    [LoggerMessage(EventId = 901, Level = LogLevel.Information, Message = "Presigned URL created for {Id} (expires +{Hours}h)")]
+    private static partial void LogPresignedUrlCreated(ILogger logger, string id, int hours);
 }
