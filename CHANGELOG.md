@@ -54,6 +54,7 @@ All notable changes to this project will be documented in this file.
 - Migrate PostCSS pipeline to Tailwind v4 ([#46](https://github.com/stevenfackley/StackAlchemist/issues/46))
 - Unbreak CI — pin eslint ^9, complete eslint-config-next 16, migrate to flat config ([#65](https://github.com/stevenfackley/StackAlchemist/issues/65))
 - Re-pin eslint ^9, ignore eslint majors in dependabot.yml ([#73](https://github.com/stevenfackley/StackAlchemist/issues/73))
+- Close 10 code-scanning alerts
 
 ### Dependencies
 
