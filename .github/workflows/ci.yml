@@ -391,6 +391,46 @@ jobs:
 
           echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
 
+      - name: Apply Supabase migrations to CI project
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
+        env:
+          # Postgres connection string for the CI Supabase project
+          # (project ref cdlefpvsvyepofsboepc). Format:
+          # postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+          # See docs/runbooks/ci-supabase-migrations.md.
+          SUPABASE_DB_URL: ${{ secrets.CI_SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::CI_SUPABASE_DB_URL secret is not set. See docs/runbooks/ci-supabase-migrations.md."
+            exit 1
+          fi
+
+          # Mask the value defensively (GitHub auto-masks secrets but a
+          # connection string contains a password we don't want leaking
+          # via any derived form).
+          echo "::add-mask::${SUPABASE_DB_URL}"
+
+          # Install the Supabase CLI. Pinned for determinism — bump quarterly
+          # or when a needed CLI feature ships. See:
+          # https://github.com/supabase/cli/releases
+          SUPABASE_CLI_VERSION="v2.98.2"
+          curl -fsSL "https://github.com/supabase/cli/releases/download/${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
+            | tar -xz -C /tmp
+          sudo mv /tmp/supabase /usr/local/bin/supabase
+          installed_version="$(supabase --version)"
+          echo "Installed Supabase CLI: ${installed_version}"
+          if [ "${installed_version}" != "${SUPABASE_CLI_VERSION#v}" ]; then
+            echo "::warning::Installed CLI version (${installed_version}) does not match pinned ${SUPABASE_CLI_VERSION}. Continuing anyway."
+          fi
+
+          # Apply migrations. Idempotent: the CLI tracks applied migrations
+          # in supabase_migrations.schema_migrations.
+          supabase db push \
+            --db-url "$SUPABASE_DB_URL" \
+            --include-all
+
       - name: Copy .env to Next.js project
         if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: cp .env src/StackAlchemist.Web/.env
