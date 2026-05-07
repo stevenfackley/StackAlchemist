@@ -29,7 +29,7 @@ public sealed partial class AnthropicLlmClient(
     {
         var apiKey = config["Anthropic:ApiKey"]
             ?? throw new InvalidOperationException("Anthropic:ApiKey is not configured.");
-        var model = config["Anthropic:Model"] ?? "claude-3-5-sonnet-20241022";
+        var model = config["Anthropic:Model"] ?? "claude-sonnet-4-6";
         var maxTokens = int.TryParse(config["Anthropic:MaxTokens"], out var mt) ? mt : 8_192;
         var client = httpClientFactory.CreateClient(HttpClientName);
         LogCallingApi(logger, model, maxTokens);

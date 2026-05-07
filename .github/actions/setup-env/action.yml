@@ -88,6 +88,11 @@ inputs:
     description: 'Anthropic API key'
     required: true
 
+  anthropic_model:
+    description: 'Anthropic model id (e.g. claude-sonnet-4-6). Empty → engine default applies.'
+    required: false
+    default: ''
+
   # ─── Engine ──────────────────────────────────────────────────────────────────
   engine_service_key:
     description: 'Shared secret for Next.js → Engine API authentication (X-Engine-Key header)'
@@ -152,6 +157,7 @@ runs:
         STRIPE_SECRET_KEY: ${{ inputs.stripe_secret_key }}
         STRIPE_WEBHOOK_SECRET: ${{ inputs.stripe_webhook_secret }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_MODEL: ${{ inputs.anthropic_model }}
         ENGINE_SERVICE_KEY: ${{ inputs.engine_service_key }}
         PLAUSIBLE_DOMAIN: ${{ inputs.plausible_domain }}
         GOOGLE_SITE_VERIFICATION: ${{ inputs.google_site_verification }}
@@ -197,6 +203,7 @@ runs:
 
         # LLM APIs
         ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+        ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
 
         # Engine auth
         ENGINE_SERVICE_KEY=${ENGINE_SERVICE_KEY}
