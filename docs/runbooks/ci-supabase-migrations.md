@@ -36,6 +36,25 @@ If the DB password is rotated, update this secret to match. The CI job
 fails closed with `::error::CI_SUPABASE_DB_URL secret is not set` if the
 secret is missing.
 
+## Related: `vars.ANTHROPIC_MODEL`
+
+The Anthropic model is also workflow-controlled, but as a non-secret repo/env
+variable (`vars.ANTHROPIC_MODEL`) rather than a secret. The `ci.yml`,
+`deploy-test.yml`, and `deploy-prod.yml` workflows resolve it as
+`${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-4-6' }}`.
+
+Scope rules: GitHub resolves `vars.*` at the **environment** level when a job
+specifies `environment:`, falling back to the repo-level variable. So:
+
+- `e2e-integration` (in `ci.yml`) is `environment: test` → checks `test`-env
+  vars first, then repo vars.
+- `deploy-test.yml` is `environment: test` → same.
+- `deploy-prod.yml` is `environment: prod` → checks `prod`-env vars first,
+  then repo vars.
+
+The workflow-level `'claude-sonnet-4-6'` fallback applies if neither scope
+has the variable set, so an unset `vars.ANTHROPIC_MODEL` is safe.
+
 ## Failure modes
 
 | Symptom in `Apply Supabase migrations to CI project` step | Likely cause |
@@ -46,6 +65,7 @@ secret is missing.
 | `migration X.sql already applied` (info) | Normal |
 | `must be owner of table` | Using anon/service-role JWT instead of postgres password — switch to the URI from Database settings, not the API tab |
 | `migration X.sql failed: <SQL error>` | The migration file has a SQL error or conflicts with state already applied on the CI project. Reproduce locally with `supabase db push --db-url $CI_SUPABASE_DB_URL` to see the full error. Fix the migration and push again. If the CI project's state has drifted irrecoverably, the project is CI-only with no production data — delete and recreate it via the Supabase dashboard, then re-run CI to apply all migrations from scratch. |
+| Engine PATCH /rest/v1/generations 400 even though migrations applied successfully | `CI_SUPABASE_DB_URL` and `SUPABASE_SERVICE_ROLE_KEY` / `NEXT_PUBLIC_SUPABASE_URL` point at different Supabase projects. Verify both refer to project `cdlefpvsvyepofsboepc`. |
 
 ## Why a brand-new project per environment
 

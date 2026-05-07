@@ -7,7 +7,7 @@ using StackAlchemist.Engine.Models;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// Production LLM client that calls the Anthropic Messages API (Claude 3.5 Sonnet).
+/// Production LLM client that calls the Anthropic Messages API (Claude Sonnet 4.6 by default; configurable via <c>Anthropic:Model</c>).
 /// Registered when <c>Anthropic:ApiKey</c> is set; falls back to <see cref="MockLlmClient"/> otherwise.
 /// </summary>
 public sealed partial class AnthropicLlmClient(
