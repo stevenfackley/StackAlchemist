@@ -36,6 +36,18 @@ If the DB password is rotated, update this secret to match. The CI job
 fails closed with `::error::CI_SUPABASE_DB_URL secret is not set` if the
 secret is missing.
 
+### Why the workflow extracts `SUPABASE_DB_PASSWORD` from the URL
+
+The Supabase CLI's `--db-url` flag does **not** read the password embedded in
+the URL — passing only the URL fails with
+`failed SASL auth (FATAL: password authentication failed)` and the CLI
+suggests "Connect to your database by setting the env var correctly:
+SUPABASE_DB_PASSWORD". To keep `CI_SUPABASE_DB_URL` as the single source
+of truth (rather than maintaining a parallel `CI_SUPABASE_DB_PASSWORD`
+secret), the workflow step parses the password out of the URL and exports
+it as `SUPABASE_DB_PASSWORD` before invoking the CLI. Both values are
+masked via `::add-mask::` so neither leaks via log derivatives.
+
 ## Related: `vars.ANTHROPIC_MODEL`
 
 The Anthropic model is also workflow-controlled, but as a non-secret repo/env
