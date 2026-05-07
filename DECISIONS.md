@@ -77,3 +77,28 @@ ADR log. One entry per architectural decision. Append-only; supersede with a new
 - **lucide-react 0.454.0 → 1.11.0** (PR #55):
   - See steveackleyorg DECISIONS for the same bump. Pre-1.0 → 1.0 is mostly a rename. ESM-only now. Risk: low.
 **Why no review:** private/solo repo, deploy workflows are the real build, revert is cheap.
+
+---
+
+## 2026-05-06 — Bump Anthropic default to claude-sonnet-4-6
+
+**Status:** accepted
+**Context:** Issue #92 — engine returns 404 from api.anthropic.com because
+`claude-3-5-sonnet-20241022` was retired. Prod compose was on
+`claude-sonnet-4-5-20250929`; CI was falling back to the dead engine default
+because `ANTHROPIC_MODEL` was not threaded through the workflow.
+**Decision:**
+- Engine default → `claude-sonnet-4-6` (in code, appsettings, all test fixtures).
+- Web `DEFAULT_MODEL` → `claude-sonnet-4-6`. Old IDs stay in
+  `ALLOWED_PROFILE_MODELS` so existing profiles aren't silently rewritten.
+- Wire `ANTHROPIC_MODEL` through `setup-env` action and all workflows; resolve
+  from `vars.ANTHROPIC_MODEL` (repo/environment variable, not secret) with
+  `'claude-sonnet-4-6'` as the workflow-level fallback.
+- New Supabase migration bumps `profiles.preferred_model` column default.
+**Consequences:**
+- One env var (`ANTHROPIC_MODEL`) is now the single point of control for the
+  active model — future deprecations require flipping one variable rather
+  than editing source.
+- Pricing parity with 4.5 means no cost regression. Watch Anthropic's
+  deprecation page; downgrade only if 4.5 drops in price.
+- BYOK paths still allow legacy 3.5 IDs for users who explicitly chose them.

@@ -142,7 +142,7 @@ public class SupabaseDeliveryServiceTests
         var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);
         var sut = BuildSut(BuildConfig(), handler);
 
-        await sut.UpdateTokenUsageAsync("gen-usage", 12, 34, "claude-3-5-sonnet-20241022", CancellationToken.None);
+        await sut.UpdateTokenUsageAsync("gen-usage", 12, 34, "claude-sonnet-4-6", CancellationToken.None);
 
         handler.LastRequest.Should().NotBeNull();
         handler.LastRequest!.Method.Should().Be(HttpMethod.Post);

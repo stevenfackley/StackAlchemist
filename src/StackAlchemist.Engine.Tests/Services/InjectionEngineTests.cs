@@ -282,14 +282,14 @@ public class InjectionEngineTests
         }
 
         var engine = BuildEngine(_ => Task.FromResult(
-            new LlmResponse("// ok", InputTokens: 100, OutputTokens: 50, Model: "claude-3-5-sonnet-20241022")));
+            new LlmResponse("// ok", InputTokens: 100, OutputTokens: 50, Model: "claude-sonnet-4-6")));
 
         var result = await engine.FillZonesAsync(rendered, OneEntitySchema(), OneEntityVars(), ProjectType.DotNetNextJs, null);
 
         result.ZonesFilled.Should().Be(5);
         result.TotalInputTokens.Should().Be(500);
         result.TotalOutputTokens.Should().Be(250);
-        result.Model.Should().Be("claude-3-5-sonnet-20241022");
+        result.Model.Should().Be("claude-sonnet-4-6");
     }
 
     private sealed class StubLlmClient(Func<string, Task<LlmResponse>> handler) : ILlmClient

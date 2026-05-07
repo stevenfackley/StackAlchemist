@@ -44,7 +44,7 @@ public class MultiEcosystemPipelineTests
                 $"[[FILE:{outputPath}]]\nrendered\n[[END_FILE]]",
                 10,
                 20,
-                "claude-3-5-sonnet-20241022"));
+                "claude-sonnet-4-6"));
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>())
             .Returns($"Prompt for {projectType}");
         reconstruction.Parse(Arg.Any<string>()).Returns(new Dictionary<string, string>

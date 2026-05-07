@@ -54,7 +54,7 @@ public class GenerationOrchestratorTests
                 "[[FILE:dotnet/Program.cs]]\nvar builder = WebApplication.CreateBuilder(args);\n[[END_FILE]]",
                 10,
                 20,
-                "claude-3-5-sonnet-20241022"));
+                "claude-sonnet-4-6"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
@@ -143,7 +143,7 @@ public class GenerationOrchestratorTests
 
         var llm = Substitute.For<ILlmClient>();
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new LlmResponse("", 10, 20, "claude-3-5-sonnet-20241022"));
+            .Returns(new LlmResponse("", 10, 20, "claude-sonnet-4-6"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
@@ -278,7 +278,7 @@ public class GenerationOrchestratorTests
                 },
                 TotalInputTokens: 500,
                 TotalOutputTokens: 1200,
-                Model: "claude-3-5-sonnet-20241022",
+                Model: "claude-sonnet-4-6",
                 ZonesFilled: 5));
 
         var sut = new GenerationOrchestrator(
@@ -317,7 +317,7 @@ public class GenerationOrchestratorTests
             Arg.Any<CancellationToken>());
         await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).UpdateTokenUsageAsync(
-            Arg.Any<string>(), 500, 1200, "claude-3-5-sonnet-20241022", Arg.Any<CancellationToken>());
+            Arg.Any<string>(), 500, 1200, "claude-sonnet-4-6", Arg.Any<CancellationToken>());
     }
 
     [Theory]

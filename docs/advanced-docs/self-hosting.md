@@ -87,8 +87,8 @@ NEXT_PUBLIC_API_URL=http://localhost:5000
 ### Optional
 
 ```env
-# Override Claude model (default: claude-3-5-sonnet-20241022)
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+# Override Claude model (default: claude-sonnet-4-6)
+ANTHROPIC_MODEL=claude-sonnet-4-6
 
 # Maximum retries for compile correction loop (default: 3)
 COMPILE_MAX_RETRIES=3
