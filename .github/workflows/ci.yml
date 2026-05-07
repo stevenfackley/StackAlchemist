@@ -1,5 +1,13 @@
 name: CI
 
+run-name: >-
+  ${{
+    github.event_name == 'workflow_dispatch' && format('Manual · {0}', github.actor)
+    || github.event_name == 'schedule' && 'Nightly'
+    || github.event_name == 'pull_request' && format('PR #{0} · {1}', github.event.pull_request.number, github.event.pull_request.title)
+    || github.event.head_commit.message
+  }}
+
 on:
   pull_request:
     branches: [main]
@@ -7,6 +15,7 @@ on:
     branches: [main]
   schedule:
     - cron: "0 6 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -162,7 +171,9 @@ jobs:
     name: E2E Smoke (Playwright, Demo Mode)
     runs-on: ubuntu-latest
     needs: [frontend]
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    # Demo mode only — no real secrets needed, runs on every trigger
+    # so Quality Gate's smoke check is always meaningful.
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
 
     steps:
       - name: Checkout
@@ -211,12 +222,25 @@ jobs:
     name: E2E Integration (Playwright, Main/Nightly)
     runs-on: ubuntu-latest
     environment: test
+    permissions:
+      contents: read
     needs: [frontend, backend, docker]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+    outputs:
+      skip_e2e: ${{ steps.validate-secrets.outputs.skip_e2e }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Self-test — refuse to run if a SERVICE_ROLE variable is echoed in any workflow
+        run: |
+          set -euo pipefail
+          # Refuse to load secrets if any workflow expands a *_SERVICE_ROLE_* variable
+          # into an echo. Annotation messages (no $ before the name) are allowed.
+          if grep -rEn 'echo[^|&]*\$[^|&]*SERVICE_ROLE' .github/workflows/ ; then
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -256,6 +280,18 @@ jobs:
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+
+      - name: Re-mask sensitive .env values
+        run: |
+          set -euo pipefail
+          # GitHub auto-masks `${{ secrets.X }}` literals, but values round-tripped
+          # through .env can leak via derived/substring forms. Re-register them.
+          for key in SUPABASE_SERVICE_ROLE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+            value="$(grep -E "^${key}=" .env | head -n1 | cut -d'=' -f2-)"
+            if [ -n "$value" ]; then
+              echo "::add-mask::${value}"
+            fi
+          done
 
       - name: Validate Required Integration Secrets
         id: validate-secrets
@@ -384,6 +420,33 @@ jobs:
         env:
           CI: true
 
+      - name: Run Playwright Nightly Tests (real APIs, non-blocking)
+        # Nightly tests exercise the full external stack (Anthropic, Supabase,
+        # R2, Engine). They are slow, cost real API calls, and are flake-prone
+        # by design. Run only on schedule + manual dispatch, never block the
+        # gate. See e2e/nightly/README or repo issues for known failures.
+        if: |
+          steps.validate-secrets.outputs.skip_e2e != 'true' &&
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        working-directory: src/StackAlchemist.Web
+        continue-on-error: true
+        run: npm run e2e:nightly
+        env:
+          CI: true
+
+      - name: Dump backend container logs (always, on failure)
+        if: always() && steps.validate-secrets.outputs.skip_e2e != 'true'
+        run: |
+          # Without these, an Engine error during Playwright surfaces only as
+          # a generic "Schema extraction failed" in the page snapshot — the
+          # actual stack trace is locked inside the container.
+          echo "::group::sa-engine logs"
+          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 200 || true
+          echo "::endgroup::"
+          echo "::group::sa-worker logs"
+          docker compose -f docker/docker-compose.test.yml logs sa-worker --tail 200 || true
+          echo "::endgroup::"
+
       - name: Upload Integration Playwright Report
         if: always()
         uses: actions/upload-artifact@v7
@@ -410,7 +473,7 @@ jobs:
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [frontend, backend, docker, e2e-smoke]
+    needs: [frontend, backend, docker, e2e-smoke, e2e-integration]
     if: always() && github.event_name != 'schedule'
 
     steps:
@@ -420,6 +483,7 @@ jobs:
           echo "Backend: ${{ needs.backend.result }}"
           echo "Docker: ${{ needs.docker.result }}"
           echo "E2E Smoke: ${{ needs.e2e-smoke.result }}"
+          echo "E2E Integration: ${{ needs.e2e-integration.result }} (skip_e2e=${{ needs.e2e-integration.outputs.skip_e2e }})"
 
           if [ "${{ needs.frontend.result }}" != "success" ]; then
             echo "❌ Frontend checks failed"
@@ -442,3 +506,13 @@ jobs:
           fi
 
           echo "✅ All required quality gates passed"
+
+      - name: Fail if E2E Integration silently skipped on main
+        # Catches secret regressions: if someone removes/breaks Test env
+        # secrets, e2e-integration's validate step will set skip_e2e=true
+        # and exit 0. Without this assertion the gate stays green and the
+        # integration suite quietly stops protecting main.
+        if: github.ref == 'refs/heads/main' && needs.e2e-integration.outputs.skip_e2e == 'true'
+        run: |
+          echo "::error::E2E Integration silently skipped on main — Test env secrets are misconfigured (placeholder values detected). See PR #88 / .github/workflows/ci.yml validate-secrets step."
+          exit 1

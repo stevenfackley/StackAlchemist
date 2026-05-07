@@ -7,7 +7,7 @@ namespace StackAlchemist.Engine.Services;
 /// Sends transactional email via the Resend HTTP API. Failures are logged and
 /// swallowed so a Resend outage never breaks the generation or webhook pipeline.
 /// </summary>
-public sealed class ResendEmailService(
+public sealed partial class ResendEmailService(
     IHttpClientFactory httpClientFactory,
     IConfiguration config,
     ILogger<ResendEmailService> logger) : IEmailService
@@ -19,16 +19,17 @@ public sealed class ResendEmailService(
     {
         var apiKey = config["Resend:ApiKey"];
         var from = config["Resend:FromEmail"] ?? "StackAlchemist <noreply@stackalchemist.app>";
+        var maskedTo = MaskEmail(to);
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogDebug("Resend not configured — skipping email to {To} ({Subject})", to, subject);
+            LogResendNotConfigured(logger, maskedTo, subject);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(to))
         {
-            logger.LogDebug("Skipping email send: no recipient ({Subject})", subject);
+            LogNoRecipient(logger, subject);
             return;
         }
 
@@ -51,32 +52,63 @@ public sealed class ResendEmailService(
             if (!res.IsSuccessStatusCode)
             {
                 var body = await res.Content.ReadAsStringAsync(ct);
-                logger.LogWarning(
-                    "Resend returned {Code} for email to {To}: {Body}",
-                    (int)res.StatusCode, to, body);
+                LogResendNonOk(logger, (int)res.StatusCode, maskedTo, body);
                 return;
             }
 
-            logger.LogInformation("Sent transactional email to {To}: {Subject}", to, subject);
+            LogEmailSent(logger, maskedTo, subject);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to send transactional email to {To}", to);
+            LogEmailSendFailed(logger, ex, maskedTo);
         }
     }
+
+    /// <summary>
+    /// Masks an email for logging so structured logs/aggregators don't ingest raw PII
+    /// (GDPR/CCPA). Keeps the first character of the local-part and the full domain
+    /// for support diagnostics: <c>jane.doe@example.com</c> → <c>j***@example.com</c>.
+    /// </summary>
+    public static string MaskEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return string.Empty;
+        var at = email.IndexOf('@', StringComparison.Ordinal);
+        if (at <= 0) return "***";
+        return email[..1] + "***" + email[at..];
+    }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 700, Level = LogLevel.Debug, Message = "Resend not configured — skipping email to {To} ({Subject})")]
+    private static partial void LogResendNotConfigured(ILogger logger, string to, string subject);
+
+    [LoggerMessage(EventId = 701, Level = LogLevel.Debug, Message = "Skipping email send: no recipient ({Subject})")]
+    private static partial void LogNoRecipient(ILogger logger, string subject);
+
+    [LoggerMessage(EventId = 702, Level = LogLevel.Warning, Message = "Resend returned {Code} for email to {To}: {Body}")]
+    private static partial void LogResendNonOk(ILogger logger, int code, string to, string body);
+
+    [LoggerMessage(EventId = 703, Level = LogLevel.Information, Message = "Sent transactional email to {To}: {Subject}")]
+    private static partial void LogEmailSent(ILogger logger, string to, string subject);
+
+    [LoggerMessage(EventId = 704, Level = LogLevel.Error, Message = "Failed to send transactional email to {To}")]
+    private static partial void LogEmailSendFailed(ILogger logger, Exception ex, string to);
 }
 
 /// <summary>
 /// Logger-only fallback used when Resend is unconfigured. Keeps the email send
 /// callsites non-conditional.
 /// </summary>
-public sealed class NoOpEmailService(ILogger<NoOpEmailService> logger) : IEmailService
+public sealed partial class NoOpEmailService(ILogger<NoOpEmailService> logger) : IEmailService
 {
     public Task SendAsync(string to, string subject, string html, CancellationToken ct = default)
     {
-        logger.LogInformation("[NoOp email] would send to {To}: {Subject}", to, subject);
+        LogNoOpEmail(logger, ResendEmailService.MaskEmail(to), subject);
         return Task.CompletedTask;
     }
+
+    [LoggerMessage(EventId = 750, Level = LogLevel.Information, Message = "[NoOp email] would send to {To}: {Subject}")]
+    private static partial void LogNoOpEmail(ILogger logger, string to, string subject);
 }
 
 /// <summary>

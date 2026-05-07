@@ -69,6 +69,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -157,6 +158,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -192,7 +194,7 @@ public class GenerationOrchestratorTests
         {
             GenerationId = Guid.NewGuid().ToString(),
             Mode = "simple",
-            Tier = 1,
+            Tier = 2, // Tier 1 (Blueprint) deliberately skips the LLM; this test exercises the codegen-path failure mode.
             Prompt = "Build an app",
         });
 
@@ -222,6 +224,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             EmptyConfig(),
             queue.Writer,
@@ -285,6 +288,7 @@ public class GenerationOrchestratorTests
             promptBuilder,
             injectionEngine,
             delivery,
+            new TierGatingService(),
             fs,
             ConfigWith(("Generation:UseSwissCheese", "true")),
             queue.Writer,
@@ -314,6 +318,61 @@ public class GenerationOrchestratorTests
         await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).UpdateTokenUsageAsync(
             Arg.Any<string>(), 500, 1200, "claude-3-5-sonnet-20241022", Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(ProjectType.DotNetNextJs, "V2-DotNet-NextJs")]
+    [InlineData(ProjectType.PythonReact, "V2-Python-React")]
+    public async Task EnqueueAsync_SwissCheeseTrue_LoadsCorrectV2TemplateSetPerProjectType(
+        ProjectType projectType,
+        string expectedTemplateSet)
+    {
+        var fs = new MockFileSystem();
+        var queue = Channel.CreateUnbounded<GenerationContext>();
+
+        var templates = Substitute.For<ITemplateProvider>();
+        templates.LoadTemplate(Arg.Any<string>()).Returns(new Dictionary<string, string>
+        {
+            ["placeholder.txt"] = "rendered",
+        });
+        templates.Render(Arg.Any<Dictionary<string, string>>(), Arg.Any<TemplateVariables>())
+            .Returns(new Dictionary<string, string> { ["placeholder.txt"] = "rendered" });
+
+        var injectionEngine = Substitute.For<IInjectionEngine>();
+        injectionEngine.FillZonesAsync(
+                Arg.Any<Dictionary<string, string>>(),
+                Arg.Any<GenerationSchema>(),
+                Arg.Any<TemplateVariables>(),
+                Arg.Any<ProjectType>(),
+                Arg.Any<GenerationPersonalization?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new InjectionResult(
+                new Dictionary<string, string> { ["placeholder.txt"] = "filled" },
+                100, 200, "stub", 1));
+
+        var sut = new GenerationOrchestrator(
+            templates,
+            Substitute.For<IReconstructionService>(),
+            Substitute.For<ILlmClient>(),
+            Substitute.For<IPromptBuilderService>(),
+            injectionEngine,
+            Substitute.For<IDeliveryService>(),
+            new TierGatingService(),
+            fs,
+            ConfigWith(("Generation:UseSwissCheese", "true")),
+            queue.Writer,
+            NullLogger<GenerationOrchestrator>.Instance);
+
+        await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = projectType,
+            Schema = new GenerationSchema { Entities = [new SchemaEntity { Name = "Item", Fields = [] }] },
+        });
+
+        templates.Received(1).LoadTemplate(expectedTemplateSet);
     }
 
     [Fact]

@@ -10,6 +10,7 @@
     "lint": "eslint --max-warnings 0",
     "e2e:smoke": "cross-env NEXT_PUBLIC_DEMO_MODE=true npx playwright test e2e/smoke --project=chromium",
     "e2e:integration": "cross-env NEXT_PUBLIC_DEMO_MODE=false npx playwright test e2e/integration --project=chromium",
+    "e2e:nightly": "cross-env NEXT_PUBLIC_DEMO_MODE=false npx playwright test e2e/nightly --project=chromium",
     "setup-env": "node ./scripts/setup-env-safe.mjs",
     "postinstall": "node ./scripts/setup-env-safe.mjs"
   },
@@ -49,9 +50,12 @@
     "eslint-config-next": "^16.2.4",
     "jsdom": "^29.1.1",
     "msw": "^2.14.3",
-    "postcss": "^8",
+    "postcss": "^8.5.10",
     "tailwindcss": "^4.2.4",
     "typescript": "^6",
     "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }

@@ -54,6 +54,10 @@ All notable changes to this project will be documented in this file.
 - Migrate PostCSS pipeline to Tailwind v4 ([#46](https://github.com/stevenfackley/StackAlchemist/issues/46))
 - Unbreak CI — pin eslint ^9, complete eslint-config-next 16, migrate to flat config ([#65](https://github.com/stevenfackley/StackAlchemist/issues/65))
 - Re-pin eslint ^9, ignore eslint majors in dependabot.yml ([#73](https://github.com/stevenfackley/StackAlchemist/issues/73))
+- Close 10 code-scanning alerts
+- Mask email PII in logs + bump postcss to ^8.5.10 ([#78](https://github.com/stevenfackley/StackAlchemist/issues/78))
+- Wire ITierGatingService into orchestrator + skip codegen on Tier 1 ([#84](https://github.com/stevenfackley/StackAlchemist/issues/84))
+- Serialize Release workflow to prevent changelog-commit race ([#87](https://github.com/stevenfackley/StackAlchemist/issues/87))
 
 ### Dependencies
 
@@ -106,6 +110,9 @@ All notable changes to this project will be documented in this file.
 - Add /compare/cursor page ([#48](https://github.com/stevenfackley/StackAlchemist/issues/48))
 - Add /compare/replit-agent page ([#50](https://github.com/stevenfackley/StackAlchemist/issues/50))
 - Close Phase 7 production hardening — webhooks, metrics, emails, error boundaries
+- V2-Python-React Swiss Cheese + e2e smoke + tuning docs ([#77](https://github.com/stevenfackley/StackAlchemist/issues/77))
+- V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
+- V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
 
 ### Miscellaneous Tasks
 
@@ -144,6 +151,8 @@ All notable changes to this project will be documented in this file.
 - Bump eslint in /src/StackAlchemist.Web ([#72](https://github.com/stevenfackley/StackAlchemist/issues/72))
 - Bump msw in /src/StackAlchemist.Web ([#68](https://github.com/stevenfackley/StackAlchemist/issues/68))
 - Bump postcss in /src/StackAlchemist.Web ([#69](https://github.com/stevenfackley/StackAlchemist/issues/69))
+- Drop validate.mjs Node toolchain + sweep analyzer warnings to 0 ([#79](https://github.com/stevenfackley/StackAlchemist/issues/79))
+- Enable Generation:UseSwissCheese in dev + document rollout ([#82](https://github.com/stevenfackley/StackAlchemist/issues/82))
 
 ### Refactoring
 
@@ -159,10 +168,18 @@ All notable changes to this project will be documented in this file.
 - Cover manifests and content loaders
 - Cover ContentHeader
 - Smoke for /blog /compare /solutions /faq
+- Add V1 one-shot pipeline integration tests ([#83](https://github.com/stevenfackley/StackAlchemist/issues/83))
+- Integration coverage for CompileWorkerService retry loop ([#85](https://github.com/stevenfackley/StackAlchemist/issues/85))
+- Tier 3 IaC + Helm + runbook integration coverage ([#86](https://github.com/stevenfackley/StackAlchemist/issues/86))
 
 ### Ci
 
 - Wire Plausible, GSC, and Basic Auth env vars through pipeline
+- Mask service role key + tighten E2E Integration permissions ([#88](https://github.com/stevenfackley/StackAlchemist/issues/88))
+- Always dump sa-engine + sa-worker logs after E2E Integration ([#89](https://github.com/stevenfackley/StackAlchemist/issues/89))
+- Set descriptive run-name for CI and Deploy Production Site ([#90](https://github.com/stevenfackley/StackAlchemist/issues/90))
+- Split flake-prone simple-mode-flow into non-blocking nightly suite ([#91](https://github.com/stevenfackley/StackAlchemist/issues/91))
+- Fail on main if E2E Integration silently skipped + run smoke on dispatch ([#93](https://github.com/stevenfackley/StackAlchemist/issues/93))
 
 ### Seo
 

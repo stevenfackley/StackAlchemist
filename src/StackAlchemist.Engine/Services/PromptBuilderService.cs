@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -75,7 +76,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Entities");
             foreach (var entity in schema.Entities)
-                sb.AppendLine($"- {entity.Name}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {entity.Name}");
         }
 
         if (schema.Relationships.Count > 0)
@@ -83,7 +84,7 @@ public sealed class PromptBuilderService : IPromptBuilderService
             sb.AppendLine();
             sb.AppendLine("## Relationships");
             foreach (var rel in schema.Relationships)
-                sb.AppendLine($"- {rel.From} → {rel.To} ({rel.Type})");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {rel.From} → {rel.To} ({rel.Type})");
         }
 
         // ── Personalization context ───────────────────────────────────────────
@@ -106,10 +107,10 @@ public sealed class PromptBuilderService : IPromptBuilderService
                 sb.AppendLine("## Business Context");
                 sb.AppendLine("Use the following context to inform code comments, seed data, UI copy, validation messages, and README content:");
                 if (!string.IsNullOrWhiteSpace(sanitizedProjectName))
-                    sb.AppendLine($"- **Project name:** {sanitizedProjectName}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- **Project name:** {sanitizedProjectName}");
                 if (!string.IsNullOrWhiteSpace(sanitizedTagline))
-                    sb.AppendLine($"- **Tagline:** {sanitizedTagline}");
-                sb.AppendLine($"- **Description:** {sanitizedBusinessDescription}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- **Tagline:** {sanitizedTagline}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- **Description:** {sanitizedBusinessDescription}");
             }
 
             if (sanitizedDomainContext.Count > 0)
@@ -118,19 +119,19 @@ public sealed class PromptBuilderService : IPromptBuilderService
                 sb.AppendLine("## Domain Vocabulary");
                 sb.AppendLine("Use realistic domain language in controller logic, validation, comments, and seed data:");
                 foreach (var (entity, context) in sanitizedDomainContext)
-                    sb.AppendLine($"- **{entity}:** {context}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- **{entity}:** {context}");
             }
 
             if (personalization.ColorScheme is not null)
             {
                 sb.AppendLine();
                 sb.AppendLine("## Color Theme");
-                sb.AppendLine($"Use this palette in the generated frontend's Tailwind config (tailwind.config.ts):");
-                sb.AppendLine($"- primary: {personalization.ColorScheme.Primary}");
-                sb.AppendLine($"- secondary: {personalization.ColorScheme.Secondary}");
-                sb.AppendLine($"- accent: {personalization.ColorScheme.Accent}");
-                sb.AppendLine($"- background: {personalization.ColorScheme.Background}");
-                sb.AppendLine($"- surface: {personalization.ColorScheme.Surface}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Use this palette in the generated frontend's Tailwind config (tailwind.config.ts):");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- primary: {personalization.ColorScheme.Primary}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- secondary: {personalization.ColorScheme.Secondary}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- accent: {personalization.ColorScheme.Accent}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- background: {personalization.ColorScheme.Background}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- surface: {personalization.ColorScheme.Surface}");
             }
 
             if (personalization.FeatureFlags is not null)
@@ -138,11 +139,11 @@ public sealed class PromptBuilderService : IPromptBuilderService
                 var ff = personalization.FeatureFlags;
                 sb.AppendLine();
                 sb.AppendLine("## Feature Flags");
-                sb.AppendLine($"- Authentication method: {sanitizedAuthMethod}");
-                sb.AppendLine($"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
-                sb.AppendLine($"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
-                sb.AppendLine($"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");
-                sb.AppendLine($"- Docker Compose for local dev: {(ff.IncludeDockerCompose ? "yes — include in output" : "no")}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Authentication method: {sanitizedAuthMethod}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Docker Compose for local dev: {(ff.IncludeDockerCompose ? "yes — include in output" : "no")}");
             }
         }
 
@@ -210,12 +211,12 @@ public sealed class PromptBuilderService : IPromptBuilderService
 
         sb.AppendLine(stackDescription);
         sb.AppendLine();
-        sb.AppendLine($"Fill exactly one LLM injection zone in `{context.FilePath}`.");
-        sb.AppendLine($"Zone name: `{context.ZoneName}`");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Fill exactly one LLM injection zone in `{context.FilePath}`.");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Zone name: `{context.ZoneName}`");
         sb.AppendLine();
         sb.AppendLine("## Output Rules");
         sb.AppendLine("- Output ONLY the body of the zone — raw code only.");
-        sb.AppendLine($"- Your output replaces everything between [[LLM_INJECTION_START: {context.ZoneName}]] and [[LLM_INJECTION_END: {context.ZoneName}]].");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- Your output replaces everything between [[LLM_INJECTION_START: {context.ZoneName}]] and [[LLM_INJECTION_END: {context.ZoneName}]].");
         sb.AppendLine("- Do NOT include the marker lines themselves.");
         sb.AppendLine("- Do NOT wrap the response in markdown fences (no ```).");
         sb.AppendLine("- Do NOT use [[FILE:...]] / [[END_FILE]] block syntax.");
@@ -233,15 +234,15 @@ public sealed class PromptBuilderService : IPromptBuilderService
         if (context.Entity is not null)
         {
             sb.AppendLine();
-            sb.AppendLine($"## Entity: {context.Entity.Name}");
-            sb.AppendLine($"- Table: `{context.Entity.TableName}`");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"## Entity: {context.Entity.Name}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- Table: `{context.Entity.TableName}`");
             if (context.Entity.Fields.Count > 0)
             {
                 sb.AppendLine("- Fields:");
                 foreach (var field in context.Entity.Fields)
                 {
                     var pk = field.IsPrimaryKey ? " (PK)" : string.Empty;
-                    sb.AppendLine($"  - `{field.Name}` ({field.Type} / {field.SqlType}){pk}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"  - `{field.Name}` ({field.Type} / {field.SqlType}){pk}");
                 }
             }
         }

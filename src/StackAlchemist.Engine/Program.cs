@@ -11,6 +11,7 @@ using Serilog;
 using Serilog.Formatting.Compact;
 using Stripe;
 using Stripe.Checkout;
+using StackAlchemist.Engine;
 using StackAlchemist.Engine.Middleware;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
@@ -53,8 +54,9 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
     else
     {
         // Human-readable for local dev
-        cfg.WriteTo.Console(outputTemplate:
-            "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}");
+        cfg.WriteTo.Console(
+            formatProvider: System.Globalization.CultureInfo.InvariantCulture,
+            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}");
     }
 });
 
@@ -368,7 +370,7 @@ app.MapPost("/api/extract-schema", async (
     ILogger<Program> logger,
     CancellationToken ct) =>
 {
-    logger.LogInformation("Schema extraction requested for generation {Id}", request.GenerationId);
+    logger.SchemaExtractRequested(request.GenerationId);
 
     // Update status → extracting_schema
     await delivery.UpdateStatusAsync(request.GenerationId, "extracting_schema", ct);
@@ -392,9 +394,7 @@ app.MapPost("/api/extract-schema", async (
         // Persist extracted schema to Supabase
         await delivery.UpdateSchemaAsync(request.GenerationId, schema, ct);
 
-        logger.LogInformation(
-            "Schema extracted for {Id}: {Count} entities",
-            request.GenerationId, schema.Entities.Count);
+        logger.SchemaExtracted(request.GenerationId, schema.Entities.Count);
 
         return Results.Ok(new ExtractSchemaResponse
         {
@@ -404,13 +404,13 @@ app.MapPost("/api/extract-schema", async (
     }
     catch (SchemaExtractionException ex)
     {
-        logger.LogWarning("Schema extraction failed for {Id}: {Msg}", request.GenerationId, ex.Message);
+        logger.SchemaExtractFailed(request.GenerationId, ex.Message);
         await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
         return Results.BadRequest(new { error = ex.Message });
     }
     catch (SchemaValidationException ex)
     {
-        logger.LogWarning("Schema validation failed for {Id}: {Msg}", request.GenerationId, ex.Message);
+        logger.SchemaValidationFailed(request.GenerationId, ex.Message);
         await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
         return Results.BadRequest(new { error = ex.Message });
     }
@@ -473,7 +473,7 @@ app.MapPost("/api/stripe/create-session", async (
             Metadata = new Dictionary<string, string>
             {
                 ["generationId"] = req.GenerationId,
-                ["tier"]         = req.Tier.ToString(),
+                ["tier"]         = req.Tier.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["projectType"]  = req.ProjectType.ToString(),
                 ["prompt"]       = req.Prompt ?? "",
             },
@@ -482,9 +482,7 @@ app.MapPost("/api/stripe/create-session", async (
         var service = new SessionService();
         var session = await service.CreateAsync(options, cancellationToken: ct);
 
-        logger.LogInformation(
-            "Stripe session {SessionId} created for generation {GenId} (tier {Tier})",
-            session.Id, req.GenerationId, req.Tier);
+        logger.StripeSessionCreated(session.Id, req.GenerationId, req.Tier);
 
         return Results.Ok(new CreateCheckoutSessionResponse
         {
@@ -495,7 +493,7 @@ app.MapPost("/api/stripe/create-session", async (
     }
     catch (StripeException ex)
     {
-        logger.LogError(ex, "Stripe session creation failed for generation {GenId}", req.GenerationId);
+        logger.StripeSessionCreationFailed(ex, req.GenerationId);
         return Results.BadRequest(new { error = ex.Message });
     }
 })
@@ -531,15 +529,15 @@ app.MapPost("/api/webhooks/stripe", async (
     }
     catch (StripeException ex)
     {
-        logger.LogWarning("Stripe webhook signature verification failed: {Msg}", ex.Message);
+        logger.StripeSignatureVerifyFailed(ex.Message);
         return Results.Unauthorized();
     }
 
-    logger.LogInformation("Stripe event received: {Type} / {Id}", stripeEvent.Type, stripeEvent.Id);
+    logger.StripeEventReceived(stripeEvent.Type, stripeEvent.Id);
 
     var result = await webhookHandler.HandleAsync(stripeEvent, ct);
     if (!result.Processed)
-        logger.LogInformation("Stripe event {Id} skipped: {Reason}", stripeEvent.Id, result.Reason);
+        logger.StripeEventSkipped(stripeEvent.Id, result.Reason);
 
     return Results.Ok();
 })

@@ -13,6 +13,8 @@ public static class GenerationStateMachine
     {
         [(GenerationState.Pending, GenerationEvent.EnginePickedUp)] = GenerationState.Generating,
         [(GenerationState.Generating, GenerationEvent.CodeReconstructed)] = GenerationState.Building,
+        // Tier 1 (Blueprint) — schema/api-docs emitted, skip the build loop entirely.
+        [(GenerationState.Generating, GenerationEvent.BlueprintCompleted)] = GenerationState.Packing,
         [(GenerationState.Building, GenerationEvent.BuildPassed)] = GenerationState.Packing,
         // BuildFailed is handled specially — routes to Generating or Failed depending on retry count
         [(GenerationState.Packing, GenerationEvent.ZipCreated)] = GenerationState.Uploading,

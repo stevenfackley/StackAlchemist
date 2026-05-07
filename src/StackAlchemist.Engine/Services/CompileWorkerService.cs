@@ -10,7 +10,7 @@ namespace StackAlchemist.Engine.Services;
 /// channel, runs <c>dotnet build</c>, zips and uploads to Cloudflare R2 on success, and
 /// updates Supabase with real-time status after every state transition.
 /// </summary>
-public sealed class CompileWorkerService(
+public sealed partial class CompileWorkerService(
     ChannelReader<GenerationContext> jobQueue,
     ICompileService compileService,
     ILlmClient llmClient,
@@ -24,7 +24,7 @@ public sealed class CompileWorkerService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Compile worker started, waiting for jobs…");
+        LogWorkerStarted(logger);
 
         await foreach (var job in jobQueue.ReadAllAsync(stoppingToken))
         {
@@ -34,7 +34,7 @@ public sealed class CompileWorkerService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unhandled error processing generation {Id}", job.GenerationId);
+                LogJobUnhandledError(logger, ex, job.GenerationId);
                 job.State = GenerationState.Failed;
                 job.ErrorMessage = ex.Message;
 
@@ -69,25 +69,29 @@ public sealed class CompileWorkerService(
 
     private async Task ProcessJobAsync(GenerationContext job, CancellationToken ct)
     {
-        logger.LogInformation(
-            "Processing generation {Id}  state={State}  retries={Retries}",
-            job.GenerationId, job.State, job.RetryCount);
+        LogProcessingJob(logger, job.GenerationId, job.State, job.RetryCount);
+
+        // Tier 1 (Blueprint) path — orchestrator handed us an already-packing job
+        // with schema.json + api-docs.md on disk and no build to run.
+        if (job.State == GenerationState.Packing)
+        {
+            if (job.OutputDirectory is null)
+            {
+                await FailMissingOutputDir(job, ct);
+                return;
+            }
+
+            await deliveryService.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Packing, ct: ct);
+            await PackUploadAndNotifyAsync(job, ct);
+            return;
+        }
 
         while (job.State == GenerationState.Building && job.RetryCount <= MaxRetries)
         {
             if (job.OutputDirectory is null)
             {
-                job.State = GenerationState.Failed;
-                job.ErrorMessage = "No output directory set on the generation context.";
-
-                Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Failed,
-                    errorMessage: job.ErrorMessage, ct: ct);
+                await FailMissingOutputDir(job, ct);
                 return;
             }
 
@@ -121,41 +125,7 @@ public sealed class CompileWorkerService(
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Packing, ct: ct);
 
-                // ── Zip and upload to Cloudflare R2 ───────────────────────────
-                var downloadUrl = await r2UploadService.UploadZipAsync(
-                    job.GenerationId, job.OutputDirectory!, ct);
-                job.DownloadUrl = downloadUrl;
-
-                // Packing → Uploading
-                job.State = GenerationStateMachine.Transition(
-                    job.State, GenerationEvent.ZipCreated, job);
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Uploading, ct: ct);
-
-                // Uploading → Success
-                job.State = GenerationStateMachine.Transition(
-                    job.State, GenerationEvent.UploadedToR2, job);
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Success,
-                    downloadUrl: downloadUrl, ct: ct);
-
-                Meters.Succeeded.Add(1, BuildJobTags(job));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, outcome: "succeeded"));
-
-                logger.LogInformation(
-                    "Generation {Id} completed successfully after {Retries} retries",
-                    job.GenerationId, job.RetryCount);
-
-                var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
-                if (!string.IsNullOrWhiteSpace(ownerEmail))
-                {
-                    var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
-                    await emailService.SendAsync(ownerEmail, subject, html, ct);
-                }
+                await PackUploadAndNotifyAsync(job, ct);
                 return;
             }
 
@@ -169,9 +139,7 @@ public sealed class CompileWorkerService(
                 $"BUILD FAILED (attempt {job.RetryCount + 1})\n{errorSummary}",
                 ct);
 
-            logger.LogWarning(
-                "Build failed for {Id} (attempt {Attempt}): {Errors}",
-                job.GenerationId, job.RetryCount + 1, errorSummary);
+            LogBuildFailed(logger, job.GenerationId, job.RetryCount + 1, errorSummary);
 
             var newState = GenerationStateMachine.Transition(
                 job.State, GenerationEvent.BuildFailed, job);
@@ -182,9 +150,7 @@ public sealed class CompileWorkerService(
                 job.ErrorMessage =
                     $"Build failed after {MaxRetries} retries. Last errors:\n{errorSummary}";
 
-                logger.LogError(
-                    "Generation {Id} failed permanently after {Max} retries",
-                    job.GenerationId, MaxRetries);
+                LogJobFailedPermanently(logger, job.GenerationId, MaxRetries);
 
                 Meters.Failed.Add(1, BuildJobTags(job, stage: "build_retries_exhausted"));
                 Meters.DurationMs.Record(
@@ -232,6 +198,62 @@ public sealed class CompileWorkerService(
         }
     }
 
+    /// <summary>
+    /// Zips <paramref name="job"/>'s output directory, uploads to R2, transitions
+    /// Packing → Uploading → Success, and emails the customer the download URL.
+    /// Used by both the Tier-2/3 build-success path and the Tier-1 skip-build path.
+    /// </summary>
+    private async Task PackUploadAndNotifyAsync(GenerationContext job, CancellationToken ct)
+    {
+        var downloadUrl = await r2UploadService.UploadZipAsync(
+            job.GenerationId, job.OutputDirectory!, ct);
+        job.DownloadUrl = downloadUrl;
+
+        // Packing → Uploading
+        job.State = GenerationStateMachine.Transition(
+            job.State, GenerationEvent.ZipCreated, job);
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Uploading, ct: ct);
+
+        // Uploading → Success
+        job.State = GenerationStateMachine.Transition(
+            job.State, GenerationEvent.UploadedToR2, job);
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Success,
+            downloadUrl: downloadUrl, ct: ct);
+
+        Meters.Succeeded.Add(1, BuildJobTags(job));
+        Meters.DurationMs.Record(
+            (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+            BuildJobTags(job, outcome: "succeeded"));
+
+        LogJobCompleted(logger, job.GenerationId, job.RetryCount);
+
+        var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
+        if (!string.IsNullOrWhiteSpace(ownerEmail))
+        {
+            var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
+            await emailService.SendAsync(ownerEmail, subject, html, ct);
+        }
+    }
+
+    private async Task FailMissingOutputDir(GenerationContext job, CancellationToken ct)
+    {
+        job.State = GenerationState.Failed;
+        job.ErrorMessage = "No output directory set on the generation context.";
+
+        Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
+        Meters.DurationMs.Record(
+            (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
+            BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
+
+        await deliveryService.UpdateStatusAsync(
+            job.GenerationId, GenerationState.Failed,
+            errorMessage: job.ErrorMessage, ct: ct);
+    }
+
     private void CleanupTempDirectory(GenerationContext job)
     {
         if (job.OutputDirectory is null || !Directory.Exists(job.OutputDirectory))
@@ -240,11 +262,37 @@ public sealed class CompileWorkerService(
         try
         {
             Directory.Delete(job.OutputDirectory, recursive: true);
-            logger.LogInformation("Cleaned up temp directory for {Id}", job.GenerationId);
+            LogTempDirCleaned(logger, job.GenerationId);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to clean up temp directory for {Id}", job.GenerationId);
+            LogTempDirCleanupFailed(logger, ex, job.GenerationId);
         }
     }
+
+    // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 600, Level = LogLevel.Information, Message = "Compile worker started, waiting for jobs…")]
+    private static partial void LogWorkerStarted(ILogger logger);
+
+    [LoggerMessage(EventId = 601, Level = LogLevel.Error, Message = "Unhandled error processing generation {Id}")]
+    private static partial void LogJobUnhandledError(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 602, Level = LogLevel.Information, Message = "Processing generation {Id}  state={State}  retries={Retries}")]
+    private static partial void LogProcessingJob(ILogger logger, string id, GenerationState state, int retries);
+
+    [LoggerMessage(EventId = 603, Level = LogLevel.Information, Message = "Generation {Id} completed successfully after {Retries} retries")]
+    private static partial void LogJobCompleted(ILogger logger, string id, int retries);
+
+    [LoggerMessage(EventId = 604, Level = LogLevel.Warning, Message = "Build failed for {Id} (attempt {Attempt}): {Errors}")]
+    private static partial void LogBuildFailed(ILogger logger, string id, int attempt, string errors);
+
+    [LoggerMessage(EventId = 605, Level = LogLevel.Error, Message = "Generation {Id} failed permanently after {Max} retries")]
+    private static partial void LogJobFailedPermanently(ILogger logger, string id, int max);
+
+    [LoggerMessage(EventId = 606, Level = LogLevel.Information, Message = "Cleaned up temp directory for {Id}")]
+    private static partial void LogTempDirCleaned(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 607, Level = LogLevel.Warning, Message = "Failed to clean up temp directory for {Id}")]
+    private static partial void LogTempDirCleanupFailed(ILogger logger, Exception ex, string id);
 }

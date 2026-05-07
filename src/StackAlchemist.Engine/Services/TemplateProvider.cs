@@ -7,7 +7,10 @@ namespace StackAlchemist.Engine.Services;
 
 public sealed partial class TemplateProvider : ITemplateProvider
 {
-    private const string EntityNameToken = "{{EntityName}}";
+    // A template is per-entity if its path contains any {{EntityName...}} token
+    // (e.g. {{EntityName}}, {{EntityNameLower}}). Detection is on the prefix only
+    // so all variants count without enumerating each.
+    private const string EntityNameTokenPrefix = "{{EntityName";
 
     private readonly IFileSystem _fs;
     private readonly string _templatesRoot;
@@ -49,7 +52,7 @@ public sealed partial class TemplateProvider : ITemplateProvider
 
         foreach (var (path, content) in templates)
         {
-            if (path.Contains(EntityNameToken, StringComparison.Ordinal))
+            if (path.Contains(EntityNameTokenPrefix, StringComparison.Ordinal))
             {
                 // Per-entity template: render once per schema entity.
                 foreach (var entity in variables.Entities)
