@@ -60,6 +60,7 @@ All notable changes to this project will be documented in this file.
 - Serialize Release workflow to prevent changelog-commit race ([#87](https://github.com/stevenfackley/StackAlchemist/issues/87))
 - Clear three engine errors blocking nightly simple-mode-flow E2E ([#92](https://github.com/stevenfackley/StackAlchemist/issues/92)) ([#94](https://github.com/stevenfackley/StackAlchemist/issues/94))
 - Pin .NET base images to :10.0-resolute ([#95](https://github.com/stevenfackley/StackAlchemist/issues/95))
+- Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
 
 ### Dependencies
 
