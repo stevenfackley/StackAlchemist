@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Services;
@@ -83,6 +84,63 @@ public class CloudflareR2UploadServiceTests
         {
             Directory.Delete(dir, recursive: true);
         }
+    }
+
+    [Fact]
+    public void BuildS3Config_SetsRequestChecksumCalculationToWhenRequired()
+    {
+        var s3Config = CloudflareR2UploadService.BuildS3ConfigForTests(
+            accountId: "test-account");
+
+        s3Config.RequestChecksumCalculation
+            .Should().Be(Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED,
+                because: "R2 returns 501 for AWSSDK v4 default trailer-checksum headers (issue #92)");
+        s3Config.ResponseChecksumValidation
+            .Should().Be(Amazon.Runtime.ResponseChecksumValidation.WHEN_REQUIRED,
+                because: "R2 does not echo x-amz-checksum-* response headers");
+    }
+
+    [Fact]
+    public void TranslateBucketProbeError_NoSuchBucketStatus_ReturnsR2BucketNotFoundException()
+    {
+        var ex = CloudflareR2UploadService.TranslateBucketProbeErrorForTests(
+            statusCode: System.Net.HttpStatusCode.NotFound,
+            errorCode: "NoSuchBucket",
+            bucket: "stackalchemist-generations-test",
+            accountId: "abc123");
+
+        ex.Should().BeOfType<R2BucketNotFoundException>();
+        ex!.Message.Should().Contain("stackalchemist-generations-test");
+        ex.Message.Should().Contain("R2_BUCKET_NAME");
+        ex.Message.Should().Contain("abc123");
+    }
+
+    [Fact]
+    public void TranslateBucketProbeError_ForbiddenStatus_ReturnsR2BucketAccessDeniedException()
+    {
+        var ex = CloudflareR2UploadService.TranslateBucketProbeErrorForTests(
+            statusCode: System.Net.HttpStatusCode.Forbidden,
+            errorCode: "AccessDenied",
+            bucket: "stackalchemist-generations-test",
+            accountId: "abc123");
+
+        ex.Should().BeOfType<R2BucketAccessDeniedException>();
+        ex!.Message.Should().Contain("stackalchemist-generations-test");
+        ex.Message.Should().Contain("R2_ACCESS_KEY_ID");
+        ex.Message.Should().Contain("R2_SECRET_ACCESS_KEY");
+        ex.Message.Should().Contain("abc123");
+    }
+
+    [Fact]
+    public void TranslateBucketProbeError_OtherStatus_ReturnsNullSoCallerCanRethrowOriginal()
+    {
+        var ex = CloudflareR2UploadService.TranslateBucketProbeErrorForTests(
+            statusCode: System.Net.HttpStatusCode.InternalServerError,
+            errorCode: "InternalError",
+            bucket: "any",
+            accountId: "any");
+
+        ex.Should().BeNull(because: "transient 5xx errors should bubble up unchanged so retry logic can act on them");
     }
 
     [Fact(Skip = "Integration test — requires valid Cloudflare R2 credentials in user-secrets")]

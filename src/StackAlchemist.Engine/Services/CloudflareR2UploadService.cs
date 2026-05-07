@@ -3,6 +3,7 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
 
@@ -31,25 +32,21 @@ public sealed partial class CloudflareR2UploadService(
 
         var key = $"{generationId}/project.zip";
 
-        // ── 1. Zip the directory into an in-memory stream ─────────────────────
+        // ── 1. Verify bucket is reachable (fail-fast on misconfig) ───────────
+        var credentials = new BasicAWSCredentials(accessKey, secretKey);
+        var s3Config = BuildS3Config(accountId);
+        using var s3 = new AmazonS3Client(credentials, s3Config);
+
+        await EnsureBucketExistsAsync(s3, bucket, accountId, ct);
+
+        // ── 2. Zip the directory into an in-memory stream ─────────────────────
         using var memStream = new MemoryStream();
         ZipFile.CreateFromDirectory(directoryPath, memStream);
         memStream.Position = 0;
 
         LogUploadingZip(logger, generationId, memStream.Length, bucket, key);
 
-        // ── 2. Upload via AWS SDK (R2 is S3-compatible) ───────────────────────
-        var credentials = new BasicAWSCredentials(accessKey, secretKey);
-        var s3Config = new AmazonS3Config
-        {
-            ServiceURL = $"https://{accountId}.r2.cloudflarestorage.com",
-            ForcePathStyle = true,
-            // R2 does not use region-based routing; the dummy region satisfies the SDK.
-            AuthenticationRegion = "auto",
-        };
-
-        using var s3 = new AmazonS3Client(credentials, s3Config);
-
+        // ── 3. Upload via AWS SDK (R2 is S3-compatible) ───────────────────────
         var putRequest = new PutObjectRequest
         {
             BucketName = bucket,
@@ -59,7 +56,7 @@ public sealed partial class CloudflareR2UploadService(
         };
         await s3.PutObjectAsync(putRequest, ct);
 
-        // ── 3. Generate a presigned download URL ─────────────────────────────
+        // ── 4. Generate a presigned download URL ─────────────────────────────
         var presignRequest = new GetPreSignedUrlRequest
         {
             BucketName = bucket,
@@ -74,6 +71,75 @@ public sealed partial class CloudflareR2UploadService(
         return url;
     }
 
+    private async Task EnsureBucketExistsAsync(
+        AmazonS3Client s3,
+        string bucket,
+        string accountId,
+        CancellationToken ct)
+    {
+        try
+        {
+            await s3.GetBucketLocationAsync(new GetBucketLocationRequest { BucketName = bucket }, ct);
+        }
+        catch (AmazonS3Exception ex)
+        {
+            var translated = TranslateBucketProbeError(ex.StatusCode, ex.ErrorCode, bucket, accountId);
+            if (translated is not null)
+            {
+                LogR2BucketProbeFailed(logger, bucket, accountId, ex.ErrorCode ?? "(none)", (int)ex.StatusCode);
+                throw translated;
+            }
+            throw;
+        }
+    }
+
+    internal static R2BucketException? TranslateBucketProbeErrorForTests(
+        System.Net.HttpStatusCode statusCode,
+        string? errorCode,
+        string bucket,
+        string accountId) =>
+        TranslateBucketProbeError(statusCode, errorCode, bucket, accountId);
+
+    private static R2BucketException? TranslateBucketProbeError(
+        System.Net.HttpStatusCode statusCode,
+        string? errorCode,
+        string bucket,
+        string accountId)
+    {
+        if (statusCode == System.Net.HttpStatusCode.NotFound ||
+            string.Equals(errorCode, "NoSuchBucket", StringComparison.OrdinalIgnoreCase))
+        {
+            return new R2BucketNotFoundException(bucket, accountId);
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.Forbidden ||
+            string.Equals(errorCode, "AccessDenied", StringComparison.OrdinalIgnoreCase))
+        {
+            return new R2BucketAccessDeniedException(bucket, accountId);
+        }
+
+        return null; // unknown — let the caller bubble the original exception
+    }
+
+    // ── S3 config builder (test-visible) ─────────────────────────────────────
+
+    internal static AmazonS3Config BuildS3ConfigForTests(string accountId) =>
+        BuildS3Config(accountId);
+
+    private static AmazonS3Config BuildS3Config(string accountId) =>
+        new()
+        {
+            ServiceURL = $"https://{accountId}.r2.cloudflarestorage.com",
+            ForcePathStyle = true,
+            // R2 does not use region-based routing; the dummy region satisfies the SDK.
+            AuthenticationRegion = "auto",
+            // R2 returns 501 for AWSSDK v4's default checksum trailers
+            // (x-amz-checksum-crc32 + STREAMING-UNSIGNED-PAYLOAD-TRAILER).
+            // WHEN_REQUIRED matches the v3 behavior that worked.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+            ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
+        };
+
     // ── LoggerMessage source-gen ──────────────────────────────────────────────
 
     [LoggerMessage(EventId = 900, Level = LogLevel.Information, Message = "Uploading zip for {Id} ({Bytes:N0} bytes) → R2 bucket {Bucket}/{Key}")]
@@ -81,4 +147,7 @@ public sealed partial class CloudflareR2UploadService(
 
     [LoggerMessage(EventId = 901, Level = LogLevel.Information, Message = "Presigned URL created for {Id} (expires +{Hours}h)")]
     private static partial void LogPresignedUrlCreated(ILogger logger, string id, int hours);
+
+    [LoggerMessage(EventId = 902, Level = LogLevel.Error, Message = "R2 bucket probe failed: bucket={Bucket}, account={Account}, errorCode={ErrorCode}, status={Status}")]
+    private static partial void LogR2BucketProbeFailed(ILogger logger, string bucket, string account, string errorCode, int status);
 }
