@@ -95,6 +95,7 @@ All notable changes to this project will be documented in this file.
 - Update with session 2 progress
 - Correct scope — root error.tsx pre-existed
 - Note AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1 majors from 2026-04-28 sweep
+- Consolidate ADRs into docs/DECISIONS.md, stub root file ([#97](https://github.com/stevenfackley/StackAlchemist/issues/97))
 
 ### Features
 
