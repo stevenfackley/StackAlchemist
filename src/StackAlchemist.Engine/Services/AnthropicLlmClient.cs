@@ -7,7 +7,7 @@ using StackAlchemist.Engine.Models;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// Production LLM client that calls the Anthropic Messages API (Claude 3.5 Sonnet).
+/// Production LLM client that calls the Anthropic Messages API (Claude Sonnet 4.6 by default; configurable via <c>Anthropic:Model</c>).
 /// Registered when <c>Anthropic:ApiKey</c> is set; falls back to <see cref="MockLlmClient"/> otherwise.
 /// </summary>
 public sealed partial class AnthropicLlmClient(
@@ -29,7 +29,7 @@ public sealed partial class AnthropicLlmClient(
     {
         var apiKey = config["Anthropic:ApiKey"]
             ?? throw new InvalidOperationException("Anthropic:ApiKey is not configured.");
-        var model = config["Anthropic:Model"] ?? "claude-3-5-sonnet-20241022";
+        var model = config["Anthropic:Model"] ?? "claude-sonnet-4-6";
         var maxTokens = int.TryParse(config["Anthropic:MaxTokens"], out var mt) ? mt : 8_192;
         var client = httpClientFactory.CreateClient(HttpClientName);
         LogCallingApi(logger, model, maxTokens);

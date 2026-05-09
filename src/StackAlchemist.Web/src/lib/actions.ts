@@ -22,9 +22,12 @@ import { DEFAULT_PERSONALIZATION } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_MODEL = "claude-3-5-sonnet-20241022";
+const DEFAULT_MODEL = "claude-sonnet-4-6";
 const ALLOWED_PROFILE_MODELS = new Set([
   DEFAULT_MODEL,
+  "claude-3-5-sonnet-20241022",  // retired by Anthropic 2026-04; kept so existing
+                                 // user profiles (set as default before bump) aren't
+                                 // silently rewritten by normalizePreferredModel
   "claude-3-5-haiku-20241022",
   "openai/gpt-4o-mini",
   "openrouter/anthropic/claude-3.5-sonnet",

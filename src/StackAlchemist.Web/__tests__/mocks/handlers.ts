@@ -63,7 +63,7 @@ export const dashboardHandlers = [
 
 export const byokHandlers = [
   http.get(`${API_BASE}/api/profile/settings`, () => {
-    return HttpResponse.json({ email: 'test@example.com', hasApiKeyOverride: false, preferredModel: 'claude-3-5-sonnet' });
+    return HttpResponse.json({ email: 'test@example.com', hasApiKeyOverride: false, preferredModel: 'claude-sonnet-4-6' });
   }),
   http.put(`${API_BASE}/api/profile/api-key`, async () => {
     return HttpResponse.json({ success: true, message: 'API key updated and encrypted successfully.' });

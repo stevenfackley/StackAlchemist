@@ -22,7 +22,7 @@ public class AnthropicLlmClientTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Anthropic:ApiKey"]    = apiKey,
-                ["Anthropic:Model"]     = "claude-3-5-sonnet-20241022",
+                ["Anthropic:Model"]     = "claude-sonnet-4-6",
                 ["Anthropic:MaxTokens"] = "100",
             })
             .Build();
@@ -71,7 +71,7 @@ public class AnthropicLlmClientTests
         result.Text.Should().Be("[[FILE:test.cs]]content[[END_FILE]]");
         result.InputTokens.Should().Be(10);
         result.OutputTokens.Should().Be(5);
-        result.Model.Should().Be("claude-3-5-sonnet-20241022");
+        result.Model.Should().Be("claude-sonnet-4-6");
     }
 
     [Fact]

@@ -279,6 +279,7 @@ jobs:
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
+          anthropic_model: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-4-6' }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
 
       - name: Re-mask sensitive .env values
@@ -389,6 +390,63 @@ jobs:
           fi
 
           echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Supabase migrations to CI project
+        if: steps.validate-secrets.outputs.skip_e2e != 'true'
+        env:
+          # Postgres connection string for the CI Supabase project
+          # (project ref cdlefpvsvyepofsboepc). Format:
+          # postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+          # See docs/runbooks/ci-supabase-migrations.md.
+          SUPABASE_DB_URL: ${{ secrets.CI_SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::CI_SUPABASE_DB_URL secret is not set. See docs/runbooks/ci-supabase-migrations.md."
+            exit 1
+          fi
+
+          # Mask the value defensively (GitHub auto-masks secrets but a
+          # connection string contains a password we don't want leaking
+          # via any derived form).
+          echo "::add-mask::${SUPABASE_DB_URL}"
+
+          # Extract the password from the URL and export as SUPABASE_DB_PASSWORD.
+          # `supabase db push --db-url` does NOT read the password from the URL —
+          # it requires the password via env var (the CLI tells you this in the
+          # error: "Connect to your database by setting the env var correctly:
+          # SUPABASE_DB_PASSWORD"). Deriving it here keeps CI_SUPABASE_DB_URL
+          # as the single source of truth instead of needing two secrets.
+          # URL form: postgresql://<user>:<password>@<host>:<port>/<db>
+          url_no_scheme="${SUPABASE_DB_URL#*://}"
+          userpart="${url_no_scheme%@*}"
+          SUPABASE_DB_PASSWORD="${userpart#*:}"
+          export SUPABASE_DB_PASSWORD
+          echo "::add-mask::${SUPABASE_DB_PASSWORD}"
+          if [ -z "${SUPABASE_DB_PASSWORD}" ]; then
+            echo "::error::Failed to extract password from CI_SUPABASE_DB_URL. URL form must be postgresql://<user>:<password>@<host>:<port>/<db>."
+            exit 1
+          fi
+
+          # Install the Supabase CLI. Pinned for determinism — bump quarterly
+          # or when a needed CLI feature ships. See:
+          # https://github.com/supabase/cli/releases
+          SUPABASE_CLI_VERSION="v2.98.2"
+          curl -fsSL "https://github.com/supabase/cli/releases/download/${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
+            | tar -xz -C /tmp
+          sudo mv /tmp/supabase /usr/local/bin/supabase
+          installed_version="$(supabase --version)"
+          echo "Installed Supabase CLI: ${installed_version}"
+          if [ "${installed_version}" != "${SUPABASE_CLI_VERSION#v}" ]; then
+            echo "::warning::Installed CLI version (${installed_version}) does not match pinned ${SUPABASE_CLI_VERSION}. Continuing anyway."
+          fi
+
+          # Apply migrations. Idempotent: the CLI tracks applied migrations
+          # in supabase_migrations.schema_migrations.
+          supabase db push \
+            --db-url "$SUPABASE_DB_URL" \
+            --include-all
 
       - name: Copy .env to Next.js project
         if: steps.validate-secrets.outputs.skip_e2e != 'true'

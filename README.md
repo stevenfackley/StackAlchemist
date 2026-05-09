@@ -34,7 +34,7 @@ See [LICENSE](LICENSE) for full terms.
 |---|---|
 | **Frontend** | Next.js 15 (App Router), React 19, Tailwind CSS 3, `@xyflow/react` |
 | **Generation Engine** | .NET 10 Web API, Handlebars.Net, `System.IO.Abstractions` |
-| **LLM** | Anthropic Claude 3.5 Sonnet (configurable via `ANTHROPIC_MODEL`; mock fallback when `ANTHROPIC_API_KEY` is unset) |
+| **LLM** | Anthropic Claude Sonnet 4.6 (configurable via `ANTHROPIC_MODEL`; mock fallback when `ANTHROPIC_API_KEY` is unset) |
 | **Compile Worker** | In-process `BackgroundService` — `dotnet build` + LLM retry loop |
 | **Database & Auth** | Supabase PostgreSQL, Row Level Security, Supabase Auth |
 | **Realtime** | Supabase Realtime (WebSockets — live generation progress) |
@@ -139,7 +139,7 @@ User brief (natural language or entity wizard)
   [ .NET Engine API ]
   1. Load V1 Handlebars templates (dotnet/ + nextjs/ + infra/)
   2. Render project-level variables (ProjectName, DbConnectionString …)
-  3. Call Claude 3.5 Sonnet → get [[FILE:path]]…[[END_FILE]] blocks
+  3. Call Claude Sonnet 4.6 → get [[FILE:path]]…[[END_FILE]] blocks
   4. Reconstruct: merge LLM output into template injection zones
   5. Write to temp directory → push to in-process Channel
         │

@@ -52,14 +52,14 @@ CMD ["node", "server.js"]
 # ==========================================
 # STAGE 2: .NET ENGINE (API)
 # ==========================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS engine-builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS engine-builder
 WORKDIR /src
 COPY src/StackAlchemist.Engine/*.csproj ./StackAlchemist.Engine/
 RUN dotnet restore ./StackAlchemist.Engine/StackAlchemist.Engine.csproj
 COPY src/StackAlchemist.Engine/ ./StackAlchemist.Engine/
 RUN dotnet publish ./StackAlchemist.Engine/StackAlchemist.Engine.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS engine
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS engine
 RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
@@ -71,7 +71,7 @@ ENTRYPOINT ["dotnet", "StackAlchemist.Engine.dll"]
 # ==========================================
 # STAGE 3: .NET WORKER (COMPILE GUARANTEE)
 # ==========================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS worker-builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS worker-builder
 WORKDIR /src
 # Worker references Engine — copy both .csproj files before restore so the
 # dependency graph can be resolved, then copy full source for both projects.
@@ -82,7 +82,7 @@ COPY src/StackAlchemist.Engine/ ./StackAlchemist.Engine/
 COPY src/StackAlchemist.Worker/ ./StackAlchemist.Worker/
 RUN dotnet publish ./StackAlchemist.Worker/StackAlchemist.Worker.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS worker
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS worker
 # Note: Worker needs SDK to run 'dotnet build' on generated repos
 WORKDIR /app
 COPY --from=worker-builder /app/publish .

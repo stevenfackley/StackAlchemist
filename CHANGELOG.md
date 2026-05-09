@@ -58,6 +58,9 @@ All notable changes to this project will be documented in this file.
 - Mask email PII in logs + bump postcss to ^8.5.10 ([#78](https://github.com/stevenfackley/StackAlchemist/issues/78))
 - Wire ITierGatingService into orchestrator + skip codegen on Tier 1 ([#84](https://github.com/stevenfackley/StackAlchemist/issues/84))
 - Serialize Release workflow to prevent changelog-commit race ([#87](https://github.com/stevenfackley/StackAlchemist/issues/87))
+- Clear three engine errors blocking nightly simple-mode-flow E2E ([#92](https://github.com/stevenfackley/StackAlchemist/issues/92)) ([#94](https://github.com/stevenfackley/StackAlchemist/issues/94))
+- Pin .NET base images to :10.0-resolute ([#95](https://github.com/stevenfackley/StackAlchemist/issues/95))
+- Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
 
 ### Dependencies
 
@@ -92,6 +95,7 @@ All notable changes to this project will be documented in this file.
 - Update with session 2 progress
 - Correct scope — root error.tsx pre-existed
 - Note AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1 majors from 2026-04-28 sweep
+- Consolidate ADRs into docs/DECISIONS.md, stub root file ([#97](https://github.com/stevenfackley/StackAlchemist/issues/97))
 
 ### Features
 
@@ -113,6 +117,7 @@ All notable changes to this project will be documented in this file.
 - V2-Python-React Swiss Cheese + e2e smoke + tuning docs ([#77](https://github.com/stevenfackley/StackAlchemist/issues/77))
 - V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
 - V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
+- Add blog, compare, solutions pages + Show HN draft
 
 ### Miscellaneous Tasks
 

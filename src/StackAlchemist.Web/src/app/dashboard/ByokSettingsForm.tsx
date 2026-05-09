@@ -10,10 +10,21 @@ const INITIAL_STATE: SaveProfileSettingsState = {
   message: "",
 };
 
-const MODEL_OPTIONS = [
+type ModelOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
+const MODEL_OPTIONS: ModelOption[] = [
+  {
+    value: "claude-sonnet-4-6",
+    label: "Claude Sonnet 4.6 (default)",
+  },
   {
     value: "claude-3-5-sonnet-20241022",
-    label: "Claude 3.5 Sonnet (default)",
+    label: "Claude 3.5 Sonnet (retired by Anthropic — do not select)",
+    disabled: true,
   },
   {
     value: "claude-3-5-haiku-20241022",
@@ -102,7 +113,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10"
           >
             {MODEL_OPTIONS.map((model) => (
-              <option key={model.value} value={model.value}>
+              <option key={model.value} value={model.value} disabled={model.disabled}>
                 {model.label}
               </option>
             ))}
