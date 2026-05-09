@@ -117,6 +117,7 @@ All notable changes to this project will be documented in this file.
 - V2-Python-React Swiss Cheese + e2e smoke + tuning docs ([#77](https://github.com/stevenfackley/StackAlchemist/issues/77))
 - V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
 - V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
+- Add blog, compare, solutions pages + Show HN draft
 
 ### Miscellaneous Tasks
 
