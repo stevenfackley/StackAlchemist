@@ -115,6 +115,48 @@ export const COMPARE_ENTRIES = [
       "Replit Agent is excellent for shipping inside the Replit ecosystem. StackAlchemist is the right tool when the goal is a SaaS you own, on your infra, under your license — a business you can run and sell.",
     updatedAt: "2026-04-20",
   },
+  {
+    slug: "bubble",
+    competitorName: "Bubble",
+    tagline: "StackAlchemist vs Bubble — owned full-stack code vs hosted no-code platform",
+    relativePath: "bubble.md",
+    winsForCompetitor: [
+      "Best-in-class visual no-code app builder",
+      "Real database + workflows without writing code",
+      "Mature plugin ecosystem and community",
+      "Genuinely usable by non-technical founders",
+    ],
+    winsForUs: [
+      "Real owned code in a real repo — not platform-locked",
+      "Production .NET 10 + Next.js 15 stack you can hire any full-stack dev to extend",
+      "No per-user runtime tax; deploy to your infra at your costs",
+      "Compile-gated output and predictable performance at scale",
+    ],
+    verdict:
+      "Bubble is the right tool when you cannot or will not write code and want to ship fast. StackAlchemist is the right tool when you want a real owned codebase you can scale, sell, or hand to engineers without re-platforming.",
+    updatedAt: "2026-05-09",
+  },
+  {
+    slug: "retool",
+    competitorName: "Retool",
+    tagline: "StackAlchemist vs Retool — customer-facing SaaS generator vs internal-tools platform",
+    relativePath: "retool.md",
+    winsForCompetitor: [
+      "Best-in-class for internal admin tools and dashboards",
+      "Connects to existing DBs and APIs without code",
+      "Fast for ops/data teams to ship internal UI in hours",
+      "Strong feature set: Workflows, AI, granular permissions",
+    ],
+    winsForUs: [
+      "Generates the customer-facing SaaS, not the admin layer on top of one",
+      "Real owned repo, not a hosted runtime keyed to a Retool seat",
+      "Backend + DB schema + auth + Stripe in one generation, not bolted on",
+      "One-time price for the artifact, not per-user platform fees",
+    ],
+    verdict:
+      "Retool is the right tool when you already have a SaaS and need the internal admin/ops UI on top of it. StackAlchemist is the right tool when the SaaS itself is what you need to exist.",
+    updatedAt: "2026-05-09",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {

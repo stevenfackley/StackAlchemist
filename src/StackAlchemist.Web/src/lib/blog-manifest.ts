@@ -67,6 +67,17 @@ export const BLOG_POSTS = [
     relativePath: "why-we-charge-once-not-monthly.md",
     readingTimeMinutes: 7,
   },
+  {
+    slug: "why-dotnet-10-as-the-codegen-substrate",
+    title: "Why .NET 10 — and why the substrate is the most important decision in AI codegen",
+    description:
+      "The substrate choice decides whether the compile guarantee is real or theatrical. Here is why .NET 10 wins on strict typing, deterministic runtime, and template-friendly scaffolding — and where Node would have failed.",
+    publishedAt: "2026-05-09",
+    author: BLOG_AUTHOR,
+    tags: ["engineering", "architecture", "stack-choice"],
+    relativePath: "why-dotnet-10-as-the-codegen-substrate.md",
+    readingTimeMinutes: 8,
+  },
 ] as const satisfies readonly BlogPostMeta[];
 
 export function getBlogPostMetaBySlug(slug: string): BlogPostMeta | undefined {
