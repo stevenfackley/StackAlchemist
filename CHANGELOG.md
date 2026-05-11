@@ -159,6 +159,7 @@ All notable changes to this project will be documented in this file.
 - Bump postcss in /src/StackAlchemist.Web ([#69](https://github.com/stevenfackley/StackAlchemist/issues/69))
 - Drop validate.mjs Node toolchain + sweep analyzer warnings to 0 ([#79](https://github.com/stevenfackley/StackAlchemist/issues/79))
 - Enable Generation:UseSwissCheese in dev + document rollout ([#82](https://github.com/stevenfackley/StackAlchemist/issues/82))
+- Bump msw in /src/StackAlchemist.Web ([#107](https://github.com/stevenfackley/StackAlchemist/issues/107))
 
 ### Refactoring
 
