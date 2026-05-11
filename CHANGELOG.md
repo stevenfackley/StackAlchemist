@@ -89,6 +89,7 @@ All notable changes to this project will be documented in this file.
 - Bump tailwind-merge in /src/StackAlchemist.Web ([#103](https://github.com/stevenfackley/StackAlchemist/issues/103))
 - Bump the next-react group ([#99](https://github.com/stevenfackley/StackAlchemist/issues/99))
 - Bump @supabase/ssr in /src/StackAlchemist.Web ([#101](https://github.com/stevenfackley/StackAlchemist/issues/101))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#105](https://github.com/stevenfackley/StackAlchemist/issues/105))
 
 ### Documentation
 
