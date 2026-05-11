@@ -87,6 +87,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#74](https://github.com/stevenfackley/StackAlchemist/issues/74))
 - Bump node from 24-alpine to 26-alpine ([#98](https://github.com/stevenfackley/StackAlchemist/issues/98))
 - Bump tailwind-merge in /src/StackAlchemist.Web ([#103](https://github.com/stevenfackley/StackAlchemist/issues/103))
+- Bump the next-react group ([#99](https://github.com/stevenfackley/StackAlchemist/issues/99))
 
 ### Documentation
 
