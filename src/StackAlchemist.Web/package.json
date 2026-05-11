@@ -30,7 +30,7 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "styled-jsx": "^5.1.7",
-    "tailwind-merge": "^2.5.4",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
