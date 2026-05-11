@@ -165,6 +165,7 @@ All notable changes to this project will be documented in this file.
 - Bump msw in /src/StackAlchemist.Web ([#107](https://github.com/stevenfackley/StackAlchemist/issues/107))
 - Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#102](https://github.com/stevenfackley/StackAlchemist/issues/102))
 - Bump vitest ([#100](https://github.com/stevenfackley/StackAlchemist/issues/100))
+- Bump @types/node in /src/StackAlchemist.Web ([#104](https://github.com/stevenfackley/StackAlchemist/issues/104))
 
 ### Refactoring
 
