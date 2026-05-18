@@ -169,6 +169,7 @@ All notable changes to this project will be documented in this file.
 - Bump vitest ([#100](https://github.com/stevenfackley/StackAlchemist/issues/100))
 - Bump @types/node in /src/StackAlchemist.Web ([#104](https://github.com/stevenfackley/StackAlchemist/issues/104))
 - Bump @playwright/test ([#108](https://github.com/stevenfackley/StackAlchemist/issues/108))
+- Bump @types/node in /src/StackAlchemist.Web ([#112](https://github.com/stevenfackley/StackAlchemist/issues/112))
 
 ### Refactoring
 
