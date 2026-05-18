@@ -91,6 +91,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/ssr in /src/StackAlchemist.Web ([#101](https://github.com/stevenfackley/StackAlchemist/issues/101))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#105](https://github.com/stevenfackley/StackAlchemist/issues/105))
 - Bump lucide-react in /src/StackAlchemist.Web ([#109](https://github.com/stevenfackley/StackAlchemist/issues/109))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#111](https://github.com/stevenfackley/StackAlchemist/issues/111))
 
 ### Documentation
 
@@ -170,6 +171,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/node in /src/StackAlchemist.Web ([#104](https://github.com/stevenfackley/StackAlchemist/issues/104))
 - Bump @playwright/test ([#108](https://github.com/stevenfackley/StackAlchemist/issues/108))
 - Bump @types/node in /src/StackAlchemist.Web ([#112](https://github.com/stevenfackley/StackAlchemist/issues/112))
+- Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#110](https://github.com/stevenfackley/StackAlchemist/issues/110))
 
 ### Refactoring
 
