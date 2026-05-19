@@ -125,6 +125,7 @@ All notable changes to this project will be documented in this file.
 - V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
 - V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
 - Add blog, compare, solutions pages + Show HN draft
+- Finalize Show HN draft v2 + add Stripe to pricing tiers
 
 ### Miscellaneous Tasks
 
@@ -180,6 +181,10 @@ All notable changes to this project will be documented in this file.
 - Extract SITE_URL constant from 8 repeated env reads
 - Upgrade manifests to as const satisfies
 - Extract questionToAnchor + cover uniqueness
+
+### Security
+
+- Add ws ^8.20.1 override to unblock CVE advisory
 
 ### Testing
 
