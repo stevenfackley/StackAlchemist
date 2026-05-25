@@ -173,6 +173,7 @@ All notable changes to this project will be documented in this file.
 - Bump @playwright/test ([#108](https://github.com/stevenfackley/StackAlchemist/issues/108))
 - Bump @types/node in /src/StackAlchemist.Web ([#112](https://github.com/stevenfackley/StackAlchemist/issues/112))
 - Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#110](https://github.com/stevenfackley/StackAlchemist/issues/110))
+- Bump @types/node in /src/StackAlchemist.Web ([#117](https://github.com/stevenfackley/StackAlchemist/issues/117))
 
 ### Refactoring
 
