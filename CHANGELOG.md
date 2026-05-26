@@ -61,6 +61,7 @@ All notable changes to this project will be documented in this file.
 - Clear three engine errors blocking nightly simple-mode-flow E2E ([#92](https://github.com/stevenfackley/StackAlchemist/issues/92)) ([#94](https://github.com/stevenfackley/StackAlchemist/issues/94))
 - Pin .NET base images to :10.0-resolute ([#95](https://github.com/stevenfackley/StackAlchemist/issues/95))
 - Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
+- Unbreak test-site noindex, correct FAQ AI model, noindex auth pages
 
 ### Dependencies
 
@@ -104,6 +105,7 @@ All notable changes to this project will be documented in this file.
 - Correct scope — root error.tsx pre-existed
 - Note AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1 majors from 2026-04-28 sweep
 - Consolidate ADRs into docs/DECISIONS.md, stub root file ([#97](https://github.com/stevenfackley/StackAlchemist/issues/97))
+- Show HN v3 — screenshot-first comment 1 unblocks from demo video
 
 ### Features
 
@@ -127,6 +129,7 @@ All notable changes to this project will be documented in this file.
 - V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
 - Add blog, compare, solutions pages + Show HN draft
 - Finalize Show HN draft v2 + add Stripe to pricing tiers
+- Per-route sitemap lastmod, ItemList schemas, blog dateModified support
 
 ### Miscellaneous Tasks
 
@@ -185,6 +188,7 @@ All notable changes to this project will be documented in this file.
 - Extract SITE_URL constant from 8 repeated env reads
 - Upgrade manifests to as const satisfies
 - Extract questionToAnchor + cover uniqueness
+- Pricing FAQPage schema, ContentHeader unification, keyword-rich homepage H1
 
 ### Security
 
