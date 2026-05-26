@@ -1,9 +1,9 @@
 # Show HN — StackAlchemist
 
 **Author:** Steve Ackley
-**Status:** Draft v2 — submission-ready text, awaits only (a) 30s demo video uploaded to the staged URL, and (b) Plausible verification live in prod.
+**Status:** Draft v3 — submission-ready text. Comment 1 now uses a static screenshot path so launch is unblocked from the demo-video recording. Video is a nice-to-have, no longer a gate.
 **Submission target:** stackalchemist.app
-**Last updated:** 2026-05-13
+**Last updated:** 2026-05-26
 
 > HN style notes: no "Hi HN", no emojis, no marketing voice. First-person. Optimal body length ~150–300 words. Be ready to engage in comments for 6+ hours after submission.
 
@@ -40,9 +40,15 @@ These go in *as comments* on the post, not in the post body — HN penalizes lon
 
 ### Comment 1 — demo / screenshot reply
 
-`30-second demo of a full run: prompt in, generation, compile gate firing, downloadable repo out. https://stackalchemist.app/launch/demo.mp4`
+`Screenshot of a full run: prompt in → generation → compile gate firing → downloadable repo out. https://stackalchemist.app/launch/run.png — happy to DM a 30s screen recording to anyone who'd rather see it move. (Video will go up at /launch/demo.mp4 once cut; commenting here when it's live.)`
 
-<!-- TODO(steve, pre-submit only): Record the actual 30s clip and upload it to that exact URL. Comment text above is finalized — only the video file needs to land at the URL before submission. -->
+<!-- Asset required pre-submit: a single PNG screenshot of the compile-gate firing at /launch/run.png. Lower-effort than a recorded video and unblocks Show HN now. Record the video later as a follow-up reply on the thread. -->
+<!-- File location convention: place the PNG at src/StackAlchemist.Web/public/launch/run.png so Next.js serves it at /launch/run.png. -->
+
+
+### Comment 1a — follow-up when video is recorded (post later in the thread, not on submission)
+
+`Recording for the folks who pinged me — 30s screen capture of the same flow: https://stackalchemist.app/launch/demo.mp4`
 
 
 ### Comment 2 — "what's it cost"
@@ -62,19 +68,23 @@ These go in *as comments* on the post, not in the post body — HN penalizes lon
 - [ ] stackalchemist.app loads in <2s on a cold visit (HN traffic is brutal)
 - [ ] /pricing shows the real one-time price (anticipated comment 2)
 - [ ] /compare/v0, /compare/bolt-new are public and reachable (HN will click through)
-- [ ] Demo video staged at a stable URL
+- [ ] Screenshot uploaded to `/launch/run.png` (PNG of compile gate firing — see Comment 1)
 - [ ] Plausible verified so we can actually measure HN traffic
 - [ ] [Issue tracker / contact email visible from the homepage] for feedback DMs
 - [ ] Founder is genuinely available for 6 straight hours after submit (HN is real-time)
+- [ ] (Optional / post-launch) Record demo video → upload to `/launch/demo.mp4` → drop Comment 1a
 
 **Submission window:** 8am–11pm EST, weekdays. (Note: HN front-page hits peak ~9–11am ET / 6–8am PT — earlier in the window is stronger. Avoid major conference weeks.)
 
 ## Remaining gates
 
-All text is final. Only two non-text items left, both tracked in the pre-launch checklist above:
+All text is final. Two non-text items left, both tracked in the pre-launch checklist above:
 
-1. **Demo video file** — Record ~30s clip (prompt → generation → compile gate firing → download) and upload to `https://stackalchemist.app/launch/demo.mp4`. The comment copy referencing that URL is already finalized; only the asset needs to land.
+1. **Run screenshot** — One PNG at `/launch/run.png` showing the compile gate firing. Comment 1 hard-codes that URL. ~10 minutes of effort vs the multi-hour video shoot. Video moves to "post-submission nicety" (Comment 1a).
 2. **Plausible verification live in prod** — External dependency. The HN traffic spike is unmeasured otherwise.
 
 **Resolved 2026-05-13:**
 - Stripe reconciliation — "Stripe Payments Integration" added to Boilerplate tier items and to the comparison matrix in `src/StackAlchemist.Web/src/app/pricing/page.tsx`. Body claim and /pricing now agree.
+
+**Resolved 2026-05-26:**
+- Demo-video gate broken in half — replaced with a screenshot-first launch path. A static PNG is much lower friction than a recorded clip, and HN readers click links either way. Video becomes Comment 1a once recorded — added value rather than a gate.
