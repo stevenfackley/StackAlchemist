@@ -7,9 +7,14 @@
 FROM node:26-alpine AS web-builder
 RUN apk add --no-cache git
 WORKDIR /app
-# Accept public env vars at build time so Next.js bakes them into the bundle
+# Accept public env vars at build time so Next.js bakes them into the bundle.
+# NEXT_PUBLIC_* vars are read at module scope (e.g. layout.tsx `isTestSite`)
+# which means they must be present during `next build`, not just at runtime.
+# Missing IS_TEST_SITE here is what historically broke the test-mirror noindex.
 ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
+ARG NEXT_PUBLIC_IS_TEST_SITE=false
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_IS_TEST_SITE=$NEXT_PUBLIC_IS_TEST_SITE
 
 # Copy manifests first so the install layer is cached independently of source.
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/package-lock.json ./

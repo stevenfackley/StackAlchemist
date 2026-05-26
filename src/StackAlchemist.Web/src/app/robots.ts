@@ -8,25 +8,11 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: [
-          "/",
-          "/about",
-          "/story",
-          "/pricing",
-          "/docs",
-          "/docs/",
-          "/faq",
-          "/blog",
-          "/blog/",
-          "/compare",
-          "/compare/",
-          "/solutions",
-          "/solutions/",
-        ],
-        disallow: ["/dashboard", "/generate", "/api", "/auth"],
+        // Default-allow. Explicit `disallow` blocks app shell + auth pages
+        // from indexation; login/register also carry per-page `robots: noindex`.
+        disallow: ["/dashboard", "/generate", "/api", "/auth", "/login", "/register"],
       },
     ],
     sitemap: `${siteUrl}/sitemap.xml`,
-    host: siteUrl,
   };
 }
