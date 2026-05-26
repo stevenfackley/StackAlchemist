@@ -380,16 +380,16 @@ export default function HomePage() {
             </div>
 
             <h1 data-testid="home-hero-title" className="mb-6 font-bold tracking-tight leading-[0.95] text-white">
-              <span className="block" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>SYNTHESIZE</span>
+              <span className="block" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>AI SaaS Generator</span>
               <span className="block mt-1" style={{ fontSize: "clamp(2.8rem, 8vw, 6.5rem)" }}>
-                YOUR <span className="text-blue-400">PLATFORM.</span>
+                with a <span className="text-blue-400">Compile Guarantee.</span>
               </span>
             </h1>
 
             <p className="mb-8 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              Transform natural language into deployable software repositories.
-              PostgreSQL schema, .NET backend, Next.js frontend, and a handoff path built around a{" "}
-              <span className="text-blue-400 font-medium">compile guarantee</span>.
+              Synthesize a deployable .NET 10 + Next.js 15 + PostgreSQL repository from natural
+              language. Every generation passes a real compiler before delivery — no hallucinated
+              imports, no half-finished scaffolds.
             </p>
 
             <div className="rounded-[28px] border border-slate-600/30 bg-slate-700/20 px-5 py-5 shadow-[0_0_40px_rgba(15,23,42,0.2)] backdrop-blur-sm sm:px-6 sm:py-6">
