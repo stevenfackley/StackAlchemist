@@ -157,6 +157,28 @@ export const COMPARE_ENTRIES = [
       "Retool is the right tool when you already have a SaaS and need the internal admin/ops UI on top of it. StackAlchemist is the right tool when the SaaS itself is what you need to exist.",
     updatedAt: "2026-05-09",
   },
+  {
+    slug: "base44",
+    competitorName: "base44",
+    tagline: "StackAlchemist vs base44 — owned customer-facing SaaS vs hosted internal-tools builder",
+    relativePath: "base44.md",
+    winsForCompetitor: [
+      "Best-in-class for hosted internal tools — zero infra decisions",
+      "Genuinely fast in-browser iteration loop",
+      "Strong design opinions — output looks finished out of the gate",
+      "Auth + database + deploy URL wired with no AWS account required",
+    ],
+    winsForUs: [
+      "Owned code from day one — no hosted runtime lock-in for your customers' data",
+      "Real .NET 10 backend you can extend in a mainstream language",
+      "Compile gate against actual `dotnet build` + `pnpm build`, not a sandbox runtime",
+      "One-time price for the artifact, not a perpetual subscription as your SaaS runs",
+      "Deploys anywhere — AWS, Fly, on-prem, air-gapped — not just base44's cloud",
+    ],
+    verdict:
+      "base44 is the right tool when you're building an internal tool that lives forever on a hosted runtime. StackAlchemist is the right tool when you're building a customer-facing SaaS you sell, own, and deploy under your own roof.",
+    updatedAt: "2026-05-26",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {
