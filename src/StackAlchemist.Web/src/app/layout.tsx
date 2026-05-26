@@ -106,14 +106,17 @@ export default function RootLayout({
           </a>
           <TestSiteBanner />
           <script
+            key="ld-software-application"
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationJsonLd(siteUrlStr, defaultDescription)) }}
           />
           <script
+            key="ld-organization"
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(siteUrlStr)) }}
           />
           <script
+            key="ld-website"
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(siteUrlStr, defaultDescription)) }}
           />

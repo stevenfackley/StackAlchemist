@@ -95,6 +95,10 @@ export type BlogPostMetaLd = {
   title: string;
   description: string;
   publishedAt: string;
+  // Optional. Falls back to publishedAt when absent. Set this when a post is
+  // edited so BlogPosting.dateModified actually moves and Google can pick up
+  // the freshness signal.
+  updatedAt?: string;
   author: string;
   tags: readonly string[];
 };
@@ -110,11 +114,28 @@ export function blogPostingJsonLd(
     headline: meta.title,
     description: meta.description,
     datePublished: meta.publishedAt,
-    dateModified: meta.publishedAt,
+    dateModified: meta.updatedAt ?? meta.publishedAt,
     author: { "@type": "Person", name: meta.author, url: `${siteUrl}/about` },
     publisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
     mainEntityOfPage: { "@type": "WebPage", "@id": `${siteUrl}/blog/${slug}` },
     keywords: meta.tags.join(", "),
+  };
+}
+
+export type ItemListEntryLd = { name: string; url: string; description?: string };
+
+export function itemListJsonLd(name: string, items: ItemListEntryLd[]): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    itemListElement: items.map((it, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: it.name,
+      url: it.url,
+      ...(it.description ? { description: it.description } : {}),
+    })),
   };
 }
 

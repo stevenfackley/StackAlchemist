@@ -3,6 +3,9 @@ export interface DocMeta {
   title: string;
   section: "user" | "advanced";
   relativePath: string;
+  // ISO date of last meaningful content change. Optional — sitemap falls back
+  // to a sensible default when absent so each doc edit isn't a typed change.
+  updatedAt?: string;
 }
 
 export const DOC_SECTIONS = [

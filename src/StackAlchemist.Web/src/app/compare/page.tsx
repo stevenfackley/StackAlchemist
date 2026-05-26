@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
 import { COMPARE_ENTRIES } from "@/lib/compare-manifest";
+import { itemListJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Compare StackAlchemist vs v0, Bolt.new, Lovable",
@@ -18,11 +20,25 @@ export const metadata: Metadata = {
 };
 
 export default function CompareIndexPage() {
+  const itemListLd = itemListJsonLd(
+    "StackAlchemist competitor comparisons",
+    COMPARE_ENTRIES.map((e) => ({
+      name: `StackAlchemist vs ${e.competitorName}`,
+      url: `${SITE_URL}/compare/${e.slug}`,
+      description: e.tagline,
+    })),
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-void">
       <ContentHeader />
       <main className="flex-1">
         <article className="max-w-4xl mx-auto py-16 px-6">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+          />
+
           <header className="mb-14">
             <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
               Compare

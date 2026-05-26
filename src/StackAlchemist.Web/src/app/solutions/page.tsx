@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
 import { SOLUTION_ENTRIES } from "@/lib/solutions-manifest";
+import { itemListJsonLd } from "@/lib/jsonld";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Solutions — StackAlchemist Generators by Vertical",
@@ -18,11 +20,25 @@ export const metadata: Metadata = {
 };
 
 export default function SolutionsIndexPage() {
+  const itemListLd = itemListJsonLd(
+    "StackAlchemist vertical solution generators",
+    SOLUTION_ENTRIES.map((e) => ({
+      name: e.vertical,
+      url: `${SITE_URL}/solutions/${e.slug}`,
+      description: e.metaDescription,
+    })),
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-void">
       <ContentHeader />
       <main className="flex-1">
         <article className="max-w-4xl mx-auto py-16 px-6">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+          />
+
           <header className="mb-14">
             <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
               Solutions
@@ -77,8 +93,8 @@ export default function SolutionsIndexPage() {
               More verticals coming
             </h3>
             <p className="text-slate-400 text-sm">
-              We ship one new vertical solution page per month. Next up: CRM generator, marketplace
-              generator, fitness-subscription generator, scheduling SaaS, analytics SaaS.
+              We ship new vertical solution pages regularly. Next up: scheduling SaaS, analytics
+              SaaS, fitness-subscription generator, healthcare patient portal, and event ticketing.
             </p>
           </section>
         </article>
