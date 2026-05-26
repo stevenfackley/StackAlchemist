@@ -34,6 +34,12 @@ services:
     build:
       context: ..
       target: web
+      args:
+        # Build-time public env. Required: NEXT_PUBLIC_IS_TEST_SITE must be
+        # "true" here, otherwise the layout.tsx robots block bakes index/follow
+        # and the test mirror becomes a duplicate-content liability.
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://test.stackalchemist.app}
+        NEXT_PUBLIC_IS_TEST_SITE: "true"
     ports:
       - "3000:3000"
     env_file:

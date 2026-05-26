@@ -114,7 +114,7 @@ export const FAQS = [
     category: "technical",
     question: "What AI model does StackAlchemist use?",
     answer:
-      "The generation engine uses Claude 3.5 Sonnet for business-logic injection. Structural scaffolding — file layout, class skeletons, and import paths — is produced by deterministic Handlebars templates, not the LLM. This split is how the Swiss Cheese Method keeps output reliable.",
+      "The generation engine uses Anthropic's latest Claude Sonnet model (currently Sonnet 4.6) for business-logic injection. Structural scaffolding — file layout, class skeletons, and import paths — is produced by deterministic Handlebars templates, not the LLM. This split is how the Swiss Cheese Method keeps output reliable.",
   },
   {
     category: "technical",

@@ -85,6 +85,14 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#71](https://github.com/stevenfackley/StackAlchemist/issues/71))
 - Bump lucide-react in /src/StackAlchemist.Web ([#70](https://github.com/stevenfackley/StackAlchemist/issues/70))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#74](https://github.com/stevenfackley/StackAlchemist/issues/74))
+- Bump node from 24-alpine to 26-alpine ([#98](https://github.com/stevenfackley/StackAlchemist/issues/98))
+- Bump tailwind-merge in /src/StackAlchemist.Web ([#103](https://github.com/stevenfackley/StackAlchemist/issues/103))
+- Bump the next-react group ([#99](https://github.com/stevenfackley/StackAlchemist/issues/99))
+- Bump @supabase/ssr in /src/StackAlchemist.Web ([#101](https://github.com/stevenfackley/StackAlchemist/issues/101))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#105](https://github.com/stevenfackley/StackAlchemist/issues/105))
+- Bump lucide-react in /src/StackAlchemist.Web ([#109](https://github.com/stevenfackley/StackAlchemist/issues/109))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#111](https://github.com/stevenfackley/StackAlchemist/issues/111))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#116](https://github.com/stevenfackley/StackAlchemist/issues/116))
 
 ### Documentation
 
@@ -118,6 +126,7 @@ All notable changes to this project will be documented in this file.
 - V2-DotNet-NextJs nextjs/ frontend with per-entity zones ([#80](https://github.com/stevenfackley/StackAlchemist/issues/80))
 - V2-Python-React per-entity frontend templates ([#81](https://github.com/stevenfackley/StackAlchemist/issues/81))
 - Add blog, compare, solutions pages + Show HN draft
+- Finalize Show HN draft v2 + add Stripe to pricing tiers
 
 ### Miscellaneous Tasks
 
@@ -158,6 +167,16 @@ All notable changes to this project will be documented in this file.
 - Bump postcss in /src/StackAlchemist.Web ([#69](https://github.com/stevenfackley/StackAlchemist/issues/69))
 - Drop validate.mjs Node toolchain + sweep analyzer warnings to 0 ([#79](https://github.com/stevenfackley/StackAlchemist/issues/79))
 - Enable Generation:UseSwissCheese in dev + document rollout ([#82](https://github.com/stevenfackley/StackAlchemist/issues/82))
+- Bump msw in /src/StackAlchemist.Web ([#107](https://github.com/stevenfackley/StackAlchemist/issues/107))
+- Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#102](https://github.com/stevenfackley/StackAlchemist/issues/102))
+- Bump vitest ([#100](https://github.com/stevenfackley/StackAlchemist/issues/100))
+- Bump @types/node in /src/StackAlchemist.Web ([#104](https://github.com/stevenfackley/StackAlchemist/issues/104))
+- Bump @playwright/test ([#108](https://github.com/stevenfackley/StackAlchemist/issues/108))
+- Bump @types/node in /src/StackAlchemist.Web ([#112](https://github.com/stevenfackley/StackAlchemist/issues/112))
+- Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#110](https://github.com/stevenfackley/StackAlchemist/issues/110))
+- Bump @types/node in /src/StackAlchemist.Web ([#117](https://github.com/stevenfackley/StackAlchemist/issues/117))
+- Bump @types/react in /src/StackAlchemist.Web ([#115](https://github.com/stevenfackley/StackAlchemist/issues/115))
+- Bump vitest ([#114](https://github.com/stevenfackley/StackAlchemist/issues/114))
 
 ### Refactoring
 
@@ -166,6 +185,10 @@ All notable changes to this project will be documented in this file.
 - Extract SITE_URL constant from 8 repeated env reads
 - Upgrade manifests to as const satisfies
 - Extract questionToAnchor + cover uniqueness
+
+### Security
+
+- Add ws ^8.20.1 override to unblock CVE advisory
 
 ### Testing
 

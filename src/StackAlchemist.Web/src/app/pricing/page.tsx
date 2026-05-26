@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, Eye, Lock } from "lucide-react";
 import Image from "next/image";
-import { Logo } from "@/components/logo";
-import { pricingProductJsonLd } from "@/lib/jsonld";
+import { ContentHeader } from "@/components/content-header";
+import { pricingProductJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -66,6 +66,7 @@ const tiers = [
       "Next.js 15 Frontend (App Router, TypeScript)",
       "PostgreSQL Schema + Migrations",
       "Supabase Auth Integration",
+      "Stripe Payments Integration",
       "Docker Compose Dev Environment",
       "Compile Guarantee (3-retry auto-correction)",
     ],
@@ -138,6 +139,7 @@ const comparison = [
   { label: "SQL Migration Scripts",          spark: false, bp: true,  bb: true,  infra: true },
   { label: ".NET 10 Web API Source",         spark: false, bp: false, bb: true,  infra: true },
   { label: "Supabase Auth Integration",      spark: false, bp: false, bb: true,  infra: true },
+  { label: "Stripe Payments Integration",    spark: false, bp: false, bb: true,  infra: true },
   { label: "Docker Compose Environment",     spark: false, bp: false, bb: true,  infra: true },
   { label: "Compile Guarantee (3-retry)",    spark: false, bp: false, bb: true,  infra: true },
   { label: "AWS CDK Infrastructure Stack",   spark: false, bp: false, bb: false, infra: true },
@@ -160,11 +162,23 @@ export default function PricingPage() {
   const productLdJson = JSON.stringify(
     pricingProductJsonLd(SITE_URL, tiers.map((t) => ({ name: t.name, price: t.price, href: t.href }))),
   );
+  // FAQPage schema on pricing — the highest-intent page deserves rich results
+  // for free-tier / subscription / commercial-use questions. Distinct from the
+  // /faq page's 17-entry FAQPage; both are valid because the questions differ.
+  const faqLdJson = JSON.stringify(
+    faqPageJsonLd(faqs.map((f) => ({ question: f.q, answer: f.a }))),
+  );
   return (
     <div data-testid="pricing-page" className="min-h-screen flex flex-col bg-slate-800">
       <script
+        key="ld-pricing-product"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: productLdJson }}
+      />
+      <script
+        key="ld-pricing-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: faqLdJson }}
       />
       {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
@@ -185,24 +199,8 @@ export default function PricingPage() {
         />
       </div>
 
-      {/* Header */}
-      <header className="relative z-50 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0">
-        <nav className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
-          <Logo className="shrink-0" />
-          <div className="flex items-center gap-4 sm:gap-6">
-            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase">Home</Link>
-            <Link href="/about" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">About</Link>
-            <Link href="/story" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase hidden sm:block">Story</Link>
-            <Link href="/" className="text-xs font-mono tracking-widest text-slate-400 hover:text-white transition-colors uppercase">Build</Link>
-            <Link
-              href="/login"
-              className="rounded-full border border-slate-500/30 bg-slate-700/50 text-xs font-mono tracking-widest text-slate-300 hover:border-blue-500/40 hover:text-blue-400 transition-all px-3 py-1.5 uppercase"
-            >
-              Login
-            </Link>
-          </div>
-        </nav>
-      </header>
+      {/* Shared content-surface header — same nav as /blog, /compare, /solutions, /faq */}
+      <ContentHeader />
 
       <main className="relative z-10 flex-1">
         {/* Hero */}

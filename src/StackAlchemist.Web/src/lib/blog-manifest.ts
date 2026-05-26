@@ -3,6 +3,11 @@ export interface BlogPostMeta {
   title: string;
   description: string;
   publishedAt: string;
+  // Optional ISO date of last meaningful content edit. When present, used as
+  // BlogPosting.dateModified and sitemap lastmod; otherwise falls back to
+  // publishedAt. Set this whenever a post is materially revised so AI Overviews
+  // and Google freshness signals catch the update.
+  updatedAt?: string;
   author: string;
   tags: readonly string[];
   relativePath: string;
