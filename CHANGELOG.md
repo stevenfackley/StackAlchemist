@@ -132,6 +132,7 @@ All notable changes to this project will be documented in this file.
 - Per-route sitemap lastmod, ItemList schemas, blog dateModified support
 - Add May 2026 post — what production-ready actually means
 - Ship 12 new vertical pages — 6 of 18 → 18 of 18
+- Add /compare/base44 — closes May 2026 compare cadence
 
 ### Miscellaneous Tasks
 
