@@ -90,11 +90,12 @@ export default function SolutionsIndexPage() {
 
           <section className="mt-16 p-6 border border-slate-700/40 rounded-lg bg-slate-800/20">
             <h3 className="text-sm font-semibold text-white uppercase tracking-widest mb-2">
-              More verticals coming
+              Don&rsquo;t see your vertical?
             </h3>
             <p className="text-slate-400 text-sm">
-              We ship new vertical solution pages regularly. Next up: scheduling SaaS, analytics
-              SaaS, fitness-subscription generator, healthcare patient portal, and event ticketing.
+              These are the verticals we&rsquo;ve written explicit pages for, but the generator
+              handles any schema you can describe in plain English. Start a Simple-mode generation
+              with your domain in the prompt — the compile guarantee applies regardless of vertical.
             </p>
           </section>
         </article>
