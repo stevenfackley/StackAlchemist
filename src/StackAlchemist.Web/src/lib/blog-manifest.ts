@@ -83,6 +83,17 @@ export const BLOG_POSTS = [
     relativePath: "why-dotnet-10-as-the-codegen-substrate.md",
     readingTimeMinutes: 8,
   },
+  {
+    slug: "what-production-ready-actually-means-for-generated-saas",
+    title: "What \"production-ready\" actually means for a generated SaaS",
+    description:
+      "Every AI codegen tool claims production-ready output. Most ship demos. Here is the five-part bar I hold StackAlchemist to — Docker-runs, real migrations, real auth, real Stripe webhooks, real CI — and how to use it to sort the category.",
+    publishedAt: "2026-05-26",
+    author: BLOG_AUTHOR,
+    tags: ["evaluation", "production-ready", "ai-codegen"],
+    relativePath: "what-production-ready-actually-means-for-generated-saas.md",
+    readingTimeMinutes: 9,
+  },
 ] as const satisfies readonly BlogPostMeta[];
 
 export function getBlogPostMetaBySlug(slug: string): BlogPostMeta | undefined {
