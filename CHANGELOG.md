@@ -62,6 +62,7 @@ All notable changes to this project will be documented in this file.
 - Pin .NET base images to :10.0-resolute ([#95](https://github.com/stevenfackley/StackAlchemist/issues/95))
 - Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
 - Unbreak test-site noindex, correct FAQ AI model, noindex auth pages
+- Persist status + inline NEXT_PUBLIC into web image
 
 ### Dependencies
 
