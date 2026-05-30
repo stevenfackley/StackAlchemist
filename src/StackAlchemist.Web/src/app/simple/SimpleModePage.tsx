@@ -582,8 +582,11 @@ export default function SimpleModePage() {
     switch (s) {
       case "pending": return "Queued — waiting to start...";
       case "extracting_schema": return "Extracting schema from prompt...";
-      case "generating_code": return "Synthesizing code with Claude 3.5 Sonnet...";
+      case "generating_code": return "Synthesizing code with Claude Sonnet 4.6...";
+      case "generating": return "Regenerating with compiler feedback...";
       case "building": return "Running dotnet build (Compile Guarantee)...";
+      case "packing": return "Packaging your codebase...";
+      case "uploading": return "Uploading your download...";
       case "success": return "Build verified! Preparing download...";
       case "failed": return "Build failed — triggering auto-correction...";
       default: return "Processing...";

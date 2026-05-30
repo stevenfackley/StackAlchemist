@@ -260,6 +260,11 @@ builder.Services.AddSingleton(channel.Reader);
 // Register the compile worker as an in-process background service.
 builder.Services.AddHostedService<CompileWorkerService>();
 
+// Startup sweep: fail rows orphaned in a non-terminal state by a prior restart.
+// The Channel above is in-memory, so any restart drops in-flight jobs; without
+// this their rows would sit non-terminal forever and the user's UI never resolves.
+builder.Services.AddHostedService<StartupReconciliationService>();
+
 // ── Swiss Cheese injection engine (per-zone parallel LLM dispatch) ───────────
 builder.Services.AddSingleton(sp =>
 {
@@ -413,6 +418,15 @@ app.MapPost("/api/extract-schema", async (
         logger.SchemaValidationFailed(request.GenerationId, ex.Message);
         await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
         return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        // Any unforeseen failure must still flip the row out of "extracting_schema",
+        // otherwise it sits there forever and the UI never resolves. CancellationToken.None:
+        // a cancelled/aborted request must still record its terminal state.
+        logger.SchemaExtractFailed(request.GenerationId, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", CancellationToken.None, ex.Message);
+        return Results.Problem("Schema extraction failed unexpectedly.");
     }
 })
 .WithName("ExtractSchema")

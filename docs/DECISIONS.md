@@ -602,3 +602,68 @@ because `ANTHROPIC_MODEL` was not threaded through the workflow.
 - BYOK paths still allow legacy 3.5 IDs for users who explicitly chose them.
 
 ---
+
+## 2026-05-30 — Fix prod generation pipeline (build-time env, status persistence, stale reconcile)
+
+**Status:** accepted
+**Context:** Prod symptom — a user submits a generation, the engine runs, but the
+UI never updates and no download appears ("nothing happens"). Investigation found
+two root causes plus a latent third:
+- **RC#1 — `NEXT_PUBLIC_*` missing from the web image.** Next inlines
+  `NEXT_PUBLIC_*` at `next build`, not at runtime. The Dockerfile web-builder
+  stage never received `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+  so the browser Supabase client constructed against `undefined` and its
+  `postgres_changes` Realtime subscription silently no-op'd — the page never saw
+  any status transition. `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` /
+  `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` had the same gap.
+- **RC#2 — orchestrator never persisted in-progress / terminal status.**
+  `GenerationOrchestrator.RunAsync` left the row at `pending` through codegen and,
+  on exception, set only the in-memory `context.State = Failed` without writing it
+  back. A row that failed (or was still mid-flight) never moved off `pending`.
+- **Latent — DB CHECK rejected three live statuses.**
+  `GenerationState.{Generating,Packing,Uploading}.ToString().ToLowerInvariant()`
+  emits `generating` / `packing` / `uploading`; the original
+  `generations_status_check` (migration 20260404000003) allowed only
+  `pending,extracting_schema,generating_code,building,success,failed`. PostgREST
+  returned 400 and `SupabaseDeliveryService` swallowed it, so those progress
+  transitions never reached the row. The pipeline still reached terminal
+  `success`/`failed` (both valid), so this degraded the progress UI rather than
+  breaking delivery.
+**Decision:**
+- Thread the four `NEXT_PUBLIC_*` values (Supabase URL + anon key, Stripe
+  publishable key, Plausible domain) as Docker build `ARG`/`ENV` in the
+  web-builder stage and pass them via `sa-web.build.args` in
+  `docker-compose.prod.yml` and `docker/docker-compose.test.yml`. These are all
+  public-by-design keys — `SUPABASE_SERVICE_ROLE_KEY` / `STRIPE_SECRET_KEY` stay
+  runtime-only and are never build args.
+- Persist status in the orchestrator: `generating_code` on entry (the DB enum is
+  `generating_code`, not the `generating` build-retry alias) and `Failed` in the
+  catch (with `CancellationToken.None`, so a cancelled request still records its
+  failure).
+- **Option A** for the enum↔CHECK mismatch (chosen over Option B = mapping the
+  enum to existing DB strings in code): widen the CHECK via migration
+  `20260530000009_widen_generations_status_check.sql` to add `generating`,
+  `packing`, `uploading`, and add matching labels across the three frontend
+  surfaces (`GenerateClientPage`, dashboard `StatusBadge`, `SimpleModePage`).
+  Keeps the DB as the single source of truth and makes the full lifecycle
+  observable end-to-end.
+- Hardening: `PatchGenerationAsync` retries critical (`success`/`failed`)
+  transitions and no longer swallows non-2xx silently; new
+  `StartupReconciliationService` + `IDeliveryService.FailStaleNonTerminalAsync`
+  mark jobs orphaned by an engine restart as `failed` (the in-memory `Channel`
+  drops in-flight work on restart); `/api/extract-schema` gained a catch-all that
+  persists `failed`; the generate page polls the `getGeneration` server action
+  every 5s as a Realtime fallback (works even if the browser client is null).
+**Consequences:**
+- Generation status now streams to the browser in prod, and the full lifecycle
+  (`pending → extracting_schema → generating_code → building → packing →
+  uploading → success`, or `failed` at any point) is both persisted and shown.
+- `NEXT_PUBLIC_*` are baked into the image at build time — changing any of them
+  requires an image rebuild, not just a container restart. Test and prod compose
+  each supply their own values.
+- The stale-sweep covers every non-terminal status; window is configurable via
+  `Generation:StaleReconcileMinutes` (default 15, `≤0` disables).
+- Migration `20260530000009` must be applied to every environment (CI, test,
+  prod) before the new web/engine images are deployed.
+
+---

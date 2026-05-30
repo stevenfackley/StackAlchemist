@@ -15,7 +15,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { retryGeneration } from "@/lib/actions";
+import { getGeneration, retryGeneration } from "@/lib/actions";
 import type { Generation } from "@/lib/types";
 import dynamic from "next/dynamic";
 import { isDemoMode } from "@/lib/runtime-config";
@@ -35,14 +35,19 @@ const STATUS_STEPS: Generation["status"][] = [
   "extracting_schema",
   "generating_code",
   "building",
+  "packing",
+  "uploading",
   "success",
 ];
 
 const STATUS_LABELS: Record<Generation["status"], string> = {
   pending: "Queued — waiting to start",
   extracting_schema: "Extracting schema from prompt",
-  generating_code: "Synthesizing code with Claude 3.5 Sonnet",
+  generating_code: "Synthesizing code with Claude Sonnet 4.6",
+  generating: "Regenerating with compiler feedback",
   building: "Compile Guarantee — running dotnet build",
+  packing: "Packaging your codebase",
+  uploading: "Uploading your download",
   success: "Complete",
   failed: "Build failed — triggering auto-correction",
 };
@@ -53,15 +58,21 @@ const STATUS_DESCRIPTIONS: Record<Generation["status"], string> = {
     "Claude is reading your prompt and identifying entities, relationships, and API endpoints.",
   generating_code:
     "Generating the full source tree — API controllers, repositories, models, frontend pages, and styles.",
+  generating:
+    "A build error came back — Claude is regenerating the affected files using the compiler output.",
   building:
     "Running dotnet build inside a container. If it fails, we auto-correct with the compiler output and retry (up to 3×).",
+  packing: "Bundling the generated source tree into a downloadable archive.",
+  uploading: "Uploading your archive to storage and finalizing the download link.",
   success: "Your codebase is ready.",
   failed:
     "The build failed. We're retrying automatically. If it still fails after 3 attempts, you'll get a full refund.",
 };
 
 function stepIndex(status: Generation["status"]): number {
-  return STATUS_STEPS.indexOf(status);
+  // "generating" is the build-retry alias of "generating_code" — same ladder rung.
+  const rung = status === "generating" ? "generating_code" : status;
+  return STATUS_STEPS.indexOf(rung);
 }
 
 function isFreeGeneration(gen: Generation): boolean {
@@ -587,6 +598,25 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
     return () => {
       client.removeChannel(channel);
     };
+  }, [generationId, generation.status]);
+
+  // ── Polling fallback (works when Supabase Realtime client is null) ─────────
+  useEffect(() => {
+    if (isDemoMode) return;
+    if (generation.status === "success" || generation.status === "failed") return;
+
+    const interval = setInterval(() => {
+      void (async () => {
+        try {
+          const latest = await getGeneration(generationId);
+          if (latest) setGeneration(latest as Generation);
+        } catch {
+          /* transient fetch error — realtime or next tick will recover */
+        }
+      })();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [generationId, generation.status]);
 
   // ── Retry handler ──────────────────────────────────────────────────────────

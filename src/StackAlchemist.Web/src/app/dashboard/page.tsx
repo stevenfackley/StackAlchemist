@@ -59,8 +59,23 @@ function StatusBadge({ status }: { status: Generation["status"] }) {
       classes: "text-blue-400 border-blue-500/30 bg-blue-500/10",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },
+    generating: {
+      label: "Generating",
+      classes: "text-blue-400 border-blue-500/30 bg-blue-500/10",
+      icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    },
     building: {
       label: "Building",
+      classes: "text-amber-400 border-amber-500/30 bg-amber-500/10",
+      icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    },
+    packing: {
+      label: "Packaging",
+      classes: "text-amber-400 border-amber-500/30 bg-amber-500/10",
+      icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    },
+    uploading: {
+      label: "Uploading",
       classes: "text-amber-400 border-amber-500/30 bg-amber-500/10",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },

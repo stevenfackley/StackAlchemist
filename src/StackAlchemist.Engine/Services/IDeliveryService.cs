@@ -62,4 +62,14 @@ public interface IDeliveryService
     /// anonymous, the generation does not exist, or Supabase is not configured.
     /// </summary>
     Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct);
+
+    /// <summary>
+    /// Marks any generation rows still in a non-terminal state
+    /// (pending / extracting_schema / generating_code / building) and older than
+    /// <paramref name="olderThan"/> as failed. Used at startup to clean up rows
+    /// orphaned by an engine restart mid-flight (the in-process queue is volatile).
+    /// Returns the number of rows reconciled; 0 when Supabase is not configured or
+    /// the sweep fails.
+    /// </summary>
+    Task<int> FailStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct);
 }

@@ -73,6 +73,10 @@ public sealed partial class GenerationOrchestrator(
 
         try
         {
+            // Persist in-progress status immediately so the row never sits at "pending"
+            // if codegen throws below. DB CHECK enum is "generating_code" (not "generating").
+            await deliveryService.UpdateStatusAsync(request.GenerationId, "generating_code", ct);
+
             var variables = BuildVariables(request);
 
             // Tier 1 (Blueprint) — skip LLM/codegen entirely; emit schema.json + api-docs.md
@@ -165,6 +169,15 @@ public sealed partial class GenerationOrchestrator(
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
+
+            // Persist the terminal failure so the row leaves pending/in-progress and the UI
+            // shows the error. CancellationToken.None: a cancelled request must still record it.
+            await deliveryService.UpdateStatusAsync(
+                request.GenerationId,
+                GenerationState.Failed,
+                errorMessage: ex.Message,
+                ct: CancellationToken.None);
+
             LogOrchestrationFailed(logger, ex, request.GenerationId);
 
             Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
