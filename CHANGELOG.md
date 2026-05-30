@@ -63,6 +63,7 @@ All notable changes to this project will be documented in this file.
 - Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
 - Unbreak test-site noindex, correct FAQ AI model, noindex auth pages
 - Persist status + inline NEXT_PUBLIC into web image
+- Reject placeholder anon keys so misconfig fails loud
 
 ### Dependencies
 
