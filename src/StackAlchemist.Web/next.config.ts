@@ -83,13 +83,27 @@ const nextConfig: NextConfig = {
         source: "/fonts/:file*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
-      // NOTE: Do NOT set Cross-Origin-Embedder-Policy on /generate. The Spark
-      // preview embeds StackBlitz through an iframe to stackblitz.com (the
-      // @stackblitz/sdk embedProject path), and COEP: require-corp blocks that
-      // cross-origin frame — the browser kills it with ERR_BLOCKED_BY_RESPONSE
-      // and the embed hangs forever on "Booting WebContainers...". StackBlitz
-      // establishes its own cross-origin isolation inside the iframe; the parent
-      // page must NOT be isolated. (Verified in prod 2026-05-30.)
+      {
+        // Spark live preview: StackBlitz WebContainers use SharedArrayBuffer, so
+        // the embedding page must be cross-origin isolated — and a frame is only
+        // isolated if EVERY ancestor is. So /generate/[id] (the only page that
+        // embeds StackBlitz) sends COOP+COEP, paired with the SDK being told
+        // `crossOriginIsolated: true` (which adds the iframe allow attribute and
+        // the `corp` embed-URL param so stackblitz.com self-isolates too).
+        //
+        // COEP MUST be `credentialless`, NOT `require-corp`: require-corp blocks
+        // the cross-origin stackblitz.com iframe (ERR_BLOCKED_BY_RESPONSE →
+        // infinite "Booting WebContainers...") — the regression we hit before.
+        // `credentialless` still isolates, but loads cross-origin resources
+        // without credentials instead of blocking them. This is StackBlitz's own
+        // recommended config: blog.stackblitz.com/posts/cross-browser-with-coop-coep.
+        // Scoped to /generate/:id* so the rest of the site is unaffected.
+        source: "/generate/:id*",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+        ],
+      },
     ];
 
     // Defence-in-depth noindex on the test mirror: the layout already emits a

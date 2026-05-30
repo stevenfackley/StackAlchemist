@@ -68,6 +68,14 @@ export function MicroIdeEmbed({ files, title, openFile }: MicroIdeEmbedProps) {
             forceEmbedLayout: true,
             hideNavigation: false,
             hideDevTools: false,
+            // WebContainers need SharedArrayBuffer → the embed must be
+            // cross-origin isolated. This makes the SDK (a) append `corp` to the
+            // embed URL so stackblitz.com serves its own COOP/COEP, and (b) add
+            // `allow="cross-origin-isolated"` to the iframe so the (isolated)
+            // parent delegates isolation into the frame. Without it StackBlitz
+            // shows "Unable to run Embedded Project — without proper isolation
+            // headers". Must be paired with COOP+COEP on the parent /generate page.
+            crossOriginIsolated: true,
           }
         );
 
