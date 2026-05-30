@@ -66,6 +66,7 @@ All notable changes to this project will be documented in this file.
 - Reject placeholder anon keys so misconfig fails loud
 - Deliver Tier-0 Spark preview end-to-end in prod
 - Ship template sets into the engine image so prod codegen resolves them
+- Cross-origin isolate /generate so StackBlitz embed runs
 
 ### Dependencies
 
