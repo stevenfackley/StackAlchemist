@@ -137,6 +137,7 @@ All notable changes to this project will be documented in this file.
 - Add May 2026 post — what production-ready actually means
 - Ship 12 new vertical pages — 6 of 18 → 18 of 18
 - Add /compare/base44 — closes May 2026 compare cadence
+- Tier-0 preview that actually boots in the browser
 
 ### Miscellaneous Tasks
 
