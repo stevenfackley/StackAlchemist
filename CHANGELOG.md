@@ -64,6 +64,7 @@ All notable changes to this project will be documented in this file.
 - Unbreak test-site noindex, correct FAQ AI model, noindex auth pages
 - Persist status + inline NEXT_PUBLIC into web image
 - Reject placeholder anon keys so misconfig fails loud
+- Deliver Tier-0 Spark preview end-to-end in prod
 
 ### Dependencies
 
