@@ -65,6 +65,7 @@ All notable changes to this project will be documented in this file.
 - Persist status + inline NEXT_PUBLIC into web image
 - Reject placeholder anon keys so misconfig fails loud
 - Deliver Tier-0 Spark preview end-to-end in prod
+- Ship template sets into the engine image so prod codegen resolves them
 
 ### Dependencies
 
