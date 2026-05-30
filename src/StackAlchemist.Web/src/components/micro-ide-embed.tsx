@@ -23,40 +23,49 @@ interface MicroIdeEmbedProps {
  * Node.js runtime in the browser — so Next.js dev server starts automatically.
  */
 export function MicroIdeEmbed({ files, title, openFile }: MicroIdeEmbedProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // React owns this wrapper but we never render children into it, so when
+  // StackBlitz swaps our mount node for its iframe, React's reconciler never
+  // sees the change and can't throw "insertBefore ... not a child of this node".
+  const hostRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    const host = hostRef.current;
+    if (!host) return;
+
+    // embedProject REPLACES the element it is handed. Give it a throwaway node
+    // we create imperatively — never a React-managed one — and React stays
+    // oblivious to the swap. This is the fix for the reload crash where the
+    // SectionErrorBoundary showed "Code Preview failed to load".
+    const mountEl = document.createElement("div");
+    mountEl.style.width = "100%";
+    mountEl.style.height = "100%";
+    host.appendChild(mountEl);
 
     async function mount() {
       try {
         // Dynamic import keeps this out of the SSR / initial bundle
         const sdk = (await import("@stackblitz/sdk")).default;
-        if (!containerRef.current || !mounted) return;
+        if (!mounted) return;
 
         await sdk.embedProject(
-          containerRef.current,
+          mountEl,
           {
             title,
             // "node" template activates WebContainers (Node.js in the browser)
-            // which is required for Next.js dev server
+            // which is required for the Next.js dev server
             template: "node",
             files,
           },
           {
-            // Show the editor (left) + live preview (right).
-            // Cast needed: StackBlitz SDK types don't expose "both" publicly
-            // but the runtime accepts it. "default" is the typed alternative.
+            // Editor (left) + live running preview (right).
             view: "default",
-            // Open the main page file by default
-            openFile: openFile ?? "src/app/page.tsx",
-            // Keep the terminal visible so users can see the dev server boot
+            openFile: openFile ?? "app/page.tsx",
+            // Keep the terminal visible so users see the dev server boot
             terminalHeight: 30,
             forceEmbedLayout: true,
-            // Disable the "fork" / "open in new tab" controls to enforce
-            // the view-only / non-downloadable nature of the Spark tier
             hideNavigation: false,
             hideDevTools: false,
           }
@@ -77,6 +86,8 @@ export function MicroIdeEmbed({ files, title, openFile }: MicroIdeEmbedProps) {
     mount();
     return () => {
       mounted = false;
+      // Tear down StackBlitz's iframe via the real DOM (React never tracked it).
+      host.replaceChildren();
     };
   }, [files, title, openFile]);
 
@@ -131,9 +142,10 @@ export function MicroIdeEmbed({ files, title, openFile }: MicroIdeEmbedProps) {
         </div>
       )}
 
-      {/* StackBlitz embed target */}
+      {/* StackBlitz embed host — React renders this empty and never touches
+          its children; the SDK fills it with an iframe imperatively. */}
       <div
-        ref={containerRef}
+        ref={hostRef}
         className="w-full h-full"
         style={{ opacity: state === "ready" ? 1 : 0, transition: "opacity 0.3s ease" }}
       />

@@ -42,14 +42,16 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "base-uri 'self'",
       "frame-ancestors 'self'",
-      "form-action 'self'",
+      // stackblitz.com: the Spark preview SDK POSTs project files to
+      // stackblitz.com/run via a form, and frames the result.
+      "form-action 'self' https://stackblitz.com",
       // Next.js inlines runtime chunks; unsafe-inline needed until we adopt nonces.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://plausible.io https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://plausible.io https://cloudflareinsights.com",
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://stackblitz.com",
       "worker-src 'self' blob:",
       "object-src 'none'",
       "upgrade-insecure-requests",
@@ -81,21 +83,13 @@ const nextConfig: NextConfig = {
         source: "/fonts/:file*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
-      {
-        // StackBlitz WebContainers requires cross-origin isolation (SharedArrayBuffer).
-        // Apply COOP + COEP headers to the generate result page only.
-        source: "/generate/:id*",
-        headers: [
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
-          },
-          {
-            key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
-          },
-        ],
-      },
+      // NOTE: Do NOT set Cross-Origin-Embedder-Policy on /generate. The Spark
+      // preview embeds StackBlitz through an iframe to stackblitz.com (the
+      // @stackblitz/sdk embedProject path), and COEP: require-corp blocks that
+      // cross-origin frame — the browser kills it with ERR_BLOCKED_BY_RESPONSE
+      // and the embed hangs forever on "Booting WebContainers...". StackBlitz
+      // establishes its own cross-origin isolation inside the iframe; the parent
+      // page must NOT be isolated. (Verified in prod 2026-05-30.)
     ];
 
     // Defence-in-depth noindex on the test mirror: the layout already emits a

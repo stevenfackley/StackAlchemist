@@ -35,6 +35,7 @@ public sealed partial class GenerationOrchestrator(
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
+    private const string Tier0SparkTemplateSet = "V0-Spark-NextJs";
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
 
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
@@ -79,15 +80,17 @@ public sealed partial class GenerationOrchestrator(
 
             var variables = BuildVariables(request);
 
-            // Tier 0 (Spark / free) — generate code and write it straight into the row as an
-            // inline preview. No build, no pack, no R2, no compile worker: the frontend renders
-            // preview_files_json in an in-browser editor. This branch IS the entire free-tier
-            // deliverable, so it must run before the blueprint gate (which only knows tiers ≥2
-            // trigger codegen). Runs on the caller's token, which /api/generate now sources from
-            // the app lifetime — never RequestAborted — so a client/proxy disconnect can't kill it.
+            // Tier 0 (Spark / free) — deterministically render the self-contained
+            // V0-Spark-NextJs template and write it straight into the row as an inline
+            // preview. NO LLM call: the free tier costs zero Anthropic tokens and always
+            // produces an app that BOOTS and RUNS in StackBlitz WebContainers (in-memory
+            // Route Handlers, no .NET/Postgres backend to spin up). No build, no pack, no
+            // R2, no compile worker — the frontend renders preview_files_json in an
+            // in-browser editor. This branch IS the entire free-tier deliverable, so it runs
+            // before the blueprint gate (which only knows tiers ≥2 trigger codegen).
             if (request.Tier == 0)
             {
-                var previewFiles = await GenerateFilesAsync(request, variables, ct);
+                var previewFiles = RenderTier0Preview(variables);
                 await deliveryService.CompletePreviewAsync(request.GenerationId, previewFiles, ct);
 
                 context.State = GenerationState.Success;
@@ -225,6 +228,21 @@ public sealed partial class GenerationOrchestrator(
 
         var llmBlocks = reconstructionService.Parse(llmResponse.Text);
         return reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
+    }
+
+    /// <summary>
+    /// Tier-0 (Spark / free) preview: deterministically renders the self-contained
+    /// V0-Spark-NextJs template — a single Next.js app with in-memory Route Handlers
+    /// that boots and runs in StackBlitz WebContainers. NO LLM call, so the free tier
+    /// costs zero Anthropic tokens and always yields a bootable app. Customisation is
+    /// limited to the project name by design (reliability over bespoke logic for the
+    /// free demo); paid tiers (≥2) still ship the real .NET + Next.js product via
+    /// <see cref="GenerateFilesAsync"/>.
+    /// </summary>
+    private Dictionary<string, string> RenderTier0Preview(TemplateVariables variables)
+    {
+        var rawTemplates = templateProvider.LoadTemplate(Tier0SparkTemplateSet);
+        return templateProvider.Render(rawTemplates, variables);
     }
 
     private static TagList BuildTags(GenerateRequest request, string? stage = null, string? outcome = null)

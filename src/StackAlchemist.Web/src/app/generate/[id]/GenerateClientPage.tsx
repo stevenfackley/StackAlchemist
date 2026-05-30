@@ -215,7 +215,7 @@ function FreeTierPanel({
             <MicroIdeEmbed
               files={generation.preview_files_json!}
               title={title}
-              openFile="src/app/page.tsx"
+              openFile="app/page.tsx"
             />
           ) : (
             <SchemaFallbackView generation={generation} />
