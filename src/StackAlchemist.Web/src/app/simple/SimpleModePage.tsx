@@ -456,15 +456,15 @@ export default function SimpleModePage() {
       const preResult = await submitSimpleGeneration(prompt, 0);
       const tempGenId = preResult.success ? preResult.generationId : undefined;
 
-      // Call the real schema extraction endpoint with a 60s hard client timeout.
-      // extractSchema already has a 45s AbortController on the fetch; this outer
-      // race handles the case where the server action itself hangs.
+      // Call the real schema extraction endpoint. extractSchema has an 80s AbortController
+      // on the fetch; this outer 90s race only guards against the server action itself
+      // hanging. Either way a miss is non-fatal now — we fall through to the canvas below.
       const extractionCall = tempGenId
         ? extractSchema(tempGenId, prompt)
         : Promise.resolve({ success: false as const, error: "Failed to create generation record." });
 
       const timeoutCall = new Promise<{ success: false; error: string }>((resolve) =>
-        setTimeout(() => resolve({ success: false, error: "Timed out after 60 seconds. The engine may be under load — please try again." }), 60_000)
+        setTimeout(() => resolve({ success: false, error: "Schema auto-extraction timed out — the engine may be under load." }), 90_000)
       );
 
       const result = await Promise.race([extractionCall, timeoutCall]);
@@ -481,12 +481,17 @@ export default function SimpleModePage() {
         setProgress(100);
         setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 400);
       } else {
-        // Show a visible error state instead of silently falling back.
-        clearInterval(interval);
+        // Extraction failed or timed out. Never dead-end the free flow here: the Tier-0
+        // Spark preview is generated from the PROMPT, not this schema (schema extraction is
+        // a paid-tier canvas aid). Fall through to the canvas seeded with an example schema
+        // and a soft notice — the user edits it or just proceeds to a generated preview.
         if (!cancelled) {
-          setErrorMsg(result.error ?? "Unknown error");
-          setProgress(0);
-          setPhase("error");
+          setSchemaEntities(INITIAL_ENTITIES);
+          setSchemaRelations(INITIAL_RELATIONS);
+          setLogLines((l) => [...l, "Couldn't auto-extract a schema — starting from an example."]);
+          setProgress(100);
+          setErrorMsg(result.error ?? "Schema auto-extraction was unavailable.");
+          setTimeout(() => { if (!cancelled) setPhase("canvas"); }, 400);
         }
       }
     }
@@ -710,10 +715,21 @@ export default function SimpleModePage() {
             <div className="border-b border-slate-700/50 px-4 py-3 bg-slate-800">
               <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <p className="font-mono text-xs text-emerald-400 tracking-widest uppercase">
-                    Schema extracted — review and confirm before proceeding
-                  </p>
+                  {errorMsg ? (
+                    <>
+                      <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+                      <p className="font-mono text-xs text-amber-400 tracking-widest uppercase">
+                        Auto-extract unavailable — example schema loaded. Edit it or just generate.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <p className="font-mono text-xs text-emerald-400 tracking-widest uppercase">
+                        Schema extracted — review and confirm before proceeding
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-3 shrink-0">
                   <button
@@ -723,7 +739,7 @@ export default function SimpleModePage() {
                     Edit Schema
                   </button>
                   <button
-                    onClick={() => setPhase("tier")}
+                    onClick={() => { setErrorMsg(null); setPhase("tier"); }}
                     data-testid="simple-confirm-tier-button"
                     className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors"
                   >

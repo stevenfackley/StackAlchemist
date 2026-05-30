@@ -31,6 +31,18 @@ public interface IDeliveryService
         string? errorMessage = null);
 
     /// <summary>
+    /// Tier-0 (free Spark preview) terminal write: stores the generated file map in
+    /// <c>preview_files_json</c> and flips the row to <c>success</c> in a single atomic
+    /// PATCH. No build, pack, R2 upload, or <c>download_url</c> — the frontend renders the
+    /// files inline in an in-browser editor. Critical write (retried once); the UI blocks
+    /// on it via Realtime.
+    /// </summary>
+    Task CompletePreviewAsync(
+        string generationId,
+        IReadOnlyDictionary<string, string> files,
+        CancellationToken ct);
+
+    /// <summary>
     /// Persists the extracted schema JSON to the generation row.
     /// </summary>
     Task UpdateSchemaAsync(

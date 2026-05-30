@@ -353,13 +353,40 @@ app.MapGet("/healthz", () => Results.Ok(new
 
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/generate", async (
+app.MapPost("/api/generate", (
     GenerateRequest request,
     IGenerationOrchestrator orchestrator,
-    CancellationToken ct) =>
+    IHostApplicationLifetime lifetime,
+    ILogger<Program> logger) =>
 {
-    var response = await orchestrator.EnqueueAsync(request, ct);
-    return Results.Accepted($"/api/generate/{response.JobId}", response);
+    // Dispatch codegen to the background on the app-lifetime token — NOT the request's
+    // CancellationToken (which binds to HttpContext.RequestAborted). A client or CF-tunnel
+    // disconnect must not cancel an in-flight generation: a one-shot whole-app LLM call can
+    // outlast the ~100s proxy timeout, and the frontend tracks progress via Supabase Realtime,
+    // not this HTTP response. So we fire-and-forget and return Accepted immediately. Safe
+    // because every engine service is registered AddSingleton (no scoped disposal at request
+    // end). EnqueueAsync owns its own failure handling (marks the row failed); the catch here
+    // only guards against an unexpected throw before that runs.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await orchestrator.EnqueueAsync(request, lifetime.ApplicationStopping);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Background generation dispatch failed for {GenerationId}", request.GenerationId);
+        }
+    });
+
+    return Results.Accepted(
+        $"/api/generate/{request.GenerationId}",
+        new GenerateResponse
+        {
+            JobId = request.GenerationId,
+            Status = "generating_code",
+            ProjectType = request.ProjectType,
+        });
 })
 .WithName("Generate")
 .WithSummary("Enqueue a code generation job.")
@@ -373,8 +400,15 @@ app.MapPost("/api/extract-schema", async (
     ISchemaExtractionService schemaExtractor,
     IDeliveryService delivery,
     ILogger<Program> logger,
-    CancellationToken ct) =>
+    IHostApplicationLifetime lifetime) =>
 {
+    // Run on the app-lifetime token, NOT HttpContext.RequestAborted. The frontend aborts
+    // this request at 45s; binding the LLM call to RequestAborted made that abort cancel the
+    // extraction and flip the row to "failed" at ~46s — the schema-extraction error screen
+    // the user kept hitting. This is one short LLM turn: let it finish and persist the schema
+    // even if the client already walked away.
+    var ct = lifetime.ApplicationStopping;
+
     logger.SchemaExtractRequested(request.GenerationId);
 
     // Update status → extracting_schema

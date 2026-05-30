@@ -75,6 +75,29 @@ public sealed partial class SupabaseDeliveryService(
             critical: status is "success" or "failed");
     }
 
+    public async Task CompletePreviewAsync(
+        string generationId,
+        IReadOnlyDictionary<string, string> files,
+        CancellationToken ct)
+    {
+        var nowIso = DateTime.UtcNow.ToString("O");
+
+        // One atomic terminal write: the file map lands in the JSONB column and the row
+        // flips to success together, so the Realtime UPDATE the UI sees already carries
+        // a renderable preview. Dictionary keys (file paths) serialize verbatim — STJ's
+        // PropertyNamingPolicy only touches POCO property names, not dictionary keys.
+        var payload = new Dictionary<string, object?>
+        {
+            ["preview_files_json"] = files,
+            ["status"] = "success",
+            ["updated_at"] = nowIso,
+            ["completed_at"] = nowIso,
+        };
+
+        await PatchGenerationAsync(generationId, payload, ct, critical: true);
+        LogPreviewCompleted(logger, generationId, files.Count);
+    }
+
     public async Task UpdateSchemaAsync(
         string generationId,
         GenerationSchema schema,
@@ -352,6 +375,9 @@ public sealed partial class SupabaseDeliveryService(
 
     [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id}")]
     private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 511, Level = LogLevel.Information, Message = "Tier-0 preview written: generation {Id} → success with {Count} inline files")]
+    private static partial void LogPreviewCompleted(ILogger logger, string id, int count);
 
     [LoggerMessage(EventId = 502, Level = LogLevel.Debug, Message = "Supabase not configured — skipping patch for {Id}")]
     private static partial void LogSupabasePatchSkipped(ILogger logger, string id);

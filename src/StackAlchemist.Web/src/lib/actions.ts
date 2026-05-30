@@ -337,8 +337,12 @@ export async function extractSchema(
     return { success: true, schema: buildDemoGeneration(generationId).schema_json! };
   }
 
+  // 80s client abort. The engine no longer binds this call to HttpContext.RequestAborted,
+  // so an abort here only stops *our* waiting — it won't cancel the LLM extraction or mark
+  // the row failed. 80s sits under the ~100s Cloudflare tunnel ceiling while giving a slow
+  // (or retry-backed-off) extraction room to return the real schema.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+  const timeoutId = setTimeout(() => controller.abort(), 80_000);
 
   try {
     const engineUrl = resolveEngineUrl();
