@@ -77,6 +77,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf 
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
+# Handlebars template sets are loaded from disk at runtime and are NOT part of the
+# published DLL output. Copy them next to the entrypoint — TemplatesRootResolver probes
+# <BaseDirectory>/StackAlchemist.Templates first, which is /app here. Without this the
+# engine reports "Template set ... not found. Available: none" and all codegen fails.
+COPY src/StackAlchemist.Templates/ ./StackAlchemist.Templates/
 EXPOSE 80
 EXPOSE 443
 ENTRYPOINT ["dotnet", "StackAlchemist.Engine.dll"]

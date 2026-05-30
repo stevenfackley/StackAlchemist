@@ -209,15 +209,14 @@ builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
 
 // ── Template provider ────────────────────────────────────────────────────────
-// Resolve templates relative to the solution's Templates directory.
-var templatesRoot = Path.GetFullPath(
-    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "StackAlchemist.Templates"));
-if (!Directory.Exists(templatesRoot))
-{
-    // Fallback for running from project root
-    templatesRoot = Path.GetFullPath(Path.Combine(
-        Directory.GetCurrentDirectory(), "..", "StackAlchemist.Templates"));
-}
+// Templates are a runtime asset shipped alongside the published engine (Dockerfile
+// copies them to <BaseDirectory>/StackAlchemist.Templates). Resolution prefers an
+// explicit Templates:Root override, then the container layout, then the dev fallbacks.
+var templatesRoot = TemplatesRootResolver.Resolve(
+    AppContext.BaseDirectory,
+    Directory.GetCurrentDirectory(),
+    builder.Configuration["Templates:Root"],
+    Directory.Exists);
 
 builder.Services.AddSingleton<ITemplateProvider>(sp =>
     new TemplateProvider(sp.GetRequiredService<IFileSystem>(), templatesRoot));
