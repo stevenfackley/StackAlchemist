@@ -504,30 +504,54 @@ export default function SimpleModePage() {
   useEffect(() => {
     if (!generationId || !supabase) return;
     const client = supabase;
+    // Guards against double-acting (the live event and the post-subscribe fetch
+    // can both report success) and against state updates after redirect/unmount.
+    let done = false;
+
+    const apply = (row: Pick<Generation, "status" | "download_url" | "error_message">) => {
+      if (done) return;
+      setLiveStatus(row.status);
+      if (row.status === "success") {
+        // Free tier (Spark): redirect when the preview is ready (no download_url).
+        // Paid tiers: redirect when download_url is ready.
+        if (row.download_url || selectedTier === 0) {
+          done = true;
+          router.push(`/generate/${generationId}`);
+        }
+      } else if (row.status === "failed") {
+        done = true;
+        setErrorMsg(row.error_message ?? "Generation failed. Please try again.");
+        setPhase("error");
+      }
+    };
 
     const channel = client
       .channel(`generation:${generationId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
-        (payload) => {
-          const updated = payload.new as Generation;
-          setLiveStatus(updated.status);
-          if (updated.status === "success") {
-            // Free tier (Spark): redirect when preview_files_json is ready.
-            // Paid tiers: redirect when download_url is ready.
-            if (updated.download_url || selectedTier === 0) {
-              router.push(`/generate/${generationId}`);
-            }
-          } else if (updated.status === "failed") {
-            setErrorMsg(updated.error_message ?? "Generation failed. Please try again.");
-            setPhase("error");
-          }
-        }
+        (payload) => apply(payload.new as Generation)
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Race fix: the deterministic Tier-0 render can set status=success BEFORE
+        // this WS handshake finishes, and postgres_changes does not replay events
+        // missed before SUBSCRIBED — so a fast generation would never redirect.
+        // Once the stream is live, fetch the current row once to catch an
+        // already-finished generation; later completions still arrive via the
+        // live UPDATE handler above.
+        if (status !== "SUBSCRIBED") return;
+        void (async () => {
+          const { data } = await client
+            .from("generations")
+            .select("status, download_url, error_message")
+            .eq("id", generationId)
+            .single();
+          if (data) apply(data as Pick<Generation, "status" | "download_url" | "error_message">);
+        })();
+      });
 
     return () => {
+      done = true;
       client.removeChannel(channel);
     };
   }, [generationId, router, selectedTier]);
