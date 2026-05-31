@@ -198,13 +198,6 @@ function LoginPageContent() {
               </Link>
             </p>
           </div>
-
-          {/* Skip */}
-          <p className="text-center">
-            <Link href="/" className="font-mono text-xs text-slate-500 hover:text-slate-400 transition-colors tracking-widest uppercase">
-              Continue without account →
-            </Link>
-          </p>
         </div>
       </main>
     </div>
