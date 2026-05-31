@@ -145,6 +145,7 @@ All notable changes to this project will be documented in this file.
 - Add /compare/base44 — closes May 2026 compare cadence
 - Tier-0 preview that actually boots in the browser
 - Streamline post-prompt workflow to try-before-buy
+- Add Google/Apple OAuth + fix post-login navbar race
 
 ### Miscellaneous Tasks
 
