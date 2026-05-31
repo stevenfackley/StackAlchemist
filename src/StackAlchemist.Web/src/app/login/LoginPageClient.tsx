@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
+import { OAuthButtons } from "@/components/oauth-buttons";
 
 // Inner component isolated so useSearchParams() is inside the Suspense boundary.
 function LoginPageContent() {
@@ -55,8 +56,10 @@ function LoginPageContent() {
           setErrorMsg(error.message);
           setStatus("error");
         } else {
-          router.push(returnTo);
-          router.refresh();
+          // Full reload (not router.push) so the server re-renders the navbar
+          // with the freshly-written session cookie. A soft nav races the cookie
+          // write and leaves the header stuck on "Login" with no session visible.
+          window.location.assign(returnTo);
         }
       }
     });
@@ -186,6 +189,9 @@ function LoginPageContent() {
               <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">or</span>
               <div className="flex-1 h-px bg-slate-600/40" />
             </div>
+
+            {/* Social sign-in */}
+            <OAuthButtons returnTo={returnTo} />
 
             {/* Register link */}
             <p className="text-center font-mono text-xs text-slate-400">
