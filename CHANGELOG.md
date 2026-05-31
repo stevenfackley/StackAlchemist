@@ -67,6 +67,7 @@ All notable changes to this project will be documented in this file.
 - Deliver Tier-0 Spark preview end-to-end in prod
 - Ship template sets into the engine image so prod codegen resolves them
 - Cross-origin isolate /generate so StackBlitz embed runs
+- Re-fetch generation status after subscribe to close tier-0 redirect race
 
 ### Dependencies
 
