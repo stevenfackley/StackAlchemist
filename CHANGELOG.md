@@ -71,6 +71,7 @@ All notable changes to this project will be documented in this file.
 - Close tier-0 redirect race in advanced-mode subscription
 - Persist purchased tier on paid upgrade so download unlocks
 - Drop dead "continue without account" link on login
+- Register IEmailService so CompileWorkerService can start
 
 ### Dependencies
 
