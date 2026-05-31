@@ -73,6 +73,7 @@ All notable changes to this project will be documented in this file.
 - Drop dead "continue without account" link on login
 - Register IEmailService so CompileWorkerService can start
 - Resolve upstreams at request time to stop prod 502s ([#119](https://github.com/stevenfackley/StackAlchemist/issues/119))
+- Fill the homepage prompt builder and clean launch-console copy ([#120](https://github.com/stevenfackley/StackAlchemist/issues/120))
 
 ### Dependencies
 
