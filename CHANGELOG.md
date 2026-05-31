@@ -72,6 +72,7 @@ All notable changes to this project will be documented in this file.
 - Persist purchased tier on paid upgrade so download unlocks
 - Drop dead "continue without account" link on login
 - Register IEmailService so CompileWorkerService can start
+- Resolve upstreams at request time to stop prod 502s ([#119](https://github.com/stevenfackley/StackAlchemist/issues/119))
 
 ### Dependencies
 
