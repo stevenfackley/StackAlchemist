@@ -11,9 +11,10 @@ import {
   Eye,
   Clock,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { getServerUser } from "@/lib/supabase-server";
-import { getMyGenerations, getProfileSettings } from "@/lib/actions";
+import { getMyGenerations, getProfileSettings, getFreeQuotaStatus } from "@/lib/actions";
 import { ByokSettingsForm } from "./ByokSettingsForm";
 import { SectionErrorBoundary } from "@/components/error-boundary";
 import type { Generation } from "@/lib/types";
@@ -148,14 +149,16 @@ function GenerationRow({ gen }: { gen: Generation }) {
       {/* Actions */}
       <div className="shrink-0 flex items-center gap-2">
         {/* View generation page */}
-        <Link
+        {/* Plain <a> (not <Link>): a full-document load so /generate/[id]'s COOP/COEP
+            headers apply and the StackBlitz preview is cross-origin isolated. */}
+        <a
           href={`/generate/${gen.id}`}
           className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-blue-400 transition-colors"
           title="View generation"
         >
           <Eye className="h-3.5 w-3.5" />
           <span className="hidden sm:block">View</span>
-        </Link>
+        </a>
 
         {/* Download (paid + complete only) */}
         {isComplete && !isFree && gen.download_url && (
@@ -183,9 +186,10 @@ export default async function DashboardPage() {
     redirect("/login?returnTo=/dashboard");
   }
 
-  const [generations, profileSettings] = await Promise.all([
+  const [generations, profileSettings, quota] = await Promise.all([
     getMyGenerations(),
     getProfileSettings(),
+    getFreeQuotaStatus(),
   ]);
 
   const total = generations.length;
@@ -249,11 +253,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Stats row ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: "Total", value: total, icon: <Zap className="h-4 w-4 text-blue-400" /> },
             { label: "Complete", value: completed, icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" /> },
             { label: "In Progress", value: inProgress, icon: <Loader2 className="h-4 w-4 text-amber-400 animate-spin" /> },
+            { label: "Free Builds Left", value: `${quota.remaining} / ${quota.limit}`, icon: <Sparkles className="h-4 w-4 text-emerald-400" /> },
           ].map(({ label, value, icon }) => (
             <div
               key={label}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -32,8 +32,10 @@ import {
   Hotel,
   Menu,
   X,
+  Sparkles,
 } from "lucide-react";
 import { AlchemyInput } from "@/components/alchemy-input";
+import { getFreeQuotaStatus, type FreeQuotaStatus } from "@/lib/actions";
 
 const EXAMPLE_APPS = [
   {
@@ -271,6 +273,15 @@ export default function HomePage() {
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
   const [prompt, setPrompt] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [quota, setQuota] = useState<FreeQuotaStatus | null>(null);
+
+  // Deferred client fetch — keeps this SEO landing page statically prerendered
+  // (a server-side fetch would read auth cookies and force dynamic rendering).
+  useEffect(() => {
+    getFreeQuotaStatus()
+      .then(setQuota)
+      .catch(() => {});
+  }, []);
 
   function handleSubmit() {
     if (mode === "advanced") {
@@ -494,6 +505,17 @@ export default function HomePage() {
                   onSubmit={handleSubmit}
                   className="max-w-none"
                 />
+                {quota && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>
+                      <span className="font-semibold text-emerald-400">
+                        {quota.remaining} of {quota.limit}
+                      </span>{" "}
+                      free builds left this month
+                    </span>
+                  </div>
+                )}
                 <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
                   <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
                     <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">

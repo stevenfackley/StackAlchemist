@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -320,7 +320,6 @@ const STEPS = ["Define Entities", "Platform Selection", "Configure API", "Person
 
 export default function AdvancedModePage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const initialStep = Number(searchParams?.get("step") ?? "1");
   const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
   const initialProjectType = (searchParams?.get("projectType") as ProjectType | null) ?? "DotNetNextJs";
@@ -371,7 +370,11 @@ export default function AdvancedModePage() {
         // Spark (free): redirect when preview_files_json is ready (no download_url).
         // Paid tiers: redirect when download_url is ready.
         done = true;
-        router.push(`/generate/${generationId}`);
+        // Full-page load (NOT router.push): the result page must arrive as a fresh
+        // document so its COOP/COEP headers apply and window.crossOriginIsolated is
+        // true — required by StackBlitz WebContainers. A soft nav reuses the current
+        // (non-isolated) document → StackBlitz errors "without isolation headers".
+        window.location.href = `/generate/${generationId}`;
       } else if (row.status === "failed") {
         done = true;
         setErrorMsg(row.error_message ?? "Generation failed.");
@@ -407,7 +410,7 @@ export default function AdvancedModePage() {
       done = true;
       client.removeChannel(channel);
     };
-  }, [generationId, router, selectedTier]);
+  }, [generationId, selectedTier]);
 
   function handleCheckout() {
     startTransition(async () => {
@@ -422,7 +425,8 @@ export default function AdvancedModePage() {
         if (result.success) {
           setGenerationId(result.generationId);
           if (isDemoMode || !supabase) {
-            router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`);
+            // Hard nav (see realtime handler above) so the preview page is isolated.
+            window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
             return;
           }
           setSubmitPhase("submitted");
