@@ -437,12 +437,12 @@ export default function HomePage() {
             <div className="max-w-2xl">
               <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
               <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
-                Shape the product brief after the value statement lands cleanly.
+                Describe your product. Get a buildable architecture.
               </h2>
             </div>
             <div className="max-w-md text-sm leading-relaxed text-slate-400 lg:text-right">
-              Start with a prompt or switch into the entity wizard. The console now sits below the hero so the first
-              screen can breathe before the workspace takes over.
+              Start in plain language, or switch to the entity wizard when you already know your schema. Tap the
+              builder chips to assemble a complete brief in seconds.
             </div>
           </div>
 
@@ -584,7 +584,7 @@ export default function HomePage() {
                 </p>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Matches the `/advanced` workspace structure
+                    Opens the full entity wizard
                   </div>
                   <button
                     onClick={handleSubmit}
