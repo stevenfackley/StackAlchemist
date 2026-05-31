@@ -70,6 +70,7 @@ All notable changes to this project will be documented in this file.
 - Re-fetch generation status after subscribe to close tier-0 redirect race
 - Close tier-0 redirect race in advanced-mode subscription
 - Persist purchased tier on paid upgrade so download unlocks
+- Drop dead "continue without account" link on login
 
 ### Dependencies
 
