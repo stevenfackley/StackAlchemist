@@ -11,10 +11,14 @@ describe('runtime-config', () => {
     vi.unstubAllEnvs();
   });
 
-  it('hasPublicSupabaseConfig returns true only when public URL and anon key are set', () => {
+  it('hasPublicSupabaseConfig returns true only when public URL and a real anon key are set', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'sb_publishable_example');
     expect(hasPublicSupabaseConfig()).toBe(true);
+
+    // A truthy-but-bogus placeholder must be rejected, not silently accepted.
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key');
+    expect(hasPublicSupabaseConfig()).toBe(false);
 
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', '');
     expect(hasPublicSupabaseConfig()).toBe(false);
