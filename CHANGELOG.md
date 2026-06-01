@@ -75,6 +75,7 @@ All notable changes to this project will be documented in this file.
 - Resolve upstreams at request time to stop prod 502s ([#119](https://github.com/stevenfackley/StackAlchemist/issues/119))
 - Fill the homepage prompt builder and clean launch-console copy ([#120](https://github.com/stevenfackley/StackAlchemist/issues/120))
 - Match deploy page to brand (logo + blue accent) ([#121](https://github.com/stevenfackley/StackAlchemist/issues/121))
+- Auto-return visitors to the app once the deploy finishes ([#122](https://github.com/stevenfackley/StackAlchemist/issues/122))
 
 ### Dependencies
 
