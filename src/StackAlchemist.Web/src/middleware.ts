@@ -1,5 +1,16 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isDemoMode } from "./lib/runtime-config";
+
+/**
+ * Routes that require an authenticated user. The generation flow
+ * (prompt → build → preview → download) is gated so every creation is tied to
+ * an account — a prerequisite for the per-account free-tier quota.
+ */
+function isProtectedRoute(pathname: string): boolean {
+  const prefixes = ["/simple", "/advanced", "/generate"];
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
 /**
  * Constant-time string comparison — mitigates timing attacks on the
@@ -126,7 +137,22 @@ export async function middleware(request: NextRequest) {
 
     // Refresh the session — do NOT use getSession() here; getUser() is required
     // to avoid trusting stale cookie data.
-    await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // Gate the creation flow behind auth: a signed-out visitor who tries to
+    // generate is bounced to /login and returned to where they were (the prompt
+    // rides along in the query string) once they sign in. Skipped in demo mode,
+    // where the login page itself short-circuits.
+    if (!user && !isDemoMode && isProtectedRoute(request.nextUrl.pathname)) {
+      const returnTo = request.nextUrl.pathname + request.nextUrl.search;
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.search = "";
+      loginUrl.searchParams.set("returnTo", returnTo);
+      return NextResponse.redirect(loginUrl);
+    }
   } catch (error) {
     console.error("[middleware] Supabase session refresh failed:", error);
     return NextResponse.next({ request });

@@ -33,7 +33,7 @@ erDiagram
         int tier "0-3"
         text prompt
         jsonb schema_json "Extracted/user-defined schema"
-        text status "pending, extracting_schema, generating_code, building, success, failed"
+        text status "pending, extracting_schema, generating_code, generating, building, packing, uploading, success, failed"
         text download_url "Presigned R2 URL"
         jsonb preview_files_json "Tier 0 only: inline file map"
         text build_log "Streaming build output"

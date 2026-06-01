@@ -13,10 +13,11 @@ import {
   ArrowRight,
   RefreshCw,
   TerminalSquare,
+  X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { retryGeneration } from "@/lib/actions";
-import type { Generation } from "@/lib/types";
+import { getGeneration, retryGeneration, createCheckoutSession } from "@/lib/actions";
+import type { Generation, Tier } from "@/lib/types";
 import dynamic from "next/dynamic";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
@@ -35,14 +36,19 @@ const STATUS_STEPS: Generation["status"][] = [
   "extracting_schema",
   "generating_code",
   "building",
+  "packing",
+  "uploading",
   "success",
 ];
 
 const STATUS_LABELS: Record<Generation["status"], string> = {
   pending: "Queued — waiting to start",
   extracting_schema: "Extracting schema from prompt",
-  generating_code: "Synthesizing code with Claude 3.5 Sonnet",
+  generating_code: "Synthesizing code with Claude Sonnet 4.6",
+  generating: "Regenerating with compiler feedback",
   building: "Compile Guarantee — running dotnet build",
+  packing: "Packaging your codebase",
+  uploading: "Uploading your download",
   success: "Complete",
   failed: "Build failed — triggering auto-correction",
 };
@@ -53,15 +59,21 @@ const STATUS_DESCRIPTIONS: Record<Generation["status"], string> = {
     "Claude is reading your prompt and identifying entities, relationships, and API endpoints.",
   generating_code:
     "Generating the full source tree — API controllers, repositories, models, frontend pages, and styles.",
+  generating:
+    "A build error came back — Claude is regenerating the affected files using the compiler output.",
   building:
     "Running dotnet build inside a container. If it fails, we auto-correct with the compiler output and retry (up to 3×).",
+  packing: "Bundling the generated source tree into a downloadable archive.",
+  uploading: "Uploading your archive to storage and finalizing the download link.",
   success: "Your codebase is ready.",
   failed:
     "The build failed. We're retrying automatically. If it still fails after 3 attempts, you'll get a full refund.",
 };
 
 function stepIndex(status: Generation["status"]): number {
-  return STATUS_STEPS.indexOf(status);
+  // "generating" is the build-retry alias of "generating_code" — same ladder rung.
+  const rung = status === "generating" ? "generating_code" : status;
+  return STATUS_STEPS.indexOf(rung);
 }
 
 function isFreeGeneration(gen: Generation): boolean {
@@ -75,6 +87,102 @@ const TIER_NAMES: Record<number, string> = {
   2: "Boilerplate",
   3: "Infrastructure",
 };
+
+// ─── Upgrade (try-before-buy) ──────────────────────────────────────────────────
+const PAID_TIERS: { id: Tier; name: string; price: string; tagline: string }[] = [
+  { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs + SQL scripts" },
+  { id: 2, name: "Boilerplate", price: "$599", tagline: "Full source + Compile Guarantee" },
+  { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
+];
+
+// Unlocks the source download for THIS generation. createCheckoutSession reuses
+// generation.id, so the Stripe webhook re-enqueues the same row at the paid tier
+// (try-before-buy). Cancel returns here — not to /simple — to avoid spawning a
+// brand-new free build.
+function UpgradeModal({ generation, onClose }: { generation: Generation; onClose: () => void }) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [pendingTier, setPendingTier] = useState<Tier | null>(null);
+
+  function handlePick(tier: Tier) {
+    setError(null);
+    setPendingTier(tier);
+    startTransition(async () => {
+      const result = await createCheckoutSession(
+        generation.id,
+        tier,
+        generation.prompt ?? undefined,
+        "DotNetNextJs",
+        generation.mode,
+        `/generate/${generation.id}`
+      );
+      if (result.success) {
+        window.location.href = result.sessionUrl;
+      } else {
+        setError(result.error);
+        setPendingTier(null);
+      }
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        data-testid="upgrade-modal"
+        className="w-full max-w-md bg-slate-800 border border-slate-600/50 rounded-2xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-700/50 px-6 py-4">
+          <div>
+            <h2 className="font-mono text-sm font-bold text-white tracking-widest uppercase">
+              Unlock Source Download
+            </h2>
+            <p className="font-mono text-[10px] text-slate-500 mt-0.5">
+              One-time payment &middot; you own it forever
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" title="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-3">
+          {PAID_TIERS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => handlePick(t.id)}
+              disabled={isPending}
+              data-testid={`upgrade-tier-${t.id}`}
+              className="w-full flex items-center justify-between gap-4 rounded-xl border border-slate-600/40 bg-slate-700/20 hover:border-blue-500/50 hover:bg-blue-500/5 px-4 py-3 text-left transition-colors disabled:opacity-50"
+            >
+              <div>
+                <div className="font-mono text-xs font-bold text-white uppercase tracking-widest">{t.name}</div>
+                <div className="text-xs text-slate-400 mt-0.5">{t.tagline}</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-lg font-bold text-blue-400">{t.price}</span>
+                {isPending && pendingTier === t.id ? (
+                  <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4 text-slate-500" />
+                )}
+              </div>
+            </button>
+          ))}
+
+          {error && (
+            <p className="font-mono text-xs text-rose-400 flex items-start gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
 function ProgressStepper({ status }: { status: Generation["status"] }) {
@@ -158,6 +266,7 @@ function FreeTierPanel({
 }: {
   generation: Generation;
 }) {
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const hasFiles =
     generation.preview_files_json &&
     Object.keys(generation.preview_files_json).length > 0;
@@ -165,8 +274,21 @@ function FreeTierPanel({
   const prompt = generation.prompt ?? "Your SaaS";
   const title = `StackAlchemist — ${prompt.slice(0, 50)}`;
 
+  // Spark is view-only: deter casual code-ripping by blocking right-click /
+  // copy / cut / drag on OUR DOM. Note: the StackBlitz editor is a cross-origin
+  // iframe, so these handlers cannot reach the code inside it — this is a
+  // friction speed-bump (DevTools-bypassable), not real DRM.
+  const blockCopy = (e: React.SyntheticEvent) => e.preventDefault();
+
   return (
-    <div data-testid="generate-free-tier-panel" className="flex flex-col h-full min-h-0">
+    <div
+      data-testid="generate-free-tier-panel"
+      className="flex flex-col h-full min-h-0 select-none"
+      onContextMenu={blockCopy}
+      onCopy={blockCopy}
+      onCut={blockCopy}
+      onDragStart={blockCopy}
+    >
       {/* Banner */}
       <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -187,13 +309,14 @@ function FreeTierPanel({
               No Download
             </span>
           </div>
-          <Link
-            href="/pricing"
+          <button
+            onClick={() => setShowUpgrade(true)}
+            data-testid="free-tier-upgrade-button"
             className="flex items-center gap-1.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap"
           >
             Upgrade to Download
             <ArrowRight className="h-3 w-3" />
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -204,19 +327,23 @@ function FreeTierPanel({
             <MicroIdeEmbed
               files={generation.preview_files_json!}
               title={title}
-              openFile="src/app/page.tsx"
+              openFile="app/page.tsx"
             />
           ) : (
-            <SchemaFallbackView generation={generation} />
+            <SchemaFallbackView generation={generation} onUpgrade={() => setShowUpgrade(true)} />
           )}
         </SectionErrorBoundary>
       </div>
+
+      {showUpgrade && (
+        <UpgradeModal generation={generation} onClose={() => setShowUpgrade(false)} />
+      )}
     </div>
   );
 }
 
 // ─── Schema Fallback (when preview_files_json is not yet available) ───────────
-function SchemaFallbackView({ generation }: { generation: Generation }) {
+function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation; onUpgrade: () => void }) {
   const schema = generation.schema_json;
 
   return (
@@ -307,12 +434,12 @@ function SchemaFallbackView({ generation }: { generation: Generation }) {
           Upgrade to Blueprint ($299), Boilerplate ($599), or Infrastructure ($999) to get the full
           source code — compiled, tested, and yours forever.
         </p>
-        <Link
-          href="/pricing"
+        <button
+          onClick={onUpgrade}
           className="inline-flex items-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
         >
           View Paid Tiers <ArrowRight className="h-4 w-4" />
-        </Link>
+        </button>
       </div>
     </div>
   );
@@ -587,6 +714,25 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
     return () => {
       client.removeChannel(channel);
     };
+  }, [generationId, generation.status]);
+
+  // ── Polling fallback (works when Supabase Realtime client is null) ─────────
+  useEffect(() => {
+    if (isDemoMode) return;
+    if (generation.status === "success" || generation.status === "failed") return;
+
+    const interval = setInterval(() => {
+      void (async () => {
+        try {
+          const latest = await getGeneration(generationId);
+          if (latest) setGeneration(latest as Generation);
+        } catch {
+          /* transient fetch error — realtime or next tick will recover */
+        }
+      })();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [generationId, generation.status]);
 
   // ── Retry handler ──────────────────────────────────────────────────────────

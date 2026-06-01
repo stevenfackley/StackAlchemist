@@ -94,6 +94,28 @@ export const BLOG_POSTS = [
     relativePath: "what-production-ready-actually-means-for-generated-saas.md",
     readingTimeMinutes: 9,
   },
+  {
+    slug: "lessons-shipping-18-solution-templates",
+    title: "What I learned shipping 18 SaaS solution templates",
+    description:
+      "Eighteen vertical SaaS templates later, here are the honest lessons: almost every vertical is an escape from a per-seat tax, the 18 collapse into five shapes, and why the \"AI\" prefix is mostly SEO.",
+    publishedAt: "2026-06-01",
+    author: BLOG_AUTHOR,
+    tags: ["product", "ai-codegen", "market"],
+    relativePath: "lessons-shipping-18-solution-templates.md",
+    readingTimeMinutes: 9,
+  },
+  {
+    slug: "what-actually-compiles-ai-codegen-benchmark",
+    title: "What actually compiles: a fair way to benchmark AI codegen",
+    description:
+      "Everyone wants a leaderboard of AI codegen compile rates. That benchmark is a category error. Here is the test that matters — deployable rate, not compile rate — and an open harness you can run yourself.",
+    publishedAt: "2026-06-01",
+    author: BLOG_AUTHOR,
+    tags: ["evaluation", "comparison", "ai-codegen"],
+    relativePath: "what-actually-compiles-ai-codegen-benchmark.md",
+    readingTimeMinutes: 10,
+  },
 ] as const satisfies readonly BlogPostMeta[];
 
 export function getBlogPostMetaBySlug(slug: string): BlogPostMeta | undefined {

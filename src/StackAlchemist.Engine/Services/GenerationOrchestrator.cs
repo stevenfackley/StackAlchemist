@@ -35,6 +35,7 @@ public sealed partial class GenerationOrchestrator(
     ChannelWriter<GenerationContext> jobQueue,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
+    private const string Tier0SparkTemplateSet = "V0-Spark-NextJs";
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
 
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
@@ -73,7 +74,35 @@ public sealed partial class GenerationOrchestrator(
 
         try
         {
+            // Persist in-progress status immediately so the row never sits at "pending"
+            // if codegen throws below. DB CHECK enum is "generating_code" (not "generating").
+            await deliveryService.UpdateStatusAsync(request.GenerationId, "generating_code", ct);
+
             var variables = BuildVariables(request);
+
+            // Tier 0 (Spark / free) — deterministically render the self-contained
+            // V0-Spark-NextJs template and write it straight into the row as an inline
+            // preview. NO LLM call: the free tier costs zero Anthropic tokens and always
+            // produces an app that BOOTS and RUNS in StackBlitz WebContainers (in-memory
+            // Route Handlers, no .NET/Postgres backend to spin up). No build, no pack, no
+            // R2, no compile worker — the frontend renders preview_files_json in an
+            // in-browser editor. This branch IS the entire free-tier deliverable, so it runs
+            // before the blueprint gate (which only knows tiers ≥2 trigger codegen).
+            if (request.Tier == 0)
+            {
+                var previewFiles = RenderTier0Preview(variables);
+                await deliveryService.CompletePreviewAsync(request.GenerationId, previewFiles, ct);
+
+                context.State = GenerationState.Success;
+                LogTier0PreviewCompleted(logger, request.GenerationId, previewFiles.Count);
+
+                return new GenerateResponse
+                {
+                    JobId = request.GenerationId,
+                    Status = context.State.ToString().ToLowerInvariant(),
+                    ProjectType = request.ProjectType,
+                };
+            }
 
             // Tier 1 (Blueprint) — skip LLM/codegen entirely; emit schema.json + api-docs.md
             // and route the job straight to Packing so the worker only zips and uploads.
@@ -100,51 +129,8 @@ public sealed partial class GenerationOrchestrator(
                 };
             }
 
-            // Step 1: Load and render templates (Tier 2/3 codegen path)
-            var swissCheese = UseSwissCheese;
-            var templateSet = ResolveTemplateSet(request.ProjectType, swissCheese);
-            var rawTemplates = templateProvider.LoadTemplate(templateSet);
-            var renderedTemplates = templateProvider.Render(rawTemplates, variables);
-
-            Dictionary<string, string> finalFiles;
-            if (swissCheese)
-            {
-                // Swiss Cheese: per-zone parallel LLM dispatch.
-                var injection = await injectionEngine.FillZonesAsync(
-                    renderedTemplates,
-                    request.Schema ?? new GenerationSchema(),
-                    variables,
-                    request.ProjectType,
-                    request.Personalization,
-                    ct);
-
-                await deliveryService.UpdateTokenUsageAsync(
-                    request.GenerationId,
-                    injection.TotalInputTokens,
-                    injection.TotalOutputTokens,
-                    injection.Model,
-                    ct);
-
-                finalFiles = injection.FilledTemplates;
-
-                LogSwissCheeseFilled(logger, request.GenerationId, injection.ZonesFilled);
-            }
-            else
-            {
-                // V1 one-shot path: whole-codebase LLM call + Reconstruct.
-                var systemPrompt = LoadPromptTemplate(request);
-                var userPrompt = BuildUserPrompt(request);
-                var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
-                await deliveryService.UpdateTokenUsageAsync(
-                    request.GenerationId,
-                    llmResponse.InputTokens,
-                    llmResponse.OutputTokens,
-                    llmResponse.Model,
-                    ct);
-
-                var llmBlocks = reconstructionService.Parse(llmResponse.Text);
-                finalFiles = reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
-            }
+            // Steps 1-4: template load/render + LLM codegen → file map (Tier 2/3 path).
+            var finalFiles = await GenerateFilesAsync(request, variables, ct);
 
             AppendTier3InfrastructureFiles(request, variables, finalFiles);
 
@@ -165,6 +151,15 @@ public sealed partial class GenerationOrchestrator(
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
+
+            // Persist the terminal failure so the row leaves pending/in-progress and the UI
+            // shows the error. CancellationToken.None: a cancelled request must still record it.
+            await deliveryService.UpdateStatusAsync(
+                request.GenerationId,
+                GenerationState.Failed,
+                errorMessage: ex.Message,
+                ct: CancellationToken.None);
+
             LogOrchestrationFailed(logger, ex, request.GenerationId);
 
             Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
@@ -179,6 +174,75 @@ public sealed partial class GenerationOrchestrator(
             Status = context.State.ToString().ToLowerInvariant(),
             ProjectType = request.ProjectType,
         };
+    }
+
+    /// <summary>
+    /// Loads + renders the template set and fills it via the LLM (Swiss Cheese per-zone
+    /// dispatch when <c>Generation:UseSwissCheese</c> is on, otherwise the V1 one-shot
+    /// whole-codebase call + reconstruct). Returns the final path → contents map. Shared by
+    /// the Tier-0 inline-preview branch and the Tier-2/3 build path. Token usage is recorded
+    /// as a side effect.
+    /// </summary>
+    private async Task<Dictionary<string, string>> GenerateFilesAsync(
+        GenerateRequest request,
+        TemplateVariables variables,
+        CancellationToken ct)
+    {
+        var swissCheese = UseSwissCheese;
+        var templateSet = ResolveTemplateSet(request.ProjectType, swissCheese);
+        var rawTemplates = templateProvider.LoadTemplate(templateSet);
+        var renderedTemplates = templateProvider.Render(rawTemplates, variables);
+
+        if (swissCheese)
+        {
+            // Swiss Cheese: per-zone parallel LLM dispatch.
+            var injection = await injectionEngine.FillZonesAsync(
+                renderedTemplates,
+                request.Schema ?? new GenerationSchema(),
+                variables,
+                request.ProjectType,
+                request.Personalization,
+                ct);
+
+            await deliveryService.UpdateTokenUsageAsync(
+                request.GenerationId,
+                injection.TotalInputTokens,
+                injection.TotalOutputTokens,
+                injection.Model,
+                ct);
+
+            LogSwissCheeseFilled(logger, request.GenerationId, injection.ZonesFilled);
+            return injection.FilledTemplates;
+        }
+
+        // V1 one-shot path: whole-codebase LLM call + Reconstruct.
+        var systemPrompt = LoadPromptTemplate(request);
+        var userPrompt = BuildUserPrompt(request);
+        var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
+        await deliveryService.UpdateTokenUsageAsync(
+            request.GenerationId,
+            llmResponse.InputTokens,
+            llmResponse.OutputTokens,
+            llmResponse.Model,
+            ct);
+
+        var llmBlocks = reconstructionService.Parse(llmResponse.Text);
+        return reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
+    }
+
+    /// <summary>
+    /// Tier-0 (Spark / free) preview: deterministically renders the self-contained
+    /// V0-Spark-NextJs template — a single Next.js app with in-memory Route Handlers
+    /// that boots and runs in StackBlitz WebContainers. NO LLM call, so the free tier
+    /// costs zero Anthropic tokens and always yields a bootable app. Customisation is
+    /// limited to the project name by design (reliability over bespoke logic for the
+    /// free demo); paid tiers (≥2) still ship the real .NET + Next.js product via
+    /// <see cref="GenerateFilesAsync"/>.
+    /// </summary>
+    private Dictionary<string, string> RenderTier0Preview(TemplateVariables variables)
+    {
+        var rawTemplates = templateProvider.LoadTemplate(Tier0SparkTemplateSet);
+        return templateProvider.Render(rawTemplates, variables);
     }
 
     private static TagList BuildTags(GenerateRequest request, string? stage = null, string? outcome = null)
@@ -421,4 +485,8 @@ public sealed partial class GenerationOrchestrator(
     [LoggerMessage(EventId = 205, Level = LogLevel.Information,
         Message = "Generation {Id} Tier 1 Blueprint deliverables enqueued at {Dir} — codegen skipped")]
     private static partial void LogBlueprintEnqueued(ILogger logger, string id, string dir);
+
+    [LoggerMessage(EventId = 206, Level = LogLevel.Information,
+        Message = "Generation {Id} Tier 0 preview completed — {Count} files written inline; build/pack/upload skipped")]
+    private static partial void LogTier0PreviewCompleted(ILogger logger, string id, int count);
 }

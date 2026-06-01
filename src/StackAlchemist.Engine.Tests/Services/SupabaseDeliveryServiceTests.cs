@@ -65,7 +65,7 @@ public class SupabaseDeliveryServiceTests
 
         await sut.UpdateStatusAsync("gen-abc", GenerationState.Building);
 
-        var body = await handler.LastRequest!.Content!.ReadAsStringAsync();
+        var body = handler.LastBody!;
         body.Should().Contain("\"building\"");
     }
 
@@ -79,7 +79,7 @@ public class SupabaseDeliveryServiceTests
             "gen-xyz", GenerationState.Success,
             downloadUrl: "https://r2.example/project.zip");
 
-        var body = await handler.LastRequest!.Content!.ReadAsStringAsync();
+        var body = handler.LastBody!;
         body.Should().Contain("project.zip");
     }
 
@@ -131,7 +131,7 @@ public class SupabaseDeliveryServiceTests
         handler.LastRequest.Should().NotBeNull();
         handler.LastRequest!.Method.Should().Be(HttpMethod.Post);
         handler.LastRequest.RequestUri!.ToString().Should().Contain("/rpc/append_build_log");
-        var body = await handler.LastRequest.Content!.ReadAsStringAsync();
+        var body = handler.LastBody!;
         body.Should().Contain("\"gen_id\":\"gen-log\"");
         body.Should().Contain("\"chunk\":\"hello\"");
     }
@@ -147,7 +147,7 @@ public class SupabaseDeliveryServiceTests
         handler.LastRequest.Should().NotBeNull();
         handler.LastRequest!.Method.Should().Be(HttpMethod.Post);
         handler.LastRequest.RequestUri!.ToString().Should().Contain("/rpc/increment_token_usage");
-        var body = await handler.LastRequest.Content!.ReadAsStringAsync();
+        var body = handler.LastBody!;
         body.Should().Contain("\"gen_id\":\"gen-usage\"");
         body.Should().Contain("\"input_delta\":12");
         body.Should().Contain("\"output_delta\":34");
@@ -160,15 +160,21 @@ public class SupabaseDeliveryServiceTests
         string body = "") : HttpMessageHandler
     {
         public HttpRequestMessage? LastRequest { get; private set; }
+        public string? LastBody { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastRequest = request;
-            return Task.FromResult(new HttpResponseMessage(status)
+            // Capture the body now: HttpClient disposes the request content once SendAsync
+            // returns (PatchGenerationAsync wraps it in `using`), so reading it later throws.
+            if (request.Content is not null)
+                LastBody = await request.Content.ReadAsStringAsync(cancellationToken);
+
+            return new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
-            });
+            };
         }
     }
 }

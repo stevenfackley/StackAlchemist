@@ -32,6 +32,13 @@ builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
     client.Timeout = TimeSpan.FromMinutes(5);
 });
 builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
+builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
+
+// CompileWorkerService depends on IEmailService — Resend when configured, NoOp otherwise.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))
+    builder.Services.AddSingleton<IEmailService, ResendEmailService>();
+else
+    builder.Services.AddSingleton<IEmailService, NoOpEmailService>();
 
 builder.Services.AddHostedService<CompileWorkerService>();
 

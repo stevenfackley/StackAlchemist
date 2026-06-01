@@ -1,29 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
-
-async function waitForSimpleCanvasOrTier(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        if (await page.getByTestId("simple-phase-tier").isVisible()) return "tier";
-        if (await page.getByTestId("simple-phase-canvas").isVisible()) return "canvas";
-        return "pending";
-      },
-      { timeout: 60_000, message: "Simple mode should reach canvas or tier in integration runs." }
-    )
-    .toMatch(/canvas|tier/);
-}
+import { expect, test } from "@playwright/test";
 
 test.describe("Integration: Simple Mode Runtime Path", () => {
-  test("non-demo run still supports home prompt handoff to simple route", async ({ page }) => {
+  test("non-demo run builds a Spark generation from the home prompt handoff", async ({ page }) => {
     await page.goto("/");
 
     await page.getByTestId("home-mode-simple-button").click();
     await page.getByTestId("home-prompt-input").fill("Build a CRM with companies, contacts, and deals.");
     await page.getByTestId("home-synthesize-button").click();
 
-    await expect(page).toHaveURL(/\/simple\?q=/);
-    await expect(page.getByTestId("simple-phase-generating")).toBeVisible();
-    await waitForSimpleCanvasOrTier(page);
+    // /simple auto-submits one Spark build and shows the friendly building phase…
+    await expect(page.getByTestId("simple-phase-building")).toBeVisible();
+    // …then the engine's deterministic Spark preview completes and realtime
+    // hard-navigates to the result page.
+    await expect(page).toHaveURL(/\/generate\//, { timeout: 60_000 });
   });
 });
-

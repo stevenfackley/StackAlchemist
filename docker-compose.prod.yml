@@ -31,6 +31,10 @@ services:
       target: web
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://stackalchemist.app}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
     container_name: sa-web
     restart: unless-stopped
     environment:

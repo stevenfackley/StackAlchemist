@@ -8,7 +8,10 @@ export type GenerationStatus =
   | "pending"
   | "extracting_schema"
   | "generating_code"
+  | "generating" // build-retry alias of generating_code (worker re-calls the LLM)
   | "building"
+  | "packing"
+  | "uploading"
   | "success"
   | "failed";
 

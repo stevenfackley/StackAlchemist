@@ -42,7 +42,11 @@ public sealed partial class SupabaseDeliveryService(
         if (state is GenerationState.Success or GenerationState.Failed)
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
 
-        await PatchGenerationAsync(generationId, payload, ct);
+        await PatchGenerationAsync(
+            generationId,
+            payload,
+            ct,
+            critical: state is GenerationState.Success or GenerationState.Failed);
         LogSupabaseUpdated(logger, generationId, state);
     }
 
@@ -64,7 +68,34 @@ public sealed partial class SupabaseDeliveryService(
         if (status is "success" or "failed")
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
 
-        await PatchGenerationAsync(generationId, payload, ct);
+        await PatchGenerationAsync(
+            generationId,
+            payload,
+            ct,
+            critical: status is "success" or "failed");
+    }
+
+    public async Task CompletePreviewAsync(
+        string generationId,
+        IReadOnlyDictionary<string, string> files,
+        CancellationToken ct)
+    {
+        var nowIso = DateTime.UtcNow.ToString("O");
+
+        // One atomic terminal write: the file map lands in the JSONB column and the row
+        // flips to success together, so the Realtime UPDATE the UI sees already carries
+        // a renderable preview. Dictionary keys (file paths) serialize verbatim — STJ's
+        // PropertyNamingPolicy only touches POCO property names, not dictionary keys.
+        var payload = new Dictionary<string, object?>
+        {
+            ["preview_files_json"] = files,
+            ["status"] = "success",
+            ["updated_at"] = nowIso,
+            ["completed_at"] = nowIso,
+        };
+
+        await PatchGenerationAsync(generationId, payload, ct, critical: true);
+        LogPreviewCompleted(logger, generationId, files.Count);
     }
 
     public async Task UpdateSchemaAsync(
@@ -160,12 +191,80 @@ public sealed partial class SupabaseDeliveryService(
         }
     }
 
+    public async Task<int> FailStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return 0;
+
+        var nowIso = DateTime.UtcNow.ToString("O");
+        var cutoffIso = DateTime.UtcNow.Subtract(olderThan).ToString("O");
+
+        // One PATCH sweeps every row still parked in a non-terminal status whose last
+        // update predates the cutoff. PostgREST applies the body to all matching rows.
+        // The set is "every status except the two terminal ones (success, failed)" — a
+        // restart can orphan a job mid-packing/uploading just as easily as mid-build.
+        var endpoint =
+            $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations" +
+            "?status=in.(pending,extracting_schema,generating_code,generating,building,packing,uploading)" +
+            $"&updated_at=lt.{Uri.EscapeDataString(cutoffIso)}";
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["status"] = "failed",
+            ["error_message"] = "Generation did not complete — the engine restarted while this job was in flight.",
+            ["updated_at"] = nowIso,
+            ["completed_at"] = nowIso,
+        };
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+            {
+                Content = JsonContent.Create(payload, options: JsonOpts),
+            };
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+            // return=representation so the response carries the affected rows to count.
+            request.Headers.Add("Prefer", "return=representation");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                LogSupabasePatchNonOk(logger, (int)response.StatusCode, "stale-sweep", body);
+                return 0;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            var count = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? doc.RootElement.GetArrayLength()
+                : 0;
+
+            if (count > 0)
+                LogStaleReconciled(logger, count);
+
+            return count;
+        }
+        catch (Exception ex)
+        {
+            LogStaleReconcileFailed(logger, ex);
+            return 0;
+        }
+    }
+
     // ── Shared PATCH helper ─────────────────────────────────────────────────
 
     private async Task PatchGenerationAsync(
         string generationId,
         Dictionary<string, object?> payload,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool critical = false)
     {
         var supabaseUrl = config["Supabase:Url"];
         var serviceRoleKey = config["Supabase:ServiceRoleKey"];
@@ -177,30 +276,56 @@ public sealed partial class SupabaseDeliveryService(
         }
 
         var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}";
+        var client = httpClientFactory.CreateClient(HttpClientName);
 
-        var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+        // Terminal writes (success/failed) are what the UI blocks on — a dropped one
+        // strands the row forever, so retry once. Progress pings are disposable (the
+        // next ping supersedes them), so they fire a single time.
+        var maxAttempts = critical ? 2 : 1;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            Content = JsonContent.Create(payload, options: JsonOpts),
-        };
-        request.Headers.Add("apikey", serviceRoleKey);
-        request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-        request.Headers.Add("Prefer", "return=minimal");
-
-        try
-        {
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            var response = await client.SendAsync(request, ct);
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                // Fresh request per attempt: HttpRequestMessage cannot be resent.
+                using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+                {
+                    Content = JsonContent.Create(payload, options: JsonOpts),
+                };
+                request.Headers.Add("apikey", serviceRoleKey);
+                request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+                request.Headers.Add("Prefer", "return=minimal");
+
+                var response = await client.SendAsync(request, ct);
+
+                if (response.IsSuccessStatusCode)
+                    return;
+
                 var body = await response.Content.ReadAsStringAsync(ct);
                 LogSupabasePatchNonOk(logger, (int)response.StatusCode, generationId, body);
             }
+            catch (Exception ex)
+            {
+                LogSupabasePatchFailed(logger, ex, generationId);
+            }
+
+            if (attempt < maxAttempts)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
         }
-        catch (Exception ex)
-        {
-            LogSupabasePatchFailed(logger, ex, generationId);
-        }
+
+        // Reached only when every attempt failed. For terminal writes that means the
+        // row is now stranded in a non-terminal state — surface it at Error.
+        if (critical)
+            LogSupabaseCriticalPatchFailed(logger, generationId);
     }
 
     private async Task InvokeRpcAsync(
@@ -251,6 +376,9 @@ public sealed partial class SupabaseDeliveryService(
     [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id}")]
     private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception ex, string id);
 
+    [LoggerMessage(EventId = 511, Level = LogLevel.Information, Message = "Tier-0 preview written: generation {Id} → success with {Count} inline files")]
+    private static partial void LogPreviewCompleted(ILogger logger, string id, int count);
+
     [LoggerMessage(EventId = 502, Level = LogLevel.Debug, Message = "Supabase not configured — skipping patch for {Id}")]
     private static partial void LogSupabasePatchSkipped(ILogger logger, string id);
 
@@ -259,6 +387,15 @@ public sealed partial class SupabaseDeliveryService(
 
     [LoggerMessage(EventId = 504, Level = LogLevel.Error, Message = "Failed to patch Supabase for generation {Id}")]
     private static partial void LogSupabasePatchFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 508, Level = LogLevel.Error, Message = "CRITICAL: terminal status PATCH for generation {Id} failed after retries — row may be stranded in a non-terminal state")]
+    private static partial void LogSupabaseCriticalPatchFailed(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 509, Level = LogLevel.Information, Message = "Reconciliation: marked {Count} stale generation(s) as failed")]
+    private static partial void LogStaleReconciled(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 510, Level = LogLevel.Error, Message = "Reconciliation sweep failed")]
+    private static partial void LogStaleReconcileFailed(ILogger logger, Exception ex);
 
     [LoggerMessage(EventId = 505, Level = LogLevel.Debug, Message = "Supabase not configured — skipping RPC {Function}")]
     private static partial void LogSupabaseRpcSkipped(ILogger logger, string function);

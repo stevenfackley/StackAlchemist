@@ -15,6 +15,14 @@ ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
 ARG NEXT_PUBLIC_IS_TEST_SITE=false
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_IS_TEST_SITE=$NEXT_PUBLIC_IS_TEST_SITE
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 
 # Copy manifests first so the install layer is cached independently of source.
 COPY src/StackAlchemist.Web/package.json src/StackAlchemist.Web/package-lock.json ./
@@ -69,6 +77,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf 
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
+# Handlebars template sets are loaded from disk at runtime and are NOT part of the
+# published DLL output. Copy them next to the entrypoint — TemplatesRootResolver probes
+# <BaseDirectory>/StackAlchemist.Templates first, which is /app here. Without this the
+# engine reports "Template set ... not found. Available: none" and all codegen fails.
+COPY src/StackAlchemist.Templates/ ./StackAlchemist.Templates/
 EXPOSE 80
 EXPOSE 443
 ENTRYPOINT ["dotnet", "StackAlchemist.Engine.dll"]

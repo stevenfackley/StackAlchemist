@@ -62,6 +62,20 @@ All notable changes to this project will be documented in this file.
 - Pin .NET base images to :10.0-resolute ([#95](https://github.com/stevenfackley/StackAlchemist/issues/95))
 - Derive SUPABASE_DB_PASSWORD from CI_SUPABASE_DB_URL ([#96](https://github.com/stevenfackley/StackAlchemist/issues/96))
 - Unbreak test-site noindex, correct FAQ AI model, noindex auth pages
+- Persist status + inline NEXT_PUBLIC into web image
+- Reject placeholder anon keys so misconfig fails loud
+- Deliver Tier-0 Spark preview end-to-end in prod
+- Ship template sets into the engine image so prod codegen resolves them
+- Cross-origin isolate /generate so StackBlitz embed runs
+- Re-fetch generation status after subscribe to close tier-0 redirect race
+- Close tier-0 redirect race in advanced-mode subscription
+- Persist purchased tier on paid upgrade so download unlocks
+- Drop dead "continue without account" link on login
+- Register IEmailService so CompileWorkerService can start
+- Resolve upstreams at request time to stop prod 502s ([#119](https://github.com/stevenfackley/StackAlchemist/issues/119))
+- Fill the homepage prompt builder and clean launch-console copy ([#120](https://github.com/stevenfackley/StackAlchemist/issues/120))
+- Match deploy page to brand (logo + blue accent) ([#121](https://github.com/stevenfackley/StackAlchemist/issues/121))
+- Auto-return visitors to the app once the deploy finishes ([#122](https://github.com/stevenfackley/StackAlchemist/issues/122))
 
 ### Dependencies
 
@@ -94,6 +108,7 @@ All notable changes to this project will be documented in this file.
 - Bump lucide-react in /src/StackAlchemist.Web ([#109](https://github.com/stevenfackley/StackAlchemist/issues/109))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#111](https://github.com/stevenfackley/StackAlchemist/issues/111))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#116](https://github.com/stevenfackley/StackAlchemist/issues/116))
+- Bump next ([#118](https://github.com/stevenfackley/StackAlchemist/issues/118))
 
 ### Documentation
 
@@ -132,6 +147,11 @@ All notable changes to this project will be documented in this file.
 - Per-route sitemap lastmod, ItemList schemas, blog dateModified support
 - Add May 2026 post — what production-ready actually means
 - Ship 12 new vertical pages — 6 of 18 → 18 of 18
+- Add /compare/base44 — closes May 2026 compare cadence
+- Tier-0 preview that actually boots in the browser
+- Streamline post-prompt workflow to try-before-buy
+- Add Google/Apple OAuth + fix post-login navbar race
+- June 2026 blog + compare pages ([#123](https://github.com/stevenfackley/StackAlchemist/issues/123))
 
 ### Miscellaneous Tasks
 
@@ -182,6 +202,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/node in /src/StackAlchemist.Web ([#117](https://github.com/stevenfackley/StackAlchemist/issues/117))
 - Bump @types/react in /src/StackAlchemist.Web ([#115](https://github.com/stevenfackley/StackAlchemist/issues/115))
 - Bump vitest ([#114](https://github.com/stevenfackley/StackAlchemist/issues/114))
+- Gitignore private keys (*.p8/*.pem) + playwright-mcp dumps
 
 ### Refactoring
 
@@ -205,6 +226,7 @@ All notable changes to this project will be documented in this file.
 - Add V1 one-shot pipeline integration tests ([#83](https://github.com/stevenfackley/StackAlchemist/issues/83))
 - Integration coverage for CompileWorkerService retry loop ([#85](https://github.com/stevenfackley/StackAlchemist/issues/85))
 - Tier 3 IaC + Helm + runbook integration coverage ([#86](https://github.com/stevenfackley/StackAlchemist/issues/86))
+- Realign config + delivery tests with tightened runtime guards
 
 ### Ci
 

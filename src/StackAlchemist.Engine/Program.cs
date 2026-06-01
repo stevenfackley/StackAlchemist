@@ -209,15 +209,14 @@ builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
 
 // ── Template provider ────────────────────────────────────────────────────────
-// Resolve templates relative to the solution's Templates directory.
-var templatesRoot = Path.GetFullPath(
-    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "StackAlchemist.Templates"));
-if (!Directory.Exists(templatesRoot))
-{
-    // Fallback for running from project root
-    templatesRoot = Path.GetFullPath(Path.Combine(
-        Directory.GetCurrentDirectory(), "..", "StackAlchemist.Templates"));
-}
+// Templates are a runtime asset shipped alongside the published engine (Dockerfile
+// copies them to <BaseDirectory>/StackAlchemist.Templates). Resolution prefers an
+// explicit Templates:Root override, then the container layout, then the dev fallbacks.
+var templatesRoot = TemplatesRootResolver.Resolve(
+    AppContext.BaseDirectory,
+    Directory.GetCurrentDirectory(),
+    builder.Configuration["Templates:Root"],
+    Directory.Exists);
 
 builder.Services.AddSingleton<ITemplateProvider>(sp =>
     new TemplateProvider(sp.GetRequiredService<IFileSystem>(), templatesRoot));
@@ -259,6 +258,11 @@ builder.Services.AddSingleton(channel.Reader);
 
 // Register the compile worker as an in-process background service.
 builder.Services.AddHostedService<CompileWorkerService>();
+
+// Startup sweep: fail rows orphaned in a non-terminal state by a prior restart.
+// The Channel above is in-memory, so any restart drops in-flight jobs; without
+// this their rows would sit non-terminal forever and the user's UI never resolves.
+builder.Services.AddHostedService<StartupReconciliationService>();
 
 // ── Swiss Cheese injection engine (per-zone parallel LLM dispatch) ───────────
 builder.Services.AddSingleton(sp =>
@@ -348,13 +352,40 @@ app.MapGet("/healthz", () => Results.Ok(new
 
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/generate", async (
+app.MapPost("/api/generate", (
     GenerateRequest request,
     IGenerationOrchestrator orchestrator,
-    CancellationToken ct) =>
+    IHostApplicationLifetime lifetime,
+    ILogger<Program> logger) =>
 {
-    var response = await orchestrator.EnqueueAsync(request, ct);
-    return Results.Accepted($"/api/generate/{response.JobId}", response);
+    // Dispatch codegen to the background on the app-lifetime token — NOT the request's
+    // CancellationToken (which binds to HttpContext.RequestAborted). A client or CF-tunnel
+    // disconnect must not cancel an in-flight generation: a one-shot whole-app LLM call can
+    // outlast the ~100s proxy timeout, and the frontend tracks progress via Supabase Realtime,
+    // not this HTTP response. So we fire-and-forget and return Accepted immediately. Safe
+    // because every engine service is registered AddSingleton (no scoped disposal at request
+    // end). EnqueueAsync owns its own failure handling (marks the row failed); the catch here
+    // only guards against an unexpected throw before that runs.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await orchestrator.EnqueueAsync(request, lifetime.ApplicationStopping);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Background generation dispatch failed for {GenerationId}", request.GenerationId);
+        }
+    });
+
+    return Results.Accepted(
+        $"/api/generate/{request.GenerationId}",
+        new GenerateResponse
+        {
+            JobId = request.GenerationId,
+            Status = "generating_code",
+            ProjectType = request.ProjectType,
+        });
 })
 .WithName("Generate")
 .WithSummary("Enqueue a code generation job.")
@@ -368,8 +399,15 @@ app.MapPost("/api/extract-schema", async (
     ISchemaExtractionService schemaExtractor,
     IDeliveryService delivery,
     ILogger<Program> logger,
-    CancellationToken ct) =>
+    IHostApplicationLifetime lifetime) =>
 {
+    // Run on the app-lifetime token, NOT HttpContext.RequestAborted. The frontend aborts
+    // this request at 45s; binding the LLM call to RequestAborted made that abort cancel the
+    // extraction and flip the row to "failed" at ~46s — the schema-extraction error screen
+    // the user kept hitting. This is one short LLM turn: let it finish and persist the schema
+    // even if the client already walked away.
+    var ct = lifetime.ApplicationStopping;
+
     logger.SchemaExtractRequested(request.GenerationId);
 
     // Update status → extracting_schema
@@ -413,6 +451,15 @@ app.MapPost("/api/extract-schema", async (
         logger.SchemaValidationFailed(request.GenerationId, ex.Message);
         await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
         return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        // Any unforeseen failure must still flip the row out of "extracting_schema",
+        // otherwise it sits there forever and the UI never resolves. CancellationToken.None:
+        // a cancelled/aborted request must still record its terminal state.
+        logger.SchemaExtractFailed(request.GenerationId, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", CancellationToken.None, ex.Message);
+        return Results.Problem("Schema extraction failed unexpectedly.");
     }
 })
 .WithName("ExtractSchema")

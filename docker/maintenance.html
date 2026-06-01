@@ -3,104 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- No-JS fallback: reload periodically so visitors are returned to the app
+     once the deploy finishes instead of being stranded on this page. -->
+<meta http-equiv="refresh" content="20">
 <title>StackAlchemist — Updating</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  :root {
+    --void: #0f172a;
+    --void-2: #1e293b;
+    --surface: #1e293b;
+    --border: #334155;
+    --accent: #4da6ff;
+    --ink: #f1f5f9;
+    --ink-muted: #94a3b8;
+    --ink-faint: #64748b;
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+  }
+
   body {
-    background: #09090b;
-    color: #fafafa;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(ellipse 75% 55% at 50% -8%, rgba(77, 166, 255, 0.14), transparent 70%),
+      linear-gradient(180deg, var(--void) 0%, var(--void-2) 100%);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: var(--sans);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
+    padding: 24px;
   }
 
   .container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 32px;
-    padding: 40px 24px;
-    max-width: 480px;
+    gap: 26px;
+    max-width: 460px;
   }
 
-  .logo {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    color: #fafafa;
+  .mark {
+    width: 76px;
+    height: 76px;
+    filter: drop-shadow(0 0 16px rgba(77, 166, 255, 0.45));
   }
+  .mark svg { width: 100%; height: 100%; display: block; }
 
-  .logo span {
-    color: #a855f7;
+  .wordmark {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
   }
-
-  .spinner-ring {
-    width: 56px;
-    height: 56px;
-    border: 3px solid #27272a;
-    border-top-color: #a855f7;
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  .wordmark .accent { color: var(--accent); }
 
   .headline {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 600;
-    color: #fafafa;
+    color: var(--ink);
     line-height: 1.4;
+    margin-top: 2px;
   }
 
   .subtext {
     font-size: 14px;
-    color: #71717a;
-    line-height: 1.6;
+    color: var(--ink-muted);
+    line-height: 1.65;
+    max-width: 380px;
+  }
+
+  /* Indeterminate "brewing" progress shimmer in brand accent */
+  .bar {
+    position: relative;
+    width: 240px;
+    height: 3px;
+    margin-top: 4px;
+    background: var(--surface);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 38%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: slide 1.5s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0%   { transform: translateX(-110%); }
+    100% { transform: translateX(370%); }
   }
 
   .badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: #18181b;
-    border: 1px solid #27272a;
+    gap: 8px;
+    background: rgba(30, 41, 59, 0.55);
+    border: 1px solid var(--border);
     border-radius: 9999px;
-    padding: 6px 14px;
-    font-size: 12px;
-    color: #a1a1aa;
-    letter-spacing: 0.3px;
+    padding: 7px 15px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
   }
 
   .dot {
     width: 6px;
     height: 6px;
-    background: #a855f7;
+    background: var(--accent);
     border-radius: 50%;
+    box-shadow: 0 0 8px rgba(77, 166, 255, 0.7);
     animation: pulse 1.4s ease-in-out infinite;
   }
-
   @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    50% { opacity: 0.25; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar::before, .dot, .mark svg [class] { animation: none !important; }
+    .bar::before { transform: none; width: 100%; opacity: 0.5; }
   }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="logo">Stack<span>Alchemist</span></div>
-  <div class="spinner-ring"></div>
+  <div class="mark">
+    <!-- Inlined /logo.svg so the mark renders even while backends are down -->
+    <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="StackAlchemist">
+      <path d="M256 40L450.861 148v216L256 472L61.1385 364V148L256 40Z" fill="#0F172A" stroke="#3B82F6" stroke-width="12"/>
+      <path d="M160 320L256 360L352 320L256 280L160 320Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M160 260L256 300L352 260L256 220L160 260Z" fill="#1E293B" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M160 200L256 240L352 200L256 160L160 200Z" fill="#3B82F6" fill-opacity="0.2" stroke="#3B82F6" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M256 70C256 70 260 110 300 110C260 110 256 150 256 150C256 150 252 110 212 110C252 110 256 70 256 70Z" fill="#3B82F6">
+        <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" />
+      </path>
+      <circle cx="256" cy="110" r="4" fill="white" />
+    </svg>
+  </div>
+
+  <div class="wordmark">Stack&nbsp;&nbsp;<span class="accent">Al</span>chemist</div>
+
   <div class="headline">Brewing a new version</div>
-  <div class="subtext">We're deploying an update. This usually takes a couple of minutes — check back shortly.</div>
+  <div class="subtext">We&rsquo;re deploying an update. This usually takes a couple of minutes &mdash; check back shortly.</div>
+
+  <div class="bar"></div>
+
   <div class="badge">
-    <div class="dot"></div>
+    <span class="dot"></span>
     Deployment in progress
   </div>
 </div>
+  <script>
+    // Once the deploy finishes, /api/healthz flips from 503 (served by the
+    // maintenance shim, for every path during the outage) to 200 — so a single
+    // poll returns us to the live app and never reloads early. The <meta refresh>
+    // above is the JS-disabled fallback.
+    (function () {
+      setInterval(function () {
+        fetch("/api/healthz", { cache: "no-store" })
+          .then(function (r) { if (r.ok) location.reload(); })
+          .catch(function () {});
+      }, 5000);
+    })();
+  </script>
 </body>
 </html>

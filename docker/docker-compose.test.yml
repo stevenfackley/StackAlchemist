@@ -40,6 +40,10 @@ services:
         # and the test mirror becomes a duplicate-content liability.
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://test.stackalchemist.app}
         NEXT_PUBLIC_IS_TEST_SITE: "true"
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
     ports:
       - "3000:3000"
     env_file:

@@ -74,6 +74,13 @@ public sealed partial class StripeWebhookHandler(
             schema = recovered.Schema;
             personalization = recovered.Personalization;
 
+            // Persist the purchased tier on the row. Try-before-buy starts every
+            // generation at tier 0 (Spark); payment is the authoritative moment the
+            // tier changes. Without this the row stays tier=0, so the result page keeps
+            // rendering the free "Upgrade to Download" panel instead of the download
+            // link, and the paid build still burns a free-quota slot.
+            await UpdateGenerationTierAsync(sb, generationId, tier, ct);
+
             await UpsertTransactionAsync(sb, new TransactionUpsert
             {
                 StripeSessionId  = session.Id,
@@ -365,6 +372,30 @@ public sealed partial class StripeWebhookHandler(
         }
     }
 
+    private async Task UpdateGenerationTierAsync(
+        SupabaseAdmin sb, string generationId, int tier, CancellationToken ct)
+    {
+        try
+        {
+            var endpoint = $"{sb.Url}/rest/v1/generations?id=eq.{generationId}";
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            using var req = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+            {
+                Content = JsonContent.Create(new { tier }),
+            };
+            req.Headers.Add("apikey", sb.ServiceRoleKey);
+            req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
+            req.Headers.Add("Prefer", "return=minimal");
+
+            using var res = await client.SendAsync(req, ct);
+            res.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            LogGenerationTierUpdateFailed(logger, ex, generationId);
+        }
+    }
+
     private async Task<(string? Mode, string? Prompt, ProjectType? ProjectType, GenerationSchema? Schema, GenerationPersonalization? Personalization)>
         LoadGenerationPayloadAsync(SupabaseAdmin sb, string generationId, CancellationToken ct)
     {
@@ -441,4 +472,7 @@ public sealed partial class StripeWebhookHandler(
 
     [LoggerMessage(EventId = 308, Level = LogLevel.Warning, Message = "Failed to load generation payload for {Id}")]
     private static partial void LogGenerationPayloadLoadFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 309, Level = LogLevel.Error, Message = "Failed to update tier for generation {Id} after payment — result page may still show the free panel")]
+    private static partial void LogGenerationTierUpdateFailed(ILogger logger, Exception ex, string id);
 }

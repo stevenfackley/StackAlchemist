@@ -157,6 +157,52 @@ public sealed class StripeWebhookTests
         result.Reason.Should().StartWith("unhandled:");
     }
 
+    [Fact]
+    public async Task CheckoutCompleted_PersistsPaidTierThenEnqueuesUpgrade()
+    {
+        // Request order: [0] stripe_events insert (idempotency) → [1] load existing
+        // payload → [2] tier PATCH (the fix) → [3] transaction upsert.
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.Created, ""),
+            (HttpStatusCode.OK, "[]"),
+            (HttpStatusCode.NoContent, ""),
+            (HttpStatusCode.NoContent, ""));
+
+        var stripeEvent = new Event
+        {
+            Id = "evt_completed_1",
+            Type = "checkout.session.completed",
+            Data = new EventData
+            {
+                Object = new Session
+                {
+                    Id = "cs_77",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["generationId"] = "gen-77",
+                        ["tier"] = "2",
+                    },
+                },
+            },
+        };
+
+        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+
+        result.Processed.Should().BeTrue();
+
+        // The purchased tier is persisted on the existing generation row. Without this a
+        // try-before-buy upgrade leaves the row at tier 0, so the result page keeps the
+        // free "Upgrade to Download" panel and the paid build burns a free-quota slot.
+        var tierPatch = http.Requests.Single(r =>
+            r.Method == HttpMethod.Patch && r.Url.Contains("generations?id=eq.gen-77"));
+        tierPatch.Body.Should().Contain("\"tier\":2");
+
+        // …and the same generation id is re-enqueued at the paid tier for the full pipeline.
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-77" && r.Tier == 2),
+            Arg.Any<CancellationToken>());
+    }
+
     public sealed record CapturedRequest(HttpMethod Method, string Url, string Body);
 
     private sealed class RecordingHttpHandler : HttpMessageHandler

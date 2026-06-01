@@ -228,6 +228,52 @@ export async function saveProfileSettings(
    2. Fires a request to the .NET Engine to kick off the pipeline
    3. Returns the generation ID so the frontend can subscribe to updates
 ───────────────────────────────────────────────────────────────────────────── */
+const FREE_TIER_MONTHLY_LIMIT = 5;
+
+/** UTC start of the current calendar month — matches the quota trigger's
+ *  date_trunc('month', now()) under Supabase's default UTC session. */
+function currentMonthStartUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** UTC start of next calendar month — when the free quota resets. */
+function nextMonthStartUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+}
+
+/** Human label for the reset date, e.g. "June 1". */
+function nextResetLabel(): string {
+  return nextMonthStartUtc().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Count a user's Spark (tier 0) generations this month, excluding failed runs —
+ *  the same predicate as the enforce_free_generation_quota DB trigger. */
+async function countFreeGenerationsThisMonth(
+  db: ReturnType<typeof createServerClient>,
+  userId: string
+): Promise<number> {
+  const { count, error } = await db
+    .from("generations")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("tier", 0)
+    .neq("status", "failed")
+    .gte("created_at", currentMonthStartUtc().toISOString());
+  if (error) {
+    // Fail open: the DB trigger is the authoritative gate, so a transient count
+    // error must not block a legitimate build (the trigger still rejects abuse).
+    console.error("[countFreeGenerationsThisMonth] count failed:", error);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 export async function submitSimpleGeneration(
   prompt: string,
   tier: Tier,
@@ -258,8 +304,24 @@ export async function submitSimpleGeneration(
     return { success: false, error: "Server configuration is incomplete. Please contact support." };
   }
 
-  // Attach the authenticated user's ID if they are signed in.
+  // Require authentication: every creation is tied to an account so the
+  // per-account free-tier quota can be enforced.
   const user = await getServerUser();
+  if (!user) {
+    return { success: false, error: "Please sign in to start a build." };
+  }
+
+  // Free-tier quota pre-check — a friendly message before the DB trigger's hard
+  // rejection. The trigger (migration 20260530000008) is the authoritative gate.
+  if (tier === 0) {
+    const used = await countFreeGenerationsThisMonth(db, user.id);
+    if (used >= FREE_TIER_MONTHLY_LIMIT) {
+      return {
+        success: false,
+        error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
+      };
+    }
+  }
 
   // 1. Insert generation record
   const { data, error } = await db
@@ -275,7 +337,7 @@ export async function submitSimpleGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: user?.id ?? null,
+      user_id: user.id,
       completed_at: null,
     })
     .select()
@@ -337,8 +399,12 @@ export async function extractSchema(
     return { success: true, schema: buildDemoGeneration(generationId).schema_json! };
   }
 
+  // 80s client abort. The engine no longer binds this call to HttpContext.RequestAborted,
+  // so an abort here only stops *our* waiting — it won't cancel the LLM extraction or mark
+  // the row failed. 80s sits under the ~100s Cloudflare tunnel ceiling while giving a slow
+  // (or retry-backed-off) extraction room to return the real schema.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+  const timeoutId = setTimeout(() => controller.abort(), 80_000);
 
   try {
     const engineUrl = resolveEngineUrl();
@@ -413,8 +479,24 @@ export async function submitAdvancedGeneration(
     schema.entities.map((e) => e.name).join(", ") +
     ` — ${schema.entities.length} entities, ${schema.relationships.length} relationships, ${schema.endpoints.length} endpoints`;
 
-  // Attach the authenticated user's ID if they are signed in.
+  // Require authentication: every creation is tied to an account so the
+  // per-account free-tier quota can be enforced.
   const user = await getServerUser();
+  if (!user) {
+    return { success: false, error: "Please sign in to start a build." };
+  }
+
+  // Free-tier quota pre-check — see submitSimpleGeneration. The DB trigger
+  // (migration 20260530000008) is the authoritative gate; this is UX-only.
+  if (tier === 0) {
+    const used = await countFreeGenerationsThisMonth(db, user.id);
+    if (used >= FREE_TIER_MONTHLY_LIMIT) {
+      return {
+        success: false,
+        error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
+      };
+    }
+  }
 
   // 1. Insert generation record with the full schema
   const { data, error } = await db
@@ -430,7 +512,7 @@ export async function submitAdvancedGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: user?.id ?? null,
+      user_id: user.id,
       completed_at: null,
     })
     .select()
@@ -473,6 +555,54 @@ export async function submitAdvancedGeneration(
     success: true,
     generationId,
     redirectUrl: `/generate/${generationId}`,
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   getFreeQuotaStatus
+   How many of the 5 monthly free builds an account has left. Surfaced on the
+   home page and dashboard. Falls back to a full quota when there's no account
+   / no Supabase (demo) — the UI just shows "5 of 5" and the real gate (the DB
+   trigger) never fires for those paths anyway.
+───────────────────────────────────────────────────────────────────────────── */
+export interface FreeQuotaStatus {
+  limit: number;
+  used: number;
+  remaining: number;
+  resetsAt: string; // ISO — first of next month, UTC
+  resetsAtLabel: string; // e.g. "June 1"
+}
+
+export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
+  const full: FreeQuotaStatus = {
+    limit: FREE_TIER_MONTHLY_LIMIT,
+    used: 0,
+    remaining: FREE_TIER_MONTHLY_LIMIT,
+    resetsAt: nextMonthStartUtc().toISOString(),
+    resetsAtLabel: nextResetLabel(),
+  };
+
+  if (isDemoMode || !hasServerSupabaseConfig()) {
+    return full;
+  }
+
+  const user = await getServerUser();
+  if (!user) {
+    return full;
+  }
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch {
+    return full;
+  }
+
+  const used = await countFreeGenerationsThisMonth(db, user.id);
+  return {
+    ...full,
+    used,
+    remaining: Math.max(0, FREE_TIER_MONTHLY_LIMIT - used),
   };
 }
 
@@ -616,8 +746,12 @@ export async function createPendingGeneration(
         ` — ${schema.entities.length} entities`
       : (prompt ?? "").trim();
 
-  // Attach the authenticated user's ID if they are signed in.
+  // Require authentication: every creation is tied to an account so the
+  // per-account free-tier quota can be enforced.
   const user = await getServerUser();
+  if (!user) {
+    return { success: false, error: "Please sign in to start a build." };
+  }
 
   const { data, error } = await db
     .from("generations")
@@ -632,7 +766,7 @@ export async function createPendingGeneration(
       download_url: null,
       error_message: null,
       attempt_count: 0,
-      user_id: user?.id ?? null,
+      user_id: user.id,
       completed_at: null,
     })
     .select()
@@ -657,7 +791,8 @@ export async function createCheckoutSession(
   tier: Tier,
   prompt?: string,
   projectType: ProjectType = "DotNetNextJs",
-  mode: "simple" | "advanced" = "advanced"
+  mode: "simple" | "advanced" = "advanced",
+  cancelPath?: string
 ): Promise<{ success: true; sessionUrl: string } | { success: false; error: string }> {
   if (tier === 0) {
     return { success: false, error: "Tier 0 (Spark) is free — no checkout required." };
@@ -679,10 +814,14 @@ export async function createCheckoutSession(
   const origin = `${proto}://${host}`;
 
   try {
-    const cancelPath =
-      mode === "simple"
+    // An explicit cancelPath wins (e.g. the try-before-buy upgrade returns to the
+    // existing /generate/[id] result page — NOT back to /simple, which would
+    // spawn a brand-new free build). Otherwise fall back to the mode default.
+    const resolvedCancelPath =
+      cancelPath ??
+      (mode === "simple"
         ? `/simple?q=${encodeURIComponent(prompt ?? "")}&tier=${tier}`
-        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`;
+        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`);
 
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
@@ -694,7 +833,7 @@ export async function createCheckoutSession(
         projectType,
         prompt: prompt ?? "",
         successUrl: `${origin}/generate/${generationId}?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${origin}${cancelPath}`,
+        cancelUrl: `${origin}${resolvedCancelPath}`,
       }),
     });
 

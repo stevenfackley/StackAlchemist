@@ -5,14 +5,29 @@ import {
   Sparkles,
   Send,
   Terminal,
+  LayoutDashboard,
+  Store,
+  Workflow,
+  Contact,
+  CalendarClock,
+  Newspaper,
   Layers,
   Zap,
   Database,
+  Radio,
+  Activity,
+  Building2,
   Shield,
-  Workflow,
+  KeyRound,
+  UserPlus,
+  KeySquare,
+  ScrollText,
   CreditCard,
   Users,
-  Globe,
+  Gauge,
+  Bell,
+  Upload,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,9 +43,12 @@ const BUILDER_GROUPS = [
   {
     title: "Start With",
     items: [
-      { label: "SaaS Dashboard", icon: Users, text: "Build a SaaS dashboard with team workspaces, roles, settings, and analytics." },
-      { label: "Marketplace", icon: Globe, text: "Build a marketplace with buyer accounts, seller profiles, listings, orders, and payouts." },
+      { label: "SaaS Dashboard", icon: LayoutDashboard, text: "Build a SaaS dashboard with team workspaces, roles, settings, and analytics." },
+      { label: "Marketplace", icon: Store, text: "Build a marketplace with buyer accounts, seller profiles, listings, orders, and payouts." },
       { label: "Internal Tool", icon: Workflow, text: "Build an internal operations tool with approvals, audit logs, queues, and reporting." },
+      { label: "CRM", icon: Contact, text: "Build a CRM with contacts, pipelines, deal stages, activity tracking, and reporting." },
+      { label: "Booking App", icon: CalendarClock, text: "Build a booking and scheduling app with availability, reservations, reminders, and calendars." },
+      { label: "Content Platform", icon: Newspaper, text: "Build a content platform with authoring, publishing workflows, media, and a public reader experience." },
     ],
   },
   {
@@ -39,14 +57,30 @@ const BUILDER_GROUPS = [
       { label: "Microservices", icon: Layers, text: "Use a microservices architecture with clear service boundaries." },
       { label: "Serverless", icon: Zap, text: "Include serverless functions for event-driven or background workloads." },
       { label: "Postgres Core", icon: Database, text: "Use PostgreSQL as the source of truth with relational entities and admin reporting." },
+      { label: "Event-Driven", icon: Radio, text: "Use an event-driven design with a message queue for async processing between services." },
+      { label: "Real-Time", icon: Activity, text: "Include real-time updates, presence, and live notifications over WebSockets." },
+      { label: "Multi-Tenant", icon: Building2, text: "Make it multi-tenant with isolated organization data and per-tenant configuration." },
     ],
   },
   {
-    title: "Business Needs",
+    title: "Auth & Access",
     items: [
       { label: "Auth + Roles", icon: Shield, text: "Include authentication, organization membership, and role-based access control." },
+      { label: "SSO / OAuth", icon: KeyRound, text: "Support SSO and social login through OAuth providers." },
+      { label: "Team Invites", icon: UserPlus, text: "Support inviting teammates, pending invitations, and seat management." },
+      { label: "API Keys", icon: KeySquare, text: "Issue scoped API keys for programmatic access to the platform." },
+      { label: "Audit Logs", icon: ScrollText, text: "Record an immutable audit log of sensitive actions across the system." },
+    ],
+  },
+  {
+    title: "Business Features",
+    items: [
       { label: "Billing", icon: CreditCard, text: "Include subscription billing, invoices, payment history, and plan management." },
       { label: "Customer Portal", icon: Users, text: "Include a customer portal with profile management, notifications, and support history." },
+      { label: "Admin Dashboard", icon: Gauge, text: "Include an admin dashboard with operational metrics and activity logs." },
+      { label: "Notifications", icon: Bell, text: "Include in-app and email notifications for key events." },
+      { label: "File Uploads", icon: Upload, text: "Support file uploads with object storage, previews, and access control." },
+      { label: "Search", icon: Search, text: "Include full-text search across the core entities with filters and sorting." },
     ],
   },
 ] as const;
@@ -170,27 +204,15 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
 
         {/* Action bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-500/25 px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => appendPrompt("Also include an admin dashboard with operational metrics and activity logs.")}
-              className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/50 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
-            >
-              <Layers className="h-3 w-3" />
-              <span>Admin Dashboard</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => appendPrompt("Include real-time events, notifications, and activity updates where relevant.")}
-              className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/50 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
-            >
-              <Zap className="h-3 w-3" />
-              <span>Real-Time</span>
-            </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-mono text-[11px] text-slate-500">
+              {value.trim() ? `${value.trim().length} chars` : "Empty prompt"}
+            </span>
             <button
               type="button"
               onClick={() => onChange("")}
-              className="rounded-full border border-slate-500/35 bg-transparent px-3 py-1.5 text-xs text-slate-500 transition-all duration-300 hover:border-rose-500/40 hover:text-rose-300"
+              disabled={!value.trim()}
+              className="rounded-full border border-slate-500/35 bg-transparent px-3 py-1.5 text-xs text-slate-500 transition-all duration-300 hover:border-rose-500/40 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-500/35 disabled:hover:text-slate-500"
             >
               Clear Prompt
             </button>

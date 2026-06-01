@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -320,7 +320,6 @@ const STEPS = ["Define Entities", "Platform Selection", "Configure API", "Person
 
 export default function AdvancedModePage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const initialStep = Number(searchParams?.get("step") ?? "1");
   const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
   const initialProjectType = (searchParams?.get("projectType") as ProjectType | null) ?? "DotNetNextJs";
@@ -359,26 +358,59 @@ export default function AdvancedModePage() {
   useEffect(() => {
     if (!generationId || !supabase) return;
     const client = supabase;
+    // Guards against double-acting (the live event and the post-subscribe fetch
+    // can both report success) and against state updates after redirect/unmount.
+    let done = false;
+
+    const apply = (row: Pick<Generation, "status" | "download_url" | "error_message" | "build_log">) => {
+      if (done) return;
+      setLiveStatus(row.status);
+      setLiveBuildLog(row.build_log);
+      if (row.status === "success" && (row.download_url || selectedTier === 0)) {
+        // Spark (free): redirect when preview_files_json is ready (no download_url).
+        // Paid tiers: redirect when download_url is ready.
+        done = true;
+        // Full-page load (NOT router.push): the result page must arrive as a fresh
+        // document so its COOP/COEP headers apply and window.crossOriginIsolated is
+        // true — required by StackBlitz WebContainers. A soft nav reuses the current
+        // (non-isolated) document → StackBlitz errors "without isolation headers".
+        window.location.href = `/generate/${generationId}`;
+      } else if (row.status === "failed") {
+        done = true;
+        setErrorMsg(row.error_message ?? "Generation failed.");
+        setSubmitPhase("error");
+      }
+    };
+
     const channel = client
       .channel(`gen-adv:${generationId}`)
       .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
-        (payload) => {
-          const updated = payload.new as Generation;
-          setLiveStatus(updated.status);
-          setLiveBuildLog(updated.build_log);
-          if (updated.status === "success" && (updated.download_url || selectedTier === 0)) {
-            // Spark (free): redirect when preview_files_json is ready (no download_url).
-            // Paid tiers: redirect when download_url is ready.
-            router.push(`/generate/${generationId}`);
-          } else if (updated.status === "failed") {
-            setErrorMsg(updated.error_message ?? "Generation failed.");
-            setSubmitPhase("error");
-          }
-        }
-      ).subscribe();
-    return () => { client.removeChannel(channel); };
-  }, [generationId, router, selectedTier]);
+        (payload) => apply(payload.new as Generation)
+      )
+      .subscribe((status) => {
+        // Race fix: the deterministic Tier-0 render can set status=success BEFORE
+        // this WS handshake finishes, and postgres_changes does not replay events
+        // missed before SUBSCRIBED — so a fast generation would never redirect.
+        // Once the stream is live, fetch the current row once to catch an
+        // already-finished generation; later completions still arrive via the
+        // live UPDATE handler above.
+        if (status !== "SUBSCRIBED") return;
+        void (async () => {
+          const { data } = await client
+            .from("generations")
+            .select("status, download_url, error_message, build_log")
+            .eq("id", generationId)
+            .single();
+          if (data) apply(data as Pick<Generation, "status" | "download_url" | "error_message" | "build_log">);
+        })();
+      });
+
+    return () => {
+      done = true;
+      client.removeChannel(channel);
+    };
+  }, [generationId, selectedTier]);
 
   function handleCheckout() {
     startTransition(async () => {
@@ -393,7 +425,8 @@ export default function AdvancedModePage() {
         if (result.success) {
           setGenerationId(result.generationId);
           if (isDemoMode || !supabase) {
-            router.push(`${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`);
+            // Hard nav (see realtime handler above) so the preview page is isolated.
+            window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
             return;
           }
           setSubmitPhase("submitted");
