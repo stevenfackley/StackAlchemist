@@ -3,6 +3,7 @@ name: Deploy Test Site
 on:
   push:
     branches: [develop]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-test
