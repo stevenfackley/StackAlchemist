@@ -236,6 +236,7 @@ All notable changes to this project will be documented in this file.
 - Set descriptive run-name for CI and Deploy Production Site ([#90](https://github.com/stevenfackley/StackAlchemist/issues/90))
 - Split flake-prone simple-mode-flow into non-blocking nightly suite ([#91](https://github.com/stevenfackley/StackAlchemist/issues/91))
 - Fail on main if E2E Integration silently skipped + run smoke on dispatch ([#93](https://github.com/stevenfackley/StackAlchemist/issues/93))
+- Add workflow_dispatch to deploy-test ([#124](https://github.com/stevenfackley/StackAlchemist/issues/124))
 
 ### Seo
 
