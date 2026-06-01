@@ -179,6 +179,28 @@ export const COMPARE_ENTRIES = [
       "base44 is the right tool when you're building an internal tool that lives forever on a hosted runtime. StackAlchemist is the right tool when you're building a customer-facing SaaS you sell, own, and deploy under your own roof.",
     updatedAt: "2026-05-26",
   },
+  {
+    slug: "wasp-opensaas",
+    competitorName: "Wasp / OpenSaaS",
+    tagline:
+      "StackAlchemist vs Wasp / OpenSaaS — generate your domain vs fork an open-source boilerplate",
+    relativePath: "wasp-opensaas.md",
+    winsForCompetitor: [
+      "Free and fully open-source (MIT)",
+      "Mature, YC-backed framework with an active community",
+      "React + Node + Prisma — the largest hiring pool",
+      "OpenSaaS is a proven, batteries-included SaaS template",
+    ],
+    winsForUs: [
+      "Generates code modeled to your domain, not a generic template",
+      "Plain idiomatic .NET 10 + Next.js — no framework DSL to migrate off",
+      "Compile gate on your generated domain code, not just a static template",
+      "Pay once and skip the week of retrofitting a boilerplate",
+    ],
+    verdict:
+      "Wasp/OpenSaaS is the best free, open-source starting point in this set — ideal if you have time, a Node stack, and want to shape a proven template by hand. StackAlchemist is the right call when you want your own domain generated, compile-verified, and handed to you as plain owned code with no framework layer in the middle.",
+    updatedAt: "2026-06-01",
+  },
 ] as const satisfies readonly CompareEntry[];
 
 export function getCompareEntryBySlug(slug: string): CompareEntry | undefined {
