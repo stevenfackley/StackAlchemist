@@ -151,6 +151,7 @@ All notable changes to this project will be documented in this file.
 - Tier-0 preview that actually boots in the browser
 - Streamline post-prompt workflow to try-before-buy
 - Add Google/Apple OAuth + fix post-login navbar race
+- June 2026 blog + compare pages ([#123](https://github.com/stevenfackley/StackAlchemist/issues/123))
 
 ### Miscellaneous Tasks
 
