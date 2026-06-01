@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- No-JS fallback: reload periodically so visitors are returned to the app
+     once the deploy finishes instead of being stranded on this page. -->
+<meta http-equiv="refresh" content="20">
 <title>StackAlchemist — Updating</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -160,5 +163,18 @@
     Deployment in progress
   </div>
 </div>
+  <script>
+    // Once the deploy finishes, /api/healthz flips from 503 (served by the
+    // maintenance shim, for every path during the outage) to 200 — so a single
+    // poll returns us to the live app and never reloads early. The <meta refresh>
+    // above is the JS-disabled fallback.
+    (function () {
+      setInterval(function () {
+        fetch("/api/healthz", { cache: "no-store" })
+          .then(function (r) { if (r.ok) location.reload(); })
+          .catch(function () {});
+      }, 5000);
+    })();
+  </script>
 </body>
 </html>
