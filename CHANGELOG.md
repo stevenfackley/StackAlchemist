@@ -206,6 +206,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/react in /src/StackAlchemist.Web ([#115](https://github.com/stevenfackley/StackAlchemist/issues/115))
 - Bump vitest ([#114](https://github.com/stevenfackley/StackAlchemist/issues/114))
 - Gitignore private keys (*.p8/*.pem) + playwright-mcp dumps
+- Bump vitest ([#127](https://github.com/stevenfackley/StackAlchemist/issues/127))
 
 ### Refactoring
 
