@@ -164,6 +164,7 @@ All notable changes to this project will be documented in this file.
 - Alert + Modal primitives, z-index scale, drop copy-blocking ([#140](https://github.com/stevenfackley/StackAlchemist/issues/140))
 - Resilient generation realtime watcher with polling fallback ([#141](https://github.com/stevenfackley/StackAlchemist/issues/141))
 - Wizard draft persistence + personalization modal rework ([#142](https://github.com/stevenfackley/StackAlchemist/issues/142))
+- Quota UX on home, simple, and advanced ([#143](https://github.com/stevenfackley/StackAlchemist/issues/143))
 
 ### Miscellaneous Tasks
 
