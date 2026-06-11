@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useTransition } from "react";
+import { Suspense, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,13 +8,16 @@ import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { OAuthButtons } from "@/components/oauth-buttons";
+import { Alert } from "@/components/ui";
 
 // Inner component isolated so useSearchParams() is inside the Suspense boundary.
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = searchParams?.get("returnTo") ?? "/";
+  const callbackError = searchParams?.get("error") === "auth_callback_failed";
 
+  const emailRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"password" | "magic">("password");
@@ -81,6 +84,23 @@ function LoginPageContent() {
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md space-y-6">
+          {/* Callback error — shown when /auth/callback redirects here with ?error= */}
+          {callbackError && (
+            <Alert variant="error" data-testid="login-callback-error">
+              Sign-in link expired or invalid.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:no-underline"
+                onClick={() => {
+                  setMode("magic");
+                  setTimeout(() => emailRef.current?.focus(), 50);
+                }}
+              >
+                Send a new magic link
+              </button>
+            </Alert>
+          )}
+
           {/* Title */}
           <div className="text-center space-y-2">
             <h2 className="text-2xl font-bold text-white tracking-tight">Sign In</h2>
@@ -120,10 +140,12 @@ function LoginPageContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="font-mono text-xs text-slate-400 uppercase tracking-widest">
+                <label htmlFor="login-email" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Email
                 </label>
                 <input
+                  id="login-email"
+                  ref={emailRef}
                   type="email"
                   required
                   value={email}
@@ -136,10 +158,16 @@ function LoginPageContent() {
               {/* Password (password mode only) */}
               {mode === "password" && (
                 <div className="space-y-1.5">
-                  <label className="font-mono text-xs text-slate-400 uppercase tracking-widest">
-                    Password
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="login-password" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
+                      Password
+                    </label>
+                    <Link href="/forgot-password" className="font-mono text-[10px] text-slate-500 hover:text-blue-400 transition-colors">
+                      Forgot password?
+                    </Link>
+                  </div>
                   <input
+                    id="login-password"
                     type="password"
                     required
                     value={password}
