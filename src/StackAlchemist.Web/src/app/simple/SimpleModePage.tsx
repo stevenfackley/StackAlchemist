@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { submitSimpleGeneration, getFreeQuotaStatus } from "@/lib/actions";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
@@ -208,32 +208,7 @@ export default function SimpleModePage() {
 
         {/* ── Phase: Quota Exhausted ───────────────────────────────────────── */}
         {phase === "quota" && (
-          <div data-testid="simple-phase-quota" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
-            <div className="h-16 w-16 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-amber-400" />
-            </div>
-            <div className="text-center space-y-2 max-w-md">
-              <h2 className="text-xl font-bold text-white">Free Build Limit Reached</h2>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                You&apos;ve used all your free builds for this month. Upgrade to a paid tier to keep generating,
-                or come back when your quota resets.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Link
-                href="/#pricing"
-                className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors"
-              >
-                View Paid Tiers →
-              </Link>
-              <Link
-                href="/"
-                className="font-mono text-xs border border-slate-500 hover:border-slate-400 text-slate-300 hover:text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors"
-              >
-                Back to Home
-              </Link>
-            </div>
-          </div>
+          <GenerationErrorPanel category="quota" testId="simple-phase-quota" />
         )}
 
         {/* ── Phase: Error ──────────────────────────────────────────────────── */}
