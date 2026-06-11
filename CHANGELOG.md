@@ -158,6 +158,7 @@ All notable changes to this project will be documented in this file.
 - Streamline post-prompt workflow to try-before-buy
 - Add Google/Apple OAuth + fix post-login navbar race
 - June 2026 blog + compare pages ([#123](https://github.com/stevenfackley/StackAlchemist/issues/123))
+- Workspace shell, UI primitives, and design tokens ([#137](https://github.com/stevenfackley/StackAlchemist/issues/137))
 
 ### Miscellaneous Tasks
 
