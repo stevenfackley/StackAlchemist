@@ -11,6 +11,7 @@ namespace StackAlchemist.Engine.Services;
 public sealed partial class SupabaseDeliveryService(
     IHttpClientFactory httpClientFactory,
     IConfiguration config,
+    IPendingWriteBuffer pendingWrites,
     ILogger<SupabaseDeliveryService> logger) : IDeliveryService
 {
     public const string HttpClientName = "Supabase";
@@ -199,32 +200,174 @@ public sealed partial class SupabaseDeliveryService(
         }
     }
 
-    public async Task<int> FailStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct)
+    // "Every status except the two terminal ones (success, failed)" — a restart can
+    // orphan a job mid-packing/uploading just as easily as mid-build.
+    private const string NonTerminalStatusFilter =
+        "status=in.(pending,extracting_schema,generating_code,generating,building,packing,uploading)";
+
+    public async Task<IReadOnlyList<GenerationSnapshot>> GetStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct)
     {
         var supabaseUrl = config["Supabase:Url"];
         var serviceRoleKey = config["Supabase:ServiceRoleKey"];
 
         if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
-            return 0;
+            return [];
 
-        var nowIso = DateTime.UtcNow.ToString("O");
         var cutoffIso = DateTime.UtcNow.Subtract(olderThan).ToString("O");
-
-        // One PATCH sweeps every row still parked in a non-terminal status whose last
-        // update predates the cutoff. PostgREST applies the body to all matching rows.
-        // The set is "every status except the two terminal ones (success, failed)" — a
-        // restart can orphan a job mid-packing/uploading just as easily as mid-build.
         var endpoint =
             $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations" +
-            "?status=in.(pending,extracting_schema,generating_code,generating,building,packing,uploading)" +
-            $"&updated_at=lt.{Uri.EscapeDataString(cutoffIso)}";
+            $"?{NonTerminalStatusFilter}" +
+            $"&updated_at=lt.{Uri.EscapeDataString(cutoffIso)}" +
+            "&select=id,status,tier,mode,prompt,project_type,schema_json,personalization_json,attempt_count,updated_at";
 
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                LogSupabasePatchNonOk(logger, (int)response.StatusCode, "stale-list", body);
+                return [];
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return [];
+
+            var rows = new List<GenerationSnapshot>();
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                if (ParseSnapshot(row) is { } snapshot)
+                    rows.Add(snapshot);
+            }
+            return rows;
+        }
+        catch (Exception ex)
+        {
+            LogStaleReconcileFailed(logger, ex);
+            return [];
+        }
+    }
+
+    public async Task<bool> TryClaimForRequeueAsync(GenerationSnapshot row, TimeSpan olderThan, CancellationToken ct)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["status"] = "pending",
+            ["attempt_count"] = row.AttemptCount + 1,
+            ["error_message"] = null,
+            ["error_category"] = null,
+        };
+
+        return await TryConditionalPatchAsync(row, olderThan, payload, "requeue-claim", ct);
+    }
+
+    public async Task<bool> TryFailStaleRowAsync(
+        GenerationSnapshot row,
+        TimeSpan olderThan,
+        string errorMessage,
+        string errorCategory,
+        CancellationToken ct)
+    {
+        var nowIso = DateTime.UtcNow.ToString("O");
         var payload = new Dictionary<string, object?>
         {
             ["status"] = "failed",
-            ["error_message"] = "Generation did not complete — the engine restarted while this job was in flight.",
-            ["updated_at"] = nowIso,
+            ["error_message"] = errorMessage,
+            ["error_category"] = errorCategory,
             ["completed_at"] = nowIso,
+        };
+
+        var failed = await TryConditionalPatchAsync(row, olderThan, payload, "stale-fail", ct);
+        if (failed)
+            LogStaleReconciled(logger, 1);
+        return failed;
+    }
+
+    /// <summary>
+    /// CAS via PostgREST conditional PATCH: the filter pins (id, status, attempt_count,
+    /// updated_at &lt; cutoff). Postgres serializes competing UPDATEs; the loser's filter no
+    /// longer matches (status changed, attempt_count changed, and the set_updated_at trigger
+    /// bumped updated_at past the cutoff) — three independent guards, no new columns needed.
+    /// </summary>
+    private async Task<bool> TryConditionalPatchAsync(
+        GenerationSnapshot row,
+        TimeSpan olderThan,
+        Dictionary<string, object?> payload,
+        string opName,
+        CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return false;
+
+        var cutoffIso = DateTime.UtcNow.Subtract(olderThan).ToString("O");
+        var endpoint =
+            $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations" +
+            $"?id=eq.{row.Id}" +
+            $"&status=eq.{Uri.EscapeDataString(row.Status)}" +
+            $"&attempt_count=eq.{row.AttemptCount}" +
+            $"&updated_at=lt.{Uri.EscapeDataString(cutoffIso)}";
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+            {
+                Content = JsonContent.Create(payload, options: JsonOpts),
+            };
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+            request.Headers.Add("Prefer", "return=representation");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                LogSupabasePatchNonOk(logger, (int)response.StatusCode, $"{opName}:{row.Id}", body);
+                return false;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() == 1;
+        }
+        catch (Exception ex)
+        {
+            LogSupabasePatchFailed(logger, ex, row.Id);
+            return false;
+        }
+    }
+
+    public async Task<bool> TryBeginExtractionAsync(string generationId, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        // Unconfigured (local dev / tests): proceed — there is no row to guard.
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return true;
+
+        // pending and failed are the only legal entry states (failed = user retry).
+        // A double-submit loses this CAS and gets rejected by the endpoint.
+        var endpoint =
+            $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations" +
+            $"?id=eq.{generationId}&status=in.(pending,failed)";
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["status"] = "extracting_schema",
+            ["error_message"] = null,
+            ["error_category"] = null,
+            ["updated_at"] = DateTime.UtcNow.ToString("O"),
         };
 
         try
@@ -235,34 +378,25 @@ public sealed partial class SupabaseDeliveryService(
             };
             request.Headers.Add("apikey", serviceRoleKey);
             request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-            // return=representation so the response carries the affected rows to count.
             request.Headers.Add("Prefer", "return=representation");
 
             var client = httpClientFactory.CreateClient(HttpClientName);
             var response = await client.SendAsync(request, ct);
-
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
-                LogSupabasePatchNonOk(logger, (int)response.StatusCode, "stale-sweep", body);
-                return 0;
+                LogSupabasePatchNonOk(logger, (int)response.StatusCode, $"begin-extraction:{generationId}", body);
+                return false;
             }
 
             var json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
-            var count = doc.RootElement.ValueKind == JsonValueKind.Array
-                ? doc.RootElement.GetArrayLength()
-                : 0;
-
-            if (count > 0)
-                LogStaleReconciled(logger, count);
-
-            return count;
+            return doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() == 1;
         }
         catch (Exception ex)
         {
-            LogStaleReconcileFailed(logger, ex);
-            return 0;
+            LogSupabasePatchFailed(logger, ex, generationId);
+            return false;
         }
     }
 
@@ -372,9 +506,10 @@ public sealed partial class SupabaseDeliveryService(
         var client = httpClientFactory.CreateClient(HttpClientName);
 
         // Terminal writes (success/failed) are what the UI blocks on — a dropped one
-        // strands the row forever, so retry once. Progress pings are disposable (the
-        // next ping supersedes them), so they fire a single time.
-        var maxAttempts = critical ? 2 : 1;
+        // strands the row forever, so they get a deep exponential-backoff budget
+        // (1s/2s/4s/8s between 5 tries, ~15s busy + HTTP timeouts ≈ 30s envelope).
+        // Progress pings are disposable (the next ping supersedes them): 2 quick tries.
+        var maxAttempts = critical ? 5 : 2;
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -396,6 +531,12 @@ public sealed partial class SupabaseDeliveryService(
 
                 var body = await response.Content.ReadAsStringAsync(ct);
                 LogSupabasePatchNonOk(logger, (int)response.StatusCode, generationId, body);
+
+                // Non-transient 4xx (CHECK violation, bad column, auth) never succeeds
+                // on retry — bail straight to the failure path instead of burning the budget.
+                var code = (int)response.StatusCode;
+                if (code is >= 400 and < 500 && code is not 408 and not 429)
+                    break;
             }
             catch (Exception ex)
             {
@@ -406,7 +547,10 @@ public sealed partial class SupabaseDeliveryService(
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+                    var delay = critical
+                        ? TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                        : TimeSpan.FromMilliseconds(500);
+                    await Task.Delay(delay, ct);
                 }
                 catch (OperationCanceledException)
                 {
@@ -415,10 +559,45 @@ public sealed partial class SupabaseDeliveryService(
             }
         }
 
-        // Reached only when every attempt failed. For terminal writes that means the
-        // row is now stranded in a non-terminal state — surface it at Error.
+        // Reached only when every attempt failed. For terminal writes, buffer the
+        // payload so the periodic reconciler can re-flush it once Supabase recovers —
+        // a transient outage no longer strands the row in a non-terminal state.
         if (critical)
+        {
+            pendingWrites.Enqueue(new PendingGenerationWrite(generationId, payload, DateTimeOffset.UtcNow));
             LogSupabaseCriticalPatchFailed(logger, generationId);
+        }
+    }
+
+    public async Task<bool> TryPatchOnceAsync(
+        string generationId, Dictionary<string, object?> payload, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return false;
+
+        try
+        {
+            var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}";
+            using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
+            {
+                Content = JsonContent.Create(payload, options: JsonOpts),
+            };
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+            request.Headers.Add("Prefer", "return=minimal");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            LogSupabasePatchFailed(logger, ex, generationId);
+            return false;
+        }
     }
 
     private async Task InvokeRpcAsync(
@@ -436,28 +615,46 @@ public sealed partial class SupabaseDeliveryService(
         }
 
         var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/rpc/{functionName}";
-        var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = JsonContent.Create(payload, options: JsonOpts),
-        };
-        request.Headers.Add("apikey", serviceRoleKey);
-        request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
-        request.Headers.Add("Prefer", "return=minimal");
+        var client = httpClientFactory.CreateClient(HttpClientName);
 
-        try
+        // Token-usage and build-log RPCs are additive nice-to-haves: one quick retry,
+        // then give up. Fresh request per attempt — HttpRequestMessage cannot be resent.
+        for (var attempt = 1; attempt <= 2; attempt++)
         {
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            var response = await client.SendAsync(request, ct);
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(payload, options: JsonOpts),
+                };
+                request.Headers.Add("apikey", serviceRoleKey);
+                request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+                request.Headers.Add("Prefer", "return=minimal");
+
+                var response = await client.SendAsync(request, ct);
+
+                if (response.IsSuccessStatusCode)
+                    return;
+
                 var body = await response.Content.ReadAsStringAsync(ct);
                 LogSupabaseRpcNonOk(logger, functionName, (int)response.StatusCode, body);
             }
-        }
-        catch (Exception ex)
-        {
-            LogSupabaseRpcFailed(logger, ex, functionName);
+            catch (Exception ex)
+            {
+                LogSupabaseRpcFailed(logger, ex, functionName);
+            }
+
+            if (attempt < 2)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
         }
     }
 

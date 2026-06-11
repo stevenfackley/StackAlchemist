@@ -19,7 +19,7 @@ public interface IPromptBuilderService
 /// (<see cref="Models.AnthropicDefaults.ModelDisplayName"/> by default; local Ollama in dev).
 /// All code-generation prompts enforce the [[FILE:path]]…[[END_FILE]] output format.
 /// </summary>
-public sealed class PromptBuilderService : IPromptBuilderService
+public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? logger = null) : IPromptBuilderService
 {
     // Rough budget: keep well under the model's 200 k context window.
     private const int MaxRetryPromptChars = 8_000;
@@ -188,6 +188,13 @@ public sealed class PromptBuilderService : IPromptBuilderService
             used += section.Length;
         }
 
+        // Dropping history is correct (token budget) but must be visible: with only
+        // the newest errors the LLM loses context on what it already tried, which is
+        // the usual culprit when a retry loop "never converges".
+        var dropped = errorHistory.Count - sections.Count;
+        if (dropped > 0 && logger is not null)
+            LogRetryPromptTruncated(logger, dropped, errorHistory.Count, MaxRetryPromptChars);
+
         var sb = new StringBuilder(header);
         foreach (var s in sections)
             sb.Append(s);
@@ -195,6 +202,10 @@ public sealed class PromptBuilderService : IPromptBuilderService
 
         return sb.ToString();
     }
+
+    [LoggerMessage(EventId = 900, Level = LogLevel.Warning,
+        Message = "Retry prompt truncated: dropped {Dropped} of {Total} build-error sections to stay under {Budget} chars")]
+    private static partial void LogRetryPromptTruncated(ILogger logger, int dropped, int total, int budget);
 
     // ── Injection prompt (Swiss Cheese, per-zone) ─────────────────────────────
 

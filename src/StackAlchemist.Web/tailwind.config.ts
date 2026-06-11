@@ -23,6 +23,15 @@ const config: Config = {
         /* Borders */
         "slate-border": "#475569",
       },
+      /* Stacking scale — replaces ad-hoc z-[100]/z-[200]/z-[9999] literals so
+         layers compose predictably: header < overlay (secondary modals) <
+         modal (top-level flows) < banner (skip-link, test-site banner). */
+      zIndex: {
+        header: "50",
+        overlay: "100",
+        modal: "200",
+        banner: "9999",
+      },
       /* fontFamily moved to globals.css @theme so the next/font (--font-inter /
          --font-jetbrains) self-hosted families are actually referenced. */
       borderRadius: {

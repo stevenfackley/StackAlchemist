@@ -274,20 +274,10 @@ function FreeTierPanel({
   const prompt = generation.prompt ?? "Your SaaS";
   const title = `StackAlchemist — ${prompt.slice(0, 50)}`;
 
-  // Spark is view-only: deter casual code-ripping by blocking right-click /
-  // copy / cut / drag on OUR DOM. Note: the StackBlitz editor is a cross-origin
-  // iframe, so these handlers cannot reach the code inside it — this is a
-  // friction speed-bump (DevTools-bypassable), not real DRM.
-  const blockCopy = (e: React.SyntheticEvent) => e.preventDefault();
-
   return (
     <div
       data-testid="generate-free-tier-panel"
-      className="flex flex-col h-full min-h-0 select-none"
-      onContextMenu={blockCopy}
-      onCopy={blockCopy}
-      onCut={blockCopy}
-      onDragStart={blockCopy}
+      className="flex flex-col h-full min-h-0"
     >
       {/* Banner */}
       <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

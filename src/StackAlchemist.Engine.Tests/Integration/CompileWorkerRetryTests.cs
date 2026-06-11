@@ -181,6 +181,7 @@ public class CompileWorkerRetryTests
             r2,
             delivery,
             email,
+            new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 
         await worker.StartAsync(CancellationToken.None);
