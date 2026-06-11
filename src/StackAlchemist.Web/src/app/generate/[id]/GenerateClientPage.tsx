@@ -22,6 +22,7 @@ import dynamic from "next/dynamic";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
 import { SectionErrorBoundary } from "@/components/error-boundary";
+import { GenerationErrorPanel } from "@/components/generation-error-panel";
 
 // Lazy-load the IDE embed so StackBlitz SDK is only bundled when needed
 const MicroIdeEmbed = dynamic(
@@ -593,75 +594,6 @@ function InProgressPanel({ generation }: { generation: Generation }) {
   );
 }
 
-// ─── Failed Panel ─────────────────────────────────────────────────────────────
-function FailedPanel({
-  generation,
-  onRetry,
-  isRetrying,
-}: {
-  generation: Generation;
-  onRetry: () => void;
-  isRetrying: boolean;
-}) {
-  const canRetry = generation.attempt_count < 3;
-
-  return (
-    <div data-testid="generate-failed-panel" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
-      <div className="h-20 w-20 rounded-full bg-rose-500/10 border-2 border-rose-500/30 flex items-center justify-center">
-        <AlertCircle className="h-10 w-10 text-rose-400" />
-      </div>
-
-      <div className="text-center space-y-2 max-w-md">
-        <h2 className="text-xl font-bold text-white">Generation Failed</h2>
-        <p className="text-slate-400 text-sm leading-relaxed">
-          {generation.error_message ?? "An unexpected error occurred during generation."}
-        </p>
-        {generation.attempt_count > 0 && (
-          <p className="font-mono text-xs text-slate-600">
-            Attempt {generation.attempt_count} of 3
-          </p>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {canRetry && (
-          <button
-            onClick={onRetry}
-            disabled={isRetrying}
-            className="flex items-center gap-2 rounded-full border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-5 py-2.5 text-sm font-medium transition-all duration-300 disabled:opacity-60"
-          >
-            {isRetrying ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            {isRetrying ? "Retrying..." : "Retry Generation"}
-          </button>
-        )}
-        <Link
-          href="/"
-          className="flex items-center gap-2 rounded-full bg-slate-700/50 border border-slate-600/50 text-slate-300 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 text-sm font-medium transition-all duration-300"
-        >
-          Start Over
-        </Link>
-      </div>
-
-      {!canRetry && (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-5 max-w-sm text-center space-y-2">
-          <p className="text-rose-400 text-sm font-medium">Max retries reached</p>
-          <p className="text-slate-500 text-xs leading-relaxed">
-            You&apos;re entitled to a full refund. Please contact support with your generation ID:{" "}
-            <code className="text-blue-400 font-mono text-[10px] bg-slate-800/50 px-1 rounded">
-              {generation.id}
-            </code>
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Client Page ─────────────────────────────────────────────────────────
 interface Props {
   initialGeneration: Generation;
@@ -791,7 +723,8 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
         {isInProgress && <InProgressPanel generation={generation} />}
 
         {isFailed && (
-          <FailedPanel
+          <GenerationErrorPanel
+            testId="generate-failed-panel"
             generation={generation}
             onRetry={handleRetry}
             isRetrying={isPending}

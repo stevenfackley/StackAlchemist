@@ -90,6 +90,7 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     personalization_json: null,
     build_log: "Demo mode active: backend services are mocked for StackAlchemist compatibility.",
     error_message: null,
+    error_category: null,
     attempt_count: 0,
     created_at: now,
     updated_at: now,

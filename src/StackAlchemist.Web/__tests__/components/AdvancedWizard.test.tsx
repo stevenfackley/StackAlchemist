@@ -18,6 +18,7 @@ vi.mock("@/lib/actions", () => ({
   submitAdvancedGeneration: vi.fn(),
   createPendingGeneration: vi.fn(),
   createCheckoutSession: vi.fn(),
+  getFreeQuotaStatus: vi.fn().mockResolvedValue({ used: 0, limit: 3, remaining: 3 }),
 }));
 vi.mock("@/lib/hooks/use-generation-realtime", () => ({
   useGenerationRealtime: () => ({ transport: "off" as const }),
