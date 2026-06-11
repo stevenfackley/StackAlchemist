@@ -16,7 +16,7 @@ export default function SimpleError({
         <button
           type="button"
           onClick={reset}
-          className="rounded-full border border-blue-500/40 bg-blue-500/10 px-4 py-2 font-mono text-xs tracking-widest uppercase text-blue-300 hover:bg-blue-500/20 transition-colors"
+          className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 font-mono text-xs tracking-widest uppercase text-accent hover:bg-accent/10 transition-colors"
         >
           Try again
         </button>

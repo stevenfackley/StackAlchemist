@@ -153,7 +153,7 @@ function GenerationRow({ gen }: { gen: Generation }) {
             headers apply and the StackBlitz preview is cross-origin isolated. */}
         <a
           href={`/generate/${gen.id}`}
-          className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-blue-400 transition-colors"
+          className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent transition-colors"
           title="View generation"
         >
           <Eye className="h-3.5 w-3.5" />
@@ -201,7 +201,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-800 flex flex-col">
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
             <Image
@@ -209,15 +209,15 @@ export default async function DashboardPage() {
               alt="Stack Alchemist"
               width={28}
               height={28}
-              className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]"
+              className="drop-shadow-[0_0_6px_rgba(77,166,255,0.4)]"
             />
             <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-blue-400">AL</span>CHEMIST
+              STACK <span className="text-accent">AL</span>CHEMIST
             </span>
           </Link>
           <span className="text-slate-600 font-mono text-xs">|</span>
           <div className="flex items-center gap-2">
-            <LayoutDashboard className="h-3.5 w-3.5 text-blue-400" />
+            <LayoutDashboard className="h-3.5 w-3.5 text-accent" />
             <span className="font-mono text-xs text-slate-400 uppercase tracking-widest">Dashboard</span>
           </div>
 
@@ -255,7 +255,7 @@ export default async function DashboardPage() {
         {/* ── Stats row ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total", value: total, icon: <Zap className="h-4 w-4 text-blue-400" /> },
+            { label: "Total", value: total, icon: <Zap className="h-4 w-4 text-accent" /> },
             { label: "Complete", value: completed, icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" /> },
             { label: "In Progress", value: inProgress, icon: <Loader2 className="h-4 w-4 text-amber-400 animate-spin" /> },
             { label: "Free Builds Left", value: `${quota.remaining} / ${quota.limit}`, icon: <Sparkles className="h-4 w-4 text-emerald-400" /> },
@@ -298,7 +298,7 @@ export default async function DashboardPage() {
               </div>
               <p className="font-mono text-sm text-slate-500">
                 No generations yet. Start one from the{" "}
-                <Link href="/" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">
+                <Link href="/" className="text-accent hover:text-accent underline underline-offset-2">
                   home page
                 </Link>
                 .
@@ -328,7 +328,7 @@ export default async function DashboardPage() {
         <div className="pt-2 text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-6 py-3 font-mono text-xs uppercase tracking-widest transition-colors"
+            className="inline-flex items-center gap-2 rounded-full bg-accent hover:bg-accent/90 text-white px-6 py-3 font-mono text-xs uppercase tracking-widest transition-colors"
           >
             <Zap className="h-3.5 w-3.5" />
             Generate New Project

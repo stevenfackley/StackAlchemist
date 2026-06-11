@@ -25,13 +25,13 @@ export default function GlobalError({
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={reset}
-            className="rounded-full border border-slate-600/50 text-slate-300 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 text-sm transition-colors"
+            className="rounded-full border border-slate-600/50 text-slate-300 hover:border-accent/40 hover:text-accent px-5 py-2.5 text-sm transition-colors"
           >
             Try again
           </button>
           <Link
             href="/"
-            className="rounded-full bg-blue-500 text-white px-5 py-2.5 text-sm hover:bg-blue-400 transition-colors"
+            className="rounded-full bg-accent text-white px-5 py-2.5 text-sm hover:bg-accent/90 transition-colors"
           >
             Go home
           </Link>

@@ -35,7 +35,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             {/* Breadcrumb label */}
             <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
               <span className="hidden sm:inline text-slate-600">/</span>
-              <span className="text-blue-400 tracking-widest uppercase">Docs</span>
+              <span className="text-accent tracking-widest uppercase">Docs</span>
             </div>
 
             {/* Nav links */}
@@ -62,7 +62,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 href="https://github.com/stevenfackley/StackAlchemist"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-xs border border-slate-600/40 text-slate-400 hover:border-blue-400/50 hover:text-blue-400 transition-colors px-3 py-1.5 uppercase tracking-widest"
+                className="font-mono text-xs border border-slate-600/40 text-slate-400 hover:border-accent/50 hover:text-accent transition-colors px-3 py-1.5 uppercase tracking-widest"
               >
                 GitHub
               </a>
@@ -151,7 +151,7 @@ function MobileDocNav() {
         <Link
           key={link.slug}
           href={`/docs/${link.slug}`}
-          className="font-mono text-xs text-slate-400 hover:text-blue-400 transition-colors uppercase tracking-wider shrink-0"
+          className="font-mono text-xs text-slate-400 hover:text-accent transition-colors uppercase tracking-wider shrink-0"
         >
           {link.label}
         </Link>

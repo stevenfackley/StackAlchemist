@@ -69,7 +69,7 @@ html {
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-electric);
+  background: var(--color-accent);
 }
 
 :focus-visible {
