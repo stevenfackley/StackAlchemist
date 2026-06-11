@@ -126,6 +126,7 @@ All notable changes to this project will be documented in this file.
 - Note AWSSDK.S3 3→4, eslint 9→10, lucide-react 0→1 majors from 2026-04-28 sweep
 - Consolidate ADRs into docs/DECISIONS.md, stub root file ([#97](https://github.com/stevenfackley/StackAlchemist/issues/97))
 - Show HN v3 — screenshot-first comment 1 unblocks from demo video
+- Stripe.net 52 major bump stub ([#135](https://github.com/stevenfackley/StackAlchemist/issues/135))
 
 ### Features
 
