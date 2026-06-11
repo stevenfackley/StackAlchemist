@@ -9,14 +9,14 @@ import { supabase } from "@/lib/supabase";
 type Phase = "loading" | "form" | "expired";
 
 export default function ResetPasswordPage() {
-  const [phase, setPhase] = useState<Phase>("loading");
+  const [phase, setPhase] = useState<Phase>(() => (supabase ? "loading" : "expired"));
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!supabase) { setPhase("expired"); return; }
+    if (!supabase) return;
 
     // Check cookies set by /auth/callback after code exchange
     supabase.auth.getSession().then(({ data }) => {
