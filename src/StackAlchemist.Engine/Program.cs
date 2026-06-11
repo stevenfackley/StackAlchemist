@@ -443,13 +443,13 @@ app.MapPost("/api/extract-schema", async (
     catch (SchemaExtractionException ex)
     {
         logger.SchemaExtractFailed(request.GenerationId, ex.Message);
-        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message, ErrorCategorizer.Schema);
         return Results.BadRequest(new { error = ex.Message });
     }
     catch (SchemaValidationException ex)
     {
         logger.SchemaValidationFailed(request.GenerationId, ex.Message);
-        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message, ErrorCategorizer.Schema);
         return Results.BadRequest(new { error = ex.Message });
     }
     catch (Exception ex)
@@ -458,7 +458,8 @@ app.MapPost("/api/extract-schema", async (
         // otherwise it sits there forever and the UI never resolves. CancellationToken.None:
         // a cancelled/aborted request must still record its terminal state.
         logger.SchemaExtractFailed(request.GenerationId, ex.Message);
-        await delivery.UpdateStatusAsync(request.GenerationId, "failed", CancellationToken.None, ex.Message);
+        await delivery.UpdateStatusAsync(
+            request.GenerationId, "failed", CancellationToken.None, ex.Message, ErrorCategorizer.Categorize(ex));
         return Results.Problem("Schema extraction failed unexpectedly.");
     }
 })
@@ -583,6 +584,12 @@ app.MapPost("/api/webhooks/stripe", async (
     logger.StripeEventReceived(stripeEvent.Type, stripeEvent.Id);
 
     var result = await webhookHandler.HandleAsync(stripeEvent, ct);
+
+    // A retryable side-effect failure (idempotency log down, RPC failure, enqueue
+    // failure) must surface as 5xx — Stripe only redelivers on non-2xx responses.
+    if (result.Retry)
+        return Results.StatusCode(StatusCodes.Status500InternalServerError);
+
     if (!result.Processed)
         logger.StripeEventSkipped(stripeEvent.Id, result.Reason);
 

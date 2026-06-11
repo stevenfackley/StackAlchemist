@@ -80,6 +80,7 @@ public class CompileWorkerRetryTests
             Arg.Is(GenerationState.Success),
             Arg.Is<string?>(d => d == "https://r2.test/fake-presigned"),
             Arg.Any<string?>(),
+            Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -129,6 +130,7 @@ public class CompileWorkerRetryTests
             Arg.Is(GenerationState.Failed),
             Arg.Any<string?>(),
             Arg.Is<string?>(m => m != null && m.Contains("Build failed after 3 retries")),
+            Arg.Is<string?>(c => c == ErrorCategorizer.Build),
             Arg.Any<CancellationToken>());
     }
 

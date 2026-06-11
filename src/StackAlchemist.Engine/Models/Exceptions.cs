@@ -38,6 +38,16 @@ public class SchemaValidationException : Exception
     public SchemaValidationException(string message) : base(message) { }
 }
 
+/// <summary>
+/// Thrown when the Anthropic API stays rate-limited/overloaded (429/529) after the
+/// retry budget is exhausted. Distinct from other HTTP failures so it can surface
+/// to the user as "high demand, try again shortly" instead of a generic error.
+/// </summary>
+public class LlmRateLimitException : Exception
+{
+    public LlmRateLimitException(string message) : base(message) { }
+}
+
 /// <summary>Thrown when a tier value outside the range 1–3 is supplied.</summary>
 public class InvalidTierException : Exception
 {

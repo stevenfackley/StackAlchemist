@@ -20,7 +20,8 @@ public class GenerationOrchestratorTests
             .AddInMemoryCollection(entries.ToDictionary(e => e.Key, e => (string?)e.Value))
             .Build();
 
-    private static (GenerationOrchestrator Sut, ILlmClient Llm, Channel<GenerationContext> Queue, MockFileSystem Fs) BuildSut()
+    private static (GenerationOrchestrator Sut, ILlmClient Llm, Channel<GenerationContext> Queue, MockFileSystem Fs) BuildSut(
+        IDeliveryService? deliveryOverride = null)
     {
         var fs = new MockFileSystem();
         var queue = Channel.CreateUnbounded<GenerationContext>();
@@ -60,7 +61,7 @@ public class GenerationOrchestratorTests
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
         var injectionEngine = Substitute.For<IInjectionEngine>();
-        var delivery = Substitute.For<IDeliveryService>();
+        var delivery = deliveryOverride ?? Substitute.For<IDeliveryService>();
 
         var sut = new GenerationOrchestrator(
             templates,
@@ -77,6 +78,9 @@ public class GenerationOrchestratorTests
 
         return (sut, llm, queue, fs);
     }
+
+    private static GenerationSnapshot Snapshot(string id, int tier, string status = "pending") =>
+        new(id, status, tier, "advanced", null, null, null, null, 0, DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task EnqueueAsync_OnSuccess_ReturnsBuildingAndWritesQueue()
@@ -373,6 +377,76 @@ public class GenerationOrchestratorTests
         });
 
         templates.Received(1).LoadTemplate(expectedTemplateSet);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_RowTierHigherThanRequest_ProcessesAtRowTier()
+    {
+        // A Stripe webhook can upgrade the row's tier concurrently with the enqueue.
+        // The row is authoritative: a request still carrying tier 0 must NOT render
+        // the free Spark preview when the user has paid for tier 2.
+        var generationId = Guid.NewGuid().ToString();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationSnapshotAsync(generationId, Arg.Any<CancellationToken>())
+            .Returns(Snapshot(generationId, tier: 2));
+
+        var (sut, _, queue, _) = BuildSut(delivery);
+
+        var response = await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = generationId,
+            Mode = "simple",
+            Tier = 0,
+            Prompt = "Build a task manager",
+        });
+
+        response.Status.Should().Be("building");
+        await delivery.DidNotReceive().CompletePreviewAsync(
+            Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        ctx!.Tier.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_RowTierLowerThanRequest_NeverDowngrades()
+    {
+        var generationId = Guid.NewGuid().ToString();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationSnapshotAsync(generationId, Arg.Any<CancellationToken>())
+            .Returns(Snapshot(generationId, tier: 0));
+
+        var (sut, _, queue, _) = BuildSut(delivery);
+
+        var response = await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = generationId,
+            Mode = "simple",
+            Tier = 2,
+            Prompt = "Build a task manager",
+        });
+
+        response.Status.Should().Be("building");
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        ctx!.Tier.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_NoSnapshot_UsesRequestTier()
+    {
+        // Supabase unconfigured / row missing → snapshot null → request tier preserved
+        // (the tier-0 Spark preview path still works in local dev).
+        var (sut, llm, _, _) = BuildSut();
+
+        var response = await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "simple",
+            Tier = 0,
+            Prompt = "Build a task manager",
+        });
+
+        response.Status.Should().Be("success");
+        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

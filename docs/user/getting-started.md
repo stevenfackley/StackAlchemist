@@ -87,11 +87,18 @@ Generation typically takes **30–90 seconds** depending on schema complexity.
 
 Extract the ZIP archive. Every Boilerplate and Infrastructure package includes a `README.md` with specific setup instructions, but the general pattern is:
 
+> **Prerequisite — configure `.env` before starting the stack.** The API will not
+> boot with an empty `.env`: after copying `.env.example`, open `.env` and fill in
+> the required values (database credentials and, if your package uses Supabase
+> auth, the keys from your Supabase dashboard). Every required key is documented
+> in the generated `README.md`. Skipping this is the #1 cause of "the frontend
+> loads but every API call fails" on a fresh download.
+
 ```bash
 # 1. Unzip and navigate
 cd your-project-name
 
-# 2. Copy environment config
+# 2. Copy environment config — then EDIT .env before continuing (see above)
 cp .env.example .env
 
 # 3. Start the full stack (database, API, frontend)

@@ -53,6 +53,26 @@ public sealed partial class GenerationOrchestrator(
 
     public async Task<GenerateResponse> EnqueueAsync(GenerateRequest request, CancellationToken ct = default)
     {
+        // Re-read the authoritative tier from the row before branching. A Stripe webhook
+        // can upgrade the tier concurrently with (or just before) this enqueue — without
+        // the re-read, a paid generation processes as the stale tier-0 Spark preview.
+        // Never downgrade: the request tier wins when it is the higher of the two.
+        var snapshot = await deliveryService.GetGenerationSnapshotAsync(request.GenerationId, ct);
+        if (snapshot is not null && snapshot.Tier > request.Tier)
+        {
+            LogTierUpgradedFromRow(logger, request.GenerationId, request.Tier, snapshot.Tier);
+            request = new GenerateRequest
+            {
+                GenerationId    = request.GenerationId,
+                Mode            = request.Mode,
+                Tier            = snapshot.Tier,
+                ProjectType     = request.ProjectType,
+                Prompt          = request.Prompt,
+                Schema          = request.Schema,
+                Personalization = request.Personalization,
+            };
+        }
+
         var context = new GenerationContext
         {
             GenerationId = request.GenerationId,
@@ -158,6 +178,7 @@ public sealed partial class GenerationOrchestrator(
                 request.GenerationId,
                 GenerationState.Failed,
                 errorMessage: ex.Message,
+                errorCategory: ErrorCategorizer.Categorize(ex),
                 ct: CancellationToken.None);
 
             LogOrchestrationFailed(logger, ex, request.GenerationId);
@@ -489,4 +510,8 @@ public sealed partial class GenerationOrchestrator(
     [LoggerMessage(EventId = 206, Level = LogLevel.Information,
         Message = "Generation {Id} Tier 0 preview completed — {Count} files written inline; build/pack/upload skipped")]
     private static partial void LogTier0PreviewCompleted(ILogger logger, string id, int count);
+
+    [LoggerMessage(EventId = 207, Level = LogLevel.Information,
+        Message = "Generation {Id} tier upgraded from {RequestTier} to {RowTier} — row tier is authoritative (Stripe webhook race)")]
+    private static partial void LogTierUpgradedFromRow(ILogger logger, string id, int requestTier, int rowTier);
 }

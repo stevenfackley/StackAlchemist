@@ -84,6 +84,75 @@ public class SupabaseDeliveryServiceTests
     }
 
     [Fact]
+    public async Task UpdateStatusAsync_IncludesErrorCategoryOnFailure()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);
+        var sut = BuildSut(BuildConfig(), handler);
+
+        await sut.UpdateStatusAsync(
+            "gen-cat", GenerationState.Failed,
+            errorMessage: "Build failed after 3 retries.",
+            errorCategory: ErrorCategorizer.Build);
+
+        var body = handler.LastBody!;
+        body.Should().Contain("\"error_category\":\"build\"");
+        body.Should().Contain("\"error_message\"");
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_OmitsErrorCategoryWhenNotProvided()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);
+        var sut = BuildSut(BuildConfig(), handler);
+
+        await sut.UpdateStatusAsync("gen-nocat", GenerationState.Building);
+
+        handler.LastBody!.Should().NotContain("error_category");
+    }
+
+    [Fact]
+    public async Task GetGenerationSnapshotAsync_ParsesRow()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK,
+            "[{\"id\":\"gen-snap\",\"status\":\"pending\",\"tier\":2,\"mode\":\"advanced\"," +
+            "\"prompt\":null,\"project_type\":\"DotNetNextJs\",\"schema_json\":null," +
+            "\"personalization_json\":null,\"attempt_count\":1,\"updated_at\":\"2026-06-11T10:00:00Z\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var snapshot = await sut.GetGenerationSnapshotAsync("gen-snap", CancellationToken.None);
+
+        snapshot.Should().NotBeNull();
+        snapshot!.Id.Should().Be("gen-snap");
+        snapshot.Tier.Should().Be(2);
+        snapshot.Status.Should().Be("pending");
+        snapshot.ProjectType.Should().Be(ProjectType.DotNetNextJs);
+        snapshot.AttemptCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetGenerationSnapshotAsync_ReturnsNullWhenRowMissing()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var snapshot = await sut.GetGenerationSnapshotAsync("gen-missing", CancellationToken.None);
+
+        snapshot.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetGenerationSnapshotAsync_ReturnsNullWhenNotConfigured()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");
+        var sut = BuildSut(BuildConfig(url: null, key: null), handler);
+
+        var snapshot = await sut.GetGenerationSnapshotAsync("gen-noop", CancellationToken.None);
+
+        snapshot.Should().BeNull();
+        handler.LastRequest.Should().BeNull();
+    }
+
+    [Fact]
     public async Task UpdateStatusAsync_WhenSupabaseNotConfigured_DoesNotSendRequest()
     {
         var handler = new CapturingHttpHandler(HttpStatusCode.NoContent);

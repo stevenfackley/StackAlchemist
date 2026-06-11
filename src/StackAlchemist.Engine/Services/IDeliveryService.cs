@@ -18,6 +18,7 @@ public interface IDeliveryService
         GenerationState state,
         string? downloadUrl = null,
         string? errorMessage = null,
+        string? errorCategory = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -28,7 +29,15 @@ public interface IDeliveryService
         string generationId,
         string status,
         CancellationToken ct,
-        string? errorMessage = null);
+        string? errorMessage = null,
+        string? errorCategory = null);
+
+    /// <summary>
+    /// Reads the current generations row for re-checking authoritative state
+    /// (e.g. the tier after a concurrent Stripe webhook upgrade). Returns null
+    /// when Supabase is not configured, the row is missing, or the read fails.
+    /// </summary>
+    Task<GenerationSnapshot?> GetGenerationSnapshotAsync(string generationId, CancellationToken ct);
 
     /// <summary>
     /// Tier-0 (free Spark preview) terminal write: stores the generated file map in

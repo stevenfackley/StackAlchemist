@@ -25,6 +25,7 @@ public sealed partial class SupabaseDeliveryService(
         GenerationState state,
         string? downloadUrl = null,
         string? errorMessage = null,
+        string? errorCategory = null,
         CancellationToken ct = default)
     {
         var payload = new Dictionary<string, object?>
@@ -38,6 +39,9 @@ public sealed partial class SupabaseDeliveryService(
 
         if (errorMessage is not null)
             payload["error_message"] = errorMessage;
+
+        if (errorCategory is not null)
+            payload["error_category"] = errorCategory;
 
         if (state is GenerationState.Success or GenerationState.Failed)
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
@@ -54,7 +58,8 @@ public sealed partial class SupabaseDeliveryService(
         string generationId,
         string status,
         CancellationToken ct,
-        string? errorMessage = null)
+        string? errorMessage = null,
+        string? errorCategory = null)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -64,6 +69,9 @@ public sealed partial class SupabaseDeliveryService(
 
         if (errorMessage is not null)
             payload["error_message"] = errorMessage;
+
+        if (errorCategory is not null)
+            payload["error_category"] = errorCategory;
 
         if (status is "success" or "failed")
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
@@ -258,6 +266,91 @@ public sealed partial class SupabaseDeliveryService(
         }
     }
 
+    public async Task<GenerationSnapshot?> GetGenerationSnapshotAsync(string generationId, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return null;
+
+        try
+        {
+            var endpoint =
+                $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}" +
+                "&select=id,status,tier,mode,prompt,project_type,schema_json,personalization_json,attempt_count,updated_at";
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                return null;
+
+            return ParseSnapshot(doc.RootElement[0]);
+        }
+        catch (Exception ex)
+        {
+            LogSnapshotReadFailed(logger, ex, generationId);
+            return null;
+        }
+    }
+
+    private static GenerationSnapshot? ParseSnapshot(JsonElement row)
+    {
+        var id = row.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
+            ? idEl.GetString()
+            : null;
+        if (id is null) return null;
+
+        var status = row.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
+            ? st.GetString()!
+            : "pending";
+        var tier = row.TryGetProperty("tier", out var ti) && ti.ValueKind == JsonValueKind.Number
+            ? ti.GetInt32()
+            : 0;
+        var mode = row.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+        var prompt = row.TryGetProperty("prompt", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        ProjectType? projectType =
+            row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String &&
+            Enum.TryParse<ProjectType>(pt.GetString(), ignoreCase: true, out var parsedPt)
+                ? parsedPt
+                : null;
+
+        GenerationSchema? schema = null;
+        if (row.TryGetProperty("schema_json", out var s) &&
+            s.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+        {
+            schema = JsonSerializer.Deserialize<GenerationSchema>(s.GetRawText());
+        }
+
+        GenerationPersonalization? personalization = null;
+        if (row.TryGetProperty("personalization_json", out var pj) &&
+            pj.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+        {
+            personalization = JsonSerializer.Deserialize<GenerationPersonalization>(
+                pj.GetRawText(), SnapshotJson);
+        }
+
+        var attemptCount = row.TryGetProperty("attempt_count", out var ac) && ac.ValueKind == JsonValueKind.Number
+            ? ac.GetInt32()
+            : 0;
+        var updatedAt = row.TryGetProperty("updated_at", out var ua) && ua.ValueKind == JsonValueKind.String &&
+                        DateTimeOffset.TryParse(ua.GetString(), out var parsedUa)
+            ? parsedUa
+            : DateTimeOffset.MinValue;
+
+        return new GenerationSnapshot(
+            id, status, tier, mode, prompt, projectType, schema, personalization, attemptCount, updatedAt);
+    }
+
+    private static readonly JsonSerializerOptions SnapshotJson = new() { PropertyNameCaseInsensitive = true };
+
     // ── Shared PATCH helper ─────────────────────────────────────────────────
 
     private async Task PatchGenerationAsync(
@@ -396,6 +489,9 @@ public sealed partial class SupabaseDeliveryService(
 
     [LoggerMessage(EventId = 510, Level = LogLevel.Error, Message = "Reconciliation sweep failed")]
     private static partial void LogStaleReconcileFailed(ILogger logger, Exception ex);
+
+    [LoggerMessage(EventId = 512, Level = LogLevel.Warning, Message = "Failed to read generation snapshot for {Id}")]
+    private static partial void LogSnapshotReadFailed(ILogger logger, Exception ex, string id);
 
     [LoggerMessage(EventId = 505, Level = LogLevel.Debug, Message = "Supabase not configured — skipping RPC {Function}")]
     private static partial void LogSupabaseRpcSkipped(ILogger logger, string function);

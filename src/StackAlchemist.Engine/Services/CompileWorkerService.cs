@@ -45,7 +45,9 @@ public sealed partial class CompileWorkerService(
 
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
-                    errorMessage: ex.Message, ct: stoppingToken);
+                    errorMessage: ex.Message,
+                    errorCategory: ErrorCategorizer.Categorize(ex),
+                    ct: stoppingToken);
             }
             finally
             {
@@ -159,7 +161,9 @@ public sealed partial class CompileWorkerService(
 
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
-                    errorMessage: job.ErrorMessage, ct: ct);
+                    errorMessage: job.ErrorMessage,
+                    errorCategory: ErrorCategorizer.Build,
+                    ct: ct);
                 return;
             }
 
@@ -251,7 +255,9 @@ public sealed partial class CompileWorkerService(
 
         await deliveryService.UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed,
-            errorMessage: job.ErrorMessage, ct: ct);
+            errorMessage: job.ErrorMessage,
+            errorCategory: ErrorCategorizer.Internal,
+            ct: ct);
     }
 
     private void CleanupTempDirectory(GenerationContext job)
