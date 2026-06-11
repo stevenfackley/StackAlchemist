@@ -167,6 +167,7 @@ All notable changes to this project will be documented in this file.
 - Quota UX on home, simple, and advanced ([#143](https://github.com/stevenfackley/StackAlchemist/issues/143))
 - Auth funnel — forgot password, reset password, resend confirm, callback errors ([#144](https://github.com/stevenfackley/StackAlchemist/issues/144))
 - Dashboard live updates island (F7) ([#146](https://github.com/stevenfackley/StackAlchemist/issues/146))
+- Error category rendering (F6) ([#145](https://github.com/stevenfackley/StackAlchemist/issues/145))
 
 ### Miscellaneous Tasks
 
