@@ -16,6 +16,7 @@ import {
 import { getServerUser } from "@/lib/supabase-server";
 import { getMyGenerations, getProfileSettings, getFreeQuotaStatus } from "@/lib/actions";
 import { ByokSettingsForm } from "./ByokSettingsForm";
+import { GenerationsLiveRefresher } from "./GenerationsLiveRefresher";
 import { SectionErrorBoundary } from "@/components/error-boundary";
 import type { Generation } from "@/lib/types";
 
@@ -240,6 +241,11 @@ export default async function DashboardPage() {
           </form>
         </div>
       </header>
+
+      {/* Null-rendering island: subscribes to Supabase Realtime and calls
+          router.refresh() (throttled 5s) so status badges update without a
+          manual reload. Server component stays the source of truth for rows. */}
+      <GenerationsLiveRefresher userId={user.id} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10 space-y-8">
         {/* ── Page title ──────────────────────────────────────────────────── */}
