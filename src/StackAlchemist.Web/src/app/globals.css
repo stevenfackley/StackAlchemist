@@ -1,6 +1,40 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Workspace design tokens (Tailwind v4 @theme — additive).
+   New semantic system used by the redesigned /advanced workspace. The legacy
+   `void / electric / slate-*` aliases stay in tailwind.config.ts so existing
+   marketing pages keep rendering; surfaces below migrate to these over time.
+   ──────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Surface elevation ladder (deepest → raised) */
+  --color-surface-0: #0f172a;
+  --color-surface-1: #1e293b;
+  --color-surface-2: #334155;
+  --color-surface-3: #475569;
+  --color-border: #334155;
+  --color-border-strong: #475569;
+
+  /* Brand + semantic — the single source for "brand blue" (ends blue-500 drift) */
+  --color-accent: #4da6ff;
+  --color-success: #10b981;
+  --color-danger: #f43f5e;
+
+  /* Ink ladder (text) */
+  --color-ink: #f1f5f9;
+  --color-ink-muted: #94a3b8;
+  --color-ink-faint: #64748b;
+
+  /* Radius — two roles only: controls vs panels */
+  --radius-control: 0.5rem;
+  --radius-panel: 0.75rem;
+
+  /* Fonts — wires the next/font variables that the old literal config ignored */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
 :root {
   /* Elevated Slate - matches v0 design */
   --color-void: #1e293b;

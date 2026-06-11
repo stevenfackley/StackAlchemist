@@ -23,10 +23,8 @@ const config: Config = {
         /* Borders */
         "slate-border": "#475569",
       },
-      fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
-      },
+      /* fontFamily moved to globals.css @theme so the next/font (--font-inter /
+         --font-jetbrains) self-hosted families are actually referenced. */
       borderRadius: {
         sm: "4px",
         none: "0px",
