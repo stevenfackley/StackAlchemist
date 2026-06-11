@@ -164,10 +164,11 @@ function RegisterPageContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="font-mono text-xs text-slate-400 uppercase tracking-widest">
+                <label htmlFor="register-email" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Email
                 </label>
                 <input
+                  id="register-email"
                   type="email"
                   required
                   value={email}
@@ -179,10 +180,11 @@ function RegisterPageContent() {
 
               {/* Password */}
               <div className="space-y-1.5">
-                <label className="font-mono text-xs text-slate-400 uppercase tracking-widest">
+                <label htmlFor="register-password" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Password
                 </label>
                 <input
+                  id="register-password"
                   type="password"
                   required
                   minLength={8}
@@ -195,10 +197,11 @@ function RegisterPageContent() {
 
               {/* Confirm Password */}
               <div className="space-y-1.5">
-                <label className="font-mono text-xs text-slate-400 uppercase tracking-widest">
+                <label htmlFor="register-confirm" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Confirm Password
                 </label>
                 <input
+                  id="register-confirm"
                   type="password"
                   required
                   value={confirmPassword}

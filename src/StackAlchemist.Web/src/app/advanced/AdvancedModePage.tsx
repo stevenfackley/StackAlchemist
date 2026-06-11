@@ -69,7 +69,7 @@ function StepEntities({ entities, setEntities, relationships, setRelationships }
                   placeholder="EntityName"
                   className="flex-1"
                 />
-                <button type="button" onClick={() => setEntities((p) => p.filter((_, i) => i !== eidx))} className={ICON_BTN}>✕</button>
+                <button type="button" aria-label={`Remove entity ${entity.name || "unnamed"}`} onClick={() => setEntities((p) => p.filter((_, i) => i !== eidx))} className={ICON_BTN}>✕</button>
               </Cluster>
               <div className="flex flex-col gap-2 border-l border-border pl-4">
                 {entity.fields.map((field, fidx) => (
@@ -93,7 +93,7 @@ function StepEntities({ entities, setEntities, relationships, setRelationships }
                       checked={field.pk}
                       onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, pk: e.target.checked } : f) } : x))}
                     />
-                    <button type="button" onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.filter((_, j) => j !== fidx) } : x))} className={ICON_BTN}>✕</button>
+                    <button type="button" aria-label={`Remove field ${field.name || "unnamed"}`} onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.filter((_, j) => j !== fidx) } : x))} className={ICON_BTN}>✕</button>
                   </Cluster>
                 ))}
                 <button
@@ -144,7 +144,7 @@ function StepEntities({ entities, setEntities, relationships, setRelationships }
               <option value="">To...</option>
               {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
             </Select>
-            <button type="button" onClick={() => setRelationships((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
+            <button type="button" aria-label={`Remove relationship ${rel.from} ${rel.type} ${rel.to}`} onClick={() => setRelationships((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
           </Cluster>
         ))}
         <button
@@ -199,7 +199,7 @@ function StepEndpoints({ endpoints, setEndpoints, entityNames }: {
               <option value="">Entity...</option>
               {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
             </Select>
-            <button type="button" onClick={() => setEndpoints((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
+            <button type="button" aria-label={`Remove endpoint ${ep.method} ${ep.path}`} onClick={() => setEndpoints((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
           </Cluster>
         </Panel>
       ))}

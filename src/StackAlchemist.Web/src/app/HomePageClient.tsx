@@ -38,6 +38,7 @@ import { AlchemyInput } from "@/components/alchemy-input";
 import { Alert } from "@/components/ui";
 import { useFreeQuota } from "@/lib/hooks/use-free-quota";
 import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
+import { useDismissable } from "@/lib/hooks/use-dismissable";
 
 const EXAMPLE_APPS = [
   {
@@ -283,6 +284,7 @@ export default function HomePage() {
     { version: 1, isDefault: (v) => v.trim() === "" },
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useDismissable(null, () => setMobileMenuOpen(false), mobileMenuOpen);
   // Deferred client fetch keeps this SEO landing page statically prerendered.
   const { quota } = useFreeQuota();
 
@@ -362,7 +364,8 @@ export default function HomePage() {
         <button
           className="md:hidden p-2 text-slate-300 hover:text-white transition-colors"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, LogOut, Menu, X } from "lucide-react";
+import { useDismissable } from "@/lib/hooks/use-dismissable";
 
 type NavbarMobileMenuProps = {
   userEmail: string | null;
@@ -11,9 +12,11 @@ type NavbarMobileMenuProps = {
 
 export function NavbarMobileMenu({ userEmail, isAuthenticated }: NavbarMobileMenuProps) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useDismissable(menuRef, () => setOpen(false), open);
 
   return (
-    <div className="relative md:hidden">
+    <div ref={menuRef} className="relative md:hidden">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

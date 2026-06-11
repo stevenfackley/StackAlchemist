@@ -13,7 +13,6 @@ import {
   ArrowRight,
   RefreshCw,
   TerminalSquare,
-  X,
 } from "lucide-react";
 import { retryGeneration, createCheckoutSession } from "@/lib/actions";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
@@ -23,6 +22,7 @@ import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
 import { SectionErrorBoundary } from "@/components/error-boundary";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
+import { Modal } from "@/components/ui";
 
 // Lazy-load the IDE embed so StackBlitz SDK is only bundled when needed
 const MicroIdeEmbed = dynamic(
@@ -127,61 +127,45 @@ function UpgradeModal({ generation, onClose }: { generation: Generation; onClose
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8 overflow-y-auto"
-      onClick={onClose}
+    <Modal
+      onClose={onClose}
+      title="Unlock Source Download"
+      zLayer="overlay"
+      testId="upgrade-modal"
     >
-      <div
-        data-testid="upgrade-modal"
-        className="w-full max-w-md bg-slate-800 border border-slate-600/50 rounded-2xl shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-700/50 px-6 py-4">
-          <div>
-            <h2 className="font-mono text-sm font-bold text-white tracking-widest uppercase">
-              Unlock Source Download
-            </h2>
-            <p className="font-mono text-[10px] text-slate-500 mt-0.5">
-              One-time payment &middot; you own it forever
-            </p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" title="Close">
-            <X className="h-5 w-5" />
+      <p className="font-mono text-[10px] text-slate-500 -mt-2 mb-4">
+        One-time payment &middot; you own it forever
+      </p>
+      <div className="space-y-3">
+        {PAID_TIERS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => handlePick(t.id)}
+            disabled={isPending}
+            data-testid={`upgrade-tier-${t.id}`}
+            className="w-full flex items-center justify-between gap-4 rounded-xl border border-slate-600/40 bg-slate-700/20 hover:border-blue-500/50 hover:bg-blue-500/5 px-4 py-3 text-left transition-colors disabled:opacity-50"
+          >
+            <div>
+              <div className="font-mono text-xs font-bold text-white uppercase tracking-widest">{t.name}</div>
+              <div className="text-xs text-slate-400 mt-0.5">{t.tagline}</div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-lg font-bold text-blue-400">{t.price}</span>
+              {isPending && pendingTier === t.id ? (
+                <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+              ) : (
+                <ArrowRight className="h-4 w-4 text-slate-500" />
+              )}
+            </div>
           </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-3">
-          {PAID_TIERS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => handlePick(t.id)}
-              disabled={isPending}
-              data-testid={`upgrade-tier-${t.id}`}
-              className="w-full flex items-center justify-between gap-4 rounded-xl border border-slate-600/40 bg-slate-700/20 hover:border-blue-500/50 hover:bg-blue-500/5 px-4 py-3 text-left transition-colors disabled:opacity-50"
-            >
-              <div>
-                <div className="font-mono text-xs font-bold text-white uppercase tracking-widest">{t.name}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{t.tagline}</div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-lg font-bold text-blue-400">{t.price}</span>
-                {isPending && pendingTier === t.id ? (
-                  <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4 text-slate-500" />
-                )}
-              </div>
-            </button>
-          ))}
-
-          {error && (
-            <p className="font-mono text-xs text-rose-400 flex items-start gap-1.5">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
-            </p>
-          )}
-        </div>
+        ))}
+        {error && (
+          <p className="font-mono text-xs text-rose-400 flex items-start gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
+          </p>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
