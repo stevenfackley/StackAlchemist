@@ -169,6 +169,7 @@ All notable changes to this project will be documented in this file.
 - Auth funnel — forgot password, reset password, resend confirm, callback errors ([#144](https://github.com/stevenfackley/StackAlchemist/issues/144))
 - Dashboard live updates island (F7) ([#146](https://github.com/stevenfackley/StackAlchemist/issues/146))
 - Error category rendering (F6) ([#145](https://github.com/stevenfackley/StackAlchemist/issues/145))
+- Error category rendering (F6) ([#150](https://github.com/stevenfackley/StackAlchemist/issues/150))
 
 ### Miscellaneous Tasks
 
