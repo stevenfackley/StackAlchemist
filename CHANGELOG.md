@@ -162,6 +162,7 @@ All notable changes to this project will be documented in this file.
 - June 2026 blog + compare pages ([#123](https://github.com/stevenfackley/StackAlchemist/issues/123))
 - Workspace shell, UI primitives, and design tokens ([#137](https://github.com/stevenfackley/StackAlchemist/issues/137))
 - Alert + Modal primitives, z-index scale, drop copy-blocking ([#140](https://github.com/stevenfackley/StackAlchemist/issues/140))
+- Resilient generation realtime watcher with polling fallback ([#141](https://github.com/stevenfackley/StackAlchemist/issues/141))
 
 ### Miscellaneous Tasks
 
