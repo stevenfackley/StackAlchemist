@@ -20,13 +20,15 @@ import { CheckCircle2, Loader2, AlertCircle, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
+import { useFreeQuota } from "@/lib/hooks/use-free-quota";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
 import { PersonalizationModal } from "@/components/personalization-modal";
-import { Button, Cluster, Eyebrow, Label, Panel, Select, Stack, TextInput, Toggle } from "@/components/ui";
+import { Alert, Button, Cluster, Eyebrow, Label, Panel, Select, Stack, TextInput, Toggle } from "@/components/ui";
 import { ContextPanel, StepRail, WizardFooter, Workspace } from "@/components/workspace";
 import type { Entity, Relationship, Endpoint, Tier, Generation, ProjectType, PersonalizationData } from "@/lib/types";
+import type { FreeQuotaStatus } from "@/lib/actions";
 import { DEFAULT_PERSONALIZATION } from "@/lib/types";
 
 const FIELD_TYPES = ["UUID", "String", "Integer", "Decimal", "Boolean", "Timestamp", "Text", "JSON"];
@@ -284,7 +286,11 @@ function StepPlatformSelection({
 }
 
 // ─── Step 5: Tier ─────────────────────────────────────────────────────────────
-function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSelectedTier: (t: Tier) => void }) {
+function StepTier({ selectedTier, setSelectedTier, quota }: {
+  selectedTier: Tier;
+  setSelectedTier: (t: Tier) => void;
+  quota: FreeQuotaStatus | null;
+}) {
   const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
     {
       id: 0, name: "SPARK", price: "Free", isFree: true,
@@ -320,6 +326,13 @@ function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSe
             <div>
               <h3 className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-ink">{t.name}</h3>
               <p className={cn("mt-1 font-mono text-xl font-bold", t.isFree ? "text-success" : "text-accent")}>{t.price}</p>
+              {t.isFree && quota && (
+                <p className={cn("mt-0.5 font-mono text-[0.625rem]", quota.remaining === 0 ? "text-yellow-400" : "text-ink-faint")}>
+                  {quota.remaining === 0
+                    ? `Limit reached — resets ${quota.resetsAtLabel}`
+                    : `${quota.remaining} of ${quota.limit} free builds remaining`}
+                </p>
+              )}
             </div>
             <ul className="flex flex-col gap-1">
               {t.items.map((item) => (
@@ -385,6 +398,7 @@ export default function AdvancedModePage() {
   const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
   const initialProjectType = (searchParams?.get("projectType") as ProjectType | null) ?? "DotNetNextJs";
 
+  const { quota } = useFreeQuota();
   const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 5));
   const [entities, setEntities] = useState<Entity[]>([{
     name: "Product",
@@ -654,7 +668,7 @@ export default function AdvancedModePage() {
               )}
               {step === 5 && (
                 <div data-testid="advanced-step-5">
-                  <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />
+                  <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} quota={quota} />
                 </div>
               )}
             </Workspace>
@@ -682,6 +696,14 @@ export default function AdvancedModePage() {
           </div>
         </div>
 
+        {/* Quota-exhausted + Spark alert — only visible on step 5 */}
+        {step === 5 && selectedTier === 0 && quota?.remaining === 0 && (
+          <Alert variant="warning" data-testid="advanced-quota-exhausted" className="mx-4 mb-2">
+            Free build limit reached. Resets {quota.resetsAtLabel}.{" "}
+            <a href="#pricing" className="underline underline-offset-2">View paid tiers →</a>
+          </Alert>
+        )}
+
         {/* Chunk 4 — Action bar */}
         <WizardFooter
           step={step}
@@ -690,7 +712,7 @@ export default function AdvancedModePage() {
           onPrevious={() => setStep((s) => Math.max(1, s - 1))}
           onNext={() => setStep((s) => Math.min(5, s + 1))}
           onCheckout={handleCheckout}
-          checkoutDisabled={isPending}
+          checkoutDisabled={isPending || (selectedTier === 0 && quota?.remaining === 0)}
           checkoutVariant={selectedTier === 0 ? "success" : "primary"}
           checkoutLabel={
             isPending

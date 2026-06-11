@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { submitSimpleGeneration } from "@/lib/actions";
+import { submitSimpleGeneration, getFreeQuotaStatus } from "@/lib/actions";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
@@ -27,7 +27,7 @@ export default function SimpleModePage() {
 
   // No-prompt is knowable at first render (q is a static query param), so seed
   // the error state here rather than via setState-in-effect.
-  const [phase, setPhase] = useState<"building" | "error">(prompt ? "building" : "error");
+  const [phase, setPhase] = useState<"building" | "error" | "quota">(prompt ? "building" : "error");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(
@@ -57,6 +57,18 @@ export default function SimpleModePage() {
     }, 700);
 
     void (async () => {
+      // Pre-check quota. On network error, proceed — DB trigger is the hard gate.
+      try {
+        const q = await getFreeQuotaStatus();
+        if (q.remaining === 0) {
+          clearInterval(interval);
+          setPhase("quota");
+          return;
+        }
+      } catch {
+        // quota fetch failed — proceed, trigger will enforce on the backend
+      }
+
       const result = await submitSimpleGeneration(prompt, 0);
       clearInterval(interval);
       if (result.success) {
@@ -190,6 +202,36 @@ export default function SimpleModePage() {
                 <p className="font-mono text-[10px] text-slate-600">Keep this page open — your live preview opens automatically.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Phase: Quota Exhausted ───────────────────────────────────────── */}
+        {phase === "quota" && (
+          <div data-testid="simple-phase-quota" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-6">
+            <div className="h-16 w-16 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-amber-400" />
+            </div>
+            <div className="text-center space-y-2 max-w-md">
+              <h2 className="text-xl font-bold text-white">Free Build Limit Reached</h2>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                You&apos;ve used all your free builds for this month. Upgrade to a paid tier to keep generating,
+                or come back when your quota resets.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Link
+                href="/#pricing"
+                className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors"
+              >
+                View Paid Tiers →
+              </Link>
+              <Link
+                href="/"
+                className="font-mono text-xs border border-slate-500 hover:border-slate-400 text-slate-300 hover:text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors"
+              >
+                Back to Home
+              </Link>
+            </div>
           </div>
         )}
 
