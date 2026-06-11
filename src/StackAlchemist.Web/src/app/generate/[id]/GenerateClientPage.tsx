@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -15,8 +15,8 @@ import {
   TerminalSquare,
   X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { getGeneration, retryGeneration, createCheckoutSession } from "@/lib/actions";
+import { retryGeneration, createCheckoutSession } from "@/lib/actions";
+import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import type { Generation, Tier } from "@/lib/types";
 import dynamic from "next/dynamic";
 import { isDemoMode } from "@/lib/runtime-config";
@@ -686,54 +686,18 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
   );
   const [isPending, startTransition] = useTransition();
 
-  // ── Realtime subscription ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!supabase) return;
-    if (generation.status === "success" || generation.status === "failed") return;
-
-    const client = supabase;
-    const channel = client
-      .channel(`gen-result:${generationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "generations",
-          filter: `id=eq.${generationId}`,
-        },
-        (payload) => {
-          const updated = payload.new as Generation;
-          setGeneration(updated);
-          // For paid tiers: redirect is handled by the success panel rendering
-          // For free tier: we stay on this page and show the IDE embed
-        }
-      )
-      .subscribe();
-
-    return () => {
-      client.removeChannel(channel);
-    };
-  }, [generationId, generation.status]);
-
-  // ── Polling fallback (works when Supabase Realtime client is null) ─────────
-  useEffect(() => {
-    if (isDemoMode) return;
-    if (generation.status === "success" || generation.status === "failed") return;
-
-    const interval = setInterval(() => {
-      void (async () => {
-        try {
-          const latest = await getGeneration(generationId);
-          if (latest) setGeneration(latest as Generation);
-        } catch {
-          /* transient fetch error — realtime or next tick will recover */
-        }
-      })();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [generationId, generation.status]);
+  // ── Realtime watcher ────────────────────────────────────────────────────────
+  // Resilient transport (catch-up fetch on subscribe, re-subscribe on channel
+  // errors, polling fallback while down) — replaces the old subscription that
+  // had no error handling AND the unconditional 5s poll that hammered the
+  // server action throughout every healthy build.
+  // Terminal states: redirect/panels are handled by render, we just stop watching.
+  const isTerminal = generation.status === "success" || generation.status === "failed";
+  useGenerationRealtime({
+    generationId,
+    enabled: !isDemoMode && !isTerminal,
+    onUpdate: setGeneration,
+  });
 
   // ── Retry handler ──────────────────────────────────────────────────────────
   function handleRetry() {

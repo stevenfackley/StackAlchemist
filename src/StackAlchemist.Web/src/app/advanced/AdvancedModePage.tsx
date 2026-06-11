@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,6 +19,7 @@ import "@xyflow/react/dist/style.css";
 import { CheckCircle2, Loader2, AlertCircle, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
+import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
@@ -413,63 +414,38 @@ export default function AdvancedModePage() {
     [setEdges]
   );
 
-  // Real-time subscription
-  useEffect(() => {
-    if (!generationId || !supabase) return;
-    const client = supabase;
-    // Guards against double-acting (the live event and the post-subscribe fetch
-    // can both report success) and against state updates after redirect/unmount.
-    let done = false;
-
-    const apply = (row: Pick<Generation, "status" | "download_url" | "error_message" | "build_log">) => {
-      if (done) return;
+  // Real-time subscription (resilient: catch-up fetch, re-subscribe, polling
+  // fallback — see useGenerationRealtime). The `done` ref guards against
+  // double-acting: the live event and the catch-up fetch can both report success.
+  const doneRef = useRef(false);
+  const applyGenerationUpdate = useCallback(
+    (row: Generation) => {
+      if (doneRef.current) return;
       setLiveStatus(row.status);
       setLiveBuildLog(row.build_log);
       if (row.status === "success" && (row.download_url || selectedTier === 0)) {
         // Spark (free): redirect when preview_files_json is ready (no download_url).
         // Paid tiers: redirect when download_url is ready.
-        done = true;
+        doneRef.current = true;
         // Full-page load (NOT router.push): the result page must arrive as a fresh
         // document so its COOP/COEP headers apply and window.crossOriginIsolated is
         // true — required by StackBlitz WebContainers. A soft nav reuses the current
         // (non-isolated) document → StackBlitz errors "without isolation headers".
         window.location.href = `/generate/${generationId}`;
       } else if (row.status === "failed") {
-        done = true;
+        doneRef.current = true;
         setErrorMsg(row.error_message ?? "Generation failed.");
         setSubmitPhase("error");
       }
-    };
+    },
+    [generationId, selectedTier]
+  );
 
-    const channel = client
-      .channel(`gen-adv:${generationId}`)
-      .on("postgres_changes",
-        { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
-        (payload) => apply(payload.new as Generation)
-      )
-      .subscribe((status) => {
-        // Race fix: the deterministic Tier-0 render can set status=success BEFORE
-        // this WS handshake finishes, and postgres_changes does not replay events
-        // missed before SUBSCRIBED — so a fast generation would never redirect.
-        // Once the stream is live, fetch the current row once to catch an
-        // already-finished generation; later completions still arrive via the
-        // live UPDATE handler above.
-        if (status !== "SUBSCRIBED") return;
-        void (async () => {
-          const { data } = await client
-            .from("generations")
-            .select("status, download_url, error_message, build_log")
-            .eq("id", generationId)
-            .single();
-          if (data) apply(data as Pick<Generation, "status" | "download_url" | "error_message" | "build_log">);
-        })();
-      });
-
-    return () => {
-      done = true;
-      client.removeChannel(channel);
-    };
-  }, [generationId, selectedTier]);
+  useGenerationRealtime({
+    generationId,
+    enabled: !!generationId,
+    onUpdate: applyGenerationUpdate,
+  });
 
   function handleCheckout() {
     startTransition(async () => {
