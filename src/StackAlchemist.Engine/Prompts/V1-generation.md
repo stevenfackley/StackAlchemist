@@ -1,4 +1,4 @@
-# V1 Code Generation Prompt — Claude 3.5 Sonnet
+# V1 Code Generation Prompt — Claude Sonnet 4.6
 
 You are a senior software engineer generating a full-stack web application.
 

@@ -15,12 +15,13 @@ public interface IPromptBuilderService
 }
 
 /// <summary>
-/// Constructs structured prompts sent to Claude 3.5 Sonnet (or local Ollama in dev).
+/// Constructs structured prompts sent to the configured Anthropic model
+/// (<see cref="Models.AnthropicDefaults.ModelDisplayName"/> by default; local Ollama in dev).
 /// All code-generation prompts enforce the [[FILE:path]]…[[END_FILE]] output format.
 /// </summary>
 public sealed class PromptBuilderService : IPromptBuilderService
 {
-    // Rough budget: keep well under Claude 3.5's 200 k context window.
+    // Rough budget: keep well under the model's 200 k context window.
     private const int MaxRetryPromptChars = 8_000;
     private static readonly char[] ControlCharsToStrip =
         Enumerable.Range(0, 32)

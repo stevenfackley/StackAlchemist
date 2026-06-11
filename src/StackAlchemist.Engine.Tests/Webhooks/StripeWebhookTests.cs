@@ -117,11 +117,11 @@ public sealed class StripeWebhookTests
     }
 
     [Fact]
-    public async Task DuplicateEvent_IsSkipped()
+    public async Task DuplicateCheckoutEvent_IsSkipped()
     {
-        // 409 Conflict on stripe_events insert → handler short-circuits.
+        // The RPC reports is_new=false → handler short-circuits without enqueueing.
         var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.Conflict, ""));
+            (HttpStatusCode.OK, "[{\"is_new\":false}]"));
 
         var stripeEvent = new Event
         {
@@ -134,9 +134,59 @@ public sealed class StripeWebhookTests
 
         result.Processed.Should().BeFalse();
         result.Reason.Should().Be("duplicate");
+        result.Retry.Should().BeFalse();
         http.Requests.Should().HaveCount(1);
         await orchestrator.DidNotReceive().EnqueueAsync(
             Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DuplicateNonCheckoutEvent_IsSkipped()
+    {
+        // 409 Conflict on stripe_events insert → handler short-circuits.
+        var (sut, http, _, _) = BuildSut(
+            (HttpStatusCode.Conflict, ""));
+
+        var stripeEvent = new Event
+        {
+            Id = "evt_dup_2",
+            Type = "charge.refunded",
+            Data = new EventData
+            {
+                Object = new Charge { Id = "ch_dup", PaymentIntentId = "pi_dup" },
+            },
+        };
+
+        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Reason.Should().Be("duplicate");
+        http.Requests.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task NonCheckoutEvent_IdempotencyUnavailable_RequestsRetry()
+    {
+        // stripe_events insert fails (5xx) → no fail-open: ask Stripe to redeliver
+        // instead of processing unlogged (concurrent duplicates double-processed before).
+        var (sut, http, _, _) = BuildSut(
+            (HttpStatusCode.ServiceUnavailable, ""));
+
+        var stripeEvent = new Event
+        {
+            Id = "evt_unavail_1",
+            Type = "charge.refunded",
+            Data = new EventData
+            {
+                Object = new Charge { Id = "ch_x", PaymentIntentId = "pi_x" },
+            },
+        };
+
+        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Retry.Should().BeTrue();
+        http.Requests.Should().HaveCount(1, "the transaction PATCH must not run unlogged");
     }
 
     [Fact]
@@ -157,50 +207,95 @@ public sealed class StripeWebhookTests
         result.Reason.Should().StartWith("unhandled:");
     }
 
-    [Fact]
-    public async Task CheckoutCompleted_PersistsPaidTierThenEnqueuesUpgrade()
+    private static Event CheckoutCompletedEvent(string eventId = "evt_completed_1") => new()
     {
-        // Request order: [0] stripe_events insert (idempotency) → [1] load existing
-        // payload → [2] tier PATCH (the fix) → [3] transaction upsert.
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.Created, ""),
-            (HttpStatusCode.OK, "[]"),
-            (HttpStatusCode.NoContent, ""),
-            (HttpStatusCode.NoContent, ""));
-
-        var stripeEvent = new Event
+        Id = eventId,
+        Type = "checkout.session.completed",
+        Data = new EventData
         {
-            Id = "evt_completed_1",
-            Type = "checkout.session.completed",
-            Data = new EventData
+            Object = new Session
             {
-                Object = new Session
+                Id = "cs_77",
+                PaymentIntentId = "pi_77",
+                AmountTotal = 59_900,
+                Metadata = new Dictionary<string, string>
                 {
-                    Id = "cs_77",
-                    Metadata = new Dictionary<string, string>
-                    {
-                        ["generationId"] = "gen-77",
-                        ["tier"] = "2",
-                    },
+                    ["generationId"] = "gen-77",
+                    ["tier"] = "2",
                 },
             },
-        };
+        },
+    };
 
-        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+    [Fact]
+    public async Task CheckoutCompleted_RunsAtomicRpcThenEnqueues()
+    {
+        // The single RPC call replaces the old insert→load→tier-PATCH→upsert sequence:
+        // event recording, tier update, and transaction upsert are one Postgres
+        // transaction, so a partial failure can no longer strand a paid generation.
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.OK,
+             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
+             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"));
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
 
         result.Processed.Should().BeTrue();
+        result.Retry.Should().BeFalse();
 
-        // The purchased tier is persisted on the existing generation row. Without this a
-        // try-before-buy upgrade leaves the row at tier 0, so the result page keeps the
-        // free "Upgrade to Download" panel and the paid build burns a free-quota slot.
-        var tierPatch = http.Requests.Single(r =>
-            r.Method == HttpMethod.Patch && r.Url.Contains("generations?id=eq.gen-77"));
-        tierPatch.Body.Should().Contain("\"tier\":2");
+        http.Requests.Should().HaveCount(1);
+        var rpc = http.Requests[0];
+        rpc.Method.Should().Be(HttpMethod.Post);
+        rpc.Url.Should().Contain("/rest/v1/rpc/process_checkout_completed");
+        rpc.Body.Should().Contain("\"p_event_id\":\"evt_completed_1\"");
+        rpc.Body.Should().Contain("\"p_session_id\":\"cs_77\"");
+        rpc.Body.Should().Contain("\"p_generation_id\":\"gen-77\"");
+        rpc.Body.Should().Contain("\"p_tier\":2");
+        rpc.Body.Should().Contain("\"p_amount\":59900");
 
-        // …and the same generation id is re-enqueued at the paid tier for the full pipeline.
         await orchestrator.Received(1).EnqueueAsync(
-            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-77" && r.Tier == 2),
+            Arg.Is<GenerateRequest>(r =>
+                r.GenerationId == "gen-77" && r.Tier == 2 && r.Mode == "advanced"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CheckoutCompleted_RpcFailure_RequestsRetryWithoutEnqueue()
+    {
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.InternalServerError, ""));
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Retry.Should().BeTrue("the RPC rolled back, so Stripe's redelivery re-processes cleanly");
+        http.Requests.Should().HaveCount(1);
+        await orchestrator.DidNotReceive().EnqueueAsync(
+            Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CheckoutCompleted_EnqueueThrows_CompensatesEventAndRetries()
+    {
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.OK,
+             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
+             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"),
+            (HttpStatusCode.NoContent, ""));
+
+        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<GenerateResponse>>(_ => throw new InvalidOperationException("queue full"));
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_2"), CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Retry.Should().BeTrue();
+
+        // Compensation: the event row is deleted so the RPC sees a fresh insert on
+        // Stripe's redelivery instead of short-circuiting as a duplicate.
+        http.Requests.Should().HaveCount(2);
+        http.Requests[1].Method.Should().Be(HttpMethod.Delete);
+        http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_2");
     }
 
     public sealed record CapturedRequest(HttpMethod Method, string Url, string Body);
