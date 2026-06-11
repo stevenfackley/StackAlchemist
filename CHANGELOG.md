@@ -113,6 +113,7 @@ All notable changes to this project will be documented in this file.
 - Bump lucide-react in /src/StackAlchemist.Web ([#129](https://github.com/stevenfackley/StackAlchemist/issues/129))
 - Bump the next-react group across 1 directory with 4 updates ([#126](https://github.com/stevenfackley/StackAlchemist/issues/126))
 - Bump @xyflow/react in /src/StackAlchemist.Web ([#128](https://github.com/stevenfackley/StackAlchemist/issues/128))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#131](https://github.com/stevenfackley/StackAlchemist/issues/131))
 
 ### Documentation
 
@@ -208,6 +209,8 @@ All notable changes to this project will be documented in this file.
 - Bump vitest ([#114](https://github.com/stevenfackley/StackAlchemist/issues/114))
 - Gitignore private keys (*.p8/*.pem) + playwright-mcp dumps
 - Bump vitest ([#127](https://github.com/stevenfackley/StackAlchemist/issues/127))
+- Bump @types/node in /src/StackAlchemist.Web ([#133](https://github.com/stevenfackley/StackAlchemist/issues/133))
+- Bump @types/react in /src/StackAlchemist.Web ([#132](https://github.com/stevenfackley/StackAlchemist/issues/132))
 
 ### Refactoring
 
