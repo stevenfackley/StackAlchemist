@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useTransition } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -21,6 +21,25 @@ function RegisterPageContent() {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleResend = useCallback(() => {
+    if (resendCooldown > 0 || !supabase) return;
+    void supabase.auth.resend({ type: "signup", email: email.trim() });
+    setResendCooldown(60);
+  }, [email, resendCooldown]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown((n) => {
+        if (n <= 1) { clearInterval(cooldownRef.current!); return 0; }
+        return n - 1;
+      });
+    }, 1000);
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, [resendCooldown]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,12 +107,28 @@ function RegisterPageContent() {
                 Click the link to activate your account and sign in.
               </p>
             </div>
-            <Link
-              href="/"
-              className="inline-block font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-6 py-3 rounded-xl uppercase tracking-widest transition-colors"
-            >
-              Back to Home
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendCooldown > 0}
+                className="font-mono text-xs border border-slate-500 hover:border-slate-400 disabled:opacity-50 text-slate-300 hover:text-white px-6 py-3 rounded-xl uppercase tracking-widest transition-colors"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Confirmation Email"}
+              </button>
+              <Link
+                href="/"
+                className="font-mono text-xs text-slate-500 hover:text-slate-400 transition-colors"
+              >
+                Back to Home
+              </Link>
+            </div>
+            <p className="font-mono text-xs text-slate-500">
+              Already confirmed?{" "}
+              <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2">
+                Sign in
+              </Link>
+            </p>
           </div>
         </main>
       </div>
