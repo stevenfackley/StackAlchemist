@@ -4,6 +4,8 @@ export { Panel } from "./panel";
 export { Label, Eyebrow } from "./label";
 export { Field } from "./field";
 export { Button, buttonVariants, type ButtonProps } from "./button";
+export { Alert, alertVariants, type AlertProps } from "./alert";
+export { Modal, type ModalProps } from "./modal";
 export { TextInput } from "./text-input";
 export { Select } from "./select";
 export { Toggle } from "./toggle";

@@ -244,6 +244,7 @@ public class SwissCheeseEndToEndTests
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Generation:UseSwissCheese"] = "true" })
                 .Build(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         return (sut, queue);
