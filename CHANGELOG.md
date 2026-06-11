@@ -234,6 +234,7 @@ All notable changes to this project will be documented in this file.
 - Extract questionToAnchor + cover uniqueness
 - Pricing FAQPage schema, ContentHeader unification, keyword-rich homepage H1
 - Design-system token sweep phase 1 (F8) ([#147](https://github.com/stevenfackley/StackAlchemist/issues/147))
+- Split oversized client components (F10) ([#149](https://github.com/stevenfackley/StackAlchemist/issues/149))
 
 ### Security
 
