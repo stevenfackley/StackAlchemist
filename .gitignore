@@ -66,3 +66,6 @@ squirrel-audit-*.txt
 squirrel-audit-*.json
 squirrel-audit-*.html
 *.lscache
+
+# OAuth/API credential payloads — never commit (a payload_fixed.json leaked a Google client_secret on 2026-06-11)
+payload*.json
