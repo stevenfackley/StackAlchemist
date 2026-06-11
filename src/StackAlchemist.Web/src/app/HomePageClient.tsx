@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -35,7 +35,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AlchemyInput } from "@/components/alchemy-input";
-import { getFreeQuotaStatus, type FreeQuotaStatus } from "@/lib/actions";
+import { Alert } from "@/components/ui";
+import { useFreeQuota } from "@/lib/hooks/use-free-quota";
 import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
 
 const EXAMPLE_APPS = [
@@ -282,15 +283,8 @@ export default function HomePage() {
     { version: 1, isDefault: (v) => v.trim() === "" },
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [quota, setQuota] = useState<FreeQuotaStatus | null>(null);
-
-  // Deferred client fetch — keeps this SEO landing page statically prerendered
-  // (a server-side fetch would read auth cookies and force dynamic rendering).
-  useEffect(() => {
-    getFreeQuotaStatus()
-      .then(setQuota)
-      .catch(() => {});
-  }, []);
+  // Deferred client fetch keeps this SEO landing page statically prerendered.
+  const { quota } = useFreeQuota();
 
   function handleSubmit() {
     if (mode === "advanced") {
@@ -508,13 +502,22 @@ export default function HomePage() {
 
             {mode === "simple" ? (
               <>
+                {quota?.remaining === 0 && (
+                  <Alert variant="warning" className="mb-3" data-testid="home-quota-exhausted">
+                    You&apos;ve used all {quota.limit} free builds this month. Resets {quota.resetsAtLabel}.{" "}
+                    <a href="#pricing" className="underline underline-offset-2">
+                      View paid tiers →
+                    </a>
+                  </Alert>
+                )}
                 <AlchemyInput
                   value={prompt}
                   onChange={setPrompt}
                   onSubmit={handleSubmit}
+                  disabled={quota?.remaining === 0}
                   className="max-w-none"
                 />
-                {quota && (
+                {quota && quota.remaining > 0 && (
                   <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                     <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
                     <span>

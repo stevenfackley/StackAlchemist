@@ -141,6 +141,10 @@ export async function middleware(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Supabase Realtime connects directly to wss://<project>.supabase.co —
+    // never traverses this middleware, so Basic-Auth on the test mirror does
+    // not block realtime and needs no exemption here.
+
     // Gate the creation flow behind auth: a signed-out visitor who tries to
     // generate is bounced to /login and returned to where they were (the prompt
     // rides along in the query string) once they sign in. Skipped in demo mode,
