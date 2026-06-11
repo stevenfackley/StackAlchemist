@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { AlchemyInput } from "@/components/alchemy-input";
 import { getFreeQuotaStatus, type FreeQuotaStatus } from "@/lib/actions";
+import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
 
 const EXAMPLE_APPS = [
   {
@@ -271,7 +272,15 @@ const FAQS = [
 export default function HomePage() {
   const router = useRouter();
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
-  const [prompt, setPrompt] = useState("");
+  // Drafted to localStorage (silent restore — it's a visible text box) so an
+  // accidental refresh or auth bounce doesn't eat a carefully written prompt.
+  // Deliberately NOT cleared on submit: the failure/back-navigation path is
+  // exactly when the user wants it back.
+  const { value: prompt, setValue: setPrompt } = useLocalStorageDraft(
+    "sa:draft:home-prompt:v1",
+    "",
+    { version: 1, isDefault: (v) => v.trim() === "" },
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quota, setQuota] = useState<FreeQuotaStatus | null>(null);
 
