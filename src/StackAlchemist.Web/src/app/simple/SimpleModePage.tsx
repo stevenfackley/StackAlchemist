@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { submitSimpleGeneration } from "@/lib/actions";
+import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import type { Generation } from "@/lib/types";
@@ -75,16 +76,16 @@ export default function SimpleModePage() {
   }, [prompt]);
 
   // ── Redirect to the result page once the preview is ready ─────────────────
-  useEffect(() => {
-    if (!generationId || !supabase) return;
-    const client = supabase;
-    let done = false;
-
-    const apply = (row: Pick<Generation, "status" | "error_message">) => {
-      if (done) return;
+  // Resilient watcher (catch-up fetch, re-subscribe, polling fallback). The
+  // `done` ref guards against double-acting: the live event and the catch-up
+  // fetch can both report success.
+  const doneRef = useRef(false);
+  const applyGenerationUpdate = useCallback(
+    (row: Generation) => {
+      if (doneRef.current) return;
       setLiveStatus(row.status);
       if (row.status === "success") {
-        done = true;
+        doneRef.current = true;
         // Hard navigation (NOT router.push): the result page must arrive as a
         // fresh document so its COOP/COEP headers apply and
         // window.crossOriginIsolated is true — required by the StackBlitz
@@ -92,40 +93,19 @@ export default function SimpleModePage() {
         // document and StackBlitz errors "without isolation headers".
         window.location.href = `/generate/${generationId}`;
       } else if (row.status === "failed") {
-        done = true;
+        doneRef.current = true;
         setErrorMsg(row.error_message ?? "Generation failed. Please try again.");
         setPhase("error");
       }
-    };
+    },
+    [generationId]
+  );
 
-    const channel = client
-      .channel(`generation:${generationId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "generations", filter: `id=eq.${generationId}` },
-        (payload) => apply(payload.new as Generation)
-      )
-      .subscribe((status) => {
-        // The deterministic Tier-0 render can flip status=success BEFORE this WS
-        // handshake completes, and postgres_changes never replays events missed
-        // before SUBSCRIBED — so fetch the current row once to catch an
-        // already-finished build. Later completions still arrive via UPDATE.
-        if (status !== "SUBSCRIBED") return;
-        void (async () => {
-          const { data } = await client
-            .from("generations")
-            .select("status, error_message")
-            .eq("id", generationId)
-            .single();
-          if (data) apply(data as Pick<Generation, "status" | "error_message">);
-        })();
-      });
-
-    return () => {
-      done = true;
-      client.removeChannel(channel);
-    };
-  }, [generationId]);
+  useGenerationRealtime({
+    generationId,
+    enabled: !!generationId,
+    onUpdate: applyGenerationUpdate,
+  });
 
   function statusLabel(s: Generation["status"] | null) {
     switch (s) {
