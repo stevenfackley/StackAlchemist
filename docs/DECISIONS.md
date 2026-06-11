@@ -667,3 +667,15 @@ two root causes plus a latent third:
   prod) before the new web/engine images are deployed.
 
 ---
+
+## 2026-06-10 — Dependabot major: Stripe.net 51.2.0 → 52.0.0
+
+**Context:** Out-of-band major from Stripe. Pinned API version unchanged
+(`2026-05-27.dahlia`). Sole breaking change: `tax_rate.tax_details` became
+expandable (stripe/stripe-dotnet#3396).
+**Decision:** Merged via Dependabot PR #134 without code changes.
+**Consequences:** Zero usage of `tax_details`/`TaxDetails` in this repo
+(verified by grep at merge time) — no-op upgrade. If tax-rate detail handling
+is ever added, account for the expandable type.
+
+---
