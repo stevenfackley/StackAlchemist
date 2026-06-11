@@ -377,6 +377,7 @@ public class GenerationPipelineTests
                 })
                 .Build(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         return (sut, queue);

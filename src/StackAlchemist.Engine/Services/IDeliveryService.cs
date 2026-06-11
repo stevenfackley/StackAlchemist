@@ -85,12 +85,44 @@ public interface IDeliveryService
     Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct);
 
     /// <summary>
-    /// Marks any generation rows still in a non-terminal state
-    /// (pending / extracting_schema / generating_code / building) and older than
-    /// <paramref name="olderThan"/> as failed. Used at startup to clean up rows
-    /// orphaned by an engine restart mid-flight (the in-process queue is volatile).
-    /// Returns the number of rows reconciled; 0 when Supabase is not configured or
-    /// the sweep fails.
+    /// Lists generation rows still in a non-terminal state whose last update predates
+    /// <paramref name="olderThan"/>. Used by the periodic reconciler to find jobs
+    /// orphaned by a restart or stalled in flight. Empty when Supabase is not
+    /// configured or the read fails.
     /// </summary>
-    Task<int> FailStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct);
+    Task<IReadOnlyList<GenerationSnapshot>> GetStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct);
+
+    /// <summary>
+    /// Atomically claims a stale row for re-enqueue via a conditional PATCH on
+    /// (id, status, attempt_count, updated_at &lt; cutoff): sets status=pending and
+    /// increments attempt_count. Returns true only when this caller won the claim —
+    /// a concurrent claimer's filter no longer matches after the first one commits.
+    /// </summary>
+    Task<bool> TryClaimForRequeueAsync(GenerationSnapshot row, TimeSpan olderThan, CancellationToken ct);
+
+    /// <summary>
+    /// Conditionally fails a stale row (same CAS filter shape as
+    /// <see cref="TryClaimForRequeueAsync"/>), so a row that progressed since it was
+    /// listed is left alone. Returns true when the row was failed by this call.
+    /// </summary>
+    Task<bool> TryFailStaleRowAsync(
+        GenerationSnapshot row,
+        TimeSpan olderThan,
+        string errorMessage,
+        string errorCategory,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Atomically transitions a row from pending/failed to extracting_schema. Returns
+    /// false when the row is already mid-extraction or terminal — the double-submit
+    /// guard for /api/extract-schema. Returns true when Supabase is not configured so
+    /// local dev keeps working.
+    /// </summary>
+    Task<bool> TryBeginExtractionAsync(string generationId, CancellationToken ct);
+
+    /// <summary>
+    /// Re-issues a previously buffered critical write exactly once (no retries, no
+    /// re-buffering). Used by the reconciler to flush <see cref="IPendingWriteBuffer"/>.
+    /// </summary>
+    Task<bool> TryPatchOnceAsync(string generationId, Dictionary<string, object?> payload, CancellationToken ct);
 }

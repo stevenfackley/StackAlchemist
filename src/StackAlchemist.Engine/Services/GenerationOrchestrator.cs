@@ -33,6 +33,7 @@ public sealed partial class GenerationOrchestrator(
     IFileSystem fileSystem,
     IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
+    IInFlightGenerationRegistry inFlight,
     ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
 {
     private const string Tier0SparkTemplateSet = "V0-Spark-NextJs";
@@ -53,6 +54,11 @@ public sealed partial class GenerationOrchestrator(
 
     public async Task<GenerateResponse> EnqueueAsync(GenerateRequest request, CancellationToken ct = default)
     {
+        // Shield this generation from the periodic reconciler while it lives in this
+        // process. Queued jobs stay registered; CompileWorkerService removes them when
+        // the job finishes. The tier-0 path and the failure path remove below.
+        inFlight.Add(request.GenerationId);
+
         // Re-read the authoritative tier from the row before branching. A Stripe webhook
         // can upgrade the tier concurrently with (or just before) this enqueue — without
         // the re-read, a paid generation processes as the stale tier-0 Spark preview.
@@ -114,6 +120,7 @@ public sealed partial class GenerationOrchestrator(
                 await deliveryService.CompletePreviewAsync(request.GenerationId, previewFiles, ct);
 
                 context.State = GenerationState.Success;
+                inFlight.Remove(request.GenerationId);
                 LogTier0PreviewCompleted(logger, request.GenerationId, previewFiles.Count);
 
                 return new GenerateResponse
@@ -171,6 +178,7 @@ public sealed partial class GenerationOrchestrator(
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
+            inFlight.Remove(request.GenerationId);
 
             // Persist the terminal failure so the row leaves pending/in-progress and the UI
             // shows the error. CancellationToken.None: a cancelled request must still record it.
@@ -247,6 +255,10 @@ public sealed partial class GenerationOrchestrator(
             llmResponse.Model,
             ct);
 
+        // A max_tokens cutoff dropped file blocks mid-stream; retrying the identical
+        // request reproduces the identical truncation — fail fast as a schema error.
+        LlmResponseGuard.ThrowIfTruncated(llmResponse, "generating the application code");
+
         var llmBlocks = reconstructionService.Parse(llmResponse.Text);
         return reconstructionService.Reconstruct(renderedTemplates, llmBlocks, templateProvider);
     }
@@ -302,7 +314,12 @@ public sealed partial class GenerationOrchestrator(
 
     private static TemplateVariables BuildVariables(GenerateRequest request)
     {
-        var projectName = DeriveProjectName(request);
+        // Single choke point for user-derived template values: project, entity, and
+        // field names flow from user JSON / prompt extraction into Handlebars (which
+        // runs NoEscape), C# identifiers, file paths, and SQL — whitelist them here
+        // before any variant (kebab/lower) is derived so all stay consistent.
+        var projectName = TemplateValueSanitizer.SanitizeIdentifier(
+            DeriveProjectName(request), fallback: "GeneratedApp");
         var kebab = ToKebabCase(projectName);
         return new TemplateVariables
         {
@@ -311,19 +328,27 @@ public sealed partial class GenerationOrchestrator(
             ProjectNameLower = projectName.ToLowerInvariant(),
             DbConnectionString = $"Host=localhost;Port=5432;Database={projectName.ToLowerInvariant()};Username=postgres;Password=postgres",
             FrontendUrl = "http://localhost:3000",
-            Entities = request.Schema?.Entities.Select(e => new TemplateEntity
+            Entities = request.Schema?.Entities.Select(e =>
             {
-                Name = e.Name,
-                NameLower = e.Name.ToLowerInvariant(),
-                TableName = e.Name.ToLowerInvariant() + "s",
-                Fields = e.Fields.Select(f => new TemplateField
+                var entityName = TemplateValueSanitizer.SanitizeIdentifier(e.Name, fallback: "Entity");
+                return new TemplateEntity
                 {
-                    Name = f.Name,
-                    NameLower = f.Name.ToLowerInvariant(),
-                    Type = MapFieldType(f.Type),
-                    SqlType = MapSqlType(f.Type),
-                    IsPrimaryKey = f.Pk,
-                }).ToList(),
+                    Name = entityName,
+                    NameLower = entityName.ToLowerInvariant(),
+                    TableName = entityName.ToLowerInvariant() + "s",
+                    Fields = e.Fields.Select(f =>
+                    {
+                        var fieldName = TemplateValueSanitizer.SanitizeIdentifier(f.Name, fallback: "Field");
+                        return new TemplateField
+                        {
+                            Name = fieldName,
+                            NameLower = fieldName.ToLowerInvariant(),
+                            Type = MapFieldType(f.Type),
+                            SqlType = MapSqlType(f.Type),
+                            IsPrimaryKey = f.Pk,
+                        };
+                    }).ToList(),
+                };
             }).ToList() ?? [],
         };
     }

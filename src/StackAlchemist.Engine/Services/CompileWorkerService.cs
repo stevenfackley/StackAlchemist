@@ -18,6 +18,7 @@ public sealed partial class CompileWorkerService(
     IR2UploadService r2UploadService,
     IDeliveryService deliveryService,
     IEmailService emailService,
+    IInFlightGenerationRegistry inFlight,
     ILogger<CompileWorkerService> logger) : BackgroundService
 {
     private const int MaxRetries = 3;
@@ -51,6 +52,9 @@ public sealed partial class CompileWorkerService(
             }
             finally
             {
+                // The orchestrator registered the id at enqueue; the job is terminal
+                // (or dead) by here either way, so the reconciler may now see it.
+                inFlight.Remove(job.GenerationId);
                 CleanupTempDirectory(job);
             }
         }
@@ -184,6 +188,10 @@ public sealed partial class CompileWorkerService(
                 llmResponse.OutputTokens,
                 llmResponse.Model,
                 ct);
+
+            // Don't apply a truncated fix: half-written files guarantee the next build
+            // fails too, burning the remaining retries on reproducible truncation.
+            LlmResponseGuard.ThrowIfTruncated(llmResponse, "fixing the compilation errors");
 
             var fixedBlocks = reconstructionService.Parse(llmResponse.Text);
 

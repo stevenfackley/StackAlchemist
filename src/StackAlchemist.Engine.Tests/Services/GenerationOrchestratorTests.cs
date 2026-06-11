@@ -74,6 +74,7 @@ public class GenerationOrchestratorTests
             fs,
             EmptyConfig(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         return (sut, llm, queue, fs);
@@ -166,6 +167,7 @@ public class GenerationOrchestratorTests
             fs,
             EmptyConfig(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         var response = await sut.EnqueueAsync(new GenerateRequest
@@ -232,6 +234,7 @@ public class GenerationOrchestratorTests
             fs,
             EmptyConfig(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         var response = await sut.EnqueueAsync(new GenerateRequest
@@ -296,6 +299,7 @@ public class GenerationOrchestratorTests
             fs,
             ConfigWith(("Generation:UseSwissCheese", "true")),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         var response = await sut.EnqueueAsync(new GenerateRequest
@@ -365,6 +369,7 @@ public class GenerationOrchestratorTests
             fs,
             ConfigWith(("Generation:UseSwissCheese", "true")),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         await sut.EnqueueAsync(new GenerateRequest

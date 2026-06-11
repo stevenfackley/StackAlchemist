@@ -49,19 +49,34 @@ public sealed partial class AnthropicLlmClient(
 
                 LogApiResponse(logger, result.StopReason, result.Usage?.InputTokens ?? 0, result.Usage?.OutputTokens ?? 0);
 
+                if (result.StopReason == "max_tokens")
+                    LogResponseTruncated(logger, model, maxTokens);
+
                 return new LlmResponse(
                     text,
                     result.Usage?.InputTokens ?? 0,
                     result.Usage?.OutputTokens ?? 0,
-                    model);
+                    model,
+                    result.StopReason);
             }
 
             var body = await response.Content.ReadAsStringAsync(ct);
             var retryable = IsRetryable(response.StatusCode);
 
-            if (!retryable || attempt >= 2)
+            // Rate-limit/overload (429/529) recovers on Anthropic's side within seconds to
+            // minutes — give it a deeper retry budget than hard 5xx failures, and surface
+            // exhaustion as a typed exception so the user sees "high demand" not a stack trace.
+            var isRateLimit = IsRateLimit(response.StatusCode);
+            var maxAttemptIndex = isRateLimit ? 4 : 2; // 5 total tries vs 3
+
+            if (!retryable || attempt >= maxAttemptIndex)
             {
                 LogApiError(logger, (int)response.StatusCode, body);
+                if (isRateLimit)
+                {
+                    throw new LlmRateLimitException(
+                        $"Anthropic API rate-limited/overloaded (HTTP {(int)response.StatusCode}) after {attempt + 1} attempts.");
+                }
                 response.EnsureSuccessStatusCode();
             }
 
@@ -102,7 +117,20 @@ public sealed partial class AnthropicLlmClient(
     private static bool IsRetryable(HttpStatusCode statusCode) =>
         (int)statusCode is 429 or 500 or 502 or 503 or 529;
 
-    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    private static bool IsRateLimit(HttpStatusCode statusCode) =>
+        (int)statusCode is 429 or 529;
+
+    // Cap covers Retry-After headers too: a server asking for a 10-minute pause would
+    // otherwise stall the whole generation pipeline on one in-flight call.
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(60);
+
+    internal static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    {
+        var delay = ComputeRetryDelay(response, attempt);
+        return delay > MaxRetryDelay ? MaxRetryDelay : delay;
+    }
+
+    private static TimeSpan ComputeRetryDelay(HttpResponseMessage response, int attempt)
     {
         if (response.Headers.RetryAfter?.Delta is { } retryAfterDelta)
             return retryAfterDelta;
@@ -195,4 +223,7 @@ public sealed partial class AnthropicLlmClient(
 
     [LoggerMessage(EventId = 803, Level = LogLevel.Warning, Message = "Anthropic API error {Code} on attempt {Attempt}; retrying in {DelayMs} ms")]
     private static partial void LogApiRetry(ILogger logger, int code, int attempt, double delayMs);
+
+    [LoggerMessage(EventId = 804, Level = LogLevel.Warning, Message = "Anthropic response TRUNCATED at max_tokens (model={Model}, maxTokens={MaxTokens}) — output is incomplete")]
+    private static partial void LogResponseTruncated(ILogger logger, string model, int maxTokens);
 }
