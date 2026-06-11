@@ -28,12 +28,12 @@ export default async function GeneratePage({ params, searchParams }: PageProps) 
           </div>
           <h1 data-testid="generate-not-found-heading" className="text-2xl font-bold text-white">Generation Not Found</h1>
           <p className="text-slate-400 text-sm leading-relaxed">
-            The generation ID <code className="text-blue-400 font-mono text-xs bg-slate-700/50 px-1.5 py-0.5 rounded">{id}</code> does not exist or has expired.
+            The generation ID <code className="text-accent font-mono text-xs bg-slate-700/50 px-1.5 py-0.5 rounded">{id}</code> does not exist or has expired.
           </p>
           <Link
             href="/"
             data-testid="generate-not-found-start-link"
-            className="inline-block rounded-full bg-blue-500 text-white px-6 py-2.5 text-sm font-medium hover:bg-blue-400 transition-all duration-300"
+            className="inline-block rounded-full bg-accent text-white px-6 py-2.5 text-sm font-medium hover:bg-accent/90 transition-all duration-300"
           >
             Start a New Generation &rarr;
           </Link>
@@ -46,7 +46,7 @@ export default async function GeneratePage({ params, searchParams }: PageProps) 
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-800 flex items-center justify-center">
-          <div className="h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="h-8 w-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >

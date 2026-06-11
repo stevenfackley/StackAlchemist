@@ -48,7 +48,7 @@ const components: Components = {
       return (
         <Link
           href={resolved}
-          className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+          className="text-accent hover:text-accent underline underline-offset-2 transition-colors"
         >
           {children}
         </Link>
@@ -59,7 +59,7 @@ const components: Components = {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+        className="text-accent hover:text-accent underline underline-offset-2 transition-colors"
       >
         {children}
       </a>
@@ -78,7 +78,7 @@ const components: Components = {
       );
     }
     return (
-      <code className="bg-slate-700/60 text-blue-300 font-mono text-[0.8em] px-1.5 py-0.5 rounded">
+      <code className="bg-slate-700/60 text-accent font-mono text-[0.8em] px-1.5 py-0.5 rounded">
         {children}
       </code>
     );
@@ -93,7 +93,7 @@ const components: Components = {
 
   // Blockquote
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-blue-400/50 pl-4 my-4 text-slate-400 italic">
+    <blockquote className="border-l-2 border-accent/50 pl-4 my-4 text-slate-400 italic">
       {children}
     </blockquote>
   ),
@@ -122,7 +122,7 @@ const components: Components = {
     <tbody className="divide-y divide-slate-700/50">{children}</tbody>
   ),
   th: ({ children }) => (
-    <th className="text-left px-4 py-2.5 font-mono text-[10px] tracking-widest text-blue-400 uppercase border-b border-slate-700/60">
+    <th className="text-left px-4 py-2.5 font-mono text-[10px] tracking-widest text-accent uppercase border-b border-slate-700/60">
       {children}
     </th>
   ),

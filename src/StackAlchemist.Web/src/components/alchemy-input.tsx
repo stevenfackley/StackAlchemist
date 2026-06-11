@@ -116,7 +116,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
     <div className={cn("relative w-full max-w-2xl", className)}>
       {/* Outer glow */}
       <div
-        className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-blue-500/20 via-transparent to-blue-500/10 opacity-0 blur-xl transition-opacity duration-500 ${
+        className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-transparent to-accent/10 opacity-0 blur-xl transition-opacity duration-500 ${
           isFocused ? "opacity-100" : ""
         }`}
       />
@@ -125,14 +125,14 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
       <div
         className={`relative overflow-hidden rounded-2xl border backdrop-blur-md transition-all duration-300 ${
           isFocused
-            ? "border-blue-500/35 bg-slate-700/80 shadow-[0_0_30px_rgba(59,130,246,0.2)]"
+            ? "border-accent/35 bg-slate-700/80 shadow-[0_0_30px_rgba(77,166,255,0.2)]"
             : "border-slate-500/25 bg-slate-700/60 hover:border-slate-500/40"
         }`}
       >
         {/* Terminal header bar */}
         <div className="flex items-center justify-between border-b border-slate-500/25 px-4 py-3">
           <div className="flex items-center gap-3">
-            <Terminal className="h-4 w-4 text-blue-400" />
+            <Terminal className="h-4 w-4 text-accent" />
             <span className="font-mono text-xs tracking-wider text-slate-400">SYNTHESIS PROMPT</span>
           </div>
           <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
             <div className="h-2 w-2 rounded-full bg-slate-600" />
             <div
               className={`h-2 w-2 rounded-full transition-colors duration-300 ${
-                isFocused ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "bg-slate-600"
+                isFocused ? "bg-accent shadow-[0_0_8px_rgba(77,166,255,0.6)]" : "bg-slate-600"
               }`}
             />
           </div>
@@ -189,7 +189,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
                         key={item.label}
                         type="button"
                         onClick={() => appendPrompt(item.text)}
-                        className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/40 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:bg-slate-600/70 hover:text-white"
+                        className="flex items-center gap-1.5 rounded-full border border-slate-500/35 bg-slate-600/40 px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-slate-600/70 hover:text-white"
                       >
                         <Icon className="h-3 w-3" />
                         <span>{item.label}</span>
@@ -226,7 +226,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
             data-testid="home-synthesize-button"
             className={`group flex items-center gap-2 rounded-full px-5 py-2 font-medium text-sm transition-all duration-300 whitespace-nowrap ${
               value.trim() && !disabled
-                ? "bg-blue-500 text-white hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
+                ? "bg-accent text-white hover:-translate-y-0.5 hover:bg-accent/90 hover:shadow-[0_0_24px_rgba(77,166,255,0.45)]"
                 : "bg-slate-600 text-slate-400 cursor-not-allowed"
             }`}
           >
@@ -251,7 +251,7 @@ export function AlchemyInput({ value, onChange, onSubmit, disabled, className }:
           }`}
           style={{
             backgroundImage:
-              "linear-gradient(transparent 50%, rgba(59, 130, 246, 0.015) 50%)",
+              "linear-gradient(transparent 50%, rgba(77, 166, 255, 0.015) 50%)",
             backgroundSize: "100% 4px",
             backgroundRepeat: "repeat",
           }}

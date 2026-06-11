@@ -46,7 +46,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
   return (
     <div className="rounded-2xl border border-slate-600/40 bg-slate-700/10 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-600/30 bg-slate-700/20 flex items-center gap-3">
-        <Key className="h-4 w-4 text-blue-400 shrink-0" />
+        <Key className="h-4 w-4 text-accent shrink-0" />
         <div>
           <h2 className="font-mono text-xs font-bold text-white uppercase tracking-widest">
             API Settings
@@ -79,7 +79,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             type="password"
             autoComplete="off"
             placeholder={settings.hasApiKeyOverride ? "Saved key on file - enter a new key to replace" : "sk-ant-..."}
-            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10"
+            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 placeholder:text-ink-faint focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/10"
           />
           <p className="font-mono text-[10px] text-slate-600 leading-relaxed">
             Keys are AES-GCM encrypted before storage. Leave blank to keep the existing key.
@@ -92,7 +92,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
               type="checkbox"
               name="clearApiKey"
               value="true"
-              className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/30"
+              className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-800 text-accent focus:ring-accent/30"
             />
             Clear saved API key
           </label>
@@ -110,7 +110,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             id="preferredModel"
             name="preferredModel"
             defaultValue={settings.preferredModel}
-            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10"
+            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/10"
           >
             {MODEL_OPTIONS.map((model) => (
               <option key={model.value} value={model.value} disabled={model.disabled}>
@@ -138,7 +138,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             href="https://docs.anthropic.com/en/api/getting-started"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] text-accent hover:text-accent transition-colors uppercase tracking-widest"
           >
             <ExternalLink className="h-3 w-3" />
             Anthropic API Docs
@@ -147,7 +147,7 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 font-mono text-[10px] uppercase tracking-widest transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent hover:bg-accent/90 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 font-mono text-[10px] uppercase tracking-widest transition-colors"
           >
             <Save className="h-3.5 w-3.5" />
             {isPending ? "Saving" : "Save Settings"}

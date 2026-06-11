@@ -107,7 +107,7 @@ export default async function DocPage({ params }: Props) {
           className={`font-mono text-[10px] tracking-[0.3em] uppercase px-2 py-0.5 border ${
             doc.meta.section === "user"
               ? "text-emerald-400 border-emerald-400/30 bg-emerald-400/5"
-              : "text-blue-400 border-blue-400/30 bg-blue-400/5"
+              : "text-accent border-accent/30 bg-accent/5"
           }`}
         >
           {doc.meta.section === "user" ? "User Guide" : "Advanced"}
@@ -152,7 +152,7 @@ export default async function DocPage({ params }: Props) {
           {prev && (
             <Link
               href={`/docs/${prev.slug}`}
-              className="group flex flex-col gap-1 p-4 rounded-lg border border-slate-700/40 hover:border-blue-400/30 hover:bg-slate-700/30 transition-all"
+              className="group flex flex-col gap-1 p-4 rounded-lg border border-slate-700/40 hover:border-accent/30 hover:bg-slate-700/30 transition-all"
             >
               <span className="font-mono text-[10px] tracking-widest text-slate-500 uppercase flex items-center gap-1">
                 <ChevronLeft className="h-3 w-3" />
@@ -168,7 +168,7 @@ export default async function DocPage({ params }: Props) {
           {next && (
             <Link
               href={`/docs/${next.slug}`}
-              className="group flex flex-col gap-1 p-4 rounded-lg border border-slate-700/40 hover:border-blue-400/30 hover:bg-slate-700/30 transition-all text-right w-full"
+              className="group flex flex-col gap-1 p-4 rounded-lg border border-slate-700/40 hover:border-accent/30 hover:bg-slate-700/30 transition-all text-right w-full"
             >
               <span className="font-mono text-[10px] tracking-widest text-slate-500 uppercase flex items-center justify-end gap-1">
                 Next

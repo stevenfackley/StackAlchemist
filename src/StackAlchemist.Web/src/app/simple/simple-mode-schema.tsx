@@ -42,9 +42,9 @@ const ENTITY_POSITIONS: Record<string, { x: number; y: number }> = {
 
 function EntityCard({ name, fields }: { name: string; fields: SchemaField[] }) {
   return (
-    <div className="bg-slate-700 border border-blue-500/60 min-w-[160px] text-left rounded-lg overflow-hidden">
-      <div className="bg-blue-500/10 border-b border-blue-500/60 px-3 py-1.5">
-        <span className="font-mono text-xs font-bold text-blue-400 tracking-widest uppercase">{name}</span>
+    <div className="bg-slate-700 border border-accent/60 min-w-[160px] text-left rounded-lg overflow-hidden">
+      <div className="bg-accent/10 border-b border-accent/60 px-3 py-1.5">
+        <span className="font-mono text-xs font-bold text-accent tracking-widest uppercase">{name}</span>
       </div>
       <div className="px-3 py-2 space-y-0.5">
         {fields.map((f) => (

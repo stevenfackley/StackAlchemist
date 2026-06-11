@@ -23,8 +23,8 @@ export function DocsSidebar() {
           <div key={section.key}>
             {/* Section label */}
             <div className="flex items-center gap-2 mb-3 px-3">
-              <Icon className="h-3.5 w-3.5 text-blue-400" />
-              <span className="font-mono text-[10px] tracking-[0.25em] text-blue-400 uppercase">
+              <Icon className="h-3.5 w-3.5 text-accent" />
+              <span className="font-mono text-[10px] tracking-[0.25em] text-accent uppercase">
                 {section.label}
               </span>
             </div>
@@ -44,14 +44,14 @@ export function DocsSidebar() {
                         text-sm transition-all duration-200
                         ${
                           isActive
-                            ? "bg-blue-500/15 text-white border-l-2 border-blue-400 pl-2.5"
+                            ? "bg-accent/15 text-white border-l-2 border-accent pl-2.5"
                             : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border-l-2 border-transparent pl-2.5"
                         }
                       `}
                     >
                       <span className={isActive ? "font-medium" : ""}>{doc.title}</span>
                       {isActive && (
-                        <ChevronRight className="h-3 w-3 text-blue-400 shrink-0" />
+                        <ChevronRight className="h-3 w-3 text-accent shrink-0" />
                       )}
                     </Link>
                   </li>

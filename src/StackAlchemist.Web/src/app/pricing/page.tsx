@@ -207,14 +207,14 @@ export default function PricingPage() {
         <section className="py-20 px-4 sm:px-8 text-center border-b border-slate-700/50">
           <div className="max-w-2xl mx-auto space-y-5">
             <div className="flex items-center justify-center gap-3">
-              <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-              <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Pricing</span>
-              <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+              <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+              <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Pricing</span>
+              <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
             </div>
             <h1 data-testid="pricing-hero-title" className="font-bold text-4xl md:text-5xl text-white tracking-tight leading-tight">
               TRY FREE.
               <br />
-              <span className="text-blue-400">OWN IT FOREVER.</span>
+              <span className="text-accent">OWN IT FOREVER.</span>
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-lg mx-auto">
               Start with a free live preview in our micro IDE. No credit card required.
@@ -293,9 +293,9 @@ export default function PricingPage() {
           <div className="max-w-6xl mx-auto">
             <div className="mb-10 text-center">
               <div className="flex items-center justify-center gap-3">
-                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Paid Tiers</span>
-                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Paid Tiers</span>
+                <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
               </div>
               <p className="mt-3 text-slate-500 text-sm font-mono">One-time payment. Download and own your codebase forever.</p>
             </div>
@@ -307,14 +307,14 @@ export default function PricingPage() {
                   data-testid={`pricing-tier-${tier.id}`}
                   className={`relative rounded-xl border p-8 flex flex-col transition-all duration-300 ${
                     tier.highlight
-                      ? "border-blue-500/50 bg-slate-700/50 shadow-[0_0_40px_rgba(59,130,246,0.12)]"
+                      ? "border-accent/50 bg-slate-700/50 shadow-[0_0_40px_rgba(77,166,255,0.12)]"
                       : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
                   }`}
                 >
                   {tier.highlight && (
                     <>
-                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500 to-transparent rounded-t-xl" />
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-3 py-1 text-xs font-medium text-white whitespace-nowrap">
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent to-transparent rounded-t-xl" />
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-1 text-xs font-medium text-white whitespace-nowrap">
                         Most Popular
                       </div>
                     </>
@@ -329,7 +329,7 @@ export default function PricingPage() {
                   <ul className="space-y-2.5 flex-1 mb-8">
                     {tier.items.map((item) => (
                       <li key={item} className="flex items-start gap-2.5 text-sm text-slate-300">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                         {item}
                       </li>
                     ))}
@@ -338,8 +338,8 @@ export default function PricingPage() {
                     href={tier.href}
                     className={`block text-center rounded-full py-3 text-sm font-medium transition-all duration-300 ${
                       tier.highlight
-                        ? "bg-blue-500 text-white hover:bg-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
-                        : "border border-slate-500/30 bg-slate-700/30 text-slate-200 hover:border-blue-500/40 hover:bg-slate-700/50"
+                        ? "bg-accent text-white hover:bg-accent/90 hover:shadow-[0_0_20px_rgba(77,166,255,0.35)]"
+                        : "border border-slate-500/30 bg-slate-700/30 text-slate-200 hover:border-accent/40 hover:bg-slate-700/50"
                     }`}
                   >
                     {tier.cta} &rarr;
@@ -355,9 +355,9 @@ export default function PricingPage() {
           <div className="max-w-5xl mx-auto">
             <div className="mb-10 text-center">
               <div className="flex items-center justify-center gap-3">
-                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Full Comparison</span>
-                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Full Comparison</span>
+                <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
               </div>
             </div>
             <div className="overflow-x-auto rounded-xl border border-slate-700/50">
@@ -367,7 +367,7 @@ export default function PricingPage() {
                     <th className="text-left py-4 px-6 text-slate-500 font-normal tracking-widest uppercase w-2/5">Feature</th>
                     <th className="py-4 px-3 text-center text-emerald-400 font-bold tracking-widest uppercase bg-emerald-500/5 whitespace-nowrap">Spark<br/><span className="text-[10px] font-normal text-slate-500">Free</span></th>
                     <th className="py-4 px-3 text-center text-slate-400 font-bold tracking-widest uppercase">Blueprint</th>
-                    <th className="py-4 px-3 text-center text-blue-400 font-bold tracking-widest uppercase bg-blue-500/5">Boilerplate</th>
+                    <th className="py-4 px-3 text-center text-accent font-bold tracking-widest uppercase bg-accent/5">Boilerplate</th>
                     <th className="py-4 px-3 text-center text-slate-400 font-bold tracking-widest uppercase">Infra</th>
                   </tr>
                 </thead>
@@ -377,7 +377,7 @@ export default function PricingPage() {
                       <td className="py-3 px-6 text-slate-300">{row.label}</td>
                       <td className="py-3 px-3 text-center bg-emerald-500/5"><CheckCell value={row.spark} /></td>
                       <td className="py-3 px-3 text-center"><CheckCell value={row.bp} /></td>
-                      <td className="py-3 px-3 text-center bg-blue-500/5"><CheckCell value={row.bb} /></td>
+                      <td className="py-3 px-3 text-center bg-accent/5"><CheckCell value={row.bb} /></td>
                       <td className="py-3 px-3 text-center"><CheckCell value={row.infra} /></td>
                     </tr>
                   ))}
@@ -385,7 +385,7 @@ export default function PricingPage() {
                     <td className="py-4 px-6 text-white font-bold">Price</td>
                     <td className="py-4 px-3 text-center text-emerald-400 font-bold bg-emerald-500/5">Free</td>
                     <td className="py-4 px-3 text-center text-white font-bold">$299</td>
-                    <td className="py-4 px-3 text-center text-blue-400 font-bold bg-blue-500/5">$599</td>
+                    <td className="py-4 px-3 text-center text-accent font-bold bg-accent/5">$599</td>
                     <td className="py-4 px-3 text-center text-white font-bold">$999</td>
                   </tr>
                 </tbody>
@@ -399,9 +399,9 @@ export default function PricingPage() {
           <div className="max-w-3xl mx-auto">
             <div className="mb-12 text-center">
               <div className="flex items-center justify-center gap-3">
-                <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-                <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Frequently Asked</span>
-                <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+                <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+                <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Frequently Asked</span>
+                <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
               </div>
             </div>
             <div className="divide-y divide-slate-700/50">
@@ -437,7 +437,7 @@ export default function PricingPage() {
               </Link>
               <Link
                 href="/about"
-                className="w-full sm:w-auto rounded-full border border-slate-500/30 bg-slate-700/30 text-slate-300 hover:border-blue-500/40 hover:text-blue-400 px-6 py-2.5 text-sm font-medium transition-all duration-300 text-center"
+                className="w-full sm:w-auto rounded-full border border-slate-500/30 bg-slate-700/30 text-slate-300 hover:border-accent/40 hover:text-accent px-6 py-2.5 text-sm font-medium transition-all duration-300 text-center"
               >
                 Learn More
               </Link>
@@ -451,7 +451,7 @@ export default function PricingPage() {
           <div className="flex items-center gap-3">
             <Image src="/logo.svg" alt="Stack Alchemist" width={24} height={24} className="opacity-50" />
             <span className="font-mono text-xs tracking-widest text-slate-500">
-              STACK <span className="text-blue-400/60">AL</span>CHEMIST
+              STACK <span className="text-accent/60">AL</span>CHEMIST
             </span>
           </div>
           <div className="flex gap-6">

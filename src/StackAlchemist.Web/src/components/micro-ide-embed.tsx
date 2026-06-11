@@ -143,7 +143,7 @@ export function MicroIdeEmbed({ files, title, openFile }: MicroIdeEmbedProps) {
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
+            className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-accent/40 hover:text-accent px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
           >
             Retry
           </button>
