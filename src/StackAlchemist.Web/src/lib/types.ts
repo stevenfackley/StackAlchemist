@@ -3,6 +3,20 @@
    These mirror the Supabase `public` schema. Keep in sync with migrations.
 ───────────────────────────────────────────────────────────────────────────── */
 
+// ─── Generation Error Category ───────────────────────────────────────────────
+// Mirrors the CHECK constraint added by B1 migration (error_category column).
+// null = pre-B1 row or a non-categorised failure.
+export const GENERATION_ERROR_CATEGORIES = [
+  "quota",
+  "schema",
+  "build",
+  "rate_limit",
+  "network",
+  "internal",
+] as const;
+
+export type GenerationErrorCategory = (typeof GENERATION_ERROR_CATEGORIES)[number];
+
 // ─── Generation Status ───────────────────────────────────────────────────────
 export type GenerationStatus =
   | "pending"
@@ -77,6 +91,7 @@ export interface Generation {
   /** Streaming build output from the compile worker */
   build_log: string | null;
   error_message: string | null;
+  error_category: GenerationErrorCategory | null;
   attempt_count: number;
   created_at: string;
   updated_at: string;
@@ -139,6 +154,7 @@ export interface Database {
           personalization_json?: PersonalizationData | null;
           build_log?: string | null;
           error_message?: string | null;
+          error_category?: GenerationErrorCategory | null;
           attempt_count?: number;
           created_at?: string;
           updated_at?: string;

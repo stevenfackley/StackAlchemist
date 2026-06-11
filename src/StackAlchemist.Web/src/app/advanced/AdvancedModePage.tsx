@@ -16,7 +16,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CheckCircle2, Loader2, AlertCircle, Zap } from "lucide-react";
+import { CheckCircle2, Loader2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
@@ -25,6 +25,7 @@ import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
+import { GenerationErrorPanel } from "@/components/generation-error-panel";
 import { PersonalizationModal } from "@/components/personalization-modal";
 import { Alert, Button, Cluster, Eyebrow, Label, Panel, Select, Stack, TextInput, Toggle } from "@/components/ui";
 import { ContextPanel, StepRail, WizardFooter, Workspace } from "@/components/workspace";
@@ -646,23 +647,11 @@ export default function AdvancedModePage() {
 
   if (submitPhase === "error") {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-4 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-danger/30 bg-danger/10">
-            <AlertCircle className="h-8 w-8 text-danger" />
-          </div>
-          <h2 className="text-xl font-bold text-ink">Something went wrong</h2>
-          <p className="text-sm text-ink-muted">{errorMsg}</p>
-          <div className="flex justify-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => { setSubmitPhase("idle"); setErrorMsg(null); }}>
-              ← Back
-            </Button>
-            <Link href="/" className="rounded-full bg-accent px-5 py-2.5 font-mono text-xs uppercase tracking-[0.15em] text-white transition-colors hover:bg-accent/90">
-              Start Over
-            </Link>
-          </div>
-        </div>
-      </div>
+      <GenerationErrorPanel
+        testId="advanced-phase-error"
+        errorMessage={errorMsg}
+        onRetry={() => { setSubmitPhase("idle"); setErrorMsg(null); }}
+      />
     );
   }
 
