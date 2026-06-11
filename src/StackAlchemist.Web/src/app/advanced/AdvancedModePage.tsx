@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ReactFlow,
   Background,
@@ -24,6 +23,8 @@ import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
 import { PersonalizationModal } from "@/components/personalization-modal";
+import { Button, Cluster, Eyebrow, Label, Panel, Select, Stack, TextInput, Toggle } from "@/components/ui";
+import { ContextPanel, StepRail, WizardFooter, Workspace } from "@/components/workspace";
 import type { Entity, Relationship, Endpoint, Tier, Generation, ProjectType, PersonalizationData } from "@/lib/types";
 import { DEFAULT_PERSONALIZATION } from "@/lib/types";
 
@@ -31,7 +32,14 @@ const FIELD_TYPES = ["UUID", "String", "Integer", "Decimal", "Boolean", "Timesta
 const REL_TYPES: Relationship["type"][] = ["Has Many", "Belongs To", "Has One", "Many To Many"];
 const HTTP_METHODS: Endpoint["method"][] = ["GET", "POST", "PUT", "DELETE", "PATCH"];
 
-// ─── Step 1: Entities ─────────────────────────────────────────────────────────
+// Shared micro-control affordances — all on the token palette + spacing scale.
+const ICON_BTN = "px-1 font-mono text-danger/60 transition-colors hover:text-danger";
+const ADD_BLOCK =
+  "w-full rounded-control border border-accent/30 px-4 py-2.5 font-mono text-xs uppercase tracking-[0.15em] text-accent transition-colors hover:bg-accent/10";
+const ADD_INLINE =
+  "self-start font-mono text-[0.625rem] uppercase tracking-[0.15em] text-accent transition-colors hover:text-accent/80";
+
+// ─── Step 1: Entities + Relationships ─────────────────────────────────────────
 function StepEntities({ entities, setEntities, relationships, setRelationships }: {
   entities: Entity[];
   setEntities: React.Dispatch<React.SetStateAction<Entity[]>>;
@@ -40,114 +48,168 @@ function StepEntities({ entities, setEntities, relationships, setRelationships }
 }) {
   const entityNames = entities.map((e) => e.name).filter(Boolean);
   return (
-    <div className="space-y-5">
-      {entities.map((entity, eidx) => (
-        <div key={eidx} className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <label className="font-mono text-xs text-slate-500 uppercase tracking-widest w-20 shrink-0">Entity</label>
-            <input value={entity.name} onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, name: e.target.value } : x))}
-              placeholder="EntityName"
-              className="flex-1 bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-1.5 font-mono text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
-            />
-            <button onClick={() => setEntities((p) => p.filter((_, i) => i !== eidx))} className="font-mono text-xs text-rose-400/60 hover:text-rose-400 px-2 transition-colors">✕</button>
-          </div>
-          <div className="pl-4 border-l border-slate-600/30 space-y-1.5">
-            {entity.fields.map((field, fidx) => (
-              <div key={fidx} className="flex items-center gap-2 flex-wrap">
-                <input value={field.name} onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, name: e.target.value } : f) } : x))}
-                  placeholder="field_name"
-                  className="w-28 bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+    <Stack gap="lg">
+      {/* Chunk A — Entities */}
+      <Stack gap="md">
+        <Eyebrow>Entities</Eyebrow>
+        {entities.map((entity, eidx) => (
+          <Panel key={eidx}>
+            <Stack gap="sm">
+              <Cluster gap="sm" className="flex-nowrap">
+                <Label className="w-16 shrink-0">Entity</Label>
+                <TextInput
+                  size="sm"
+                  value={entity.name}
+                  onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, name: e.target.value } : x))}
+                  placeholder="EntityName"
+                  className="flex-1"
                 />
-                <select value={field.type} onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, type: e.target.value } : f) } : x))}
-                  className="bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500/60"
+                <button type="button" onClick={() => setEntities((p) => p.filter((_, i) => i !== eidx))} className={ICON_BTN}>✕</button>
+              </Cluster>
+              <div className="flex flex-col gap-2 border-l border-border pl-4">
+                {entity.fields.map((field, fidx) => (
+                  <Cluster key={fidx} gap="xs">
+                    <TextInput
+                      size="sm"
+                      value={field.name}
+                      onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, name: e.target.value } : f) } : x))}
+                      placeholder="field_name"
+                      className="w-28"
+                    />
+                    <Select
+                      size="sm"
+                      value={field.type}
+                      onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, type: e.target.value } : f) } : x))}
+                    >
+                      {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                    <Toggle
+                      label="PK"
+                      checked={field.pk}
+                      onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, pk: e.target.checked } : f) } : x))}
+                    />
+                    <button type="button" onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.filter((_, j) => j !== fidx) } : x))} className={ICON_BTN}>✕</button>
+                  </Cluster>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: [...x.fields, { name: "", type: "String", pk: false }] } : x))}
+                  className={ADD_INLINE}
                 >
-                  {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input type="checkbox" checked={field.pk} onChange={(e) => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.map((f, j) => j === fidx ? { ...f, pk: e.target.checked } : f) } : x))} className="accent-blue-500" />
-                  <span className="font-mono text-[10px] text-slate-500">PK</span>
-                </label>
-                <button onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: x.fields.filter((_, j) => j !== fidx) } : x))} className="font-mono text-[10px] text-rose-400/50 hover:text-rose-400 px-1">✕</button>
+                  + Add Field
+                </button>
               </div>
-            ))}
-            <button onClick={() => setEntities((p) => p.map((x, i) => i === eidx ? { ...x, fields: [...x.fields, { name: "", type: "String", pk: false }] } : x))}
-              className="font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors tracking-widest uppercase">+ Add Field</button>
-          </div>
-        </div>
-      ))}
-      <button onClick={() => setEntities((p) => [...p, { name: "", fields: [{ name: "id", type: "UUID", pk: true }] }])}
-        className="w-full font-mono text-xs border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-4 py-2.5 rounded-xl uppercase tracking-widest transition-colors">
-        + Add Entity
-      </button>
-      <div className="pt-3 border-t border-slate-700/50 space-y-3">
-        <p className="font-mono text-xs text-slate-500 uppercase tracking-widest">Relationships</p>
+            </Stack>
+          </Panel>
+        ))}
+        <button
+          type="button"
+          onClick={() => setEntities((p) => [...p, { name: "", fields: [{ name: "id", type: "UUID", pk: true }] }])}
+          className={ADD_BLOCK}
+        >
+          + Add Entity
+        </button>
+      </Stack>
+
+      {/* Chunk B — Relationships */}
+      <Stack gap="sm" className="border-t border-border pt-6">
+        <Eyebrow>Relationships</Eyebrow>
         {relationships.map((rel, idx) => (
-          <div key={idx} className="flex items-center gap-2 flex-wrap">
-            <select value={rel.from} onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, from: e.target.value } : r))}
-              className="bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500/60">
+          <Cluster key={idx} gap="xs">
+            <Select
+              size="sm"
+              value={rel.from}
+              onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, from: e.target.value } : r))}
+            >
               <option value="">From...</option>
               {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <select value={rel.type} onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, type: e.target.value as Relationship["type"] } : r))}
-              className="bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500/60">
+            </Select>
+            <Select
+              size="sm"
+              value={rel.type}
+              onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, type: e.target.value as Relationship["type"] } : r))}
+            >
               {REL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <select value={rel.to} onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, to: e.target.value } : r))}
-              className="bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500/60">
+            </Select>
+            <Select
+              size="sm"
+              value={rel.to}
+              onChange={(e) => setRelationships((p) => p.map((r, i) => i === idx ? { ...r, to: e.target.value } : r))}
+            >
               <option value="">To...</option>
               {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <button onClick={() => setRelationships((p) => p.filter((_, i) => i !== idx))} className="font-mono text-[10px] text-rose-400/50 hover:text-rose-400 px-1">✕</button>
-          </div>
+            </Select>
+            <button type="button" onClick={() => setRelationships((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
+          </Cluster>
         ))}
-        <button onClick={() => setRelationships((p) => [...p, { from: "", type: "Has Many", to: "" }])}
-          className="font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors tracking-widest uppercase">+ Add Relationship</button>
-      </div>
-    </div>
+        <button
+          type="button"
+          onClick={() => setRelationships((p) => [...p, { from: "", type: "Has Many", to: "" }])}
+          className={ADD_INLINE}
+        >
+          + Add Relationship
+        </button>
+      </Stack>
+    </Stack>
   );
 }
 
-// ─── Step 2: Endpoints ────────────────────────────────────────────────────────
+// ─── Step 3: Endpoints ────────────────────────────────────────────────────────
 function StepEndpoints({ endpoints, setEndpoints, entityNames }: {
   endpoints: Endpoint[];
   setEndpoints: React.Dispatch<React.SetStateAction<Endpoint[]>>;
   entityNames: string[];
 }) {
   return (
-    <div className="space-y-4">
-      <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Define API endpoints for your entities</p>
+    <Stack gap="md">
+      <Eyebrow>Define API endpoints for your entities</Eyebrow>
       {endpoints.map((ep, idx) => (
-        <div key={idx} className="flex items-center gap-2 flex-wrap rounded-xl border border-slate-600/30 bg-slate-700/20 p-3">
-          <select value={ep.method} onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value as Endpoint["method"] } : x))}
-            className={cn("bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] font-bold focus:outline-none focus:border-blue-500/60 w-20",
-              ep.method === "GET" && "text-emerald-400",
-              ep.method === "POST" && "text-blue-400",
-              ep.method === "PUT" && "text-yellow-400",
-              (ep.method === "DELETE" || ep.method === "PATCH") && "text-rose-400"
-            )}>
-            {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <input value={ep.path} onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, path: e.target.value } : x))}
-            placeholder="/api/v1/resource"
-            className="flex-1 bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 min-w-[140px]"
-          />
-          <select value={ep.entity} onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, entity: e.target.value } : x))}
-            className="bg-slate-800/60 border border-slate-600/40 rounded-lg px-2 py-1 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500/60">
-            <option value="">Entity...</option>
-            {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <button onClick={() => setEndpoints((p) => p.filter((_, i) => i !== idx))} className="font-mono text-[10px] text-rose-400/50 hover:text-rose-400 px-1">✕</button>
-        </div>
+        <Panel key={idx}>
+          <Cluster gap="xs">
+            <Select
+              size="sm"
+              value={ep.method}
+              onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value as Endpoint["method"] } : x))}
+              className={cn("w-20 font-bold",
+                ep.method === "GET" && "text-success",
+                ep.method === "POST" && "text-accent",
+                ep.method === "PUT" && "text-yellow-400",
+                (ep.method === "DELETE" || ep.method === "PATCH") && "text-danger",
+              )}
+            >
+              {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </Select>
+            <TextInput
+              size="sm"
+              value={ep.path}
+              onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, path: e.target.value } : x))}
+              placeholder="/api/v1/resource"
+              className="min-w-[140px] flex-1"
+            />
+            <Select
+              size="sm"
+              value={ep.entity}
+              onChange={(e) => setEndpoints((p) => p.map((x, i) => i === idx ? { ...x, entity: e.target.value } : x))}
+            >
+              <option value="">Entity...</option>
+              {entityNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
+            <button type="button" onClick={() => setEndpoints((p) => p.filter((_, i) => i !== idx))} className={ICON_BTN}>✕</button>
+          </Cluster>
+        </Panel>
       ))}
-      <button onClick={() => setEndpoints((p) => [...p, { method: "GET", path: "", entity: "" }])}
-        className="w-full font-mono text-xs border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-4 py-2.5 rounded-xl uppercase tracking-widest transition-colors">
+      <button
+        type="button"
+        onClick={() => setEndpoints((p) => [...p, { method: "GET", path: "", entity: "" }])}
+        className={ADD_BLOCK}
+      >
         + Add Endpoint
       </button>
-    </div>
+    </Stack>
   );
 }
 
-// ─── Step 3: Platform ─────────────────────────────────────────────────────────
+// ─── Step 2: Platform ─────────────────────────────────────────────────────────
 function StepPlatformSelection({
   selectedProjectType,
   setSelectedProjectType,
@@ -179,48 +241,48 @@ function StepPlatformSelection({
   ];
 
   return (
-    <div className="space-y-4">
-      <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Select the platform you want StackAlchemist to generate</p>
-      <div className="grid grid-cols-1 gap-4">
+    <Stack gap="md">
+      <Eyebrow>Select the platform you want StackAlchemist to generate</Eyebrow>
+      <Stack gap="md">
         {platforms.map((platform) => (
           <button
             key={platform.id}
             type="button"
             onClick={() => setSelectedProjectType(platform.id)}
             className={cn(
-              "rounded-2xl border p-5 text-left transition-all duration-300",
+              "rounded-panel border p-5 text-left transition-all duration-300",
               selectedProjectType === platform.id
-                ? "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-                : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
+                ? "border-accent/60 bg-accent/10 shadow-[0_0_20px_rgba(77,166,255,0.15)]"
+                : "border-border bg-surface-2/30 hover:border-accent/30",
             )}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2">
-                <p className="font-mono text-sm font-bold tracking-widest text-white uppercase">{platform.title}</p>
-                <p className="text-sm text-slate-400">{platform.description}</p>
-              </div>
-              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 font-mono text-[10px] text-blue-400 uppercase tracking-widest">
+              <Stack gap="xs">
+                <p className="font-mono text-sm font-bold uppercase tracking-[0.15em] text-ink">{platform.title}</p>
+                <p className="text-sm text-ink-muted">{platform.description}</p>
+              </Stack>
+              <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-1 font-mono text-[0.625rem] uppercase tracking-[0.15em] text-accent">
                 {platform.badge}
               </span>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <Cluster gap="xs" className="mt-4">
               {platform.details.map((detail) => (
                 <span
                   key={detail}
-                  className="rounded-full border border-slate-600/40 bg-slate-800/50 px-2.5 py-1 font-mono text-[10px] text-slate-300"
+                  className="rounded-full border border-border-strong bg-surface-0/50 px-2.5 py-1 font-mono text-[0.625rem] text-ink-muted"
                 >
                   {detail}
                 </span>
               ))}
-            </div>
+            </Cluster>
           </button>
         ))}
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   );
 }
 
-// ─── Step 4: Tier ─────────────────────────────────────────────────────────────
+// ─── Step 5: Tier ─────────────────────────────────────────────────────────────
 function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSelectedTier: (t: Tier) => void }) {
   const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
     {
@@ -232,44 +294,46 @@ function StepTier({ selectedTier, setSelectedTier }: { selectedTier: Tier; setSe
     { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK Stack", "Helm Charts", "Deployment Runbook"] },
   ];
   return (
-    <div data-testid="advanced-step-5-tier-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div data-testid="advanced-step-5-tier-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {tiers.map((t) => (
-        <button key={t.id} onClick={() => setSelectedTier(t.id)}
+        <button key={t.id} type="button" onClick={() => setSelectedTier(t.id)}
           data-testid={`advanced-tier-option-${t.id}`}
-          className={cn("relative rounded-xl border p-5 text-left space-y-3 transition-all duration-300",
+          className={cn("relative rounded-panel border p-5 text-left transition-all duration-300",
             selectedTier === t.id
               ? t.isFree
-                ? "border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
-                : "border-blue-500/60 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-              : "border-slate-600/30 bg-slate-700/20 hover:border-blue-500/30"
+                ? "border-success/60 bg-success/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                : "border-accent/60 bg-accent/10 shadow-[0_0_20px_rgba(77,166,255,0.15)]"
+              : "border-border bg-surface-2/30 hover:border-accent/30"
           )}>
           {t.isFree && (
-            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
+            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-success px-2 py-0.5 text-[0.625rem] font-medium text-white whitespace-nowrap">
               Free
             </div>
           )}
           {t.recommended && (
-            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
+            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 text-[0.625rem] font-medium text-white whitespace-nowrap">
               Recommended
             </div>
           )}
-          <div>
-            <h3 className="font-mono text-xs font-bold tracking-widest text-white uppercase">{t.name}</h3>
-            <p className={cn("font-mono text-xl font-bold mt-1", t.isFree ? "text-emerald-400" : "text-blue-400")}>{t.price}</p>
-          </div>
-          <ul className="space-y-1">
-            {t.items.map((item) => (
-              <li key={item} className="font-mono text-[11px] text-slate-400 flex items-center gap-2">
-                <span className={t.isFree ? "text-emerald-400" : "text-emerald-400"}>›</span> {item}
-              </li>
-            ))}
-          </ul>
-          {selectedTier === t.id && (
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className={cn("h-3.5 w-3.5", t.isFree ? "text-emerald-400" : "text-blue-400")} />
-              <span className={cn("font-mono text-[10px]", t.isFree ? "text-emerald-400" : "text-blue-400")}>Selected</span>
+          <Stack gap="sm">
+            <div>
+              <h3 className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-ink">{t.name}</h3>
+              <p className={cn("mt-1 font-mono text-xl font-bold", t.isFree ? "text-success" : "text-accent")}>{t.price}</p>
             </div>
-          )}
+            <ul className="flex flex-col gap-1">
+              {t.items.map((item) => (
+                <li key={item} className="flex items-center gap-2 font-mono text-[0.6875rem] text-ink-muted">
+                  <span className="text-success">›</span> {item}
+                </li>
+              ))}
+            </ul>
+            {selectedTier === t.id && (
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className={cn("h-3.5 w-3.5", t.isFree ? "text-success" : "text-accent")} />
+                <span className={cn("font-mono text-[0.625rem]", t.isFree ? "text-success" : "text-accent")}>Selected</span>
+              </div>
+            )}
+          </Stack>
         </button>
       ))}
     </div>
@@ -282,16 +346,16 @@ function entitiesToNodes(entities: Entity[]): Node[] {
     id: e.name, position: { x: (i % 3) * 280 + 40, y: Math.floor(i / 3) * 250 + 40 },
     data: {
       label: (
-        <div className="bg-slate-700 border border-blue-500/60 min-w-[150px] text-left rounded-lg overflow-hidden">
-          <div className="bg-blue-500/10 border-b border-blue-500/60 px-3 py-1.5">
-            <span className="font-mono text-xs font-bold text-blue-400 tracking-widest uppercase">{e.name}</span>
+        <div className="min-w-[150px] overflow-hidden rounded-lg border border-accent/60 bg-surface-2 text-left">
+          <div className="border-b border-accent/60 bg-accent/10 px-3 py-1.5">
+            <span className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-accent">{e.name}</span>
           </div>
-          <div className="px-3 py-2 space-y-0.5">
+          <div className="space-y-0.5 px-3 py-2">
             {e.fields.map((f) => (
               <div key={f.name} className="flex items-center gap-2">
-                {f.pk && <span className="font-mono text-[9px] text-yellow-400 border border-yellow-400/40 px-0.5 rounded">PK</span>}
-                <span className="font-mono text-[11px] text-white">{f.name}</span>
-                <span className="font-mono text-[10px] text-slate-400">{f.type}</span>
+                {f.pk && <span className="rounded border border-yellow-400/40 px-0.5 font-mono text-[9px] text-yellow-400">PK</span>}
+                <span className="font-mono text-[0.6875rem] text-ink">{f.name}</span>
+                <span className="font-mono text-[10px] text-ink-muted">{f.type}</span>
               </div>
             ))}
           </div>
@@ -305,15 +369,11 @@ function entitiesToNodes(entities: Entity[]): Node[] {
 function relsToEdges(relationships: Relationship[]): Edge[] {
   return relationships.filter((r) => r.from && r.to).map((r, i) => ({
     id: `rel-${i}`, source: r.from, target: r.to, label: r.type,
-    style: { stroke: "#3B82F6" },
+    style: { stroke: "#4da6ff" },
     labelStyle: { fill: "#94a3b8", fontFamily: "monospace", fontSize: 10 },
     labelBgStyle: { fill: "#334155" },
   }));
 }
-
-// ─── Step 4: Personalize (modal overlay) ─────────────────────────────────────
-// Shown as an overlay on the wizard when the user is on step 4.
-// The actual stepper treats step 4 as a pass-through to the modal.
 
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 const STEPS = ["Define Entities", "Platform Selection", "Configure API", "Personalize", "Select Tier & Pay"];
@@ -339,7 +399,6 @@ export default function AdvancedModePage() {
   const [selectedTier, setSelectedTier] = useState<Tier>(initialTier);
   const [personalization, setPersonalization] = useState<PersonalizationData>(DEFAULT_PERSONALIZATION);
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
@@ -466,28 +525,28 @@ export default function AdvancedModePage() {
 
   if (submitPhase === "submitting" || submitPhase === "submitted") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-800 px-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="h-16 w-16 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mx-auto">
-            <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+      <div className="flex h-full flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md space-y-6 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-accent/30 bg-accent/10">
+            <Loader2 className="h-8 w-8 animate-spin text-accent" />
           </div>
-          <h2 className="text-xl font-bold text-white">Synthesizing Your Platform</h2>
-          <p className="text-slate-400 text-sm">{liveStatus ? `Status: ${liveStatus}` : "Queued — starting shortly..."}</p>
+          <h2 className="text-xl font-bold text-ink">Synthesizing Your Platform</h2>
+          <p className="text-sm text-ink-muted">{liveStatus ? `Status: ${liveStatus}` : "Queued — starting shortly..."}</p>
           {generationId && (
-            <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 text-left space-y-2">
-              <p className="font-mono text-xs text-slate-500 uppercase">Generation ID</p>
-              <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
-              <p className="font-mono text-[10px] text-slate-500 uppercase">Platform</p>
-              <p className="font-mono text-xs text-white">{selectedProjectType}</p>
-              <p className="font-mono text-xs text-slate-500">
+            <Panel className="space-y-2 text-left">
+              <p className="font-mono text-xs uppercase text-ink-faint">Generation ID</p>
+              <p className="break-all font-mono text-xs text-accent">{generationId}</p>
+              <p className="font-mono text-[10px] uppercase text-ink-faint">Platform</p>
+              <p className="font-mono text-xs text-ink">{selectedProjectType}</p>
+              <p className="font-mono text-xs text-ink-faint">
                 {selectedTier === 0
-                  ? "Keep this page open \u2014 we\u2019ll launch your live preview when it\u2019s ready."
-                  : "Keep this page open \u2014 we\u2019ll redirect you when your download is ready."}
+                  ? "Keep this page open — we’ll launch your live preview when it’s ready."
+                  : "Keep this page open — we’ll redirect you when your download is ready."}
               </p>
-            </div>
+            </Panel>
           )}
-          <BuildLogConsole log={liveBuildLog} title="Live Build Output" className="w-full max-w-2xl rounded-xl border border-slate-600/30 bg-slate-900/60 overflow-hidden text-left" />
-          <div className="w-full bg-slate-700 rounded-full h-1"><div className="h-full bg-blue-500 animate-pulse rounded-full w-3/5" /></div>
+          <BuildLogConsole log={liveBuildLog} title="Live Build Output" className="w-full max-w-2xl overflow-hidden rounded-panel border border-border bg-surface-0/60 text-left" />
+          <div className="h-1 w-full rounded-full bg-surface-2"><div className="h-full w-3/5 animate-pulse rounded-full bg-accent" /></div>
         </div>
       </div>
     );
@@ -495,19 +554,18 @@ export default function AdvancedModePage() {
 
   if (submitPhase === "error") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-800 px-4">
-        <div className="w-full max-w-md text-center space-y-4">
-          <div className="h-16 w-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto">
-            <AlertCircle className="h-8 w-8 text-rose-400" />
+      <div className="flex h-full flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md space-y-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-danger/30 bg-danger/10">
+            <AlertCircle className="h-8 w-8 text-danger" />
           </div>
-          <h2 className="text-xl font-bold text-white">Something went wrong</h2>
-          <p className="text-slate-400 text-sm">{errorMsg}</p>
-          <div className="flex gap-3 justify-center">
-            <button onClick={() => { setSubmitPhase("idle"); setErrorMsg(null); }}
-              className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors">
-              &larr; Back
-            </button>
-            <Link href="/" className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 rounded-full uppercase tracking-widest transition-colors">
+          <h2 className="text-xl font-bold text-ink">Something went wrong</h2>
+          <p className="text-sm text-ink-muted">{errorMsg}</p>
+          <div className="flex justify-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => { setSubmitPhase("idle"); setErrorMsg(null); }}>
+              ← Back
+            </Button>
+            <Link href="/" className="rounded-full bg-accent px-5 py-2.5 font-mono text-xs uppercase tracking-[0.15em] text-white transition-colors hover:bg-accent/90">
               Start Over
             </Link>
           </div>
@@ -518,204 +576,155 @@ export default function AdvancedModePage() {
 
   return (
     <>
-    {showPersonalizationModal && (
-      <PersonalizationModal
-        entityNames={entities.map((e) => e.name).filter(Boolean)}
-        onComplete={(data) => { setPersonalization(data); setShowPersonalizationModal(false); }}
-        onSkip={() => setShowPersonalizationModal(false)}
-      />
-    )}
-    <div data-testid="advanced-mode-page" className="h-screen flex flex-col bg-slate-800 overflow-hidden">
-      {/* Header */}
-      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 overflow-x-auto">
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80 shrink-0">
-            <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
-            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-blue-400">AL</span>CHEMIST
-            </span>
-          </Link>
-          <span className="text-slate-600 font-mono text-xs shrink-0">|</span>
-          <div data-testid="advanced-stepper" className="flex items-center gap-1 overflow-x-auto">
-            {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-1 shrink-0">
-                {i > 0 && <span className="font-mono text-xs text-slate-600 mx-1">&rarr;</span>}
-                <button
-                  onClick={() => setStep(i + 1)}
-                  data-testid={`advanced-stepper-button-${i + 1}`}
-                  className={cn("font-mono text-xs tracking-widest uppercase transition-colors px-2 py-0.5 whitespace-nowrap",
-                    step === i + 1 ? "text-blue-400 border-b border-blue-400" : step > i + 1 ? "text-emerald-400" : "text-slate-500"
-                  )}
+      {showPersonalizationModal && (
+        <PersonalizationModal
+          entityNames={entities.map((e) => e.name).filter(Boolean)}
+          onComplete={(data) => { setPersonalization(data); setShowPersonalizationModal(false); }}
+          onSkip={() => setShowPersonalizationModal(false)}
+        />
+      )}
+      <div data-testid="advanced-mode-page" className="flex h-full min-h-0 flex-col">
+        <div className="flex min-h-0 flex-1">
+          {/* Chunk 1 — Step navigation */}
+          <StepRail steps={STEPS} current={step} onSelect={setStep} />
+
+          <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+            {/* Chunk 2 — Workspace (active step) */}
+            <Workspace>
+              {step === 1 && (
+                <div data-testid="advanced-step-1">
+                  <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />
+                </div>
+              )}
+              {step === 2 && (
+                <div data-testid="advanced-step-2">
+                  <StepPlatformSelection selectedProjectType={selectedProjectType} setSelectedProjectType={setSelectedProjectType} />
+                </div>
+              )}
+              {step === 3 && (
+                <div data-testid="advanced-step-3">
+                  <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />
+                </div>
+              )}
+              {step === 4 && (
+                <div data-testid="advanced-step-4">
+                  <Stack gap="md">
+                    <Eyebrow>Make your generated project unique</Eyebrow>
+                    <Panel data-testid="advanced-personalization-section" padding="lg">
+                      <Stack gap="md">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-accent/30 bg-accent/10">
+                            <Zap className="h-4 w-4 text-accent" />
+                          </div>
+                          <div>
+                            <h3 className="font-mono text-sm font-bold text-ink">Personalization Wizard</h3>
+                            <p className="mt-1 text-sm text-ink-muted">
+                              Define your business identity, color theme, domain vocabulary, and feature preferences.
+                              The generated code will use your brand name, domain language, and selected color tokens.
+                            </p>
+                          </div>
+                        </div>
+                        {personalization.businessDescription ? (
+                          <Stack gap="xs">
+                            <p className="font-mono text-[0.625rem] uppercase tracking-[0.15em] text-success">Configured</p>
+                            <div className="grid grid-cols-2 gap-2 font-mono text-[0.6875rem]">
+                              {personalization.projectName && (
+                                <div className="rounded-control border border-border bg-surface-0/50 px-3 py-2">
+                                  <p className="text-ink-faint">Project Name</p>
+                                  <p className="text-ink">{personalization.projectName}</p>
+                                </div>
+                              )}
+                              <div className="rounded-control border border-border bg-surface-0/50 px-3 py-2">
+                                <p className="text-ink-faint">Color Theme</p>
+                                <div className="mt-0.5 flex items-center gap-1.5">
+                                  <div className="h-2.5 w-2.5 rounded-full" style={{ background: personalization.colorScheme.primary }} />
+                                  <p className="text-ink">{personalization.colorScheme.name}</p>
+                                </div>
+                              </div>
+                              <div className="rounded-control border border-border bg-surface-0/50 px-3 py-2">
+                                <p className="text-ink-faint">Auth</p>
+                                <p className="uppercase text-ink">{personalization.featureFlags.authMethod}</p>
+                              </div>
+                            </div>
+                          </Stack>
+                        ) : (
+                          <p className="font-mono text-xs text-ink-faint">Not configured — defaults will be applied.</p>
+                        )}
+                        <Cluster gap="xs">
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setShowPersonalizationModal(true)}
+                            data-testid="advanced-personalize-button"
+                          >
+                            {personalization.businessDescription ? "Edit Personalization" : "Personalize →"}
+                          </Button>
+                          {personalization.businessDescription && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPersonalization(DEFAULT_PERSONALIZATION)}
+                            >
+                              Reset
+                            </Button>
+                          )}
+                        </Cluster>
+                      </Stack>
+                    </Panel>
+                  </Stack>
+                </div>
+              )}
+              {step === 5 && (
+                <div data-testid="advanced-step-5">
+                  <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />
+                </div>
+              )}
+            </Workspace>
+
+            {/* Chunk 3 — Live ER preview (deferred / collapsible) */}
+            <ContextPanel title="Live Preview" className="xl:w-[clamp(360px,38%,560px)] xl:shrink-0">
+              <div className="h-full min-h-[280px] md:min-h-[360px]">
+                <ReactFlow
+                  nodes={entitiesToNodes(entities)}
+                  edges={relsToEdges(relationships)}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  fitView
+                  colorMode="dark"
+                  panOnDrag
+                  zoomOnPinch
+                  style={{ background: "#1e293b" }}
                 >
-                  {i + 1}. {s}
-                </button>
+                  <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#334155" />
+                  <Controls style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} />
+                </ReactFlow>
               </div>
-            ))}
+            </ContextPanel>
           </div>
         </div>
-      </header>
 
-      <main className="flex flex-1 min-h-0 flex-col lg:flex-row">
-        {/* Left panel */}
-        <div className="w-full lg:w-1/2 border-slate-600/30 overflow-y-auto p-5">
-          {step === 1 && (
-            <div data-testid="advanced-step-1">
-              <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />
-            </div>
-          )}
-          {step === 2 && (
-            <div data-testid="advanced-step-2">
-              <StepPlatformSelection selectedProjectType={selectedProjectType} setSelectedProjectType={setSelectedProjectType} />
-            </div>
-          )}
-          {step === 3 && (
-            <div data-testid="advanced-step-3">
-              <StepEndpoints endpoints={endpoints} setEndpoints={setEndpoints} entityNames={entities.map((e) => e.name).filter(Boolean)} />
-            </div>
-          )}
-          {step === 4 && (
-            <div data-testid="advanced-step-4" className="space-y-4">
-              <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Make your generated project unique</p>
-              <div data-testid="advanced-personalization-section" className="rounded-2xl border border-slate-600/30 bg-slate-700/20 p-5 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shrink-0">
-                    <Zap className="h-4 w-4 text-blue-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-mono text-sm font-bold text-white">Personalization Wizard</h3>
-                    <p className="text-sm text-slate-400 mt-1">
-                      Define your business identity, color theme, domain vocabulary, and feature preferences.
-                      The generated code will use your brand name, domain language, and selected color tokens.
-                    </p>
-                  </div>
-                </div>
-                {personalization.businessDescription ? (
-                  <div className="space-y-2">
-                    <p className="font-mono text-[10px] text-emerald-400 uppercase tracking-widest">Configured</p>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                      {personalization.projectName && (
-                        <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
-                          <p className="text-slate-500">Project Name</p>
-                          <p className="text-white">{personalization.projectName}</p>
-                        </div>
-                      )}
-                      <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
-                        <p className="text-slate-500">Color Theme</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <div className="h-2.5 w-2.5 rounded-full" style={{ background: personalization.colorScheme.primary }} />
-                          <p className="text-white">{personalization.colorScheme.name}</p>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-slate-600/30 bg-slate-800/50 px-3 py-2">
-                        <p className="text-slate-500">Auth</p>
-                        <p className="text-white uppercase">{personalization.featureFlags.authMethod}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="font-mono text-xs text-slate-500">Not configured — defaults will be applied.</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowPersonalizationModal(true)}
-                    data-testid="advanced-personalize-button"
-                    className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
-                  >
-                    {personalization.businessDescription ? "Edit Personalization" : "Personalize \u2192"}
-                  </button>
-                  {personalization.businessDescription && (
-                    <button
-                      onClick={() => setPersonalization(DEFAULT_PERSONALIZATION)}
-                      className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:text-rose-400 px-4 py-2 rounded-full uppercase tracking-widest transition-colors"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          {step === 5 && (
-            <div data-testid="advanced-step-5">
-              <StepTier selectedTier={selectedTier} setSelectedTier={setSelectedTier} />
-            </div>
-          )}
-        </div>
-
-        {/* Right panel: Live preview */}
-        <div className="w-full lg:w-1/2 border-t lg:border-t-0 lg:border-l border-slate-600/30 bg-slate-900/40 flex flex-col">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-600/30 px-4 py-2 bg-slate-800/60">
-            <p className="font-mono text-xs text-slate-500 tracking-widest uppercase">Live Preview</p>
-            <button
-              type="button"
-              onClick={() => setShowPreview((value) => !value)}
-              className="lg:hidden rounded-full border border-slate-600/40 px-3 py-1 font-mono text-[10px] tracking-widest uppercase text-slate-300 hover:border-blue-500/40 hover:text-blue-400 transition-colors"
-              aria-expanded={showPreview}
-            >
-              {showPreview ? "Hide" : "Show"}
-            </button>
-          </div>
-          <div className={cn("overflow-hidden transition-all duration-300 lg:flex-1", showPreview ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0 lg:max-h-none lg:opacity-100")}>
-            <div className="h-full min-h-[240px] md:min-h-[360px] lg:min-h-[400px]">
-              <ReactFlow
-                nodes={entitiesToNodes(entities)}
-                edges={relsToEdges(relationships)}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                fitView
-                colorMode="dark"
-                panOnDrag
-                zoomOnPinch
-                style={{ background: "#1e293b" }}
-              >
-                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#334155" />
-                <Controls style={{ background: "#334155", border: "1px solid #475569", borderRadius: "8px" }} />
-              </ReactFlow>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Footer nav */}
-      <footer className="border-t border-slate-600/30 px-5 py-3 shrink-0">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          {step > 1 ? (
-            <button onClick={() => setStep((s) => Math.max(1, s - 1))}
-              data-testid="advanced-previous-button"
-              className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
-              &larr; Previous
-            </button>
-          ) : (
-            <Link href="/" className="font-mono text-xs text-slate-400 hover:text-blue-400 tracking-widest uppercase transition-colors">
-              &larr; Back
-            </Link>
-          )}
-          {step < 5 ? (
-            <button onClick={() => setStep((s) => Math.min(5, s + 1))}
-              data-testid="advanced-next-button"
-              className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors">
-              Next &rarr;
-            </button>
-          ) : (
-            <button onClick={handleCheckout} disabled={isPending}
-              data-testid="advanced-checkout-button"
-              className={cn(
-                "font-mono text-xs text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors disabled:opacity-60 flex items-center gap-2",
-                selectedTier === 0
-                  ? "bg-emerald-500 hover:bg-emerald-400"
-                  : "bg-blue-500 hover:bg-blue-400"
-              )}>
-              {isPending
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
-                : selectedTier === 0
-                  ? "Launch Free Preview →"
-                  : "Proceed to Checkout →"}
-            </button>
-          )}
-        </div>
-      </footer>
-    </div>
+        {/* Chunk 4 — Action bar */}
+        <WizardFooter
+          step={step}
+          totalSteps={5}
+          backHref="/"
+          onPrevious={() => setStep((s) => Math.max(1, s - 1))}
+          onNext={() => setStep((s) => Math.min(5, s + 1))}
+          onCheckout={handleCheckout}
+          checkoutDisabled={isPending}
+          checkoutVariant={selectedTier === 0 ? "success" : "primary"}
+          checkoutLabel={
+            isPending
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
+              : selectedTier === 0
+                ? "Launch Free Preview →"
+                : "Proceed to Checkout →"
+          }
+        />
+      </div>
     </>
   );
 }

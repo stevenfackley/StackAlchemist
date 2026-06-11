@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AppShell, AppHeader } from "@/components/workspace";
 import AdvancedModePage from "./AdvancedModePage";
 
 type AdvancedSearchParams = { step?: string; tier?: string };
@@ -42,9 +43,11 @@ export default function AdvancedPage() {
   return (
     <>
       <h1 className="sr-only">Advanced Mode — Design Entities, Relationships, and Endpoints</h1>
-      <Suspense fallback={null}>
-        <AdvancedModePage />
-      </Suspense>
+      <AppShell header={<AppHeader eyebrow="Advanced Mode" />}>
+        <Suspense fallback={null}>
+          <AdvancedModePage />
+        </Suspense>
+      </AppShell>
     </>
   );
 }
