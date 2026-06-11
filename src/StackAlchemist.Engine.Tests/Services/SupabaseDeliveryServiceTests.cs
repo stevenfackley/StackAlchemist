@@ -31,14 +31,14 @@ public class SupabaseDeliveryServiceTests
 
     private SupabaseDeliveryService BuildSut(
         IConfiguration config,
-        CapturingHttpHandler handler)
+        HttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler);
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(SupabaseDeliveryService.HttpClientName).Returns(httpClient);
 
         return new SupabaseDeliveryService(
-            factory, config, NullLogger<SupabaseDeliveryService>.Instance);
+            factory, config, new PendingWriteBuffer(), NullLogger<SupabaseDeliveryService>.Instance);
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
@@ -223,6 +223,144 @@ public class SupabaseDeliveryServiceTests
     }
 
     // ── Test double ───────────────────────────────────────────────────────────
+
+    private SupabaseDeliveryService BuildSutWithBuffer(
+        IConfiguration config,
+        HttpMessageHandler handler,
+        PendingWriteBuffer buffer)
+    {
+        var httpClient = new HttpClient(handler);
+        var factory = Substitute.For<IHttpClientFactory>();
+        factory.CreateClient(SupabaseDeliveryService.HttpClientName).Returns(httpClient);
+
+        return new SupabaseDeliveryService(
+            factory, config, buffer, NullLogger<SupabaseDeliveryService>.Instance);
+    }
+
+    [Fact]
+    public async Task CriticalWrite_RetriesTransientFailuresWithBackoff()
+    {
+        var handler = new SequencedDeliveryHandler(
+            (HttpStatusCode.ServiceUnavailable, ""),
+            (HttpStatusCode.ServiceUnavailable, ""),
+            (HttpStatusCode.NoContent, ""));
+        var sut = BuildSut(BuildConfig(), handler);
+
+        await sut.UpdateStatusAsync("gen-backoff", GenerationState.Success);
+
+        handler.CallCount.Should().Be(3, "transient 5xx failures are retried until the budget (5) allows");
+    }
+
+    [Fact]
+    public async Task CriticalWrite_NonTransient4xx_FailsFastAndBuffers()
+    {
+        // A CHECK violation never succeeds on retry: exactly one attempt, then the
+        // payload lands in the pending-write buffer for the reconciler to inspect.
+        var handler = new SequencedDeliveryHandler(
+            (HttpStatusCode.BadRequest, "check constraint violation"));
+        var buffer = new PendingWriteBuffer();
+        var sut = BuildSutWithBuffer(BuildConfig(), handler, buffer);
+
+        await sut.UpdateStatusAsync("gen-4xx", GenerationState.Failed, errorMessage: "oops");
+
+        handler.CallCount.Should().Be(1, "non-transient 4xx must not burn the retry budget");
+        buffer.Count.Should().Be(1);
+        buffer.TryDequeue(out var write).Should().BeTrue();
+        write!.GenerationId.Should().Be("gen-4xx");
+        write.Payload["status"].Should().Be("failed");
+    }
+
+    [Fact]
+    public async Task TryClaimForRequeueAsync_SendsConditionalPatchAndIncrementsAttempt()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[{\"id\":\"gen-claim\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+        var row = new GenerationSnapshot(
+            "gen-claim", "generating_code", 2, "advanced", null, null, null, null, 1,
+            DateTimeOffset.UtcNow.AddMinutes(-30));
+
+        var claimed = await sut.TryClaimForRequeueAsync(row, TimeSpan.FromMinutes(15), CancellationToken.None);
+
+        claimed.Should().BeTrue();
+        var url = handler.LastRequest!.RequestUri!.ToString();
+        url.Should().Contain("id=eq.gen-claim");
+        url.Should().Contain("status=eq.generating_code");
+        url.Should().Contain("attempt_count=eq.1");
+        url.Should().Contain("updated_at=lt.");
+        handler.LastBody.Should().Contain("\"attempt_count\":2");
+        handler.LastBody.Should().Contain("\"pending\"");
+    }
+
+    [Fact]
+    public async Task TryClaimForRequeueAsync_EmptyResponse_ReturnsFalse()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");
+        var sut = BuildSut(BuildConfig(), handler);
+        var row = new GenerationSnapshot(
+            "gen-lost", "pending", 0, null, null, null, null, null, 0,
+            DateTimeOffset.UtcNow.AddMinutes(-30));
+
+        var claimed = await sut.TryClaimForRequeueAsync(row, TimeSpan.FromMinutes(15), CancellationToken.None);
+
+        claimed.Should().BeFalse("an empty representation means another claimer won the CAS");
+    }
+
+    [Fact]
+    public async Task TryBeginExtractionAsync_ClaimsPendingOrFailedRow()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[{\"id\":\"gen-ex\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var ok = await sut.TryBeginExtractionAsync("gen-ex", CancellationToken.None);
+
+        ok.Should().BeTrue();
+        var url = handler.LastRequest!.RequestUri!.ToString();
+        url.Should().Contain("status=in.(pending,failed)");
+        handler.LastBody.Should().Contain("\"extracting_schema\"");
+    }
+
+    [Fact]
+    public async Task TryBeginExtractionAsync_AlreadyInProgress_ReturnsFalse()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var ok = await sut.TryBeginExtractionAsync("gen-busy", CancellationToken.None);
+
+        ok.Should().BeFalse("the row is mid-extraction or terminal — a double-submit must not re-fire the LLM");
+    }
+
+    [Fact]
+    public async Task TryBeginExtractionAsync_WhenNotConfigured_ProceedsWithoutRequest()
+    {
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");
+        var sut = BuildSut(BuildConfig(url: null, key: null), handler);
+
+        var ok = await sut.TryBeginExtractionAsync("gen-dev", CancellationToken.None);
+
+        ok.Should().BeTrue("local dev without Supabase must keep working");
+        handler.LastRequest.Should().BeNull();
+    }
+
+    private sealed class SequencedDeliveryHandler(params (HttpStatusCode Status, string Body)[] responses)
+        : HttpMessageHandler
+    {
+        private readonly Queue<(HttpStatusCode Status, string Body)> _responses = new(responses);
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            var (status, body) = _responses.Count > 0
+                ? _responses.Dequeue()
+                : (HttpStatusCode.OK, "");
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            });
+        }
+    }
 
     private sealed class CapturingHttpHandler(
         HttpStatusCode status,

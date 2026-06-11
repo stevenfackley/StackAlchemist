@@ -100,12 +100,16 @@ public sealed record LlmOutputBlock(string FilePath, string Content);
 
 /// <summary>
 /// Structured response from an LLM call, including token accounting.
+/// <paramref name="StopReason"/> carries the provider's stop reason verbatim
+/// ("end_turn", "max_tokens", …) — "max_tokens" means the output was truncated
+/// and must not be parsed as a complete response.
 /// </summary>
 public sealed record LlmResponse(
     string Text,
     int InputTokens,
     int OutputTokens,
-    string Model);
+    string Model,
+    string? StopReason = null);
 
 /// <summary>
 /// Variables for Handlebars template rendering.

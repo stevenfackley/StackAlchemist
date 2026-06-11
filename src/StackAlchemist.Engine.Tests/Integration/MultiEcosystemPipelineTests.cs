@@ -71,6 +71,7 @@ public class MultiEcosystemPipelineTests
             fs,
             new ConfigurationBuilder().Build(),
             queue.Writer,
+            new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance);
 
         var response = await sut.EnqueueAsync(new GenerateRequest

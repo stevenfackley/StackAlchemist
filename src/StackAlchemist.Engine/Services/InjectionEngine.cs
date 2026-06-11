@@ -149,9 +149,13 @@ public sealed partial class InjectionEngine(
                     continue;
                 }
 
+                // Truncation reproduces identically on retry — propagate immediately
+                // instead of burning the zone's remaining attempts (see catch filter).
+                LlmResponseGuard.ThrowIfTruncated(response, $"filling zone '{item.ZoneName}' in {item.FilePath}");
+
                 return (CleanZoneContent(response.Text), response);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException and not TruncatedLlmResponseException)
             {
                 lastException = ex;
                 LogLlmCallFailed(logger, ex, item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);

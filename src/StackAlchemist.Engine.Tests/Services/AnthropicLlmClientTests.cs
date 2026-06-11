@@ -114,19 +114,100 @@ public class AnthropicLlmClientTests
         handler.CallCount.Should().Be(3);
     }
 
+    private static HttpResponseMessage RateLimitedResponse()
+    {
+        // Retry-After: 0 zeroes out the backoff so the deep retry budget doesn't
+        // make this test sleep for real.
+        var response = CreateResponse(HttpStatusCode.TooManyRequests, "rate limited");
+        response.Headers.Add("Retry-After", "0");
+        return response;
+    }
+
     [Fact]
-    public async Task GenerateAsync_ApiReturnsTooManyRetryableFailures_ThrowsHttpRequestException()
+    public async Task GenerateAsync_RateLimitedPersistently_ThrowsLlmRateLimitExceptionAfterFiveTries()
+    {
+        // 429/529 get a deeper budget (5 tries) than hard 5xx failures, and exhaustion
+        // surfaces as a typed exception so the failure categorizes as rate_limit.
+        var handler = new SequencedHttpHandler(
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            RateLimitedResponse());
+        var client = BuildClient(BuildConfig(), handler);
+
+        var act = () => client.GenerateAsync("system", "user");
+
+        await act.Should().ThrowAsync<StackAlchemist.Engine.Models.LlmRateLimitException>();
+        handler.CallCount.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RateLimitedThenRecovers_SucceedsOnFifthTry()
     {
         var handler = new SequencedHttpHandler(
-            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"),
-            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"),
-            CreateResponse(HttpStatusCode.TooManyRequests, "rate limited"));
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            RateLimitedResponse(),
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    content = new[] { new { type = "text", text = "recovered" } },
+                    stop_reason = "end_turn",
+                    usage = new { input_tokens = 2, output_tokens = 3 },
+                }), Encoding.UTF8, "application/json"),
+            });
+        var client = BuildClient(BuildConfig(), handler);
+
+        var result = await client.GenerateAsync("system", "user");
+
+        result.Text.Should().Be("recovered");
+        handler.CallCount.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ServerErrorsPersistently_ThrowsHttpRequestExceptionAfterThreeTries()
+    {
+        // Hard 5xx failures keep the original 3-try budget and untyped exception.
+        var handler = new SequencedHttpHandler(
+            CreateResponse(HttpStatusCode.InternalServerError, "boom"),
+            CreateResponse(HttpStatusCode.InternalServerError, "boom"),
+            CreateResponse(HttpStatusCode.InternalServerError, "boom"));
         var client = BuildClient(BuildConfig(), handler);
 
         var act = () => client.GenerateAsync("system", "user");
 
         await act.Should().ThrowAsync<HttpRequestException>();
         handler.CallCount.Should().Be(3);
+    }
+
+    [Fact]
+    public void GetRetryDelay_CapsLongRetryAfterHeader()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        response.Headers.Add("Retry-After", "600");
+
+        var delay = AnthropicLlmClient.GetRetryDelay(response, attempt: 0);
+
+        delay.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(60));
+    }
+
+    [Fact]
+    public async Task GenerateAsync_PropagatesStopReason()
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            content = new[] { new { type = "text", text = "partial output" } },
+            stop_reason = "max_tokens",
+            usage = new { input_tokens = 10, output_tokens = 100 },
+        });
+        var client = BuildClient(BuildConfig(), new FakeHttpHandler(HttpStatusCode.OK, payload));
+
+        var result = await client.GenerateAsync("system", "user");
+
+        result.StopReason.Should().Be("max_tokens");
     }
 
     [Fact]

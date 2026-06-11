@@ -78,6 +78,7 @@ All notable changes to this project will be documented in this file.
 - Auto-return visitors to the app once the deploy finishes ([#122](https://github.com/stevenfackley/StackAlchemist/issues/122))
 - Return 503 from deploy shim so recovery poll works ([#125](https://github.com/stevenfackley/StackAlchemist/issues/125))
 - Atomic Stripe webhook, error taxonomy, and tier-race fix ([#138](https://github.com/stevenfackley/StackAlchemist/issues/138))
+- Periodic reconciler with re-enqueue, delivery hardening, input limits ([#139](https://github.com/stevenfackley/StackAlchemist/issues/139))
 
 ### Dependencies
 

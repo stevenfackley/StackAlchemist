@@ -33,6 +33,12 @@ static string? Ev(string key)
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── Request size limit ────────────────────────────────────────────────────────
+// The largest legitimate payload is a full advanced-mode schema (well under 1 MB).
+// Kestrel's 30 MB default invites memory-exhaustion via bloated JSON bodies;
+// oversized requests are rejected with 413 before deserialization.
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 5 * 1024 * 1024);
+
 // ── Serilog ───────────────────────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, services, cfg) =>
 {
@@ -259,10 +265,17 @@ builder.Services.AddSingleton(channel.Reader);
 // Register the compile worker as an in-process background service.
 builder.Services.AddHostedService<CompileWorkerService>();
 
-// Startup sweep: fail rows orphaned in a non-terminal state by a prior restart.
-// The Channel above is in-memory, so any restart drops in-flight jobs; without
-// this their rows would sit non-terminal forever and the user's UI never resolves.
-builder.Services.AddHostedService<StartupReconciliationService>();
+// Reconciliation support: the in-flight registry shields live jobs from the sweep,
+// and the pending-write buffer holds critical writes that exhausted their retries.
+builder.Services.AddSingleton<IInFlightGenerationRegistry, InFlightGenerationRegistry>();
+builder.Services.AddSingleton<IPendingWriteBuffer, PendingWriteBuffer>();
+builder.Services.AddSingleton(TimeProvider.System);
+
+// Periodic reconciler: re-enqueues rows orphaned by a restart (the Channel above is
+// in-memory, so any restart drops in-flight jobs) when attempt budget allows, fails
+// the rest, and flushes buffered critical writes. Runs at startup, then every
+// Generation:ReconcileIntervalMinutes.
+builder.Services.AddHostedService<GenerationReconciliationService>();
 
 // ── Swiss Cheese injection engine (per-zone parallel LLM dispatch) ───────────
 builder.Services.AddSingleton(sp =>
@@ -352,12 +365,26 @@ app.MapGet("/healthz", () => Results.Ok(new
 
 app.MapHealthChecks("/health");
 
-app.MapPost("/api/generate", (
+app.MapPost("/api/generate", async (
     GenerateRequest request,
     IGenerationOrchestrator orchestrator,
+    IDeliveryService delivery,
+    IConfiguration config,
     IHostApplicationLifetime lifetime,
     ILogger<Program> logger) =>
 {
+    // The frontend caps prompts at 2,000 chars; a direct API call has no such cap and
+    // every unchecked character is paid LLM context. Fail the row (which also refunds
+    // the free-quota slot — the trigger excludes failed rows) and reject.
+    var maxPromptChars = config.GetValue("Generation:MaxPromptChars", 5_000);
+    if (request.Prompt is { Length: var len } && len > maxPromptChars)
+    {
+        var msg = $"Prompt exceeds the {maxPromptChars:N0} character limit. Shorten the description and retry.";
+        await delivery.UpdateStatusAsync(
+            request.GenerationId, "failed", lifetime.ApplicationStopping, msg, ErrorCategorizer.Schema);
+        return Results.BadRequest(new { error = msg });
+    }
+
     // Dispatch codegen to the background on the app-lifetime token — NOT the request's
     // CancellationToken (which binds to HttpContext.RequestAborted). A client or CF-tunnel
     // disconnect must not cancel an in-flight generation: a one-shot whole-app LLM call can
@@ -398,6 +425,7 @@ app.MapPost("/api/extract-schema", async (
     ILlmClient llmClient,
     ISchemaExtractionService schemaExtractor,
     IDeliveryService delivery,
+    IConfiguration config,
     ILogger<Program> logger,
     IHostApplicationLifetime lifetime) =>
 {
@@ -410,8 +438,28 @@ app.MapPost("/api/extract-schema", async (
 
     logger.SchemaExtractRequested(request.GenerationId);
 
-    // Update status → extracting_schema
-    await delivery.UpdateStatusAsync(request.GenerationId, "extracting_schema", ct);
+    // Length is the only pre-LLM scale check, by design: the post-LLM size validation
+    // (20 entities / 30 rels / 30 fields) is authoritative, and guessing entity counts
+    // from prose is unreliable in both directions. The cap bounds the paid LLM context.
+    var maxPromptChars = config.GetValue("Generation:MaxPromptChars", 5_000);
+    if (request.Prompt.Length > maxPromptChars)
+    {
+        var msg = $"Prompt exceeds the {maxPromptChars:N0} character limit. Shorten the description and retry.";
+        // Failing the row matters: it un-sticks pending and refunds the free-quota
+        // slot (the quota trigger excludes failed rows).
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, msg, ErrorCategorizer.Schema);
+        return Results.BadRequest(new { error = msg });
+    }
+
+    // CAS: pending/failed → extracting_schema. A double-submit (network retry, two
+    // tabs) loses the claim and must not trigger a second paid LLM call.
+    if (!await delivery.TryBeginExtractionAsync(request.GenerationId, ct))
+    {
+        return Results.Conflict(new
+        {
+            error = "Schema extraction is already in progress or this generation has completed.",
+        });
+    }
 
     try
     {
@@ -420,12 +468,18 @@ app.MapPost("/api/extract-schema", async (
             systemPrompt,
             request.Prompt,
             ct);
+
         await delivery.UpdateTokenUsageAsync(
             request.GenerationId,
             llmResponse.InputTokens,
             llmResponse.OutputTokens,
             llmResponse.Model,
             ct);
+
+        // A max_tokens cutoff means the schema JSON is incomplete — parsing it would
+        // produce a misleading "invalid JSON" error; fail with the real cause instead.
+        // (After token recording: truncated calls still consumed tokens.)
+        LlmResponseGuard.ThrowIfTruncated(llmResponse, "extracting the schema");
 
         var schema = schemaExtractor.ParseExtractionResponse(llmResponse.Text);
 
@@ -439,6 +493,12 @@ app.MapPost("/api/extract-schema", async (
             GenerationId = request.GenerationId,
             Schema = schema,
         });
+    }
+    catch (TruncatedLlmResponseException ex)
+    {
+        logger.SchemaExtractFailed(request.GenerationId, ex.Message);
+        await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message, ErrorCategorizer.Schema);
+        return Results.BadRequest(new { error = ex.Message });
     }
     catch (SchemaExtractionException ex)
     {
