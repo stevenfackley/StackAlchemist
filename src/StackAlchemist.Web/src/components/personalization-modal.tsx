@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, ChevronRight, ChevronLeft, Zap, Smile, Briefcase, Flame, Feather, Sparkles, Shield, Users, ShoppingBag, Stethoscope, GraduationCap, Building2, HeartHandshake, Baby, Leaf, Coffee, Layers, LayoutGrid, Settings2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Zap, Smile, Briefcase, Flame, Feather, Sparkles, Shield, Users, ShoppingBag, Stethoscope, GraduationCap, Building2, HeartHandshake, Baby, Leaf, Coffee, Layers, LayoutGrid, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui";
 import {
   COLOR_PALETTES,
   DEFAULT_PERSONALIZATION,
@@ -672,115 +673,162 @@ const SUB_STEPS = [
 
 export function PersonalizationModal({
   entityNames,
+  initialData,
+  onChange,
   onComplete,
-  onSkip,
+  onCancel,
 }: {
   entityNames: string[];
-  onComplete: (data: PersonalizationData) => void;
-  onSkip: () => void;
+  /** Current parent value — reopening the modal shows previously saved choices. */
+  initialData: PersonalizationData;
+  /**
+   * Live-patched on every edit so the parent state (and its localStorage draft)
+   * tracks keystrokes; cancel rolls the parent back to its pre-open snapshot.
+   */
+  onChange: (data: PersonalizationData) => void;
+  /** Close keeping the live-patched edits. */
+  onComplete: () => void;
+  /** Close discarding edits — the parent restores its snapshot. */
+  onCancel: () => void;
 }) {
   const [subStep, setSubStep] = useState(1);
   const [data, setData] = useState<PersonalizationData>(() => ({
     ...DEFAULT_PERSONALIZATION,
-    colorScheme: COLOR_PALETTES[0],
+    ...initialData,
+    colorScheme: initialData.colorScheme ?? COLOR_PALETTES[0],
   }));
+  const [dirty, setDirty] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   function patchData(patch: Partial<PersonalizationData>) {
-    setData((d) => ({ ...d, ...patch }));
+    setDirty(true);
+    setData((d) => {
+      const next = { ...d, ...patch };
+      onChange(next);
+      return next;
+    });
+  }
+
+  // X button / Escape / backdrop: closing with unsaved edits needs an explicit
+  // decision — an accidental Esc used to silently discard minutes of choices.
+  function requestClose() {
+    if (dirty) {
+      setConfirmingDiscard(true);
+    } else {
+      onCancel();
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl bg-slate-800 border border-slate-600/50 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-700/50 px-6 py-4 shrink-0">
-          <div>
+    <Modal
+      onClose={requestClose}
+      zLayer="modal"
+      size="lg"
+      testId="personalization-modal"
+      title={
+        <span className="flex items-center gap-2">
+          <Zap aria-hidden className="h-4 w-4 text-blue-400" />
+          Make It Yours
+        </span>
+      }
+      footer={
+        confirmingDiscard ? (
+          <div className="flex items-center justify-between gap-3" data-testid="personalization-discard-confirm">
+            <p className="font-mono text-xs text-yellow-400">Discard your personalization changes?</p>
             <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-blue-400" />
-              <h2 className="font-mono text-sm font-bold text-white tracking-widest uppercase">Make It Yours</h2>
+              <button
+                onClick={() => setConfirmingDiscard(false)}
+                className="font-mono text-xs border border-slate-600/50 text-slate-300 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors hover:border-blue-500/40"
+              >
+                Keep editing
+              </button>
+              <button
+                onClick={onCancel}
+                className="font-mono text-xs bg-rose-500/80 hover:bg-rose-500 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors"
+              >
+                Discard
+              </button>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Step {subStep} of {SUB_STEPS.length} — {SUB_STEPS[subStep - 1].subtitle}
-            </p>
           </div>
-          <button onClick={onSkip} className="text-slate-500 hover:text-slate-300 transition-colors" title="Skip personalization">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Progress bar */}
-        <div className="h-1 bg-slate-700 shrink-0">
-          <div
-            className="h-full bg-blue-500 transition-all duration-300"
-            style={{ width: `${(subStep / SUB_STEPS.length) * 100}%` }}
-          />
-        </div>
-
-        {/* Step dots */}
-        <div className="flex items-center justify-center gap-2 px-6 py-3 border-b border-slate-700/50 shrink-0">
-          {SUB_STEPS.map((s, i) => (
+        ) : (
+          <div className="flex items-center justify-between">
             <button
-              key={s.title}
-              onClick={() => setSubStep(i + 1)}
-              title={s.title}
-              className={cn(
-                "rounded-full transition-all duration-200",
-                subStep === i + 1
-                  ? "w-6 h-2 bg-blue-500"
-                  : subStep > i + 1
-                  ? "w-2 h-2 bg-emerald-500/70"
-                  : "w-2 h-2 bg-slate-600 hover:bg-slate-500"
+              onClick={requestClose}
+              className="text-xs text-slate-500 hover:text-slate-300 tracking-widest uppercase transition-colors"
+            >
+              Skip &rarr; Use defaults
+            </button>
+            <div className="flex items-center gap-2">
+              {subStep > 1 && (
+                <button
+                  onClick={() => setSubStep((s) => s - 1)}
+                  className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
+                >
+                  <ChevronLeft className="h-3 w-3" /> Back
+                </button>
               )}
-            />
-          ))}
-          <span className="ml-2 text-xs text-slate-500">{SUB_STEPS[subStep - 1].title}</span>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {subStep === 1 && <StepBigIdea data={data} onChange={patchData} />}
-          {subStep === 2 && <StepVibeAndAudience data={data} onChange={patchData} />}
-          {subStep === 3 && <StepColorScheme data={data} onChange={patchData} />}
-          {subStep === 4 && <StepInspirationAndComplexity data={data} onChange={patchData} />}
-          {subStep === 5 && <StepDomainVocabulary entities={entityNames} data={data} onChange={patchData} />}
-          {subStep === 6 && <StepFeatureFlags data={data} onChange={patchData} />}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-700/50 px-6 py-4 shrink-0">
-          <button
-            onClick={onSkip}
-            className="text-xs text-slate-500 hover:text-slate-300 tracking-widest uppercase transition-colors"
-          >
-            Skip &rarr; Use defaults
-          </button>
-          <div className="flex items-center gap-2">
-            {subStep > 1 && (
-              <button
-                onClick={() => setSubStep((s) => s - 1)}
-                className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
-              >
-                <ChevronLeft className="h-3 w-3" /> Back
-              </button>
-            )}
-            {subStep < SUB_STEPS.length ? (
-              <button
-                onClick={() => setSubStep((s) => s + 1)}
-                className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
-              >
-                Next <ChevronRight className="h-3 w-3" />
-              </button>
-            ) : (
-              <button
-                onClick={() => onComplete(data)}
-                className="font-mono text-xs bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1.5"
-              >
-                Build It <ChevronRight className="h-3 w-3" />
-              </button>
-            )}
+              {subStep < SUB_STEPS.length ? (
+                <button
+                  onClick={() => setSubStep((s) => s + 1)}
+                  className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
+                >
+                  Next <ChevronRight className="h-3 w-3" />
+                </button>
+              ) : (
+                <button
+                  onClick={onComplete}
+                  className="font-mono text-xs bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                >
+                  Build It <ChevronRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )
+      }
+    >
+      <p className="text-xs text-slate-500 -mt-1 mb-3">
+        Step {subStep} of {SUB_STEPS.length} — {SUB_STEPS[subStep - 1].subtitle}
+      </p>
+
+      {/* Progress bar */}
+      <div className="h-1 bg-slate-700 shrink-0 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-blue-500 transition-all duration-300"
+          style={{ width: `${(subStep / SUB_STEPS.length) * 100}%` }}
+        />
       </div>
-    </div>
+
+      {/* Step dots */}
+      <div className="flex items-center justify-center gap-2 px-6 py-3 border-b border-slate-700/50 shrink-0">
+        {SUB_STEPS.map((s, i) => (
+          <button
+            key={s.title}
+            onClick={() => setSubStep(i + 1)}
+            aria-label={`Go to step ${i + 1}: ${s.title}`}
+            aria-current={subStep === i + 1 ? "step" : undefined}
+            className={cn(
+              "rounded-full transition-all duration-200",
+              subStep === i + 1
+                ? "w-6 h-2 bg-blue-500"
+                : subStep > i + 1
+                ? "w-2 h-2 bg-emerald-500/70"
+                : "w-2 h-2 bg-slate-600 hover:bg-slate-500"
+            )}
+          />
+        ))}
+        <span className="ml-2 text-xs text-slate-500">{SUB_STEPS[subStep - 1].title}</span>
+      </div>
+
+      {/* Content */}
+      <div className="pt-4">
+        {subStep === 1 && <StepBigIdea data={data} onChange={patchData} />}
+        {subStep === 2 && <StepVibeAndAudience data={data} onChange={patchData} />}
+        {subStep === 3 && <StepColorScheme data={data} onChange={patchData} />}
+        {subStep === 4 && <StepInspirationAndComplexity data={data} onChange={patchData} />}
+        {subStep === 5 && <StepDomainVocabulary entities={entityNames} data={data} onChange={patchData} />}
+        {subStep === 6 && <StepFeatureFlags data={data} onChange={patchData} />}
+      </div>
+    </Modal>
   );
 }

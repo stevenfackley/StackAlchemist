@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import { useFreeQuota } from "@/lib/hooks/use-free-quota";
+import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { BuildLogConsole } from "@/components/build-log-console";
@@ -392,28 +393,124 @@ function relsToEdges(relationships: Relationship[]): Edge[] {
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 const STEPS = ["Define Entities", "Platform Selection", "Configure API", "Personalize", "Select Tier & Pay"];
 
+// Everything the user builds in the wizard, consolidated so ONE localStorage
+// draft covers it — a refresh, crash, or checkout login-bounce previously wiped
+// all of it (the state lived only in React memory).
+interface AdvancedDraft {
+  entities: Entity[];
+  relationships: Relationship[];
+  endpoints: Endpoint[];
+  projectType: ProjectType;
+  tier: Tier;
+  personalization: PersonalizationData;
+  step: number;
+}
+
+const DEFAULT_ENTITIES: Entity[] = [{
+  name: "Product",
+  fields: [
+    { name: "id", type: "UUID", pk: true },
+    { name: "name", type: "String", pk: false },
+    { name: "price", type: "Decimal", pk: false },
+  ],
+}];
+
+const ADVANCED_DRAFT_KEY = "sa:draft:advanced:v1";
+
+const clampStep = (raw: number) => Math.min(Math.max(Number.isFinite(raw) ? raw : 1, 1), 5);
+
 export default function AdvancedModePage() {
   const searchParams = useSearchParams();
-  const initialStep = Number(searchParams?.get("step") ?? "1");
+  const initialStep = clampStep(Number(searchParams?.get("step") ?? "1"));
   const initialTier = Number(searchParams?.get("tier") ?? "2") as Tier;
   const initialProjectType = (searchParams?.get("projectType") as ProjectType | null) ?? "DotNetNextJs";
 
   const { quota } = useFreeQuota();
-  const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 5));
-  const [entities, setEntities] = useState<Entity[]>([{
-    name: "Product",
-    fields: [
-      { name: "id", type: "UUID", pk: true },
-      { name: "name", type: "String", pk: false },
-      { name: "price", type: "Decimal", pk: false },
-    ],
-  }]);
-  const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
-  const [selectedProjectType, setSelectedProjectType] = useState<ProjectType>(initialProjectType);
-  const [selectedTier, setSelectedTier] = useState<Tier>(initialTier);
-  const [personalization, setPersonalization] = useState<PersonalizationData>(DEFAULT_PERSONALIZATION);
+
+  const {
+    value: draft,
+    setValue: setDraft,
+    noticeVisible: draftNoticeVisible,
+    restoredAt: draftRestoredAt,
+    dismissNotice: dismissDraftNotice,
+    clearDraft,
+  } = useLocalStorageDraft<AdvancedDraft>(
+    ADVANCED_DRAFT_KEY,
+    () => ({
+      entities: DEFAULT_ENTITIES,
+      relationships: [],
+      endpoints: [],
+      projectType: initialProjectType,
+      tier: initialTier,
+      personalization: DEFAULT_PERSONALIZATION,
+      step: initialStep,
+    }),
+    {
+      version: 1,
+      // Don't litter storage (or show restore notices) for visits that never
+      // edited anything beyond navigating steps / picking a tier via URL.
+      isDefault: (d) =>
+        JSON.stringify(d.entities) === JSON.stringify(DEFAULT_ENTITIES) &&
+        d.relationships.length === 0 &&
+        d.endpoints.length === 0 &&
+        JSON.stringify(d.personalization) === JSON.stringify(DEFAULT_PERSONALIZATION),
+      // Deep links beat drafts: a pricing-page link to ?step=5&tier=1 must land
+      // there even when a draft remembers step 2 / tier 2. Only params literally
+      // present in the URL override.
+      transformOnRestore: (d) => ({
+        ...d,
+        step: searchParams?.has("step") ? initialStep : clampStep(d.step),
+        tier: searchParams?.has("tier") ? initialTier : d.tier,
+        projectType: searchParams?.has("projectType") ? initialProjectType : d.projectType,
+      }),
+    },
+  );
+
+  const { entities, relationships, endpoints, personalization, step } = draft;
+  const selectedProjectType = draft.projectType;
+  const selectedTier = draft.tier;
+
+  // Slice setters keep the child step components' Dispatch<SetStateAction<…>>
+  // prop contracts intact while all state lives in the single draft object.
+  const makeSliceSetter = useCallback(
+    <K extends keyof AdvancedDraft>(key: K): React.Dispatch<React.SetStateAction<AdvancedDraft[K]>> =>
+      (action) =>
+        setDraft((d) => ({
+          ...d,
+          [key]:
+            typeof action === "function"
+              ? (action as (prev: AdvancedDraft[K]) => AdvancedDraft[K])(d[key])
+              : action,
+        })),
+    [setDraft],
+  );
+
+  const setEntities = useMemo(() => makeSliceSetter("entities"), [makeSliceSetter]);
+  const setRelationships = useMemo(() => makeSliceSetter("relationships"), [makeSliceSetter]);
+  const setEndpoints = useMemo(() => makeSliceSetter("endpoints"), [makeSliceSetter]);
+  const setSelectedProjectType = useMemo(() => makeSliceSetter("projectType"), [makeSliceSetter]);
+  const setSelectedTier = useMemo(() => makeSliceSetter("tier"), [makeSliceSetter]);
+  const setPersonalization = useMemo(() => makeSliceSetter("personalization"), [makeSliceSetter]);
+  const setStep = useMemo(() => makeSliceSetter("step"), [makeSliceSetter]);
+
+  // Keep ?step= (and tier) honest in the URL so refresh and shared links land on
+  // the same step. Native replaceState, NOT router.push: this flow is
+  // COOP-sensitive and must not soft-navigate.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get("step");
+    const currentTier = url.searchParams.get("tier");
+    if (current === String(step) && currentTier === String(selectedTier)) return;
+    url.searchParams.set("step", String(step));
+    url.searchParams.set("tier", String(selectedTier));
+    window.history.replaceState(null, "", url);
+  }, [step, selectedTier]);
+
+
   const [showPersonalizationModal, setShowPersonalizationModal] = useState(false);
+  // Snapshot for cancel-restore: the modal live-patches parent state while
+  // editing (so the draft persists keystrokes), and cancel rolls back to this.
+  const personalizationSnapshotRef = useRef<PersonalizationData>(DEFAULT_PERSONALIZATION);
   const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
@@ -441,6 +538,9 @@ export default function AdvancedModePage() {
         // Spark (free): redirect when preview_files_json is ready (no download_url).
         // Paid tiers: redirect when download_url is ready.
         doneRef.current = true;
+        // The build shipped — the draft served its purpose. Clear BEFORE the hard
+        // nav (side effects after window.location.href may never run).
+        clearDraft();
         // Full-page load (NOT router.push): the result page must arrive as a fresh
         // document so its COOP/COEP headers apply and window.crossOriginIsolated is
         // true — required by StackBlitz WebContainers. A soft nav reuses the current
@@ -452,7 +552,7 @@ export default function AdvancedModePage() {
         setSubmitPhase("error");
       }
     },
-    [generationId, selectedTier]
+    [generationId, selectedTier, clearDraft]
   );
 
   useGenerationRealtime({
@@ -474,6 +574,8 @@ export default function AdvancedModePage() {
         if (result.success) {
           setGenerationId(result.generationId);
           if (isDemoMode || !supabase) {
+            // Build submitted — clear the draft BEFORE the hard nav.
+            clearDraft();
             // Hard nav (see realtime handler above) so the preview page is isolated.
             window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
             return;
@@ -569,8 +671,14 @@ export default function AdvancedModePage() {
       {showPersonalizationModal && (
         <PersonalizationModal
           entityNames={entities.map((e) => e.name).filter(Boolean)}
-          onComplete={(data) => { setPersonalization(data); setShowPersonalizationModal(false); }}
-          onSkip={() => setShowPersonalizationModal(false)}
+          initialData={personalization}
+          onChange={setPersonalization}
+          onComplete={() => setShowPersonalizationModal(false)}
+          onCancel={() => {
+            // Roll the live-patched edits back to the pre-open snapshot.
+            setPersonalization(personalizationSnapshotRef.current);
+            setShowPersonalizationModal(false);
+          }}
         />
       )}
       <div data-testid="advanced-mode-page" className="flex h-full min-h-0 flex-col">
@@ -581,6 +689,39 @@ export default function AdvancedModePage() {
           <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
             {/* Chunk 2 — Workspace (active step) */}
             <Workspace>
+              {draftNoticeVisible && (
+                <Alert variant="info" data-testid="advanced-draft-restored" className="mb-4">
+                  <span>
+                    Draft restored{draftRestoredAt ? ` from ${draftRestoredAt.toLocaleString()}` : ""} —{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearDraft();
+                        setDraft({
+                          entities: DEFAULT_ENTITIES,
+                          relationships: [],
+                          endpoints: [],
+                          projectType: initialProjectType,
+                          tier: initialTier,
+                          personalization: DEFAULT_PERSONALIZATION,
+                          step: 1,
+                        });
+                      }}
+                      className="underline underline-offset-2 transition-colors hover:text-ink"
+                    >
+                      start fresh
+                    </button>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Dismiss draft notice"
+                    onClick={dismissDraftNotice}
+                    className="ml-auto font-mono text-ink-faint transition-colors hover:text-ink"
+                  >
+                    ✕
+                  </button>
+                </Alert>
+              )}
               {step === 1 && (
                 <div data-testid="advanced-step-1">
                   <StepEntities entities={entities} setEntities={setEntities} relationships={relationships} setRelationships={setRelationships} />
@@ -645,7 +786,11 @@ export default function AdvancedModePage() {
                             type="button"
                             variant="primary"
                             size="sm"
-                            onClick={() => setShowPersonalizationModal(true)}
+                            onClick={() => {
+                              // Snapshot for cancel-restore before live patching begins.
+                              personalizationSnapshotRef.current = personalization;
+                              setShowPersonalizationModal(true);
+                            }}
                             data-testid="advanced-personalize-button"
                           >
                             {personalization.businessDescription ? "Edit Personalization" : "Personalize →"}
