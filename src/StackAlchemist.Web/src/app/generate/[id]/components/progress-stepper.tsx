@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { Generation } from "@/lib/types";
@@ -22,7 +22,7 @@ export function ProgressStepper({ status }: { status: Generation["status"] }) {
                 {i > 0 && (
                   <div
                     className={`absolute left-0 right-1/2 h-px transition-colors duration-500 ${
-                      done || active ? "bg-blue-500" : "bg-slate-700"
+                      done || active ? "bg-accent" : "bg-slate-700"
                     }`}
                   />
                 )}
@@ -34,7 +34,7 @@ export function ProgressStepper({ status }: { status: Generation["status"] }) {
                       : done
                       ? "border-emerald-500 bg-emerald-500/20"
                       : active
-                      ? "border-blue-500 bg-blue-500/20 animate-pulse"
+                      ? "border-accent bg-accent/20 animate-pulse"
                       : "border-slate-700 bg-slate-800"
                   }`}
                 >
@@ -43,7 +43,7 @@ export function ProgressStepper({ status }: { status: Generation["status"] }) {
                   ) : done ? (
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                   ) : active ? (
-                    <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />
                   ) : (
                     <span className="font-mono text-[10px] text-slate-600">{i + 1}</span>
                   )}
@@ -52,7 +52,7 @@ export function ProgressStepper({ status }: { status: Generation["status"] }) {
                 {i < STATUS_STEPS.length - 1 && (
                   <div
                     className={`absolute left-1/2 right-0 h-px transition-colors duration-500 ${
-                      done ? "bg-blue-500" : "bg-slate-700"
+                      done ? "bg-accent" : "bg-slate-700"
                     }`}
                   />
                 )}
@@ -65,7 +65,7 @@ export function ProgressStepper({ status }: { status: Generation["status"] }) {
                     : done
                     ? "text-emerald-400"
                     : active
-                    ? "text-blue-400"
+                    ? "text-accent"
                     : "text-slate-600"
                 }`}
               >

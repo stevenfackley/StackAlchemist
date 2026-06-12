@@ -19,7 +19,7 @@ export async function Navbar() {
   const user = await getServerUser();
 
   return (
-    <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-header">
       <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <Logo />
 
@@ -65,7 +65,7 @@ export async function Navbar() {
                 <button
                   type="submit"
                   className="flex items-center gap-1.5 text-xs font-mono tracking-widest text-slate-400 hover:text-rose-400 transition-colors uppercase"
-                  title="Sign out"
+                  aria-label="Sign out"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span className="hidden sm:block">Sign Out</span>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { BackgroundEffects } from "@/components/home/background-effects";
 import { HomeNav } from "@/components/home/home-nav";
@@ -26,7 +26,7 @@ export default function HomePage() {
         <CtaSection />
       </main>
       <HomeFooter />
-      <div className="fixed bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent z-50" />
+      <div className="fixed bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent z-50" />
     </div>
   );
 }

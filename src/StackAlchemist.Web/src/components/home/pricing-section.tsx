@@ -65,13 +65,13 @@ export function PricingSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-14 text-center">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-            <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Pricing</span>
-            <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+            <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+            <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Pricing</span>
+            <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
           </div>
           <h2 className="text-3xl font-bold text-white lg:text-4xl">
             ONE PAYMENT.{" "}
-            <span className="text-blue-400">OWN IT FOREVER.</span>
+            <span className="text-accent">OWN IT FOREVER.</span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-400 leading-relaxed">
             No subscriptions. No recurring fees. No seat licenses.
@@ -85,14 +85,14 @@ export function PricingSection() {
               key={tier.id}
               className={`relative rounded-xl border p-8 flex flex-col transition-all duration-300 ${
                 tier.featured
-                  ? "border-blue-500/50 bg-slate-700/50 shadow-[0_0_40px_rgba(59,130,246,0.12)]"
+                  ? "border-accent/50 bg-slate-700/50 shadow-[0_0_40px_rgba(59,130,246,0.12)]"
                   : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
               }`}
             >
               {tier.featured && (
                 <>
-                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500 to-transparent rounded-t-xl" />
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-500 px-3 py-1 text-xs font-medium text-white whitespace-nowrap">
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent to-transparent rounded-t-xl" />
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-1 text-xs font-medium text-white whitespace-nowrap">
                     Most Popular
                   </div>
                 </>
@@ -112,7 +112,7 @@ export function PricingSection() {
               <ul className="mb-8 space-y-2.5 flex-1">
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2.5 text-sm text-slate-300">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                     {feature}
                   </li>
                 ))}
@@ -122,8 +122,8 @@ export function PricingSection() {
                 href={tier.href}
                 className={`block text-center rounded-full py-3 text-sm font-medium transition-all duration-300 ${
                   tier.featured
-                    ? "bg-blue-500 text-white hover:bg-blue-400 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
-                    : "border border-slate-500/30 bg-slate-700/30 text-slate-200 hover:border-blue-500/40 hover:bg-slate-700/50"
+                    ? "bg-accent text-white hover:bg-accent/90 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
+                    : "border border-slate-500/30 bg-slate-700/30 text-slate-200 hover:border-accent/40 hover:bg-slate-700/50"
                 }`}
               >
                 Get {tier.name} →

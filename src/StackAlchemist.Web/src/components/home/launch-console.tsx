@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -37,7 +37,7 @@ export function LaunchConsole() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Launch Console</div>
+            <div className="font-mono text-xs tracking-[0.28em] text-accent uppercase">Launch Console</div>
             <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
               Describe your product. Get a buildable architecture.
             </h2>
@@ -51,7 +51,7 @@ export function LaunchConsole() {
         <div className="rounded-[28px] border border-slate-600/30 bg-slate-800/60 p-4 shadow-[0_0_40px_rgba(15,23,42,0.35)] backdrop-blur-md sm:p-6 lg:p-7">
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="font-mono text-xs tracking-[0.28em] text-blue-400 uppercase">Workspace Mode</div>
+              <div className="font-mono text-xs tracking-[0.28em] text-accent uppercase">Workspace Mode</div>
               <h3 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
                 Move from idea to architecture without leaving the main flow.
               </h3>
@@ -75,7 +75,7 @@ export function LaunchConsole() {
                 data-testid="home-mode-simple-button"
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
                   mode === "simple"
-                    ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                    ? "bg-accent text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                     : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -86,7 +86,7 @@ export function LaunchConsole() {
                 data-testid="home-mode-advanced-button"
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
                   mode === "advanced"
-                    ? "bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                    ? "bg-accent text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                     : "bg-slate-700/50 text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -129,7 +129,7 @@ export function LaunchConsole() {
               )}
               <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-accent">
                     What You Walk Away With
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -154,7 +154,7 @@ export function LaunchConsole() {
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-600/30 bg-slate-900/40 px-4 py-4">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-blue-400">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.24em] text-accent">
                     Flow
                   </div>
                   <div className="mt-3 space-y-2">
@@ -184,9 +184,9 @@ export function LaunchConsole() {
               </div>
             </>
           ) : (
-            <div className="rounded-2xl border border-blue-500/35 bg-slate-700/60 p-6 backdrop-blur-md">
+            <div className="rounded-2xl border border-accent/35 bg-slate-700/60 p-6 backdrop-blur-md">
               <div className="mb-3 flex items-center gap-3">
-                <Terminal className="h-5 w-5 text-blue-400" />
+                <Terminal className="h-5 w-5 text-accent" />
                 <span className="font-mono text-xs tracking-wider text-slate-400 uppercase">Advanced Mode Active</span>
               </div>
               <p className="mb-5 text-sm leading-relaxed text-slate-300 sm:text-base">
@@ -199,7 +199,7 @@ export function LaunchConsole() {
                 </div>
                 <button
                   onClick={handleSubmit}
-                  className="rounded-full bg-blue-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-400 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
+                  className="rounded-full bg-accent px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-accent/90 hover:shadow-[0_0_24px_rgba(59,130,246,0.45)]"
                 >
                   Open Entity Wizard →
                 </button>

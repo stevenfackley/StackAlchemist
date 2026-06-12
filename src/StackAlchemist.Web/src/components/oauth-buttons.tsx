@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Alert } from "@/components/ui";
 
 type Provider = "google" | "apple";
 
@@ -49,10 +50,7 @@ export function OAuthButtons({ returnTo }: { returnTo: string }) {
   return (
     <div className="space-y-3">
       {error && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3">
-          <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
-          <p className="font-mono text-xs text-rose-300">{error}</p>
-        </div>
+        <Alert variant="error">{error}</Alert>
       )}
 
       <button

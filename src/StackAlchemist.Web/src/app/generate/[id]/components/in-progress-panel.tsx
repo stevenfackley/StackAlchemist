@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Loader2 } from "lucide-react";
 import type { Generation } from "@/lib/types";
@@ -19,11 +19,11 @@ export function InProgressPanel({ generation }: { generation: Generation }) {
           className={`h-20 w-20 rounded-full border-2 flex items-center justify-center ${
             isFree
               ? "border-emerald-500/30 bg-emerald-500/5"
-              : "border-blue-500/30 bg-blue-500/5"
+              : "border-accent/30 bg-accent/5"
           }`}
         >
           <Loader2
-            className={`h-10 w-10 animate-spin ${isFree ? "text-emerald-400" : "text-blue-400"}`}
+            className={`h-10 w-10 animate-spin ${isFree ? "text-emerald-400" : "text-accent"}`}
           />
         </div>
         {/* Tier badge */}
@@ -31,7 +31,7 @@ export function InProgressPanel({ generation }: { generation: Generation }) {
           className={`absolute -bottom-1 -right-1 rounded-full border-2 border-slate-800 px-2 py-0.5 text-[10px] font-mono font-bold ${
             isFree
               ? "bg-emerald-500 text-white"
-              : "bg-blue-500 text-white"
+              : "bg-accent text-white"
           }`}
         >
           {isFree ? "SPARK" : TIER_NAMES[generation.tier]}
@@ -60,7 +60,7 @@ export function InProgressPanel({ generation }: { generation: Generation }) {
       {/* Generation ID */}
       <div className="w-full max-w-sm rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1">
         <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Generation ID</p>
-        <p className="font-mono text-xs text-blue-400 break-all">{generation.id}</p>
+        <p className="font-mono text-xs text-accent break-all">{generation.id}</p>
         <p className="font-mono text-[10px] text-slate-600">
           {isFree
             ? "Keep this page open — we'll embed the IDE when your preview is ready."

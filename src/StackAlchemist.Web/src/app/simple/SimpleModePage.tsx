@@ -138,16 +138,16 @@ export default function SimpleModePage() {
   return (
     <div data-testid="simple-mode-page" className="min-h-screen flex flex-col bg-slate-800">
       {/* Header */}
-      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
             <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
             <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-blue-400">AL</span>CHEMIST
+              STACK <span className="text-accent">AL</span>CHEMIST
             </span>
           </Link>
           <span className="text-slate-600 font-mono text-xs">|</span>
-          <Link href="/" className="font-mono text-xs text-slate-400 hover:text-blue-400 transition-colors tracking-widest uppercase">
+          <Link href="/" className="font-mono text-xs text-slate-400 hover:text-accent transition-colors tracking-widest uppercase">
             &larr; Back
           </Link>
         </div>
@@ -186,7 +186,7 @@ export default function SimpleModePage() {
                 </p>
               ))}
               {progress < 100 && (
-                <p className="font-mono text-xs text-blue-400 animate-pulse">
+                <p className="font-mono text-xs text-accent animate-pulse">
                   <span className="mr-2">&rsaquo;</span>_
                 </p>
               )}
@@ -199,7 +199,7 @@ export default function SimpleModePage() {
             {generationId && (
               <div className="w-full max-w-sm rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1 text-left">
                 <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Generation ID</p>
-                <p className="font-mono text-xs text-blue-400 break-all">{generationId}</p>
+                <p className="font-mono text-xs text-accent break-all">{generationId}</p>
                 <p className="font-mono text-[10px] text-slate-600">Keep this page open — your live preview opens automatically.</p>
               </div>
             )}

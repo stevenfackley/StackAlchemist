@@ -26,12 +26,12 @@ export default function ForgotPasswordClient() {
   }
 
   const header = (
-    <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
           <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
           <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-            STACK <span className="text-blue-400">AL</span>CHEMIST
+            STACK <span className="text-accent">AL</span>CHEMIST
           </span>
         </Link>
       </div>
@@ -91,14 +91,14 @@ export default function ForgotPasswordClient() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors"
+                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 disabled:opacity-60 text-white font-mono text-xs py-3 rounded-xl uppercase tracking-widest transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent/90 disabled:opacity-60 text-white font-mono text-xs py-3 rounded-xl uppercase tracking-widest transition-colors"
               >
                 {isPending ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending...</>
@@ -110,7 +110,7 @@ export default function ForgotPasswordClient() {
 
             <p className="text-center font-mono text-xs text-slate-400">
               Remembered it?{" "}
-              <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2">
+              <Link href="/login" className="text-accent hover:text-accent/80 transition-colors underline underline-offset-2">
                 Sign in
               </Link>
             </p>
