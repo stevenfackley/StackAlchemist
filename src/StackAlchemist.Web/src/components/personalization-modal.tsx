@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { ChevronRight, ChevronLeft, Zap, Smile, Briefcase, Flame, Feather, Sparkles, Shield, Users, ShoppingBag, Stethoscope, GraduationCap, Building2, HeartHandshake, Baby, Leaf, Coffee, Layers, LayoutGrid, Settings2 } from "lucide-react";
@@ -26,7 +26,7 @@ function PaletteSwatch({ palette, selected, onClick }: {
       className={cn(
         "rounded-xl border p-3 text-left transition-all duration-200 space-y-2",
         selected
-          ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_16px_rgba(59,130,246,0.15)]"
+          ? "border-accent/70 bg-accent/10 shadow-[0_0_16px_rgba(59,130,246,0.15)]"
           : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
       )}
     >
@@ -37,7 +37,7 @@ function PaletteSwatch({ palette, selected, onClick }: {
         <div className="flex-1" style={{ background: palette.accent }} />
       </div>
       <p className="font-mono text-[11px] font-medium text-white">{palette.name}</p>
-      {selected && <p className="font-mono text-[10px] text-blue-400">Selected</p>}
+      {selected && <p className="font-mono text-[10px] text-accent">Selected</p>}
     </button>
   );
 }
@@ -77,7 +77,7 @@ function StepBigIdea({
           value={data.projectName ?? ""}
           onChange={(e) => onChange({ projectName: e.target.value })}
           placeholder="e.g. FoodHub, MyGym, PetPal"
-          className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+          className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
         />
       </div>
 
@@ -87,14 +87,14 @@ function StepBigIdea({
           <button
             type="button"
             onClick={() => setUseHelper(!useHelper)}
-            className="font-mono text-[10px] text-blue-400 hover:text-blue-300 transition-colors tracking-widest uppercase"
+            className="font-mono text-[10px] text-accent hover:text-accent/80 transition-colors tracking-widest uppercase"
           >
             {useHelper ? "Write it myself" : "✦ Help me write this"}
           </button>
         </div>
 
         {useHelper ? (
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-3">
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-4 space-y-3">
             <p className="text-xs text-slate-400">Fill in the blanks:</p>
             <div className="space-y-2 text-sm text-white">
               <div className="flex items-center gap-2 flex-wrap">
@@ -103,7 +103,7 @@ function StepBigIdea({
                   value={who}
                   onChange={(e) => setWho(e.target.value)}
                   placeholder="gym owners"
-                  className="flex-1 min-w-[100px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+                  className="flex-1 min-w-[100px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
                 />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -112,7 +112,7 @@ function StepBigIdea({
                   value={doWhat}
                   onChange={(e) => setDoWhat(e.target.value)}
                   placeholder="manage members and billing"
-                  className="flex-1 min-w-[140px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+                  className="flex-1 min-w-[140px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
                 />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -121,7 +121,7 @@ function StepBigIdea({
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
                   placeholder="spend less time on admin (optional)"
-                  className="flex-1 min-w-[140px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+                  className="flex-1 min-w-[140px] bg-slate-700/60 border border-slate-600/40 rounded px-2 py-1 text-xs text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
                 />
               </div>
             </div>
@@ -129,7 +129,7 @@ function StepBigIdea({
               type="button"
               onClick={applyMadLib}
               disabled={!who || !doWhat}
-              className="font-mono text-[10px] bg-blue-500 hover:bg-blue-400 disabled:opacity-40 text-white px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors"
+              className="font-mono text-[10px] bg-accent hover:bg-accent/90 disabled:opacity-40 text-white px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors"
             >
               Use this description
             </button>
@@ -140,7 +140,7 @@ function StepBigIdea({
             onChange={(e) => onChange({ businessDescription: e.target.value })}
             rows={3}
             placeholder="e.g. An app for gym owners to track memberships, check-ins, and payments without needing a spreadsheet."
-            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 resize-none"
+            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 resize-none"
           />
         )}
 
@@ -158,7 +158,7 @@ function StepBigIdea({
           value={data.tagline ?? ""}
           onChange={(e) => onChange({ tagline: e.target.value })}
           placeholder="e.g. Run your gym. Not your inbox."
-          className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+          className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
         />
       </div>
     </div>
@@ -214,16 +214,16 @@ function StepVibeAndAudience({
                 className={cn(
                   "flex items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150",
                   selected
-                    ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.12)]"
+                    ? "border-accent/70 bg-accent/10 shadow-[0_0_12px_rgba(59,130,246,0.12)]"
                     : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
                 )}
               >
                 <span className="text-xl shrink-0 mt-0.5">{v.emoji}</span>
                 <div>
-                  <p className={cn("text-xs font-semibold", selected ? "text-blue-300" : "text-white")}>{v.label}</p>
+                  <p className={cn("text-xs font-semibold", selected ? "text-accent/80" : "text-white")}>{v.label}</p>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{v.desc}</p>
                 </div>
-                {selected && <Icon className="h-3.5 w-3.5 text-blue-400 shrink-0 ml-auto mt-0.5" />}
+                {selected && <Icon className="h-3.5 w-3.5 text-accent shrink-0 ml-auto mt-0.5" />}
               </button>
             );
           })}
@@ -248,12 +248,12 @@ function StepVibeAndAudience({
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all duration-150",
                   selected
-                    ? "border-blue-500/70 bg-blue-500/10"
+                    ? "border-accent/70 bg-accent/10"
                     : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
                 )}
               >
-                <Icon className={cn("h-4 w-4", selected ? "text-blue-400" : "text-slate-400")} />
-                <p className={cn("text-[10px] leading-tight", selected ? "text-blue-300" : "text-slate-300")}>{a.label}</p>
+                <Icon className={cn("h-4 w-4", selected ? "text-accent" : "text-slate-400")} />
+                <p className={cn("text-[10px] leading-tight", selected ? "text-accent/80" : "text-slate-300")}>{a.label}</p>
               </button>
             );
           })}
@@ -310,7 +310,7 @@ function StepColorScheme({
                 className={cn(
                   "flex flex-col gap-2 rounded-xl border p-3 text-left transition-all duration-150",
                   isActive
-                    ? "border-blue-500/70 bg-blue-500/10"
+                    ? "border-accent/70 bg-accent/10"
                     : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
                 )}
               >
@@ -325,7 +325,7 @@ function StepColorScheme({
                 )}
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">{set.emoji}</span>
-                  <span className={cn("text-[11px] font-semibold", isActive ? "text-blue-300" : "text-white")}>{set.label}</span>
+                  <span className={cn("text-[11px] font-semibold", isActive ? "text-accent/80" : "text-white")}>{set.label}</span>
                 </div>
                 <p className="text-[10px] text-slate-500 leading-relaxed">{set.desc}</p>
               </button>
@@ -411,7 +411,7 @@ function StepDomainVocabulary({
         {entities.map((name) => (
           <div key={name} className="space-y-1.5">
             <label className="text-sm font-medium text-white">
-              What is a <span className="text-blue-400">{name}</span> in your app?
+              What is a <span className="text-accent">{name}</span> in your app?
             </label>
             <input
               value={data.domainContext[name] ?? ""}
@@ -419,7 +419,7 @@ function StepDomainVocabulary({
                 domainContext: { ...data.domainContext, [name]: e.target.value }
               })}
               placeholder={`e.g. ${friendlyLabels[name] ?? `a record in your app`} — describe it simply`}
-              className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60"
+              className="w-full bg-slate-800/60 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60"
             />
           </div>
         ))}
@@ -513,7 +513,7 @@ function StepInspirationAndComplexity({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-all duration-150",
                   isSelected
-                    ? "border-blue-500/70 bg-blue-500/15 text-blue-300"
+                    ? "border-accent/70 bg-accent/15 text-accent/80"
                     : maxReached
                     ? "border-slate-700/30 bg-slate-800/20 text-slate-600 cursor-not-allowed"
                     : "border-slate-600/30 bg-slate-700/20 text-slate-300 hover:border-slate-500/50 hover:text-white"
@@ -548,15 +548,15 @@ function StepInspirationAndComplexity({
                 className={cn(
                   "w-full flex items-start gap-4 rounded-xl border p-4 text-left transition-all duration-150",
                   isSelected
-                    ? "border-blue-500/70 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.1)]"
+                    ? "border-accent/70 bg-accent/10 shadow-[0_0_12px_rgba(59,130,246,0.1)]"
                     : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
                 )}
               >
                 <span className="text-2xl shrink-0">{opt.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className={cn("text-sm font-semibold", isSelected ? "text-blue-300" : "text-white")}>{opt.label}</p>
-                    {isSelected && <Icon className="h-3.5 w-3.5 text-blue-400" />}
+                    <p className={cn("text-sm font-semibold", isSelected ? "text-accent/80" : "text-white")}>{opt.label}</p>
+                    {isSelected && <Icon className="h-3.5 w-3.5 text-accent" />}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
                   <p className="text-[11px] text-slate-500 mt-1 italic">{opt.hint}</p>
@@ -615,12 +615,12 @@ function StepFeatureFlags({
               className={cn(
                 "rounded-lg border p-3 text-left transition-all",
                 flags.authMethod === opt.id
-                  ? "border-blue-500/60 bg-blue-500/10"
+                  ? "border-accent/60 bg-accent/10"
                   : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
               )}
             >
               <p className="text-base mb-1">{opt.emoji}</p>
-              <p className={cn("text-xs font-semibold", flags.authMethod === opt.id ? "text-blue-400" : "text-white")}>{opt.label}</p>
+              <p className={cn("text-xs font-semibold", flags.authMethod === opt.id ? "text-accent" : "text-white")}>{opt.label}</p>
               <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</p>
             </button>
           ))}
@@ -646,7 +646,7 @@ function StepFeatureFlags({
               </div>
               <div className={cn(
                 "w-9 h-5 rounded-full flex items-center transition-colors shrink-0 ml-3",
-                flags[key] ? "bg-blue-500" : "bg-slate-600"
+                flags[key] ? "bg-accent" : "bg-slate-600"
               )}>
                 <div className={cn(
                   "w-3.5 h-3.5 rounded-full bg-white shadow transition-transform mx-0.5",
@@ -727,7 +727,7 @@ export function PersonalizationModal({
       testId="personalization-modal"
       title={
         <span className="flex items-center gap-2">
-          <Zap aria-hidden className="h-4 w-4 text-blue-400" />
+          <Zap aria-hidden className="h-4 w-4 text-accent" />
           Make It Yours
         </span>
       }
@@ -738,7 +738,7 @@ export function PersonalizationModal({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setConfirmingDiscard(false)}
-                className="font-mono text-xs border border-slate-600/50 text-slate-300 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors hover:border-blue-500/40"
+                className="font-mono text-xs border border-slate-600/50 text-slate-300 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors hover:border-accent/40"
               >
                 Keep editing
               </button>
@@ -762,7 +762,7 @@ export function PersonalizationModal({
               {subStep > 1 && (
                 <button
                   onClick={() => setSubStep((s) => s - 1)}
-                  className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-blue-500/40 hover:text-blue-400 px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
+                  className="font-mono text-xs border border-slate-600/50 text-slate-400 hover:border-accent/40 hover:text-accent px-3 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
                 >
                   <ChevronLeft className="h-3 w-3" /> Back
                 </button>
@@ -770,7 +770,7 @@ export function PersonalizationModal({
               {subStep < SUB_STEPS.length ? (
                 <button
                   onClick={() => setSubStep((s) => s + 1)}
-                  className="font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
+                  className="font-mono text-xs bg-accent hover:bg-accent/90 text-white px-4 py-1.5 rounded-full uppercase tracking-widest transition-colors flex items-center gap-1"
                 >
                   Next <ChevronRight className="h-3 w-3" />
                 </button>
@@ -794,7 +794,7 @@ export function PersonalizationModal({
       {/* Progress bar */}
       <div className="h-1 bg-slate-700 shrink-0 rounded-full overflow-hidden">
         <div
-          className="h-full bg-blue-500 transition-all duration-300"
+          className="h-full bg-accent transition-all duration-300"
           style={{ width: `${(subStep / SUB_STEPS.length) * 100}%` }}
         />
       </div>
@@ -810,7 +810,7 @@ export function PersonalizationModal({
             className={cn(
               "rounded-full transition-all duration-200",
               subStep === i + 1
-                ? "w-6 h-2 bg-blue-500"
+                ? "w-6 h-2 bg-accent"
                 : subStep > i + 1
                 ? "w-2 h-2 bg-emerald-500/70"
                 : "w-2 h-2 bg-slate-600 hover:bg-slate-500"

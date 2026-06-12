@@ -27,9 +27,9 @@ export function FaqSection() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-12 text-center">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-            <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">Frequently Asked</span>
-            <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+            <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+            <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Frequently Asked</span>
+            <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
           </div>
           <h2 className="text-2xl font-bold text-white">Got Questions?</h2>
         </div>

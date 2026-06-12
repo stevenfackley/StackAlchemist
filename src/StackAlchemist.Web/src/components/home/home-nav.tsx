@@ -14,7 +14,7 @@ export function HomeNav() {
 
   return (
     <>
-      <nav className="relative z-50 flex items-center justify-between px-6 sm:px-8 lg:px-16 py-5 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0">
+      <nav className="relative z-header flex items-center justify-between px-6 sm:px-8 lg:px-16 py-5 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
           <Image
@@ -36,7 +36,7 @@ export function HomeNav() {
           <a href="#pricing" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Pricing</a>
           <Link href="/story" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Story</Link>
           <Link href="/docs" className="text-sm text-slate-300 hover:text-white transition-colors duration-300">Docs</Link>
-          <Link href="/login" className="rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+          <Link href="/login" className="rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]">
             Sign In
           </Link>
         </div>
@@ -59,7 +59,7 @@ export function HomeNav() {
           <a href="#pricing" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
           <Link href="/story" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Story</Link>
           <Link href="/docs" className="text-sm text-slate-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>Docs</Link>
-          <Link href="/login" className="w-full text-center rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 hover:border-blue-500/40 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+          <Link href="/login" className="w-full text-center rounded-full border border-slate-500/30 bg-slate-700/50 px-4 py-2 text-sm text-slate-100 hover:border-accent/40 transition-colors" onClick={() => setMobileMenuOpen(false)}>
             Sign In
           </Link>
         </div>

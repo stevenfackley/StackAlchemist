@@ -19,7 +19,7 @@ export async function Navbar() {
   const user = await getServerUser();
 
   return (
-    <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b border-slate-surface bg-void/80 backdrop-blur-md sticky top-0 z-header">
       <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <Logo />
 

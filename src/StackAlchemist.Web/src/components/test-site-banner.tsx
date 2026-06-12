@@ -32,7 +32,7 @@ export function TestSiteBanner() {
     <div
       role="banner"
       aria-label="Test environment notice"
-      className="w-full bg-amber-500 text-black text-center py-2 px-4 text-xs font-mono font-semibold tracking-wide z-[9999] sticky top-0"
+      className="w-full bg-amber-500 text-black text-center py-2 px-4 text-xs font-mono font-semibold tracking-wide z-banner sticky top-0"
     >
       ⚠️&nbsp; TEST SITE &nbsp;—&nbsp; This is a staging / test environment.
       &nbsp;|&nbsp; Source last updated:&nbsp;

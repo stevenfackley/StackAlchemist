@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Alert, Button } from "@/components/ui";
 
 type Phase = "loading" | "form" | "expired";
 
@@ -57,12 +58,12 @@ export default function ResetPasswordPage() {
   }
 
   const sharedHeader = (
-    <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
           <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
           <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-            STACK <span className="text-blue-400">AL</span>CHEMIST
+            STACK <span className="text-accent">AL</span>CHEMIST
           </span>
         </Link>
       </div>
@@ -97,7 +98,7 @@ export default function ResetPasswordPage() {
             </div>
             <Link
               href="/forgot-password"
-              className="inline-block font-mono text-xs bg-blue-500 hover:bg-blue-400 text-white px-6 py-3 rounded-xl uppercase tracking-widest transition-colors"
+              className="inline-block font-mono text-xs bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-xl uppercase tracking-widest transition-colors"
             >
               Request New Link
             </Link>
@@ -132,7 +133,7 @@ export default function ResetPasswordPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors"
+                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
                 />
               </div>
 
@@ -147,28 +148,21 @@ export default function ResetPasswordPage() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors"
+                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
                 />
               </div>
 
               {errorMsg && (
-                <div className="flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3">
-                  <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" aria-hidden />
-                  <p className="font-mono text-xs text-rose-300">{errorMsg}</p>
-                </div>
+                <Alert variant="error">{errorMsg}</Alert>
               )}
 
-              <button
-                type="submit"
-                disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 disabled:opacity-60 text-white font-mono text-xs py-3 rounded-xl uppercase tracking-widest transition-colors"
-              >
+              <Button type="submit" disabled={isPending} className="w-full rounded-xl">
                 {isPending ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...</>
                 ) : (
                   "Set New Password"
                 )}
-              </button>
+              </Button>
             </form>
           </div>
         </div>

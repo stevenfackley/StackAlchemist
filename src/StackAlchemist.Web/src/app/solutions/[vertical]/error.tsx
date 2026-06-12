@@ -30,7 +30,7 @@ export default function SolutionPageError({
         </button>
         <Link
           href="/solutions"
-          className="font-mono text-xs bg-electric hover:bg-blue-600 text-white px-5 py-2.5 uppercase tracking-widest transition-colors"
+          className="font-mono text-xs bg-electric hover:bg-accent/90 text-white px-5 py-2.5 uppercase tracking-widest transition-colors"
         >
           All solutions
         </Link>

@@ -15,7 +15,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-slate-800 flex flex-col">
 
       {/* ── Top Nav ─────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-slate-600/30 bg-slate-800/90 backdrop-blur-md">
+      <header className="sticky top-0 z-header border-b border-slate-600/30 bg-slate-800/90 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-14 items-center justify-between gap-4">
             {/* Logo */}
