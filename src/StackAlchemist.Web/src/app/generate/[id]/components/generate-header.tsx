@@ -18,7 +18,7 @@ export function GenerateHeader({ generation, generationId, isComplete, isFailed 
 
   return (
     <>
-      <header className="shrink-0 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="shrink-0 border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80 shrink-0">
             <Image
@@ -29,7 +29,7 @@ export function GenerateHeader({ generation, generationId, isComplete, isFailed 
               className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]"
             />
             <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-blue-400">AL</span>CHEMIST
+              STACK <span className="text-accent">AL</span>CHEMIST
             </span>
           </Link>
 
@@ -42,7 +42,7 @@ export function GenerateHeader({ generation, generationId, isComplete, isFailed 
                 Spark
               </span>
             ) : (
-              <span className="rounded-full bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 font-mono text-[10px] text-blue-400 uppercase tracking-widest shrink-0">
+              <span className="rounded-full bg-accent/10 border border-accent/30 px-2 py-0.5 font-mono text-[10px] text-accent uppercase tracking-widest shrink-0">
                 {TIER_NAMES[generation.tier]}
               </span>
             )}
@@ -64,7 +64,7 @@ export function GenerateHeader({ generation, generationId, isComplete, isFailed 
                 Failed
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 font-mono text-[10px] text-blue-400 uppercase tracking-widest">
+              <span className="flex items-center gap-1.5 font-mono text-[10px] text-accent uppercase tracking-widest">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Processing
               </span>

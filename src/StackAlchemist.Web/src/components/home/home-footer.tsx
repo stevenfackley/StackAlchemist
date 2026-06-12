@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import Image from "next/image";
 
 export function HomeFooter() {
@@ -15,7 +15,7 @@ export function HomeFooter() {
               className="opacity-60"
             />
             <span className="font-mono text-xs tracking-widest text-slate-500">
-              STACK <span className="text-blue-400/60">AL</span>CHEMIST
+              STACK <span className="text-accent/60">AL</span>CHEMIST
             </span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-6">

@@ -45,9 +45,9 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-14 text-center">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-            <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">How it works</span>
-            <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+            <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+            <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">How it works</span>
+            <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
           </div>
           <h2 className="text-3xl font-bold text-white lg:text-4xl">
             The Swiss Cheese Method
@@ -64,9 +64,9 @@ export function FeaturesSection() {
             return (
               <div
                 key={f.title}
-                className="group rounded-xl border border-slate-600/30 bg-slate-700/20 p-6 transition-all duration-300 hover:border-blue-500/30 hover:bg-slate-700/40"
+                className="group rounded-xl border border-slate-600/30 bg-slate-700/20 p-6 transition-all duration-300 hover:border-accent/30 hover:bg-slate-700/40"
               >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 transition-colors group-hover:bg-blue-500/20">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10 text-accent transition-colors group-hover:bg-accent/20">
                   <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="mb-2 text-base font-semibold text-white">{f.title}</h3>

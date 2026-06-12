@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Eye, Lock, ArrowRight, TerminalSquare } from "lucide-react";
@@ -36,7 +36,7 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
           {schema.entities.length > 0 && (
             <div className="rounded-xl border border-slate-600/30 bg-slate-700/20 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-slate-600/30 bg-slate-700/30">
-                <p className="font-mono text-[10px] tracking-[0.3em] text-blue-400 uppercase">
+                <p className="font-mono text-[10px] tracking-[0.3em] text-accent uppercase">
                   Entities ({schema.entities.length})
                 </p>
               </div>
@@ -44,10 +44,10 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
                 {schema.entities.map((entity) => (
                   <div
                     key={entity.name}
-                    className="rounded-lg border border-blue-500/20 bg-slate-800/40 overflow-hidden"
+                    className="rounded-lg border border-accent/20 bg-slate-800/40 overflow-hidden"
                   >
-                    <div className="px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20">
-                      <span className="font-mono text-xs font-bold text-blue-400 uppercase tracking-widest">
+                    <div className="px-3 py-1.5 bg-accent/10 border-b border-accent/20">
+                      <span className="font-mono text-xs font-bold text-accent uppercase tracking-widest">
                         {entity.name}
                       </span>
                     </div>
@@ -81,13 +81,13 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
               <div className="p-4 space-y-1.5">
                 {schema.relationships.map((r, i) => (
                   <div key={i} className="flex items-center gap-2 font-mono text-xs">
-                    <span className="text-blue-400">{r.from}</span>
+                    <span className="text-accent">{r.from}</span>
                     <span className="text-slate-600">→</span>
                     <span className="text-[10px] text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded">
                       {r.type}
                     </span>
                     <span className="text-slate-600">→</span>
-                    <span className="text-blue-400">{r.to}</span>
+                    <span className="text-accent">{r.to}</span>
                   </div>
                 ))}
               </div>
@@ -97,7 +97,7 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
       )}
 
       {/* Upgrade CTA */}
-      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 max-w-md text-center space-y-3">
+      <div className="rounded-xl border border-accent/20 bg-accent/5 p-5 max-w-md text-center space-y-3">
         <p className="text-slate-300 text-sm font-medium">Want the full downloadable codebase?</p>
         <p className="text-slate-500 text-xs leading-relaxed">
           Upgrade to Blueprint ($299), Boilerplate ($599), or Infrastructure ($999) to get the full
@@ -105,7 +105,7 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
         </p>
         <button
           onClick={onUpgrade}
-          className="inline-flex items-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
+          className="inline-flex items-center gap-2 rounded-full bg-accent hover:bg-accent/90 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
         >
           View Paid Tiers <ArrowRight className="h-4 w-4" />
         </button>
@@ -151,7 +151,7 @@ export function FreeTierPanel({ generation }: { generation: Generation }) {
           <button
             onClick={() => setShowUpgrade(true)}
             data-testid="free-tier-upgrade-button"
-            className="flex items-center gap-1.5 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 rounded-full bg-accent hover:bg-accent/90 text-white px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap"
           >
             Upgrade to Download
             <ArrowRight className="h-3 w-3" />

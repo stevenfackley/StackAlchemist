@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { CheckCircle2, Download, Loader2 } from "lucide-react";
@@ -15,7 +15,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
         <div className="h-20 w-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center">
           <CheckCircle2 className="h-10 w-10 text-emerald-400" />
         </div>
-        <div className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-blue-500 border-2 border-slate-800 flex items-center justify-center">
+        <div className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-accent border-2 border-slate-800 flex items-center justify-center">
           <span className="font-mono text-[10px] text-white font-bold">{generation.tier}</span>
         </div>
       </div>
@@ -38,7 +38,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
       <div className="w-full max-w-md rounded-xl border border-slate-600/30 bg-slate-700/20 divide-y divide-slate-700/40">
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Tier</span>
-          <span className="font-mono text-xs text-blue-400 font-bold">{tierName}</span>
+          <span className="font-mono text-xs text-accent font-bold">{tierName}</span>
         </div>
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Mode</span>
@@ -88,7 +88,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
       <div className="pt-4 border-t border-slate-700/50 w-full max-w-md text-center">
         <Link
           href="/"
-          className="font-mono text-xs text-slate-500 hover:text-blue-400 transition-colors tracking-widest uppercase"
+          className="font-mono text-xs text-slate-500 hover:text-accent transition-colors tracking-widest uppercase"
         >
           &larr; Generate Another
         </Link>

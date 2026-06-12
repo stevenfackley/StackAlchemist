@@ -270,7 +270,7 @@ export default function AboutPage() {
               The architecture is the easy part now.
             </p>
             <div className="flex items-center justify-center gap-4 flex-wrap">
-              <Link href="/" className="font-mono text-xs bg-electric hover:bg-blue-600 text-white px-6 py-2.5 uppercase tracking-widest transition-colors">
+              <Link href="/" className="font-mono text-xs bg-electric hover:bg-accent/90 text-white px-6 py-2.5 uppercase tracking-widest transition-colors">
                 Start Building →
               </Link>
               <Link href="/pricing" className="font-mono text-xs border border-slate-border text-slate-400 hover:border-electric hover:text-electric px-6 py-2.5 uppercase tracking-widest transition-colors">
