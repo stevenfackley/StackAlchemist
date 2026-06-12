@@ -72,8 +72,9 @@ function StepBigIdea({
       </p>
 
       <div className="space-y-2">
-        <label className="font-mono text-xs text-slate-500 uppercase tracking-widest">What&apos;s your project called?</label>
+        <label htmlFor="pm-project-name" className="font-mono text-xs text-slate-500 uppercase tracking-widest">What&apos;s your project called?</label>
         <input
+          id="pm-project-name"
           value={data.projectName ?? ""}
           onChange={(e) => onChange({ projectName: e.target.value })}
           placeholder="e.g. FoodHub, MyGym, PetPal"
@@ -83,7 +84,7 @@ function StepBigIdea({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="font-mono text-xs text-slate-500 uppercase tracking-widest">Describe your idea</label>
+          <label htmlFor="pm-business-desc" className="font-mono text-xs text-slate-500 uppercase tracking-widest">Describe your idea</label>
           <button
             type="button"
             onClick={() => setUseHelper(!useHelper)}
@@ -100,6 +101,7 @@ function StepBigIdea({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-slate-400 shrink-0">My app helps</span>
                 <input
+                  aria-label="Who your app helps"
                   value={who}
                   onChange={(e) => setWho(e.target.value)}
                   placeholder="gym owners"
@@ -109,6 +111,7 @@ function StepBigIdea({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-slate-400 shrink-0">to</span>
                 <input
+                  aria-label="What they can do"
                   value={doWhat}
                   onChange={(e) => setDoWhat(e.target.value)}
                   placeholder="manage members and billing"
@@ -118,6 +121,7 @@ function StepBigIdea({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-slate-400 shrink-0">so they can</span>
                 <input
+                  aria-label="The outcome (optional)"
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
                   placeholder="spend less time on admin (optional)"
@@ -136,6 +140,7 @@ function StepBigIdea({
           </div>
         ) : (
           <textarea
+            id="pm-business-desc"
             value={data.businessDescription}
             onChange={(e) => onChange({ businessDescription: e.target.value })}
             rows={3}
@@ -153,8 +158,9 @@ function StepBigIdea({
       </div>
 
       <div className="space-y-2">
-        <label className="font-mono text-xs text-slate-500 uppercase tracking-widest">Tagline <span className="text-slate-600 normal-case">(optional)</span></label>
+        <label htmlFor="pm-tagline" className="font-mono text-xs text-slate-500 uppercase tracking-widest">Tagline <span className="text-slate-600 normal-case">(optional)</span></label>
         <input
+          id="pm-tagline"
           value={data.tagline ?? ""}
           onChange={(e) => onChange({ tagline: e.target.value })}
           placeholder="e.g. Run your gym. Not your inbox."
@@ -410,10 +416,11 @@ function StepDomainVocabulary({
       <div className="space-y-4">
         {entities.map((name) => (
           <div key={name} className="space-y-1.5">
-            <label className="text-sm font-medium text-white">
+            <label htmlFor={`entity-ctx-${name}`} className="text-sm font-medium text-white">
               What is a <span className="text-accent">{name}</span> in your app?
             </label>
             <input
+              id={`entity-ctx-${name}`}
               value={data.domainContext[name] ?? ""}
               onChange={(e) => onChange({
                 domainContext: { ...data.domainContext, [name]: e.target.value }
