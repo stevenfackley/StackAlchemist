@@ -170,6 +170,7 @@ All notable changes to this project will be documented in this file.
 - Dashboard live updates island (F7) ([#146](https://github.com/stevenfackley/StackAlchemist/issues/146))
 - Error category rendering (F6) ([#145](https://github.com/stevenfackley/StackAlchemist/issues/145))
 - Error category rendering (F6) ([#150](https://github.com/stevenfackley/StackAlchemist/issues/150))
+- Dashboard live updates island (F7) ([#151](https://github.com/stevenfackley/StackAlchemist/issues/151))
 
 ### Miscellaneous Tasks
 
