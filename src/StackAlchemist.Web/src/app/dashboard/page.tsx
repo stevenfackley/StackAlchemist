@@ -155,9 +155,9 @@ function GenerationRow({ gen }: { gen: Generation }) {
         <a
           href={`/generate/${gen.id}`}
           className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent transition-colors"
-          title="View generation"
+          aria-label="View generation"
         >
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="h-3.5 w-3.5" aria-hidden />
           <span className="hidden sm:block">View</span>
         </a>
 
@@ -167,9 +167,9 @@ function GenerationRow({ gen }: { gen: Generation }) {
             href={gen.download_url}
             download
             className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
-            title="Download"
+            aria-label="Download source"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" aria-hidden />
             <span className="hidden sm:block">Download</span>
           </a>
         )}
