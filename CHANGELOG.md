@@ -121,6 +121,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#161](https://github.com/stevenfackley/StackAlchemist/issues/161))
 - Bump the next-react group across 1 directory with 2 updates ([#155](https://github.com/stevenfackley/StackAlchemist/issues/155))
 - Bump @supabase/ssr in /src/StackAlchemist.Web ([#163](https://github.com/stevenfackley/StackAlchemist/issues/163))
+- Bump vite from 8.0.9 to 8.0.16 in /src/StackAlchemist.Web ([#165](https://github.com/stevenfackley/StackAlchemist/issues/165))
 
 ### Documentation
 
