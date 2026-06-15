@@ -171,6 +171,7 @@ All notable changes to this project will be documented in this file.
 - Error category rendering (F6) ([#145](https://github.com/stevenfackley/StackAlchemist/issues/145))
 - Error category rendering (F6) ([#150](https://github.com/stevenfackley/StackAlchemist/issues/150))
 - Dashboard live updates island (F7) ([#151](https://github.com/stevenfackley/StackAlchemist/issues/151))
+- Adopt mise for task running and Node versioning ([#154](https://github.com/stevenfackley/StackAlchemist/issues/154))
 
 ### Miscellaneous Tasks
 
