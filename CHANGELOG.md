@@ -236,6 +236,7 @@ All notable changes to this project will be documented in this file.
 - Bump tailwindcss in /src/StackAlchemist.Web ([#162](https://github.com/stevenfackley/StackAlchemist/issues/162))
 - Bump @types/node in /src/StackAlchemist.Web ([#157](https://github.com/stevenfackley/StackAlchemist/issues/157))
 - Bump the testing group across 1 directory with 2 updates ([#156](https://github.com/stevenfackley/StackAlchemist/issues/156))
+- Bump js-yaml in /src/StackAlchemist.Web ([#164](https://github.com/stevenfackley/StackAlchemist/issues/164))
 
 ### Refactoring
 
