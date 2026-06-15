@@ -119,6 +119,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#131](https://github.com/stevenfackley/StackAlchemist/issues/131))
 - Bump lucide-react in /src/StackAlchemist.Web ([#159](https://github.com/stevenfackley/StackAlchemist/issues/159))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#161](https://github.com/stevenfackley/StackAlchemist/issues/161))
+- Bump the next-react group across 1 directory with 2 updates ([#155](https://github.com/stevenfackley/StackAlchemist/issues/155))
 
 ### Documentation
 
@@ -231,6 +232,7 @@ All notable changes to this project will be documented in this file.
 - Gitignore credential payload files ([#136](https://github.com/stevenfackley/StackAlchemist/issues/136))
 - Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#158](https://github.com/stevenfackley/StackAlchemist/issues/158))
 - Bump tailwindcss in /src/StackAlchemist.Web ([#162](https://github.com/stevenfackley/StackAlchemist/issues/162))
+- Bump @types/node in /src/StackAlchemist.Web ([#157](https://github.com/stevenfackley/StackAlchemist/issues/157))
 
 ### Refactoring
 
