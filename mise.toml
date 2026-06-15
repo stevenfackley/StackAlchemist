@@ -1,0 +1,8 @@
+[tasks]
+dev = "npm run dev"
+build = "npm run build"
+start = "npm run start"
+setup = "npm ci"
+
+[env]
+# non-secret config — secrets stay in .env (gitignored)
