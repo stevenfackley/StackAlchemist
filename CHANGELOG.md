@@ -120,6 +120,7 @@ All notable changes to this project will be documented in this file.
 - Bump lucide-react in /src/StackAlchemist.Web ([#159](https://github.com/stevenfackley/StackAlchemist/issues/159))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#161](https://github.com/stevenfackley/StackAlchemist/issues/161))
 - Bump the next-react group across 1 directory with 2 updates ([#155](https://github.com/stevenfackley/StackAlchemist/issues/155))
+- Bump @supabase/ssr in /src/StackAlchemist.Web ([#163](https://github.com/stevenfackley/StackAlchemist/issues/163))
 
 ### Documentation
 
