@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -35,7 +35,7 @@ const TIER_NAMES: Record<number, string> = {
 };
 const TIER_COLORS: Record<number, string> = {
   0: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
-  1: "text-blue-400 border-blue-500/30 bg-blue-500/10",
+  1: "text-accent border-accent/30 bg-accent/10",
   2: "text-purple-400 border-purple-500/30 bg-purple-500/10",
   3: "text-amber-400 border-amber-500/30 bg-amber-500/10",
 };
@@ -53,17 +53,17 @@ function StatusBadge({ status }: { status: Generation["status"] }) {
     },
     extracting_schema: {
       label: "Extracting",
-      classes: "text-blue-400 border-blue-500/30 bg-blue-500/10",
+      classes: "text-accent border-accent/30 bg-accent/10",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },
     generating_code: {
       label: "Generating",
-      classes: "text-blue-400 border-blue-500/30 bg-blue-500/10",
+      classes: "text-accent border-accent/30 bg-accent/10",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },
     generating: {
       label: "Generating",
-      classes: "text-blue-400 border-blue-500/30 bg-blue-500/10",
+      classes: "text-accent border-accent/30 bg-accent/10",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },
     building: {
@@ -155,9 +155,9 @@ function GenerationRow({ gen }: { gen: Generation }) {
         <a
           href={`/generate/${gen.id}`}
           className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent transition-colors"
-          title="View generation"
+          aria-label="View generation"
         >
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="h-3.5 w-3.5" aria-hidden />
           <span className="hidden sm:block">View</span>
         </a>
 
@@ -167,9 +167,9 @@ function GenerationRow({ gen }: { gen: Generation }) {
             href={gen.download_url}
             download
             className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
-            title="Download"
+            aria-label="Download source"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" aria-hidden />
             <span className="hidden sm:block">Download</span>
           </a>
         )}

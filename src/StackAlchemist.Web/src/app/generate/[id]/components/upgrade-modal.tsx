@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { Loader2, AlertCircle, ArrowRight } from "lucide-react";
@@ -50,16 +50,16 @@ export function UpgradeModal({ generation, onClose }: { generation: Generation; 
             onClick={() => handlePick(t.id)}
             disabled={isPending}
             data-testid={`upgrade-tier-${t.id}`}
-            className="w-full flex items-center justify-between gap-4 rounded-xl border border-slate-600/40 bg-slate-700/20 hover:border-blue-500/50 hover:bg-blue-500/5 px-4 py-3 text-left transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-between gap-4 rounded-xl border border-slate-600/40 bg-slate-700/20 hover:border-accent/50 hover:bg-accent/5 px-4 py-3 text-left transition-colors disabled:opacity-50"
           >
             <div>
               <div className="font-mono text-xs font-bold text-white uppercase tracking-widest">{t.name}</div>
               <div className="text-xs text-slate-400 mt-0.5">{t.tagline}</div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-lg font-bold text-blue-400">{t.price}</span>
+              <span className="text-lg font-bold text-accent">{t.price}</span>
               {isPending && pendingTier === t.id ? (
-                <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                <Loader2 className="h-4 w-4 text-accent animate-spin" />
               ) : (
                 <ArrowRight className="h-4 w-4 text-slate-500" />
               )}

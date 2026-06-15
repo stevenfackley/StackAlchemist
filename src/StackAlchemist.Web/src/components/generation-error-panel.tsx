@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
@@ -170,7 +170,7 @@ export function GenerationErrorPanel({
           <button
             onClick={onRetry}
             disabled={isRetrying}
-            className="flex items-center gap-2 rounded-full border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-5 py-2.5 text-sm font-medium transition-all duration-300 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-full border border-accent/30 text-accent hover:bg-accent/10 px-5 py-2.5 text-sm font-medium transition-all duration-300 disabled:opacity-60"
           >
             {isRetrying ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -182,7 +182,7 @@ export function GenerationErrorPanel({
         )}
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-full bg-slate-700/50 border border-slate-600/50 text-slate-300 hover:border-blue-500/40 hover:text-blue-400 px-5 py-2.5 text-sm font-medium transition-all duration-300"
+          className="flex items-center gap-2 rounded-full bg-slate-700/50 border border-slate-600/50 text-slate-300 hover:border-accent/40 hover:text-accent px-5 py-2.5 text-sm font-medium transition-all duration-300"
         >
           Start Over
         </Link>
@@ -190,7 +190,7 @@ export function GenerationErrorPanel({
           <Link
             key={link.href}
             href={link.href}
-            className="flex items-center gap-2 rounded-full bg-blue-500 hover:bg-blue-400 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
+            className="flex items-center gap-2 rounded-full bg-accent hover:bg-accent/90 text-white px-5 py-2.5 text-sm font-medium transition-all duration-300"
           >
             {link.label}
           </Link>

@@ -136,9 +136,9 @@ export function ExampleAppsSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-14 text-center">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-            <span className="font-mono text-xs tracking-[0.3em] text-blue-400 uppercase">What you can build</span>
-            <div className="h-px w-12 bg-gradient-to-r from-blue-500/60 via-transparent to-transparent" />
+            <div className="h-px w-12 bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+            <span className="font-mono text-xs tracking-[0.3em] text-accent uppercase">What you can build</span>
+            <div className="h-px w-12 bg-gradient-to-r from-accent/60 via-transparent to-transparent" />
           </div>
           <h2 className="text-3xl font-bold text-white lg:text-4xl mb-4">
             One Platform. Infinite Applications.
@@ -155,10 +155,10 @@ export function ExampleAppsSection() {
             return (
               <div
                 key={app.name}
-                className="group rounded-xl border border-slate-600/30 bg-slate-700/20 p-5 transition-all duration-300 hover:border-blue-500/30 hover:bg-slate-700/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.08)] cursor-default"
+                className="group rounded-xl border border-slate-600/30 bg-slate-700/20 p-5 transition-all duration-300 hover:border-accent/30 hover:bg-slate-700/40 hover:shadow-[0_0_20px_rgba(59,130,246,0.08)] cursor-default"
               >
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 transition-colors group-hover:bg-blue-500/20 shrink-0">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent transition-colors group-hover:bg-accent/20 shrink-0">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="text-sm font-semibold text-white leading-tight">{app.name}</h3>
@@ -185,7 +185,7 @@ export function ExampleAppsSection() {
           </p>
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="rounded-full border border-blue-500/30 bg-blue-500/10 px-6 py-2.5 text-sm text-blue-400 font-medium transition-all duration-300 hover:bg-blue-500/20 hover:border-blue-500/50"
+            className="rounded-full border border-accent/30 bg-accent/10 px-6 py-2.5 text-sm text-accent font-medium transition-all duration-300 hover:bg-accent/20 hover:border-accent/50"
           >
             Start Synthesizing ↑
           </button>
