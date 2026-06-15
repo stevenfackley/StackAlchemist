@@ -227,6 +227,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/node in /src/StackAlchemist.Web ([#133](https://github.com/stevenfackley/StackAlchemist/issues/133))
 - Bump @types/react in /src/StackAlchemist.Web ([#132](https://github.com/stevenfackley/StackAlchemist/issues/132))
 - Gitignore credential payload files ([#136](https://github.com/stevenfackley/StackAlchemist/issues/136))
+- Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#158](https://github.com/stevenfackley/StackAlchemist/issues/158))
 
 ### Refactoring
 
