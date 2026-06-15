@@ -117,6 +117,8 @@ All notable changes to this project will be documented in this file.
 - Bump the next-react group across 1 directory with 4 updates ([#126](https://github.com/stevenfackley/StackAlchemist/issues/126))
 - Bump @xyflow/react in /src/StackAlchemist.Web ([#128](https://github.com/stevenfackley/StackAlchemist/issues/128))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#131](https://github.com/stevenfackley/StackAlchemist/issues/131))
+- Bump lucide-react in /src/StackAlchemist.Web ([#159](https://github.com/stevenfackley/StackAlchemist/issues/159))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#161](https://github.com/stevenfackley/StackAlchemist/issues/161))
 
 ### Documentation
 
@@ -171,6 +173,7 @@ All notable changes to this project will be documented in this file.
 - Error category rendering (F6) ([#145](https://github.com/stevenfackley/StackAlchemist/issues/145))
 - Error category rendering (F6) ([#150](https://github.com/stevenfackley/StackAlchemist/issues/150))
 - Dashboard live updates island (F7) ([#151](https://github.com/stevenfackley/StackAlchemist/issues/151))
+- Adopt mise for task running and Node versioning ([#154](https://github.com/stevenfackley/StackAlchemist/issues/154))
 
 ### Miscellaneous Tasks
 
@@ -226,6 +229,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/node in /src/StackAlchemist.Web ([#133](https://github.com/stevenfackley/StackAlchemist/issues/133))
 - Bump @types/react in /src/StackAlchemist.Web ([#132](https://github.com/stevenfackley/StackAlchemist/issues/132))
 - Gitignore credential payload files ([#136](https://github.com/stevenfackley/StackAlchemist/issues/136))
+- Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#158](https://github.com/stevenfackley/StackAlchemist/issues/158))
 
 ### Refactoring
 
