@@ -117,6 +117,7 @@ All notable changes to this project will be documented in this file.
 - Bump the next-react group across 1 directory with 4 updates ([#126](https://github.com/stevenfackley/StackAlchemist/issues/126))
 - Bump @xyflow/react in /src/StackAlchemist.Web ([#128](https://github.com/stevenfackley/StackAlchemist/issues/128))
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#131](https://github.com/stevenfackley/StackAlchemist/issues/131))
+- Bump lucide-react in /src/StackAlchemist.Web ([#159](https://github.com/stevenfackley/StackAlchemist/issues/159))
 
 ### Documentation
 
