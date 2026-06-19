@@ -46,11 +46,11 @@
       },
       "System.IO.Abstractions.TestingHelpers": {
         "type": "Direct",
-        "requested": "[21.2.1, )",
-        "resolved": "21.2.1",
-        "contentHash": "dCtLiVj1nJvJCO1lxsNy/97YiZ0y/fXeFKHWwdnxPFMOQsF3L4KF3o+MSxVqkWGzwDCIzaS42qYcEkkvtEhAhw==",
+        "requested": "[22.*, )",
+        "resolved": "22.1.1",
+        "contentHash": "/fJ2F9N8Q7ZL7l7TQRcFtgaBdLBOj4+XL8ipc9sZC8tLMjoNBJtuyxMise5utraozm3KDAzPls5iWIcDCwpawQ==",
         "dependencies": {
-          "TestableIO.System.IO.Abstractions.TestingHelpers": "21.2.1"
+          "TestableIO.System.IO.Abstractions.TestingHelpers": "22.1.1"
         }
       },
       "Testcontainers.PostgreSql": {
@@ -81,15 +81,15 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.9",
-        "contentHash": "++VT2Q80ieKgJaSkD4WsIB+lSwDbkOn45AJ89M4zMZyuogW3AeUG915ePy7hAcfpujTWnf39cUgNDA30c45IpA=="
+        "resolved": "4.0.9.6",
+        "contentHash": "Lzi5hMHNB+ApeMbQxNDCUNa+Lta00ozr1okKUGqUyNXUC/OG136k8M6jXgNrbwsRxDmVdHHY6UdD4aoUaGVzkQ=="
       },
       "AWSSDK.S3": {
         "type": "Transitive",
-        "resolved": "4.0.24.3",
-        "contentHash": "vexHQGHi1CYHceVl9cKlbmvLrV0vhDlLm5CSLHZBHGmQUrtoimUT/Jxcr4i1d1+Sx58eZt/X7B5CBL3GkSXvyQ==",
+        "resolved": "4.0.25.2",
+        "contentHash": "RZ71S6Ra8rw0jS813PM6FNzFx5gaAL4/gO8ZQoO2dcHCPMwCepCwvb/kJdOCknLnZaqdHIGJcmjCvW3622O9jw==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.9, 5.0.0)"
+          "AWSSDK.Core": "[4.0.9.6, 5.0.0)"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -183,8 +183,8 @@
       },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "Transitive",
-        "resolved": "10.0.8",
-        "contentHash": "cw24xHE2QaWwyEG9GQwFbjboyabub6Vd80DIItUGENzcQOa/BEnTrXsg2GADqWTmY/3ycqk9ToLGjgvF/VRlGA==",
+        "resolved": "10.0.9",
+        "contentHash": "1ihb8FO9cGgEK1/m3CTtT/SfnynwmiZib0W2pcDVj3KSWk/Sca4VOXEtaptKQc582zpFrzTFiwkGRCglt6H+WQ==",
         "dependencies": {
           "Microsoft.OpenApi": "2.0.0"
         }
@@ -716,11 +716,11 @@
       },
       "System.IO.Abstractions": {
         "type": "Transitive",
-        "resolved": "21.2.1",
-        "contentHash": "fLz5LB8tl52AXw/e9rk3BV259TUHG/Yp7PgXGWQuiGvSERAv0ABXhtArSOEdx4K+VlXEh90zFgYYGcZza9VyFA==",
+        "resolved": "22.1.1",
+        "contentHash": "nm4sNhAoN1NyiIVT6MS3EEzNjnir3PC1HE0mKGGUFg6RBW1HmRvWKuRDPkij1etOoQkpyIFmjVGcM6TpBGF3qQ==",
         "dependencies": {
-          "TestableIO.System.IO.Abstractions": "21.2.1",
-          "TestableIO.System.IO.Abstractions.Wrappers": "21.2.1"
+          "TestableIO.System.IO.Abstractions": "22.1.1",
+          "TestableIO.System.IO.Abstractions.Wrappers": "22.1.1"
         }
       },
       "System.Security.Cryptography.ProtectedData": {
@@ -730,25 +730,33 @@
       },
       "TestableIO.System.IO.Abstractions": {
         "type": "Transitive",
-        "resolved": "21.2.1",
-        "contentHash": "47NQXrfVUF+0b8W5EMnERR7FpgWE04wuYR1s9WvlNyh1hnRMGDPOvmewBLIZUG88Rhj9buzG3VVR8sAgH7TzjA=="
+        "resolved": "22.1.1",
+        "contentHash": "EJmXIKfwvJHvSHWP+NjA213avUdofV4SmBx2aWxc3SzPkrHHVKxUMC3fSa/epzk/SVITwuU2EAntgQTvobAqwQ==",
+        "dependencies": {
+          "Testably.Abstractions.FileSystem.Interface": "10.1.0"
+        }
       },
       "TestableIO.System.IO.Abstractions.TestingHelpers": {
         "type": "Transitive",
-        "resolved": "21.2.1",
-        "contentHash": "Rt8o05EmQjNJdo57NJchp8Yw6KNYs4mwfJRN7U7l925FAK5gBFXr/A7SB0KDLYwfzHzsGXNV1KxcmJlS3+usmA==",
+        "resolved": "22.1.1",
+        "contentHash": "To7oYx68nrl0tu8duRSO9SyRHrNOVYSYIUlvfqNnoX9X2X9thIdJGmM3W3ZINtT4xqKuSy1Tb4hJK35Umhtfqg==",
         "dependencies": {
-          "TestableIO.System.IO.Abstractions": "21.2.1",
-          "TestableIO.System.IO.Abstractions.Wrappers": "21.2.1"
+          "TestableIO.System.IO.Abstractions.Wrappers": "22.1.1",
+          "Testably.Abstractions.FileSystem.Interface": "10.1.0"
         }
       },
       "TestableIO.System.IO.Abstractions.Wrappers": {
         "type": "Transitive",
-        "resolved": "21.2.1",
-        "contentHash": "a0jzTAZRIic40USnf8b59EbJ6+hh/kndLV3mTxgSGBkjei/H9qjULOtk/ZHQtRD8lLaUav7ZsMZn6JiwCgDmEw==",
+        "resolved": "22.1.1",
+        "contentHash": "J91zmSwuMY75ybtkqAFMC3vDNMkLJ/kiDDLhORITEwTKNhEwEYfxAQGv+f0jGYZg/H0YbnGcx5Ky0FgFJwrrWQ==",
         "dependencies": {
-          "TestableIO.System.IO.Abstractions": "21.2.1"
+          "Testably.Abstractions.FileSystem.Interface": "10.1.0"
         }
+      },
+      "Testably.Abstractions.FileSystem.Interface": {
+        "type": "Transitive",
+        "resolved": "10.1.0",
+        "contentHash": "0R+m7DvS2QuDcFOfDGtyGErRrgXOl4/z2tbNLX2RfvlYJjlVcKG+wMIBfZO8vxGtTNwNxffTG4ibFRwd0jkM7w=="
       },
       "Testcontainers": {
         "type": "Transitive",
@@ -808,7 +816,7 @@
           "AWSSDK.S3": "[4.0.*, )",
           "DotNetEnv": "[3.*, )",
           "Handlebars.Net": "[2.1.6, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.0.8, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.9, )",
           "OpenTelemetry.Exporter.Console": "[1.*, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.*, )",
           "OpenTelemetry.Extensions.Hosting": "[1.*, )",
@@ -819,7 +827,7 @@
           "Serilog.Enrichers.Thread": "[4.*, )",
           "Serilog.Sinks.Console": "[6.*, )",
           "Stripe.net": "[52.0.0, )",
-          "System.IO.Abstractions": "[21.2.1, )"
+          "System.IO.Abstractions": "[22.*, )"
         }
       }
     }

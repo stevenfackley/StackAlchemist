@@ -68,4 +68,60 @@ public class GenerationStateMachineTests
 
         act.Should().Throw<InvalidStateTransitionException>();
     }
+
+    // ── BuildFailed edge cases ────────────────────────────────────────────────
+
+    [Fact]
+    public void Transition_BuildFailed_RetryCountBelowMax_ReturnsGenerating()
+    {
+        // RetryCount = MaxRetries-1 (2) → still has one retry left
+        var ctx = new GenerationContext { GenerationId = "t", Mode = "advanced", Tier = 2, RetryCount = 2 };
+
+        var next = GenerationStateMachine.Transition(GenerationState.Building, GenerationEvent.BuildFailed, ctx);
+
+        next.Should().Be(GenerationState.Generating);
+        ctx.RetryCount.Should().Be(3, because: "the state machine increments RetryCount on retry");
+    }
+
+    [Fact]
+    public void Transition_BuildFailed_RetryCountAtMax_ReturnsFailed()
+    {
+        // RetryCount = MaxRetries (3) → no more retries
+        var ctx = new GenerationContext { GenerationId = "t", Mode = "advanced", Tier = 2, RetryCount = 3 };
+
+        var next = GenerationStateMachine.Transition(GenerationState.Building, GenerationEvent.BuildFailed, ctx);
+
+        next.Should().Be(GenerationState.Failed);
+    }
+
+    [Fact]
+    public void Transition_BuildFailed_NullContext_ReturnsFailed()
+    {
+        // Null context → can't retry regardless
+        var next = GenerationStateMachine.Transition(GenerationState.Building, GenerationEvent.BuildFailed, context: null);
+
+        next.Should().Be(GenerationState.Failed);
+    }
+
+    [Fact]
+    public void Transition_FromFailedTerminalState_Throws()
+    {
+        var act = () => GenerationStateMachine.Transition(GenerationState.Failed, GenerationEvent.BuildFailed);
+
+        act.Should().Throw<InvalidStateTransitionException>();
+    }
+
+    [Theory]
+    [InlineData(GenerationState.Pending,    GenerationEvent.EnginePickedUp,   GenerationState.Generating)]
+    [InlineData(GenerationState.Generating, GenerationEvent.CodeReconstructed, GenerationState.Building)]
+    [InlineData(GenerationState.Building,   GenerationEvent.BuildPassed,       GenerationState.Packing)]
+    [InlineData(GenerationState.Packing,    GenerationEvent.ZipCreated,        GenerationState.Uploading)]
+    [InlineData(GenerationState.Uploading,  GenerationEvent.UploadedToR2,      GenerationState.Success)]
+    public void Transition_AllNormalTransitions_ReturnExpectedState(
+        GenerationState from, GenerationEvent trigger, GenerationState expected)
+    {
+        var next = GenerationStateMachine.Transition(from, trigger);
+
+        next.Should().Be(expected);
+    }
 }
