@@ -165,15 +165,23 @@
 </div>
   <script>
     // Once the deploy finishes, /api/healthz flips from 503 (served by the
-    // maintenance shim, for every path during the outage) to 200 — so a single
-    // poll returns us to the live app and never reloads early. The <meta refresh>
-    // above is the JS-disabled fallback.
+    // maintenance shim, for every path during the outage) to 200 — so a poll
+    // returns us to the live app and never reloads early. Timers get throttled
+    // or suspended in backgrounded tabs / asleep devices, so we ALSO re-check
+    // the instant the tab is shown again (visibilitychange) or restored from the
+    // back/forward cache (pageshow) — otherwise a suspended tab can stay stranded
+    // here long after origin recovered. The <meta refresh> above is the no-JS fallback.
     (function () {
-      setInterval(function () {
+      function check() {
         fetch("/api/healthz", { cache: "no-store" })
           .then(function (r) { if (r.ok) location.reload(); })
           .catch(function () {});
-      }, 5000);
+      }
+      setInterval(check, 5000);
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") check();
+      });
+      window.addEventListener("pageshow", check);
     })();
   </script>
 </body>
