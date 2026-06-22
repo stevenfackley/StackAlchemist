@@ -81,6 +81,7 @@ All notable changes to this project will be documented in this file.
 - Periodic reconciler with re-enqueue, delivery hardening, input limits ([#139](https://github.com/stevenfackley/StackAlchemist/issues/139))
 - A11y completion (F9) ([#148](https://github.com/stevenfackley/StackAlchemist/issues/148))
 - Recover maintenance page on tab refocus and bfcache restore ([#167](https://github.com/stevenfackley/StackAlchemist/issues/167))
+- Repair E2E Smoke — Playwright getByPlaceholder, not Testing-Library getByDisplayValue ([#171](https://github.com/stevenfackley/StackAlchemist/issues/171))
 
 ### Dependencies
 
