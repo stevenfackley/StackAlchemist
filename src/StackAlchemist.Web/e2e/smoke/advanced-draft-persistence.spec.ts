@@ -2,8 +2,11 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Smoke: Advanced Draft Persistence", () => {
   test.beforeEach(async ({ page }) => {
-    // Drafts from prior specs/sessions must not leak in.
-    await page.addInitScript(() => window.localStorage.clear());
+    // Drafts from prior specs/sessions must not leak in. Clear storage ONCE —
+    // NOT via page.addInitScript(), which re-runs on every navigation including
+    // the page.reload() these tests depend on, wiping the draft mid-test.
+    await page.goto("/advanced");
+    await page.evaluate(() => window.localStorage.clear());
   });
 
   test("wizard edits survive a reload and show the restore notice", async ({ page }) => {
