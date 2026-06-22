@@ -242,6 +242,7 @@ All notable changes to this project will be documented in this file.
 - Bump the testing group across 1 directory with 2 updates ([#156](https://github.com/stevenfackley/StackAlchemist/issues/156))
 - Bump js-yaml in /src/StackAlchemist.Web ([#164](https://github.com/stevenfackley/StackAlchemist/issues/164))
 - Health pass — +63 tests, 3 npm CVE fixes, audit CI gate ([#166](https://github.com/stevenfackley/StackAlchemist/issues/166))
+- Bump @types/node in /src/StackAlchemist.Web ([#170](https://github.com/stevenfackley/StackAlchemist/issues/170))
 
 ### Refactoring
 
