@@ -19,12 +19,17 @@ test.describe("Smoke: Personalization modal keyboard a11y", () => {
     await page.getByTestId("advanced-personalize-button").click();
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Tab through all focusable elements — focus must not escape to the page behind.
+    // Tab through focusable elements — focus must stay trapped inside the dialog,
+    // not escape to the page behind. Assert containment directly: comparing the
+    // focused element's innerText (CSS-uppercased) against the dialog's textContent
+    // (raw, mixed-case) was brittle and never matched — the original bug.
     for (let i = 0; i < 10; i++) {
       await page.keyboard.press("Tab");
-      const focused = page.locator(":focus");
-      const dialogHandle = page.getByRole("dialog");
-      await expect(dialogHandle).toContainText(await focused.innerText().catch(() => ""));
+      const trapped = await page.evaluate(() => {
+        const dialog = document.querySelector('[role="dialog"]');
+        return !!dialog && dialog.contains(document.activeElement);
+      });
+      expect(trapped, `focus escaped the dialog after Tab #${i + 1}`).toBe(true);
     }
 
     // Confirm: after Escape, some element on the page (opener button) receives focus.
