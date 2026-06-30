@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getSortedBlogPosts } from "@/lib/blog-manifest";
 import { ContentHeader } from "@/components/content-header";
+import { PageHeader } from "@/components/page-header";
 import { blogIndexJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
 
@@ -48,18 +49,12 @@ export default function BlogIndexPage() {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(ldJson) }}
           />
 
-          <header className="mb-14">
-            <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
-              Blog
-            </span>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Notes from the founder
-            </h1>
+          <PageHeader eyebrow="Blog" title="Notes from the founder">
             <p className="mt-4 text-slate-400 text-sm leading-relaxed max-w-2xl">
               Opinionated essays on AI code generation, the Swiss Cheese Method, and the economics of
               shipping SaaS in 2026. Written by Steve Ackley, founder of StackAlchemist.
             </p>
-          </header>
+          </PageHeader>
 
           <div className="divide-y divide-slate-700/50">
             {posts.map((post) => (

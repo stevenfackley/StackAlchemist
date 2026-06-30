@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -17,17 +18,11 @@ export default function PrivacyPage() {
       <ContentHeader />
       <main className="flex-1">
         <article className="max-w-3xl mx-auto py-16 px-6">
-          <header className="mb-12">
-            <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
-              Legal
-            </span>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Privacy Policy
-            </h1>
+          <PageHeader eyebrow="Legal" title="Privacy Policy" className="mb-12">
             <p className="mt-4 font-mono text-xs text-slate-400">
               Last updated {LAST_UPDATED}
             </p>
-          </header>
+          </PageHeader>
 
           <section className="prose prose-invert prose-slate max-w-none prose-headings:text-white prose-p:text-slate-300 prose-li:text-slate-300 prose-strong:text-white prose-a:text-electric">
             <h2>The short version</h2>

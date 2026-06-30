@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
+import { PageHeader } from "@/components/page-header";
 import { COMPARE_ENTRIES } from "@/lib/compare-manifest";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
@@ -39,19 +40,16 @@ export default function CompareIndexPage() {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
           />
 
-          <header className="mb-14">
-            <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
-              Compare
-            </span>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              StackAlchemist vs the rest of the AI codegen landscape
-            </h1>
+          <PageHeader
+            eyebrow="Compare"
+            title="StackAlchemist vs the rest of the AI codegen landscape"
+          >
             <p className="mt-4 text-slate-400 text-sm leading-relaxed max-w-2xl">
               Honest comparisons written by the founder. Where a competitor genuinely wins, I will
               say so. Where they fall short of shipping a real owned SaaS, I will also say so.
               Click through to see the full breakdown.
             </p>
-          </header>
+          </PageHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {COMPARE_ENTRIES.map((entry) => (

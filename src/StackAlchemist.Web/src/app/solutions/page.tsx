@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
+import { PageHeader } from "@/components/page-header";
 import { SOLUTION_ENTRIES } from "@/lib/solutions-manifest";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
@@ -39,19 +40,13 @@ export default function SolutionsIndexPage() {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
           />
 
-          <header className="mb-14">
-            <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
-              Solutions
-            </span>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Generators by vertical
-            </h1>
+          <PageHeader eyebrow="Solutions" title="Generators by vertical">
             <p className="mt-4 text-slate-400 text-sm leading-relaxed max-w-2xl">
               StackAlchemist generates production-shaped SaaS repositories tuned to specific
               verticals. Each page below describes the entities, workflows, and integrations you
               can expect from a prompt in that domain.
             </p>
-          </header>
+          </PageHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {SOLUTION_ENTRIES.map((entry) => (
