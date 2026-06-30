@@ -243,6 +243,7 @@ All notable changes to this project will be documented in this file.
 - Bump js-yaml in /src/StackAlchemist.Web ([#164](https://github.com/stevenfackley/StackAlchemist/issues/164))
 - Health pass — +63 tests, 3 npm CVE fixes, audit CI gate ([#166](https://github.com/stevenfackley/StackAlchemist/issues/166))
 - Bump @types/node in /src/StackAlchemist.Web ([#170](https://github.com/stevenfackley/StackAlchemist/issues/170))
+- Bump @playwright/test ([#172](https://github.com/stevenfackley/StackAlchemist/issues/172))
 
 ### Refactoring
 
