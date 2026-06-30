@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, MessageSquare, Bug } from "lucide-react";
 import { ContentHeader } from "@/components/content-header";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -37,19 +38,13 @@ export default function ContactPage() {
       <ContentHeader />
       <main className="flex-1">
         <article className="max-w-3xl mx-auto py-16 px-6">
-          <header className="mb-14">
-            <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-electric">
-              Contact
-            </span>
-            <h1 className="mt-3 text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Get in touch
-            </h1>
+          <PageHeader eyebrow="Contact" title="Get in touch">
             <p className="mt-4 text-slate-300 text-sm leading-relaxed max-w-2xl">
               StackAlchemist is founder-operated. Your message reaches me
               (<Link href="/about" className="text-electric hover:underline">Steve Ackley</Link>)
               directly, not a ticketing queue. Pick the address that matches what you need.
             </p>
-          </header>
+          </PageHeader>
 
           <div className="space-y-4">
             {CONTACTS.map((c) => {
