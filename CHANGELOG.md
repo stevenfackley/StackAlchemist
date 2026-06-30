@@ -126,6 +126,8 @@ All notable changes to this project will be documented in this file.
 - Bump vite from 8.0.9 to 8.0.16 in /src/StackAlchemist.Web ([#165](https://github.com/stevenfackley/StackAlchemist/issues/165))
 - Bump actions/checkout from 6 to 7 ([#168](https://github.com/stevenfackley/StackAlchemist/issues/168))
 - Bump lucide-react in /src/StackAlchemist.Web ([#169](https://github.com/stevenfackley/StackAlchemist/issues/169))
+- Bump lucide-react in /src/StackAlchemist.Web ([#176](https://github.com/stevenfackley/StackAlchemist/issues/176))
+- Bump @xyflow/react in /src/StackAlchemist.Web ([#177](https://github.com/stevenfackley/StackAlchemist/issues/177))
 
 ### Documentation
 
@@ -244,6 +246,9 @@ All notable changes to this project will be documented in this file.
 - Health pass — +63 tests, 3 npm CVE fixes, audit CI gate ([#166](https://github.com/stevenfackley/StackAlchemist/issues/166))
 - Bump @types/node in /src/StackAlchemist.Web ([#170](https://github.com/stevenfackley/StackAlchemist/issues/170))
 - Bump @playwright/test ([#172](https://github.com/stevenfackley/StackAlchemist/issues/172))
+- Bump @types/node in /src/StackAlchemist.Web ([#173](https://github.com/stevenfackley/StackAlchemist/issues/173))
+- Bump autoprefixer in /src/StackAlchemist.Web ([#174](https://github.com/stevenfackley/StackAlchemist/issues/174))
+- Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#175](https://github.com/stevenfackley/StackAlchemist/issues/175))
 
 ### Refactoring
 
