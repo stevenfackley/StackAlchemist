@@ -450,8 +450,16 @@ export async function submitAdvancedGeneration(
   projectType: ProjectType = "DotNetNextJs",
   personalization?: PersonalizationData
 ): Promise<SubmitGenerationResponse> {
+  // Input validation runs BEFORE the demo short-circuit so a malformed schema
+  // is rejected the same way in demo mode as in a live generation.
   if (!schema.entities || schema.entities.length === 0) {
     return { success: false, error: "Please define at least one entity before proceeding." };
+  }
+
+  for (const entity of schema.entities) {
+    if (!entity.name.trim()) {
+      return { success: false, error: "All entities must have a name." };
+    }
   }
 
   if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
@@ -461,13 +469,6 @@ export async function submitAdvancedGeneration(
       generationId,
       redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
     };
-  }
-
-  // Validate entity names
-  for (const entity of schema.entities) {
-    if (!entity.name.trim()) {
-      return { success: false, error: "All entities must have a name." };
-    }
   }
 
   let db;
@@ -877,31 +878,89 @@ export async function createCheckoutSession(
    Returns an empty array when the visitor is anonymous or Supabase is not
    configured.
 ───────────────────────────────────────────────────────────────────────────── */
-export async function getMyGenerations(): Promise<Generation[]> {
-  const user = await getServerUser();
-  if (!user) return [];
+export async function getMyGenerations(
+  page = 1,
+  pageSize = 20
+): Promise<{ generations: Generation[]; total: number }> {
+  const empty = { generations: [] as Generation[], total: 0 };
 
-  if (!hasServerSupabaseConfig()) return [];
+  const user = await getServerUser();
+  if (!user) return empty;
+  if (!hasServerSupabaseConfig()) return empty;
 
   let db;
   try {
     db = createServerClient();
   } catch (err) {
     console.error("[getMyGenerations] Supabase config error:", err);
-    return [];
+    return empty;
   }
 
-  const { data, error } = await db
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const from = (safePage - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  // `count: "exact"` returns the full match count alongside the page window, so
+  // the caller can render pagination without a second query.
+  const { data, error, count } = await db
     .from("generations")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(from, to);
 
   if (error) {
     console.error("[getMyGenerations] Query error:", error);
-    return [];
+    return empty;
   }
 
-  return (data ?? []) as Generation[];
+  return { generations: (data ?? []) as Generation[], total: count ?? 0 };
+}
+
+/**
+ * Aggregate generation counts for the dashboard stat cards. Independent of the
+ * paged list so the totals are accurate regardless of which page is shown
+ * (previously the stats were derived from a 50-row-capped list).
+ */
+export async function getGenerationStats(): Promise<{
+  total: number;
+  completed: number;
+  inProgress: number;
+}> {
+  const empty = { total: 0, completed: 0, inProgress: 0 };
+
+  const user = await getServerUser();
+  if (!user || !hasServerSupabaseConfig()) return empty;
+
+  let db;
+  try {
+    db = createServerClient();
+  } catch (err) {
+    console.error("[getGenerationStats] Supabase config error:", err);
+    return empty;
+  }
+
+  // head:true → count only, no rows transferred.
+  const base = () =>
+    db.from("generations").select("*", { count: "exact", head: true }).eq("user_id", user.id);
+
+  const [totalRes, completedRes, inProgressRes] = await Promise.all([
+    base(),
+    base().eq("status", "success"),
+    base().not("status", "in", "(success,failed)"),
+  ]);
+
+  if (totalRes.error || completedRes.error || inProgressRes.error) {
+    console.error(
+      "[getGenerationStats] Count error:",
+      totalRes.error ?? completedRes.error ?? inProgressRes.error
+    );
+    return empty;
+  }
+
+  return {
+    total: totalRes.count ?? 0,
+    completed: completedRes.count ?? 0,
+    inProgress: inProgressRes.count ?? 0,
+  };
 }
