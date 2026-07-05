@@ -64,8 +64,8 @@ export const demoPreviewFiles: Record<string, string> = {
     <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#020617',color:'white',fontFamily:'sans-serif'}}>
       <div style={{maxWidth:720,padding:32}}>
         <p style={{color:'#60a5fa',textTransform:'uppercase',letterSpacing:'0.2em',fontSize:12}}>StackAlchemist Demo</p>
-        <h1 style={{fontSize:42,margin:'12px 0'}}>Bolt-friendly preview scaffold</h1>
-        <p style={{color:'#94a3b8',lineHeight:1.6}}>This preview is intentionally self-contained so you can tweak the UI in Bolt without requiring the .NET engine, Supabase, or background workers.</p>
+        <h1 style={{fontSize:42,margin:'12px 0'}}>Self-contained preview scaffold</h1>
+        <p style={{color:'#94a3b8',lineHeight:1.6}}>This preview is intentionally self-contained so you can iterate on the UI without requiring the .NET engine, Supabase, or background workers.</p>
       </div>
     </main>
   );
@@ -88,7 +88,7 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     download_url: tier === 0 ? null : "/demo-download.zip",
     preview_files_json: demoPreviewFiles,
     personalization_json: null,
-    build_log: "Demo mode active: backend services are mocked for StackAlchemist compatibility.",
+    build_log: "Demo mode active: backend services are mocked so the UI can run standalone.",
     error_message: null,
     error_category: null,
     attempt_count: 0,

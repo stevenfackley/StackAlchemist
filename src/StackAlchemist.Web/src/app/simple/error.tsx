@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 export default function SimpleError({
   error,
   reset,
@@ -7,12 +9,21 @@ export default function SimpleError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-800 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-600/30 bg-slate-900/60 p-6 text-center space-y-4">
         <p className="font-mono text-xs tracking-widest uppercase text-slate-500">Simple Mode</p>
         <h1 className="text-2xl font-bold text-white">Preview failed to load</h1>
-        <p className="text-sm text-slate-400">{error.message}</p>
+        <p className="text-sm text-slate-400">
+          Something went wrong rendering the preview. Your prompt is not lost — try again.
+        </p>
+        {error.digest && (
+          <p className="font-mono text-xs text-slate-500">Reference: {error.digest}</p>
+        )}
         <button
           type="button"
           onClick={reset}
