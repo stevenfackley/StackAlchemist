@@ -17,6 +17,7 @@ public interface IInjectionEngine
         TemplateVariables templateVariables,
         ProjectType projectType,
         GenerationPersonalization? personalization,
+        LlmCallOptions? options = null,
         CancellationToken ct = default);
 }
 
@@ -46,6 +47,7 @@ public sealed partial class InjectionEngine(
         TemplateVariables templateVariables,
         ProjectType projectType,
         GenerationPersonalization? personalization,
+        LlmCallOptions? options = null,
         CancellationToken ct = default)
     {
         var workItems = new List<(string FilePath, string ZoneName)>();
@@ -99,7 +101,7 @@ public sealed partial class InjectionEngine(
                 };
 
                 var prompt = promptBuilder.BuildInjectionPrompt(promptCtx);
-                var (content, response) = await CallLlmWithRetryAsync(prompt, item, ct);
+                var (content, response) = await CallLlmWithRetryAsync(prompt, item, options, ct);
                 results[(item.FilePath, item.ZoneName)] = content;
                 Interlocked.Add(ref totalInputTokens, response.InputTokens);
                 Interlocked.Add(ref totalOutputTokens, response.OutputTokens);
@@ -135,6 +137,7 @@ public sealed partial class InjectionEngine(
     private async Task<(string Content, LlmResponse Response)> CallLlmWithRetryAsync(
         string prompt,
         (string FilePath, string ZoneName) item,
+        LlmCallOptions? options,
         CancellationToken ct)
     {
         Exception? lastException = null;
@@ -142,7 +145,7 @@ public sealed partial class InjectionEngine(
         {
             try
             {
-                var response = await llmClient.GenerateAsync(systemPrompt: string.Empty, userPrompt: prompt, ct);
+                var response = await llmClient.GenerateAsync(systemPrompt: string.Empty, userPrompt: prompt, options, ct);
                 if (string.IsNullOrWhiteSpace(response.Text))
                 {
                     LogEmptyLlmResponse(logger, item.ZoneName, item.FilePath, attempt, _options.MaxAttemptsPerZone);

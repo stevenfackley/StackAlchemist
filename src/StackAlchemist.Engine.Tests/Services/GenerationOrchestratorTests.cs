@@ -21,7 +21,8 @@ public class GenerationOrchestratorTests
             .Build();
 
     private static (GenerationOrchestrator Sut, ILlmClient Llm, Channel<GenerationContext> Queue, MockFileSystem Fs) BuildSut(
-        IDeliveryService? deliveryOverride = null)
+        IDeliveryService? deliveryOverride = null,
+        ILlmCredentialResolver? resolver = null)
     {
         var fs = new MockFileSystem();
         var queue = Channel.CreateUnbounded<GenerationContext>();
@@ -50,7 +51,7 @@ public class GenerationOrchestratorTests
             });
 
         var llm = Substitute.For<ILlmClient>();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse(
                 "[[FILE:dotnet/Program.cs]]\nvar builder = WebApplication.CreateBuilder(args);\n[[END_FILE]]",
                 10,
@@ -75,7 +76,8 @@ public class GenerationOrchestratorTests
             EmptyConfig(),
             queue.Writer,
             new InFlightGenerationRegistry(),
-            NullLogger<GenerationOrchestrator>.Instance);
+            NullLogger<GenerationOrchestrator>.Instance,
+            resolver);
 
         return (sut, llm, queue, fs);
     }
@@ -147,7 +149,7 @@ public class GenerationOrchestratorTests
             });
 
         var llm = Substitute.For<ILlmClient>();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse("", 10, 20, "claude-sonnet-4-6"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
@@ -193,7 +195,7 @@ public class GenerationOrchestratorTests
     public async Task EnqueueAsync_WhenLlmFails_ReturnsFailedAndDoesNotQueue()
     {
         var (sut, llm, queue, _) = BuildSut();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new HttpRequestException("upstream failed"));
 
         var response = await sut.EnqueueAsync(new GenerateRequest
@@ -277,6 +279,7 @@ public class GenerationOrchestratorTests
                 Arg.Any<TemplateVariables>(),
                 Arg.Any<ProjectType>(),
                 Arg.Any<GenerationPersonalization?>(),
+                Arg.Any<LlmCallOptions?>(),
                 Arg.Any<CancellationToken>())
             .Returns(new InjectionResult(
                 FilledTemplates: new Dictionary<string, string>
@@ -322,8 +325,9 @@ public class GenerationOrchestratorTests
             Arg.Any<TemplateVariables>(),
             Arg.Any<ProjectType>(),
             Arg.Any<GenerationPersonalization?>(),
+            Arg.Any<LlmCallOptions?>(),
             Arg.Any<CancellationToken>());
-        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).UpdateTokenUsageAsync(
             Arg.Any<string>(), 500, 1200, "claude-sonnet-4-6", Arg.Any<CancellationToken>());
     }
@@ -353,6 +357,7 @@ public class GenerationOrchestratorTests
                 Arg.Any<TemplateVariables>(),
                 Arg.Any<ProjectType>(),
                 Arg.Any<GenerationPersonalization?>(),
+                Arg.Any<LlmCallOptions?>(),
                 Arg.Any<CancellationToken>())
             .Returns(new InjectionResult(
                 new Dictionary<string, string> { ["placeholder.txt"] = "filled" },
@@ -451,7 +456,32 @@ public class GenerationOrchestratorTests
         });
 
         response.Status.Should().Be("success");
-        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_WithResolvedOverride_ThreadsOptionsToLlmAndContext()
+    {
+        // The resolver's options must reach both the codegen LLM call AND the queued context
+        // (so the compile worker's build-repair reuses the same provider/model/key).
+        var options = new LlmCallOptions(LlmProvider.OpenAi, "gpt-4o-mini", "sk-byok-test-key");
+        var resolver = Substitute.For<ILlmCredentialResolver>();
+        resolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(options);
+
+        var (sut, llm, queue, _) = BuildSut(resolver: resolver);
+
+        await sut.EnqueueAsync(new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "simple",
+            Tier = 2,
+            Prompt = "Build a task manager",
+        });
+
+        await llm.Received(1).GenerateAsync(
+            Arg.Any<string>(), Arg.Any<string>(), options, Arg.Any<CancellationToken>());
+        queue.Reader.TryRead(out var ctx).Should().BeTrue();
+        ctx!.LlmOptions.Should().BeSameAs(options);
     }
 
     [Fact]
@@ -468,6 +498,6 @@ public class GenerationOrchestratorTests
         });
 
         // Default config (no UseSwissCheese set) → V1 path → llmClient.GenerateAsync called.
-        await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
     }
 }

@@ -141,14 +141,30 @@ describe("actions.ts — saveProfileSettings", () => {
     expect(result.status).toBe("error");
   });
 
-  it("documents the BYOK_ENCRYPTION_KEY -> ENGINE_SERVICE_KEY fallback: encrypts+round-trips using ENGINE_SERVICE_KEY when BYOK_ENCRYPTION_KEY is unset", async () => {
+  it("requires a distinct BYOK_ENCRYPTION_KEY on save and does NOT fall back to ENGINE_SERVICE_KEY (finding I3)", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    // `getByokEncryptionSecret()` uses `??`, which only falls through on
-    // null/undefined — an empty string would NOT trigger the fallback, so
-    // the env var must be genuinely unset here, not just blank.
+    // `getByokEncryptionSecret()` no longer falls back to ENGINE_SERVICE_KEY for saves: a stored
+    // key decrypted engine-side with the engine key would be stranded if that key rotates. So a
+    // save with ONLY ENGINE_SERVICE_KEY set must fail closed, not silently encrypt with it.
     vi.stubEnv("BYOK_ENCRYPTION_KEY", undefined);
-    const engineKey = "engine-service-key-that-is-at-least-32-chars-long";
-    vi.stubEnv("ENGINE_SERVICE_KEY", engineKey);
+    vi.stubEnv("ENGINE_SERVICE_KEY", "engine-service-key-that-is-at-least-32-chars-long");
+
+    const result = await saveProfileSettings(
+      IDLE,
+      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: "sk-ant-super-secret-real-looking-key-000111" })
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "BYOK encryption is not configured. Set BYOK_ENCRYPTION_KEY before storing keys.",
+    });
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("encrypts + round-trips the key when BYOK_ENCRYPTION_KEY is set", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    const byokKey = "byok-encryption-key-that-is-32-chars-plus!!";
+    vi.stubEnv("BYOK_ENCRYPTION_KEY", byokKey);
 
     const dbMock = makeDb([{ error: null }]);
     vi.mocked(createServerClient).mockReturnValue(dbMock as never);
@@ -172,9 +188,9 @@ describe("actions.ts — saveProfileSettings", () => {
     expect(ciphertext.startsWith("v1:")).toBe(true);
     expect(ciphertext.split(":")).toHaveLength(4);
 
-    // Round trip: decrypting with the same fallback secret recovers the original.
-    expect(decryptForTest(engineKey, ciphertext)).toBe(plaintext);
-    // And decrypting with a wrong secret must fail loudly (GCM auth tag check).
+    // Round trip: decrypting with the BYOK secret recovers the original (this is the exact scheme
+    // the Engine's ByokKeyProtector reproduces in C#).
+    expect(decryptForTest(byokKey, ciphertext)).toBe(plaintext);
     expect(() => decryptForTest("a-completely-different-32-char-secret!!", ciphertext)).toThrow();
   });
 

@@ -51,6 +51,13 @@ public sealed class GenerationContext
     public string? OutputDirectory { get; set; }
     public string? DownloadUrl { get; set; }
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Resolved per-generation LLM routing (BYOK + per-user model). Set once at generation start
+    /// by the orchestrator; the compile worker's build-repair loop reuses the SAME options so a
+    /// repair call hits the same provider/model/key as the original codegen. Null = global config.
+    /// </summary>
+    public LlmCallOptions? LlmOptions { get; set; }
 }
 
 /// <summary>

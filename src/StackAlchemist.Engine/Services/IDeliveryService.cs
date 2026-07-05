@@ -85,6 +85,15 @@ public interface IDeliveryService
     Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct);
 
     /// <summary>
+    /// Reads the owning user's BYOK credential for a generation: the encrypted
+    /// <c>api_key_override</c> ciphertext and the <c>preferred_model</c>, joined through the row's
+    /// profile. Returns null when the user is anonymous, the generation does not exist, or Supabase
+    /// is not configured. NEVER returns or logs plaintext — decryption happens in
+    /// <see cref="ByokKeyProtector"/>.
+    /// </summary>
+    Task<ProfileCredential?> GetGenerationCredentialAsync(string generationId, CancellationToken ct);
+
+    /// <summary>
     /// Lists generation rows still in a non-terminal state whose last update predates
     /// <paramref name="olderThan"/>. Used by the periodic reconciler to find jobs
     /// orphaned by a restart or stalled in flight. Empty when Supabase is not

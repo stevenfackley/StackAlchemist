@@ -1,6 +1,6 @@
 ### Product Requirements Document (PRD): StackAlchemist
 
-> Audit note (2026-04-04): this document captures both implemented and target requirements. The audited repository now includes substantial Phase 3–6 implementation (generation orchestrator, compile worker, Stripe webhook/session backend, Supabase migrations, auth pages, dashboard shell), while personalization wizard and full BYOK management remain pending.
+> Audit note (2026-04-04, updated 2026-07): this document captures both implemented and target requirements. The audited repository now includes substantial Phase 3–6 implementation (generation orchestrator, compile worker, Stripe webhook/session backend, Supabase migrations, auth pages, dashboard shell). The personalization wizard and BYOK are now live: BYOK keys are encrypted in the dashboard and decrypted per generation in the Engine, which routes to the user's chosen provider/model (Anthropic BYOK, OpenAI, OpenRouter).
 
 **1. Executive Summary**
 StackAlchemist converts user requirements into deployable software repositories. The platform bypasses the boilerplate setup phase by dynamically injecting AI generated business logic into a heavily optimized master template, delivering a custom PostgreSQL database schema, backend, and Next.js frontend.

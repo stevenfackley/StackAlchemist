@@ -200,6 +200,55 @@ public sealed partial class SupabaseDeliveryService(
         }
     }
 
+    public async Task<ProfileCredential?> GetGenerationCredentialAsync(string generationId, CancellationToken ct)
+    {
+        var supabaseUrl = config["Supabase:Url"];
+        var serviceRoleKey = config["Supabase:ServiceRoleKey"];
+
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(serviceRoleKey))
+            return null;
+
+        try
+        {
+            // PostgREST embedded resource: pull the owning profile's BYOK fields through the
+            // user_id FK (same join shape as GetGenerationOwnerEmailAsync). Service role bypasses
+            // RLS. The ciphertext is opaque here — it is decrypted downstream by ByokKeyProtector.
+            var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}&select=profiles(api_key_override,preferred_model)";
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            request.Headers.Add("apikey", serviceRoleKey);
+            request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
+
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                return null;
+
+            var row = doc.RootElement[0];
+            if (!row.TryGetProperty("profiles", out var profiles) ||
+                profiles.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var ciphertext = profiles.TryGetProperty("api_key_override", out var c) && c.ValueKind == JsonValueKind.String
+                ? c.GetString()
+                : null;
+            var preferredModel = profiles.TryGetProperty("preferred_model", out var m) && m.ValueKind == JsonValueKind.String
+                ? m.GetString()
+                : null;
+
+            return new ProfileCredential(ciphertext, preferredModel);
+        }
+        catch (Exception ex)
+        {
+            // Never log the ciphertext — only the id and exception.
+            LogCredentialLookupFailed(logger, ex, generationId);
+            return null;
+        }
+    }
+
     // "Every status except the two terminal ones (success, failed)" — a restart can
     // orphan a job mid-packing/uploading just as easily as mid-build.
     private const string NonTerminalStatusFilter =
@@ -665,6 +714,9 @@ public sealed partial class SupabaseDeliveryService(
 
     [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id}")]
     private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 513, Level = LogLevel.Warning, Message = "Failed to look up BYOK credential for generation {Id}")]
+    private static partial void LogCredentialLookupFailed(ILogger logger, Exception ex, string id);
 
     [LoggerMessage(EventId = 511, Level = LogLevel.Information, Message = "Tier-0 preview written: generation {Id} → success with {Count} inline files")]
     private static partial void LogPreviewCompleted(ILogger logger, string id, int count);

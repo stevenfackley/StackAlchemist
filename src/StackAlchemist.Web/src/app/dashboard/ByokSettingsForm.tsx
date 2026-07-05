@@ -120,7 +120,8 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             ))}
           </select>
           <p className="font-mono text-[10px] text-slate-600">
-            Saved now for generation routing; Engine-side provider routing is a follow-up change.
+            Applied to your generations. Anthropic models use your key when provided (otherwise
+            ours); the OpenAI and OpenRouter options route to that provider and require your own key.
           </p>
         </div>
 

@@ -39,7 +39,7 @@ public class MultiEcosystemPipelineTests
         templates.InjectIntoZone(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>())
             .Returns(call => call.ArgAt<string>(0));
 
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse(
                 $"[[FILE:{outputPath}]]\nrendered\n[[END_FILE]]",
                 10,

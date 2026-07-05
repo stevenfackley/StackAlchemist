@@ -1,6 +1,6 @@
 ### Product Design Document (PDD): StackAlchemist
 
-> Implementation status note (2026-04-07): Phases 1–5 are substantially complete. All features described in this document are implemented unless noted otherwise. The personalization wizard (Section 2, "Personalization Wizard UI") is live with all 4 steps. Multi-ecosystem platform selection (.NET/Next.js or FastAPI/React) is integrated into Advanced Mode Step 2. Remaining design-intent items: BYOK settings persistence UX (dashboard card is placeholder), and the "V1.5" Dapper ↔ EF Core toggle.
+> Implementation status note (2026-04-07): Phases 1–5 are substantially complete. All features described in this document are implemented unless noted otherwise. The personalization wizard (Section 2, "Personalization Wizard UI") is live with all 4 steps. Multi-ecosystem platform selection (.NET/Next.js or FastAPI/React) is integrated into Advanced Mode Step 2. Remaining design-intent item: the "V1.5" Dapper ↔ EF Core toggle. BYOK is now live end-to-end (2026-07): the dashboard card AES-256-GCM-encrypts the user's key and the Engine decrypts it per generation to route to the chosen provider/model (Anthropic BYOK, OpenAI, or OpenRouter) — the plaintext key never leaves the Engine.
 
 **1. System Overview**
 StackAlchemist orchestrates code generation by connecting a Next.js frontend with a Supabase backend. It uses a dual mode intake flow and a hybrid template generation engine to compile custom business logic into a highly optimized .NET/Next.js repository, guaranteeing successful compilation before user delivery.

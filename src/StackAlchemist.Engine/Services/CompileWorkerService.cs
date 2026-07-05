@@ -191,8 +191,10 @@ public sealed partial class CompileWorkerService(
             var retryPrompt = compileService.BuildRetryContext(
                 job.Prompt ?? "Generate code", job.BuildErrorHistory, job.RetryCount);
 
+            // Reuse the SAME resolved credential/model the orchestrator used for codegen, so a
+            // BYOK build-repair hits the user's provider/key — not the global Anthropic default.
             var llmResponse = await llmClient.GenerateAsync(
-                "Fix the compilation errors in the generated code.", retryPrompt, ct);
+                "Fix the compilation errors in the generated code.", retryPrompt, job.LlmOptions, ct);
             await deliveryService.UpdateTokenUsageAsync(
                 job.GenerationId,
                 llmResponse.InputTokens,

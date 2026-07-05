@@ -75,7 +75,12 @@ function normalizePreferredModel(model: string | null | undefined) {
 }
 
 function getByokEncryptionSecret() {
-  return process.env.BYOK_ENCRYPTION_KEY ?? process.env.ENGINE_SERVICE_KEY ?? "";
+  // Finding I3: NEW saves require a DISTINCT BYOK_ENCRYPTION_KEY — deliberately NO fallback to
+  // ENGINE_SERVICE_KEY. Stored keys are decrypted engine-side with this same secret; falling back
+  // to the engine key would strand every stored BYOK key if that key later rotates. The Engine's
+  // ByokKeyProtector keeps a decrypt-time ENGINE_SERVICE_KEY fallback for keys saved before this
+  // requirement, but writes must be pinned to BYOK_ENCRYPTION_KEY.
+  return process.env.BYOK_ENCRYPTION_KEY ?? "";
 }
 
 function encryptApiKeyOverride(apiKey: string) {
