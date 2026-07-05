@@ -1,5 +1,9 @@
 # StackAlchemist Production Readiness Plan
 
+> **Snapshot notice:** This is a point-in-time plan, largely executed since it
+> was written — treat it as historical context, not a current task list. For
+> current state, read `docs/DECISIONS.md`.
+
 ## Context
 
 StackAlchemist is a micro-SaaS (Next.js 15 + .NET 10 + Supabase + Cloudflare R2 + Stripe + Anthropic Claude) that generates compile-verified code repos from natural language. A full audit reveals **critical production gaps**: the LLM engine silently falls back to mock data in prod, no retry logic on API failures, no cost tracking, mobile-broken editor pages, zero SEO infrastructure, legacy "Bolt.new" references in code, and 40KB monolith components. This plan addresses all of it.

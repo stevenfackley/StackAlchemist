@@ -19,7 +19,7 @@ If you expected an endpoint that wasn't generated:
 - **Resolution:** Please contact support@stackalchemist.app with your Stripe Session ID, and we will manually trigger the generation for you.
 
 ### Download Link Expired
-- **Possible Cause:** For security reasons, Cloudflare R2 presigned URLs expire after 24 hours.
+- **Possible Cause:** For security reasons, Cloudflare R2 presigned URLs expire after 7 days.
 - **Resolution:** Go to your **Profile > History** and click "Regenerate Download Link." This will not cost any additional credits.
 
 ## Local Development Issues

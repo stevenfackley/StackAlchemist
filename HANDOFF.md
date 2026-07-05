@@ -1,5 +1,10 @@
 # StackAlchemist — Session Handoff
 
+> **Snapshot notice:** This is a point-in-time handoff as of 2026-04-17. Several
+> "Outstanding" items below have since shipped (GitHub secrets, content-header
+> rollout, error boundaries, blog/compare cadence, and more). It is kept for
+> historical context — for current state, read `docs/DECISIONS.md`.
+
 **Session:** SEO Week 1–3 + code audit + test coverage + infra hardening
 **Branch:** `develop`
 **As of:** 2026-04-17 (session 3, end)
@@ -144,7 +149,7 @@ Same three-step pattern for compare (`compare-manifest.ts`) and solutions (`solu
 
 - **Git identity:** commits authored as `Steve Fackley` (git config). Content bylines say **Steve Ackley** (real user). Don't rename content.
 - **Test site:** Cloudflare Tunnel → sa-web:3000 (no nginx). Basic Auth in middleware. `/api/healthz` exempt.
-- **Engine backend:** uses **Claude 3.5 Sonnet** — strict 95%+ margin requirement. Do not switch to Opus/Sonnet 4.x.
+- **Engine backend:** model is env-controlled via `ANTHROPIC_MODEL` (`AnthropicDefaults.ModelId` in code); current default is **Claude Sonnet 4.6** (`claude-sonnet-4-6`) — bumped 2026-05-06 after `claude-3-5-sonnet-20241022` was retired. Strict 95%+ margin requirement still applies; see `docs/DECISIONS.md` before changing the default.
 - **Blog rendering:** `react-markdown` + `remark-gfm` + `rehype-highlight` via `DocsMarkdown` component — don't fork it.
 - **Demo mode:** `isDemoMode` = true when `NEXT_PUBLIC_DEMO_MODE=true` OR Supabase envs missing in non-prod.
 - **Plausible:** wired in layout, guarded by `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` env + `!isTestSite`. Code is ready; just needs the secret added.

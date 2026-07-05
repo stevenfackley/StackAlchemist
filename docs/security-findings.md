@@ -81,3 +81,11 @@ If `NEXT_PUBLIC_IS_TEST_SITE=true` but credentials are missing, the middleware l
 2. **Coverage thresholds**: `vitest.config.ts` sets 80%/75%/80%/80% thresholds but the CI uploads coverage artifacts without enforcing thresholds as a gate. Add `--coverage --coverage.thresholds.lines=80` or similar to the vitest CI command to make thresholds blocking.
 
 3. **Playwright E2E needs live stack**: Integration E2E requires secrets, a running Docker stack, and live Supabase. The `validate-secrets` step gracefully skips when secrets are placeholders. On `main`, the CI correctly fails if E2E was skipped (`Fail if E2E Integration silently skipped on main` step). This is sound.
+
+---
+
+### 2026-07-04 addendum
+
+**[I6] is stale.** `Microsoft.OpenApi` 2.0.0 — pulled in transitively via `Microsoft.AspNetCore.OpenApi` 10.0.9 — was later flagged as GHSA-v5pm-xwqc-g5wc (NU1903, High; the vulnerable range runs through 2.7.4). Fixed in PR #182 by pinning `Microsoft.OpenApi` explicitly to **2.7.5** and adding a `dotnet list package --vulnerable --include-transitive` gate to the backend CI job (counterpart to the existing `npm audit` step), so the next regression fails CI instead of going unnoticed.
+
+**CI Gap #2 (coverage thresholds not enforced) is also closed**, in the same PR. `@vitest/coverage-v8` had never actually been installed — the configured 80% thresholds never ran, and the "Upload Coverage" artifact was uploading an empty directory. PR #182 installs the provider, fixes the `include` globs (they pointed at `app/**`; source lives under `src/`), and replaces the fictional 80% thresholds with measured ratchet floors (`lines: 30, branches: 26, functions: 23, statements: 30` — 2026-07-04 baseline was ~32.7% lines) enforced as a blocking CI gate via `vitest.config.ts`.
