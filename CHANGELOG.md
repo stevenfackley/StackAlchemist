@@ -250,6 +250,7 @@ All notable changes to this project will be documented in this file.
 - Bump @types/node in /src/StackAlchemist.Web ([#173](https://github.com/stevenfackley/StackAlchemist/issues/173))
 - Bump autoprefixer in /src/StackAlchemist.Web ([#174](https://github.com/stevenfackley/StackAlchemist/issues/174))
 - Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#175](https://github.com/stevenfackley/StackAlchemist/issues/175))
+- Dependency audit gates, real coverage enforcement, pipeline cleanup ([#182](https://github.com/stevenfackley/StackAlchemist/issues/182))
 
 ### Refactoring
 
