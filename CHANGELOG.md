@@ -85,6 +85,7 @@ All notable changes to this project will be documented in this file.
 - UX integrity pass — sanitized error boundaries, mobile content nav ([#181](https://github.com/stevenfackley/StackAlchemist/issues/181))
 - Lock down generations SELECT and harden security-definer RPCs ([#183](https://github.com/stevenfackley/StackAlchemist/issues/183))
 - Provision build toolchain in prod image and restore before build ([#185](https://github.com/stevenfackley/StackAlchemist/issues/185))
+- Apply Supabase migrations in the prod deploy pipeline ([#186](https://github.com/stevenfackley/StackAlchemist/issues/186))
 
 ### Dependencies
 
