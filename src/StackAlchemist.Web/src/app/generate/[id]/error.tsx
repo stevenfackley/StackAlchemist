@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 export default function GenerationError({
   error,
   reset,
@@ -7,12 +9,22 @@ export default function GenerationError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-800 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-600/30 bg-slate-900/60 p-6 text-center space-y-4">
         <p className="font-mono text-xs tracking-widest uppercase text-slate-500">Generation</p>
         <h1 className="text-2xl font-bold text-white">Build output is unavailable</h1>
-        <p className="text-sm text-slate-400">{error.message}</p>
+        <p className="text-sm text-slate-400">
+          Something went wrong loading this build. Your generation is still processing or stored —
+          reload to check its status.
+        </p>
+        {error.digest && (
+          <p className="font-mono text-xs text-slate-500">Reference: {error.digest}</p>
+        )}
         <button
           type="button"
           onClick={reset}

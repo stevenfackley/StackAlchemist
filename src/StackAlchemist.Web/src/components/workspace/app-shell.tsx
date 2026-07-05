@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /**
  * Full-viewport application frame: a fixed header row over a single
  * scroll-bounded body row (`min-h-0` so descendants own their own overflow).
- * Generic chrome — composed by /advanced, and reusable by /simple, /dashboard.
+ * Generic chrome — currently composed by /advanced only.
  */
 export function AppShell({
   header,
