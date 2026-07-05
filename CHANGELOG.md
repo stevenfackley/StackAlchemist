@@ -89,6 +89,7 @@ All notable changes to this project will be documented in this file.
 - Require authentication and ownership in retryGeneration ([#189](https://github.com/stevenfackley/StackAlchemist/issues/189))
 - Make prod migration gate skip (not brick deploys) when secret unset ([#191](https://github.com/stevenfackley/StackAlchemist/issues/191))
 - Deliver BYOK_ENCRYPTION_KEY to prod/test containers ([#193](https://github.com/stevenfackley/StackAlchemist/issues/193))
+- Paginate dashboard, accurate stats, validate advanced schema in demo mode ([#194](https://github.com/stevenfackley/StackAlchemist/issues/194))
 
 ### Dependencies
 
