@@ -20,6 +20,12 @@ public class ByokKeyProtectorTests
     internal const string GoldenCiphertext =
         "v1:SEeiqD6hCr6/RsfD:xAvF0jLBBgPVwCo2VC7ZUA==:iW0hz1XyJlEGU3zoigbjVZI12NdttLCf4Av8+AoXgGIxW6lvt3E3J/tWplWnM37ymaf1";
 
+    // A second Node-generated triple with an OpenAI-prefixed plaintext (same GoldenSecret), so
+    // provider-routing tests can bind an OpenAI key to the OpenAI route without cross-forwarding.
+    internal const string GoldenOpenAiPlaintext = "sk-proj-OPENAI-golden-vector-plaintext-key-1234567890";
+    internal const string GoldenOpenAiCiphertext =
+        "v1:Hd72iLBvDfZazOUy:WapiBdZV/rxY8PfrvV9BWA==:8Rn94cvMDVkS4D1R2Z/qK8EWQcaQd3KN/ddHCt8mb2I1Q0aEt2t7Dit02Uaygx2icjRWRJY=";
+
     private static ByokKeyProtector Build(string? byokKey = GoldenSecret, string? engineKey = null) =>
         new(
             new ConfigurationBuilder()
@@ -37,6 +43,14 @@ public class ByokKeyProtectorTests
         var protector = Build();
 
         protector.TryDecrypt(GoldenCiphertext).Should().Be(GoldenPlaintext);
+    }
+
+    [Fact]
+    public void TryDecrypt_OpenAiGoldenVector_RecoversPlaintext()
+    {
+        var protector = Build();
+
+        protector.TryDecrypt(GoldenOpenAiCiphertext).Should().Be(GoldenOpenAiPlaintext);
     }
 
     [Fact]

@@ -26,6 +26,17 @@ public sealed partial class LlmCredentialResolver(
     IConfiguration config,
     ILogger<LlmCredentialResolver> logger) : ILlmCredentialResolver
 {
+    // Anthropic models we are willing to bill on OUR global key. Mirrors the web-side
+    // ALLOWED_PROFILE_MODELS Anthropic entries; the engine re-checks because the profiles row is
+    // RLS-writable and the web allowlist can be bypassed via direct PostgREST. A user who brings
+    // their own Anthropic key is not constrained by this — they pay for whatever model they pick.
+    private static readonly HashSet<string> AnthropicGlobalKeyModelAllowList = new(StringComparer.Ordinal)
+    {
+        "claude-sonnet-4-6",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+    };
+
     public async Task<LlmCallOptions?> ResolveAsync(string generationId, CancellationToken ct)
     {
         ProfileCredential? credential;
@@ -48,19 +59,42 @@ public sealed partial class LlmCredentialResolver(
         var (provider, realModel) = LlmModelRouter.Resolve(model);
         var apiKey = keyProtector.TryDecrypt(credential.ApiKeyCiphertext);
 
+        // Bind the stored key to the provider it was issued for (by key prefix). A BYOK key is NEVER
+        // forwarded to a different vendor's API — e.g. a stored OpenAI key must not be sent to
+        // Anthropic just because preferred_model points at Claude. A mismatch is treated as "no key".
+        if (apiKey is not null && LlmModelRouter.ProviderForKey(apiKey) != provider)
+        {
+            LogKeyProviderMismatch(logger, generationId, provider.ToString());
+            apiKey = null;
+        }
+
         if (provider == LlmProvider.Anthropic)
         {
-            // Pure default (no BYOK key, default model) → null keeps the unchanged global path.
-            if (apiKey is null && string.Equals(model, globalModel, StringComparison.Ordinal))
-                return null;
+            if (apiKey is null)
+            {
+                // No usable BYOK key → this generation spends OUR global Anthropic key. Constrain the
+                // model to a known allowlist so a directly-written preferred_model (the profiles
+                // UPDATE policy is RLS-writable, bypassing the web-side allowlist) cannot pin us to an
+                // arbitrarily expensive model (e.g. Opus). Unknown → the configured default.
+                if (!string.Equals(realModel, globalModel, StringComparison.Ordinal)
+                    && !AnthropicGlobalKeyModelAllowList.Contains(realModel))
+                {
+                    LogModelDowngraded(logger, generationId, realModel);
+                    realModel = globalModel;
+                }
 
-            // Per-user Anthropic model and/or BYOK key. A null key here falls back to the global
-            // Anthropic key inside AnthropicLlmClient (graceful degrade for an undecryptable key).
+                // Pure default (no key, default model) → null keeps the unchanged global path.
+                if (string.Equals(realModel, globalModel, StringComparison.Ordinal))
+                    return null;
+            }
+
+            // A per-user Anthropic model (allowlisted, or any model when the user brought their own
+            // Anthropic key and pays for it themselves).
             LogResolved(logger, generationId, provider.ToString(), realModel, apiKey is not null);
             return new LlmCallOptions(provider, realModel, apiKey);
         }
 
-        // BYOK-only providers (OpenAI / OpenRouter): pass through even without a key so the
+        // BYOK-only providers (OpenAI / OpenRouter): pass through even without a matching key so the
         // provider client fails the generation with a clear, user-safe ByokConfigException — never
         // a worker crash and never a silent fallback to our key for a provider we have no key for.
         LogResolved(logger, generationId, provider.ToString(), realModel, apiKey is not null);
@@ -72,4 +106,10 @@ public sealed partial class LlmCredentialResolver(
 
     [LoggerMessage(EventId = 851, Level = LogLevel.Warning, Message = "Failed to resolve LLM credentials for generation {Id} — using global config")]
     private static partial void LogResolveFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 852, Level = LogLevel.Warning, Message = "Stored BYOK key for generation {Id} does not belong to the routed provider {Provider} — ignoring it (key never cross-forwarded)")]
+    private static partial void LogKeyProviderMismatch(ILogger logger, string id, string provider);
+
+    [LoggerMessage(EventId = 853, Level = LogLevel.Warning, Message = "Requested Anthropic model {Model} for generation {Id} is not allowlisted for the global key — downgrading to the default")]
+    private static partial void LogModelDowngraded(ILogger logger, string id, string model);
 }

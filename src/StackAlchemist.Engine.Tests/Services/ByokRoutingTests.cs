@@ -20,8 +20,10 @@ namespace StackAlchemist.Engine.Tests.Services;
 public class ByokRoutingTests
 {
     private const string GoldenSecret = ByokKeyProtectorTests.GoldenSecret;
-    private const string GoldenPlaintext = ByokKeyProtectorTests.GoldenPlaintext;
+    private const string GoldenPlaintext = ByokKeyProtectorTests.GoldenPlaintext;          // sk-ant-… (Anthropic)
     private const string GoldenCiphertext = ByokKeyProtectorTests.GoldenCiphertext;
+    private const string GoldenOpenAiPlaintext = ByokKeyProtectorTests.GoldenOpenAiPlaintext; // sk-proj-… (OpenAI)
+    private const string GoldenOpenAiCiphertext = ByokKeyProtectorTests.GoldenOpenAiCiphertext;
 
     private static IConfiguration Config(string? globalModel = null, string? globalAnthropicKey = null) =>
         new ConfigurationBuilder()
@@ -50,7 +52,7 @@ public class ByokRoutingTests
 
         var delivery = Substitute.For<IDeliveryService>();
         delivery.GetGenerationCredentialAsync("gen-1", Arg.Any<CancellationToken>())
-            .Returns(new ProfileCredential(GoldenCiphertext, "openai/gpt-4o-mini"));
+            .Returns(new ProfileCredential(GoldenOpenAiCiphertext, "openai/gpt-4o-mini"));
 
         var protector = new ByokKeyProtector(config, new ListLogger<ByokKeyProtector>(logs));
         var resolver = new LlmCredentialResolver(delivery, protector, config, new ListLogger<LlmCredentialResolver>(logs));
@@ -75,7 +77,7 @@ public class ByokRoutingTests
         // Outbound request carried the DECRYPTED key + the real (deprefixed) model.
         handler.LastRequest!.RequestUri!.AbsoluteUri.Should().Be("https://api.openai.com/v1/chat/completions");
         handler.LastRequest.Headers.Authorization!.Scheme.Should().Be("Bearer");
-        handler.LastRequest.Headers.Authorization.Parameter.Should().Be(GoldenPlaintext);
+        handler.LastRequest.Headers.Authorization.Parameter.Should().Be(GoldenOpenAiPlaintext);
         handler.LastBody.Should().Contain("\"model\":\"gpt-4o-mini\"");
 
         // Token accounting records the ACTUAL model, not the global default.
@@ -83,7 +85,82 @@ public class ByokRoutingTests
 
         // The decrypted key must never appear in any logged output.
         logs.Should().NotBeEmpty();
-        logs.Should().NotContain(l => l.Contains(GoldenPlaintext, StringComparison.Ordinal));
+        logs.Should().NotContain(l => l.Contains(GoldenOpenAiPlaintext, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Resolve_CrossProviderKey_IsNeverForwardedToTheWrongVendor()
+    {
+        // H1: a stored OpenAI key (sk-proj-…) with an Anthropic model selected must NOT be sent to
+        // Anthropic. The key is dropped (provider mismatch) and the Anthropic route falls back to
+        // the global key — the user's OpenAI secret never reaches api.anthropic.com.
+        var config = Config(globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationCredentialAsync("gen-x", Arg.Any<CancellationToken>())
+            .Returns(new ProfileCredential(GoldenOpenAiCiphertext, "claude-3-5-haiku-20241022"));
+
+        var protector = new ByokKeyProtector(config, NullLogger<ByokKeyProtector>.Instance);
+        var resolver = new LlmCredentialResolver(delivery, protector, config, NullLogger<LlmCredentialResolver>.Instance);
+
+        var options = await resolver.ResolveAsync("gen-x", CancellationToken.None);
+
+        options.Should().NotBeNull();
+        options!.Provider.Should().Be(LlmProvider.Anthropic);
+        options.HasKey.Should().BeFalse("an OpenAI key must never be attached to the Anthropic route");
+
+        var handler = new CapturingHandler(AnthropicJson("done"));
+        var routing = new RoutingLlmClient(
+            AnthropicClient(config, handler), OpenAiClient(config, handler), new MockLlmClient(),
+            config, NullLogger<RoutingLlmClient>.Instance);
+
+        await routing.GenerateAsync("system", "user", options, CancellationToken.None);
+
+        // The outbound Anthropic request used the GLOBAL house key, not the user's OpenAI key.
+        handler.LastRequest!.Headers.GetValues("x-api-key").Should().ContainSingle().Which.Should().Be("sk-ant-GLOBAL-house-key");
+        handler.LastBody.Should().NotContain(GoldenOpenAiPlaintext);
+    }
+
+    [Fact]
+    public async Task Resolve_NonAllowlistedAnthropicModelOnGlobalKey_DowngradesToDefault()
+    {
+        // M1: preferred_model is RLS-writable, bypassing the web allowlist. A user cannot pin our
+        // GLOBAL key to an arbitrary expensive model — a non-allowlisted Anthropic model with no
+        // BYOK key is downgraded to the configured default.
+        var config = Config(globalModel: "claude-sonnet-4-6", globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationCredentialAsync("gen-m1", Arg.Any<CancellationToken>())
+            .Returns(new ProfileCredential(null, "claude-opus-4-turbo-ultra-expensive"));
+
+        var protector = new ByokKeyProtector(config, NullLogger<ByokKeyProtector>.Instance);
+        var resolver = new LlmCredentialResolver(delivery, protector, config, NullLogger<LlmCredentialResolver>.Instance);
+
+        var options = await resolver.ResolveAsync("gen-m1", CancellationToken.None);
+
+        // Downgraded to the default → resolves to null (unchanged global path on the default model).
+        options.Should().BeNull("a non-allowlisted model on the global key downgrades to the default");
+    }
+
+    [Fact]
+    public async Task Resolve_AllowlistedNonDefaultAnthropicModelOnGlobalKey_IsHonored()
+    {
+        // An allowlisted non-default Anthropic model (e.g. Haiku) is fine on the global key.
+        var config = Config(globalModel: "claude-sonnet-4-6", globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationCredentialAsync("gen-m2", Arg.Any<CancellationToken>())
+            .Returns(new ProfileCredential(null, "claude-3-5-haiku-20241022"));
+
+        var protector = new ByokKeyProtector(config, NullLogger<ByokKeyProtector>.Instance);
+        var resolver = new LlmCredentialResolver(delivery, protector, config, NullLogger<LlmCredentialResolver>.Instance);
+
+        var options = await resolver.ResolveAsync("gen-m2", CancellationToken.None);
+
+        options.Should().NotBeNull();
+        options!.Provider.Should().Be(LlmProvider.Anthropic);
+        options.Model.Should().Be("claude-3-5-haiku-20241022");
+        options.HasKey.Should().BeFalse();
     }
 
     [Fact]

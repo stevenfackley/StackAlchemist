@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Text.RegularExpressions;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
@@ -51,7 +52,10 @@ public static partial class LlmHttpRetry
 
             if (!retryable || attempt >= maxAttemptIndex)
             {
-                LogApiError(logger, provider, (int)response.StatusCode, body);
+                // Provider 401/403 bodies can echo a fragment of the submitted key (e.g. OpenAI's
+                // "Incorrect API key provided: sk-…"). Redact anything key-shaped before it reaches
+                // the centralized logs.
+                LogApiError(logger, provider, (int)response.StatusCode, ScrubKeys(body));
                 if (isRateLimit)
                 {
                     var code = (int)response.StatusCode;
@@ -112,6 +116,14 @@ public static partial class LlmHttpRetry
         var jitterMs = Random.Shared.Next(100, 750);
         return baseDelay + TimeSpan.FromMilliseconds(jitterMs);
     }
+
+    // Redacts key-shaped tokens ("sk-…", incl. sk-ant-/sk-or-/sk-proj- variants) from a string
+    // before it is logged. Defense-in-depth for provider error bodies that partially echo the key.
+    internal static string ScrubKeys(string body) =>
+        string.IsNullOrEmpty(body) ? body : ApiKeyPattern().Replace(body, "sk-***redacted***");
+
+    [GeneratedRegex(@"sk-[A-Za-z0-9_\-]{4,}")]
+    private static partial Regex ApiKeyPattern();
 
     [LoggerMessage(EventId = 820, Level = LogLevel.Error, Message = "{Provider} API error {Code}: {Body}")]
     private static partial void LogApiError(ILogger logger, string provider, int code, string body);
