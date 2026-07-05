@@ -36,13 +36,13 @@ Action: The file is untracked and gitignored. Confirm it is not present on the C
 
 BYOK encryption uses AES-256-GCM (authenticated encryption) with a scrypt-derived key. The IV is properly randomized per-encrypt. The format is `v1:<iv_b64>:<tag_b64>:<ciphertext_b64>`. This is sound.
 
-Note: The encryption secret falls back to `ENGINE_SERVICE_KEY` if `BYOK_ENCRYPTION_KEY` is not set:
+Resolved (2026-07, `feat/byok-wire-end-to-end`): SAVE now requires a distinct `BYOK_ENCRYPTION_KEY` — the write path no longer falls back to `ENGINE_SERVICE_KEY`, so rotating the engine key can never strand stored BYOK keys:
 ```typescript
 function getByokEncryptionSecret() {
-  return process.env.BYOK_ENCRYPTION_KEY ?? process.env.ENGINE_SERVICE_KEY ?? "";
+  return process.env.BYOK_ENCRYPTION_KEY ?? "";
 }
 ```
-If only `ENGINE_SERVICE_KEY` is configured, rotating the engine key would invalidate all stored BYOK keys. Consider documenting this dependency or enforcing `BYOK_ENCRYPTION_KEY` as a distinct secret.
+The Engine's `ByokKeyProtector` keeps a decrypt-time `ENGINE_SERVICE_KEY` fallback only for reading keys saved before this rule. Byte-for-byte C# ↔ Node compatibility is proven by a golden-vector test.
 
 ### [I4] Prompt injection in `sanitizePrompt` (server action)
 

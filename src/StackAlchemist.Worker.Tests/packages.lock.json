@@ -63,6 +63,11 @@
           "AWSSDK.Core": "[4.0.100.2, 5.0.0)"
         }
       },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.6.2",
+        "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
+      },
       "Castle.Core": {
         "type": "Transitive",
         "resolved": "5.1.1",
@@ -527,6 +532,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.S3": "[4.0.*, )",
+          "BouncyCastle.Cryptography": "[2.6.2, )",
           "DotNetEnv": "[3.*, )",
           "Handlebars.Net": "[2.1.6, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.9, )",

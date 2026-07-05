@@ -37,7 +37,7 @@ public class CompileWorkerRetryTests
             .Returns(call => $"RETRY-PROMPT[errors={call.ArgAt<List<string>>(1).Count},attempt={call.ArgAt<int>(2)}]");
 
         var llm = Substitute.For<ILlmClient>();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse(
                 "[[FILE:Models/Product.cs]]\npublic record Product;\n[[END_FILE]]",
                 100, 50, "v1-stub-retry"));
@@ -68,7 +68,7 @@ public class CompileWorkerRetryTests
             Arg.Is<int>(n => n == 1));
 
         // ILlmClient called exactly once (the retry).
-        await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
 
         // R2 upload happened.
         await r2.Received(1).UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -104,7 +104,7 @@ public class CompileWorkerRetryTests
             .Returns("retry-prompt");
 
         var llm = Substitute.For<ILlmClient>();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse("[[FILE:dummy.cs]]\nclass Dummy{}\n[[END_FILE]]", 10, 5, "v1-stub-retry"));
 
         var reconstruction = new ReconstructionService();

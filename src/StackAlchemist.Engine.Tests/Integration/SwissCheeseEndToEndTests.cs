@@ -341,7 +341,7 @@ public class SwissCheeseEndToEndTests
     /// </summary>
     private sealed class ZoneStubLlmClient : ILlmClient
     {
-        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, LlmCallOptions? options = null, CancellationToken ct = default)
         {
             var zoneName = ExtractZone(userPrompt);
             var entityName = ExtractEntity(userPrompt);

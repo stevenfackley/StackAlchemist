@@ -294,7 +294,7 @@ public class InjectionEngineTests
 
     private sealed class StubLlmClient(Func<string, Task<LlmResponse>> handler) : ILlmClient
     {
-        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, LlmCallOptions? options = null, CancellationToken ct = default)
             => handler(userPrompt);
     }
 }

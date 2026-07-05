@@ -86,6 +86,10 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // Engine hardening
     ["Engine:ServiceKey"]             = Ev("ENGINE_SERVICE_KEY"),
     ["Engine:AllowedOrigins"]         = Ev("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000",
+    // BYOK: engine-side decryption secret for stored per-user API keys. Mirrors the web app,
+    // which encrypts with BYOK_ENCRYPTION_KEY; ByokKeyProtector falls back to Engine:ServiceKey
+    // for keys saved before the distinct-key requirement (finding I3).
+    ["Byok:EncryptionKey"]            = Ev("BYOK_ENCRYPTION_KEY"),
     // Resend transactional email
     ["Resend:ApiKey"]                 = Ev("RESEND_API_KEY"),
     ["Resend:FromEmail"]              = Ev("RESEND_FROM_EMAIL"),
@@ -207,6 +211,19 @@ builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
     client.Timeout = TimeSpan.FromMinutes(5); // LLM calls can be long
 });
 
+// BYOK providers (OpenAI-compatible Chat Completions). Base addresses end in "/v1/" so the
+// client posts to the relative "chat/completions" path.
+builder.Services.AddHttpClient(OpenAiCompatibleLlmClient.OpenAiHttpClientName, client =>
+{
+    client.BaseAddress = new Uri("https://api.openai.com/v1/");
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
+builder.Services.AddHttpClient(OpenAiCompatibleLlmClient.OpenRouterHttpClientName, client =>
+{
+    client.BaseAddress = new Uri("https://openrouter.ai/api/v1/");
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
+
 builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
 builder.Services.AddHttpClient(StripeWebhookHandler.HttpClientName);
 builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
@@ -233,16 +250,25 @@ builder.Services.AddSingleton<ITierGatingService, TierGatingService>();
 builder.Services.AddSingleton<ISchemaExtractionService, SchemaExtractionService>();
 builder.Services.AddSingleton<IPromptBuilderService, PromptBuilderService>();
 
-// ── LLM client — AnthropicLlmClient when API key is set, MockLlmClient otherwise ──
+// ── LLM clients + BYOK routing ────────────────────────────────────────────────
+// The provider clients are always registered; RoutingLlmClient (the ILlmClient) picks the right
+// one per generation from the resolved LlmCallOptions:
+//   • null options → global default (Anthropic when ANTHROPIC_API_KEY is set, else the mock)
+//   • Anthropic model → Anthropic Messages API (BYOK key when present, else the global key)
+//   • openai/… or openrouter/… → OpenAI-compatible Chat Completions (BYOK required)
+// LlmCredentialResolver reads the owning user's profile and decrypts the stored key engine-side —
+// the plaintext key never crosses the wire, so this works for BOTH the free /api/generate path and
+// the webhook-triggered paid path (both run through GenerationOrchestrator.EnqueueAsync).
 var anthropicApiKey = builder.Configuration["Anthropic:ApiKey"];
-if (!string.IsNullOrWhiteSpace(anthropicApiKey))
+builder.Services.AddSingleton<AnthropicLlmClient>();
+builder.Services.AddSingleton<OpenAiCompatibleLlmClient>();
+builder.Services.AddSingleton<MockLlmClient>();
+builder.Services.AddSingleton<ILlmClient, RoutingLlmClient>();
+builder.Services.AddSingleton<ByokKeyProtector>();
+builder.Services.AddSingleton<ILlmCredentialResolver, LlmCredentialResolver>();
+if (string.IsNullOrWhiteSpace(anthropicApiKey))
 {
-    builder.Services.AddSingleton<ILlmClient, AnthropicLlmClient>();
-}
-else
-{
-    builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
-    Log.Warning("MockLlmClient is active. Generated applications will use mock output instead of Anthropic.");
+    Log.Warning("ANTHROPIC_API_KEY not set — generations without a BYOK key will use MockLlmClient output.");
 }
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
@@ -464,9 +490,13 @@ app.MapPost("/api/extract-schema", async (
     try
     {
         var systemPrompt = promptBuilder.BuildSchemaExtractionPrompt(request.Prompt);
+        // Schema extraction is a StackAlchemist-internal preprocessing step (prose → schema); it
+        // stays on the global Anthropic config (options: null). BYOK/per-user model routing applies
+        // to the generation itself, resolved per-generation inside the orchestrator.
         var llmResponse = await llmClient.GenerateAsync(
             systemPrompt,
             request.Prompt,
+            options: null,
             ct);
 
         await delivery.UpdateTokenUsageAsync(

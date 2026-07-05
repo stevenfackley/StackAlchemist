@@ -34,7 +34,10 @@ public sealed partial class GenerationOrchestrator(
     IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
     IInFlightGenerationRegistry inFlight,
-    ILogger<GenerationOrchestrator> logger) : IGenerationOrchestrator
+    ILogger<GenerationOrchestrator> logger,
+    // Optional so existing test fixtures construct without it → null resolver = global config
+    // (unchanged). Production DI always injects the real resolver, enabling BYOK/model routing.
+    ILlmCredentialResolver? credentialResolver = null) : IGenerationOrchestrator
 {
     private const string Tier0SparkTemplateSet = "V0-Spark-NextJs";
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
@@ -156,8 +159,17 @@ public sealed partial class GenerationOrchestrator(
                 };
             }
 
+            // Resolve the owning user's BYOK/model routing ONCE for the whole generation (Tier 2/3
+            // only — Tier 0/1 make no LLM calls). The same options flow to codegen, Swiss-Cheese
+            // injection, AND the compile worker's build-repair loop (via context.LlmOptions) so
+            // every LLM call in this generation uses one provider/model/key. Null = global config.
+            var llmOptions = credentialResolver is null
+                ? null
+                : await credentialResolver.ResolveAsync(request.GenerationId, ct);
+            context.LlmOptions = llmOptions;
+
             // Steps 1-4: template load/render + LLM codegen → file map (Tier 2/3 path).
-            var finalFiles = await GenerateFilesAsync(request, variables, ct);
+            var finalFiles = await GenerateFilesAsync(request, variables, llmOptions, ct);
 
             AppendTier3InfrastructureFiles(request, variables, finalFiles);
 
@@ -215,6 +227,7 @@ public sealed partial class GenerationOrchestrator(
     private async Task<Dictionary<string, string>> GenerateFilesAsync(
         GenerateRequest request,
         TemplateVariables variables,
+        LlmCallOptions? llmOptions,
         CancellationToken ct)
     {
         var swissCheese = UseSwissCheese;
@@ -231,6 +244,7 @@ public sealed partial class GenerationOrchestrator(
                 variables,
                 request.ProjectType,
                 request.Personalization,
+                llmOptions,
                 ct);
 
             await deliveryService.UpdateTokenUsageAsync(
@@ -247,7 +261,7 @@ public sealed partial class GenerationOrchestrator(
         // V1 one-shot path: whole-codebase LLM call + Reconstruct.
         var systemPrompt = LoadPromptTemplate(request);
         var userPrompt = BuildUserPrompt(request);
-        var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, ct);
+        var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, llmOptions, ct);
         await deliveryService.UpdateTokenUsageAsync(
             request.GenerationId,
             llmResponse.InputTokens,

@@ -8,7 +8,8 @@ namespace StackAlchemist.Engine.Services;
 /// </summary>
 public sealed class MockLlmClient : ILlmClient
 {
-    public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+    public Task<LlmResponse> GenerateAsync(
+        string systemPrompt, string userPrompt, LlmCallOptions? options = null, CancellationToken ct = default)
     {
         // Return a minimal but compilable set of files for a "Product" entity
         var response = """

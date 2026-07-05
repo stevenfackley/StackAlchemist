@@ -417,7 +417,7 @@ public class GenerationPipelineTests
         private int _callCount;
         public int CallCount => _callCount;
 
-        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+        public Task<LlmResponse> GenerateAsync(string systemPrompt, string userPrompt, LlmCallOptions? options = null, CancellationToken ct = default)
         {
             Interlocked.Increment(ref _callCount);
             const string body = """

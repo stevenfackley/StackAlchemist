@@ -55,6 +55,17 @@ public class InvalidTierException : Exception
 }
 
 /// <summary>
+/// Thrown when a generation is routed to a BYOK-only provider (OpenAI / OpenRouter) but no usable
+/// API key could be resolved — either none was stored, or the stored ciphertext failed to decrypt.
+/// The message is user-safe and MUST NEVER contain key material. Categorized as "internal" (the
+/// error_category CHECK enum has no dedicated "config" value).
+/// </summary>
+public class ByokConfigException : Exception
+{
+    public ByokConfigException(string message) : base(message) { }
+}
+
+/// <summary>
 /// Base type for Cloudflare R2 bucket-configuration failures.
 /// Throw when the bucket cannot be reached due to a mis-set
 /// R2_BUCKET_NAME / R2_ACCOUNT_ID / credentials, distinct from
