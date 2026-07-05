@@ -90,6 +90,7 @@ All notable changes to this project will be documented in this file.
 - Make prod migration gate skip (not brick deploys) when secret unset ([#191](https://github.com/stevenfackley/StackAlchemist/issues/191))
 - Deliver BYOK_ENCRYPTION_KEY to prod/test containers ([#193](https://github.com/stevenfackley/StackAlchemist/issues/193))
 - Paginate dashboard, accurate stats, validate advanced schema in demo mode ([#194](https://github.com/stevenfackley/StackAlchemist/issues/194))
+- Resolve ws advisory ([#43](https://github.com/stevenfackley/StackAlchemist/issues/43)) in root lockfile ([#195](https://github.com/stevenfackley/StackAlchemist/issues/195))
 
 ### Dependencies
 
