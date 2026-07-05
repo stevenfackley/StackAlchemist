@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Loader2 } from "lucide-react";
 import { submitSimpleGeneration, getFreeQuotaStatus } from "@/lib/actions";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
 import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
+import { Logo } from "@/components/logo";
 import type { Generation } from "@/lib/types";
 
 // Friendly, jargon-free narration of the backend pipeline — no "schema",
@@ -140,12 +140,7 @@ export default function SimpleModePage() {
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
-            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-accent">AL</span>CHEMIST
-            </span>
-          </Link>
+          <Logo variant="mono" size={28} />
           <span className="text-slate-600 font-mono text-xs">|</span>
           <Link href="/" className="font-mono text-xs text-slate-400 hover:text-accent transition-colors tracking-widest uppercase">
             &larr; Back

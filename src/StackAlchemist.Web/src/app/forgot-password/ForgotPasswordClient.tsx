@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
+import { Button, TextInput } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 export default function ForgotPasswordClient() {
   const [email, setEmail] = useState("");
@@ -28,12 +29,7 @@ export default function ForgotPasswordClient() {
   const header = (
     <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-          <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
-          <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-            STACK <span className="text-accent">AL</span>CHEMIST
-          </span>
-        </Link>
+        <Logo variant="mono" size={28} />
       </div>
     </header>
   );
@@ -83,7 +79,7 @@ export default function ForgotPasswordClient() {
                 <label htmlFor="fp-email" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Email
                 </label>
-                <input
+                <TextInput
                   id="fp-email"
                   type="email"
                   required
@@ -91,21 +87,17 @@ export default function ForgotPasswordClient() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
+                  className="border-slate-600/40 bg-slate-800/60 px-4 py-3 text-sm text-white transition-colors"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent/90 disabled:opacity-60 text-white font-mono text-xs py-3 rounded-xl uppercase tracking-widest transition-colors"
-              >
+              <Button type="submit" disabled={isPending} className="w-full rounded-xl py-3 tracking-widest">
                 {isPending ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending...</>
                 ) : (
                   "Send Reset Link"
                 )}
-              </button>
+              </Button>
             </form>
 
             <p className="text-center font-mono text-xs text-slate-400">

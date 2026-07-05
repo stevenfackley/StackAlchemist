@@ -3,12 +3,12 @@
 import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { OAuthButtons } from "@/components/oauth-buttons";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, TextInput } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 // Inner component isolated so useSearchParams() is inside the Suspense boundary.
 function RegisterPageContent() {
@@ -88,12 +88,7 @@ function RegisterPageContent() {
       <div className="min-h-screen flex flex-col bg-slate-800">
         <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center">
-            <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-              <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
-              <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-                STACK <span className="text-accent">AL</span>CHEMIST
-              </span>
-            </Link>
+            <Logo variant="mono" size={28} />
           </div>
         </header>
         <main className="flex-1 flex items-center justify-center px-4 py-16">
@@ -141,12 +136,7 @@ function RegisterPageContent() {
       {/* Header */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <Image src="/logo.svg" alt="Stack Alchemist" width={28} height={28} className="drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" />
-            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-accent">AL</span>CHEMIST
-            </span>
-          </Link>
+          <Logo variant="mono" size={28} />
         </div>
       </header>
 
@@ -168,14 +158,14 @@ function RegisterPageContent() {
                 <label htmlFor="register-email" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Email
                 </label>
-                <input
+                <TextInput
                   id="register-email"
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
+                  className="border-slate-600/40 bg-slate-800/60 px-4 py-3 text-sm text-white transition-colors"
                 />
               </div>
 
@@ -184,7 +174,7 @@ function RegisterPageContent() {
                 <label htmlFor="register-password" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Password
                 </label>
-                <input
+                <TextInput
                   id="register-password"
                   type="password"
                   required
@@ -192,7 +182,7 @@ function RegisterPageContent() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
+                  className="border-slate-600/40 bg-slate-800/60 px-4 py-3 text-sm text-white transition-colors"
                 />
               </div>
 
@@ -201,14 +191,14 @@ function RegisterPageContent() {
                 <label htmlFor="register-confirm" className="font-mono text-xs text-slate-400 uppercase tracking-widest">
                   Confirm Password
                 </label>
-                <input
+                <TextInput
                   id="register-confirm"
                   type="password"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-white placeholder:text-ink-faint focus:outline-none focus:border-accent/60 transition-colors"
+                  className="border-slate-600/40 bg-slate-800/60 px-4 py-3 text-sm text-white transition-colors"
                 />
               </div>
 

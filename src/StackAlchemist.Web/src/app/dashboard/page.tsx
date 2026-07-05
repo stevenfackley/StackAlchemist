@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { Logo } from "@/components/logo";
 import {
   LayoutDashboard,
   CheckCircle2,
@@ -204,18 +204,7 @@ export default async function DashboardPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="border-b border-slate-600/30 bg-slate-800/80 backdrop-blur-md sticky top-0 z-header">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <Image
-              src="/logo.svg"
-              alt="Stack Alchemist"
-              width={28}
-              height={28}
-              className="drop-shadow-[0_0_6px_rgba(77,166,255,0.4)]"
-            />
-            <span className="font-mono text-sm font-medium tracking-widest text-slate-200 hidden sm:block">
-              STACK <span className="text-accent">AL</span>CHEMIST
-            </span>
-          </Link>
+          <Logo variant="mono" size={28} />
           <span className="text-slate-600 font-mono text-xs">|</span>
           <div className="flex items-center gap-2">
             <LayoutDashboard className="h-3.5 w-3.5 text-accent" />
