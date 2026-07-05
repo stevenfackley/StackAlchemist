@@ -83,6 +83,7 @@ All notable changes to this project will be documented in this file.
 - Recover maintenance page on tab refocus and bfcache restore ([#167](https://github.com/stevenfackley/StackAlchemist/issues/167))
 - Repair E2E Smoke — Playwright getByPlaceholder, not Testing-Library getByDisplayValue ([#171](https://github.com/stevenfackley/StackAlchemist/issues/171))
 - UX integrity pass — sanitized error boundaries, mobile content nav ([#181](https://github.com/stevenfackley/StackAlchemist/issues/181))
+- Lock down generations SELECT and harden security-definer RPCs ([#183](https://github.com/stevenfackley/StackAlchemist/issues/183))
 
 ### Dependencies
 
