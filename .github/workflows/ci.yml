@@ -63,7 +63,10 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Unit & Integration Tests
-        run: npx vitest run --reporter=junit --outputFile=test-results/junit.xml
+        # Reporters come from vitest.config.ts (default + junit). Passing
+        # --reporter on the CLI would override that and swallow console
+        # output on failure. --coverage enforces the ratchet thresholds.
+        run: npx vitest run --coverage
 
       - name: Upload Test Results
         if: always()
@@ -84,21 +87,8 @@ jobs:
   backend:
     name: Backend (.NET Build & Test)
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: stackalchemist_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # No service containers: the test suites talk to Supabase over HTTP and
+    # mock everything else — the old postgres:16 service was never used.
 
     steps:
       - name: Checkout
@@ -108,11 +98,23 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-          # setup-dotnet's built-in NuGet cache requires packages.lock.json,
-          # which this repository does not currently commit.
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore Dependencies
         run: dotnet restore StackAlchemist.slnx --configfile NuGet.Config
+
+      - name: Audit NuGet Dependencies
+        # Counterpart of the frontend `npm audit` gate. Fails on any known
+        # vulnerability, including transitive (e.g. NU1903 advisories).
+        run: |
+          set -euo pipefail
+          output="$(dotnet list StackAlchemist.slnx package --vulnerable --include-transitive)"
+          echo "$output"
+          if echo "$output" | grep -q "GHSA-"; then
+            echo "::error::Vulnerable NuGet packages detected — see output above."
+            exit 1
+          fi
 
       - name: Build Engine
         run: dotnet build src/StackAlchemist.Engine/ --no-restore --configuration Release
@@ -129,13 +131,11 @@ jobs:
       - name: Run Engine Tests
         run: dotnet test src/StackAlchemist.Engine.Tests/ --no-build --configuration Release --logger "trx;LogFileName=engine-test-results.trx" --collect:"XPlat Code Coverage"
         env:
-          ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
           VSTEST_CONNECTION_TIMEOUT: "180"
 
       - name: Run Worker Tests
         run: dotnet test src/StackAlchemist.Worker.Tests/ --no-build --configuration Release --logger "trx;LogFileName=worker-test-results.trx" --collect:"XPlat Code Coverage"
         env:
-          ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=stackalchemist_test;Username=test;Password=test"
           VSTEST_CONNECTION_TIMEOUT: "180"
 
       - name: Upload Test Results

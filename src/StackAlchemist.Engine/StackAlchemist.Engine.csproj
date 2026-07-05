@@ -37,6 +37,10 @@
     <PackageReference Include="DotNetEnv" Version="3.*" />
     <PackageReference Include="Handlebars.Net" Version="2.1.6" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <!-- Explicit pin: AspNetCore.OpenApi 10.0.9 pulls Microsoft.OpenApi 2.0.0
+         (NU1903 / GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). Drop when the
+         transitive floor moves past 2.7.5. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Stripe.net" Version="52.1.0" />
     <PackageReference Include="System.IO.Abstractions" Version="22.*" />
   </ItemGroup>
