@@ -99,6 +99,11 @@ inputs:
     required: false
     default: ''
 
+  byok_encryption_key:
+    description: 'Secret used to encrypt (web) and decrypt (engine) stored per-user BYOK API keys. Must be ≥32 chars. Empty → BYOK save/decrypt is unavailable but the app runs normally.'
+    required: false
+    default: ''
+
   # ─── SEO / Analytics ─────────────────────────────────────────────────────────
   plausible_domain:
     description: 'Plausible analytics domain (prod only — never set on test to avoid polluting metrics)'
@@ -159,6 +164,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         ANTHROPIC_MODEL: ${{ inputs.anthropic_model }}
         ENGINE_SERVICE_KEY: ${{ inputs.engine_service_key }}
+        BYOK_ENCRYPTION_KEY: ${{ inputs.byok_encryption_key }}
         PLAUSIBLE_DOMAIN: ${{ inputs.plausible_domain }}
         GOOGLE_SITE_VERIFICATION: ${{ inputs.google_site_verification }}
         TEST_SITE_BASIC_AUTH_USER: ${{ inputs.test_site_basic_auth_user }}
@@ -207,6 +213,9 @@ runs:
 
         # Engine auth
         ENGINE_SERVICE_KEY=${ENGINE_SERVICE_KEY}
+
+        # BYOK — encrypts (web) / decrypts (engine) stored per-user API keys
+        BYOK_ENCRYPTION_KEY=${BYOK_ENCRYPTION_KEY}
 
         # SEO / Analytics (prod only)
         NEXT_PUBLIC_PLAUSIBLE_DOMAIN=${PLAUSIBLE_DOMAIN}

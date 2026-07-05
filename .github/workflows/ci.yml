@@ -284,13 +284,14 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
           anthropic_model: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-4-6' }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
+          byok_encryption_key: ${{ secrets.BYOK_ENCRYPTION_KEY }}
 
       - name: Re-mask sensitive .env values
         run: |
           set -euo pipefail
           # GitHub auto-masks `${{ secrets.X }}` literals, but values round-tripped
           # through .env can leak via derived/substring forms. Re-register them.
-          for key in SUPABASE_SERVICE_ROLE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+          for key in SUPABASE_SERVICE_ROLE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY BYOK_ENCRYPTION_KEY CLOUDFLARE_TUNNEL_TOKEN; do
             value="$(grep -E "^${key}=" .env | head -n1 | cut -d'=' -f2-)"
             if [ -n "$value" ]; then
               echo "::add-mask::${value}"
