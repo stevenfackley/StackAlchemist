@@ -45,7 +45,8 @@ const CATEGORY_CONFIG: Record<NonNullable<GenerationErrorCategory>, CategoryConf
         Compilation failed on attempt {attemptCount} of 3.
         {attemptCount >= 3 && (
           <>
-            {" "}You&apos;re entitled to a full refund — contact{" "}
+            {" "}A full refund has been initiated automatically — it reaches your card in
+            5–10 business days. If you don&apos;t see it, contact{" "}
             <a href="mailto:support@stackalchemist.app" className="underline underline-offset-2 hover:text-accent">
               support
             </a>
