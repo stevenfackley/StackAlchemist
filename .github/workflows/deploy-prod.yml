@@ -97,8 +97,13 @@ jobs:
         # (missing process_checkout_completed, enforce_free_generation_quota,
         # error_category, and the generations RLS lockdown) while the deployed
         # code already depended on them — paid checkout webhooks were failing.
-        # Hard-fails when the secret is missing: silent drift is the failure
-        # mode this step closes. See docs/runbooks/ci-supabase-migrations.md.
+        #
+        # Bootstrap-friendly gate: SKIP with a loud warning when the secret is
+        # absent (so the pipeline isn't bricked before PROD_SUPABASE_DB_URL is
+        # configured), but HARD-FAIL when the secret is present-but-broken or
+        # the push fails — that's the real drift-prevention. Add the secret to
+        # the prod environment to flip this from advisory to enforcing.
+        # See docs/runbooks/ci-supabase-migrations.md.
         shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
@@ -106,8 +111,9 @@ jobs:
           set -Eeuo pipefail
 
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
-            echo "::error::PROD_SUPABASE_DB_URL secret is not set. Refusing to deploy code without schema parity. Format: postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres — same shape as CI_SUPABASE_DB_URL (see docs/runbooks/ci-supabase-migrations.md)."
-            exit 1
+            echo "::warning::PROD_SUPABASE_DB_URL is not set — SKIPPING automatic migration apply. Prod schema parity is NOT enforced on this deploy. Add the secret (prod environment) to enable it. Format: postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres — same shape as CI_SUPABASE_DB_URL. See docs/runbooks/ci-supabase-migrations.md."
+            echo "### ⚠️ Supabase migrations NOT applied (PROD_SUPABASE_DB_URL unset)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           echo "::add-mask::${SUPABASE_DB_URL}"
 

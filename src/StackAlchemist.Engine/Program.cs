@@ -227,6 +227,7 @@ builder.Services.AddHttpClient(OpenAiCompatibleLlmClient.OpenRouterHttpClientNam
 builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
 builder.Services.AddHttpClient(StripeWebhookHandler.HttpClientName);
 builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
+builder.Services.AddHttpClient(StripeRefundService.HttpClientName);
 
 // ── File system abstraction ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
@@ -320,6 +321,13 @@ builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>()
 
 // ── Stripe webhook handler ────────────────────────────────────────────────────
 builder.Services.AddSingleton<IStripeWebhookHandler, StripeWebhookHandler>();
+
+// ── Compile Guarantee automatic refund ────────────────────────────────────────
+// Stripe.net's RefundService reads the API key from the ambient StripeConfiguration
+// static at call time (same pattern the /api/stripe/create-session handler uses),
+// so the parameterless constructor is all the DI registration needs.
+builder.Services.AddSingleton<RefundService>();
+builder.Services.AddSingleton<IRefundService, StripeRefundService>();
 
 // ── Transactional email — Resend when configured, NoOp otherwise ─────────────
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))

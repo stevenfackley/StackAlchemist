@@ -1,6 +1,6 @@
 # StackAlchemist: Database ERD
 
-> **Status (2026-07-04):** Regenerated from every migration in `supabase/migrations/` through `20260704000001_lock_down_generations_select_and_harden_rpcs.sql`. Schema matches the TypeScript types in `src/StackAlchemist.Web/src/lib/types.ts`. RLS policies and Realtime publication are included.
+> **Status (2026-07-05):** Regenerated from every migration in `supabase/migrations/` through `20260705000001_add_transaction_refund_pending_status.sql`. Schema matches the TypeScript types in `src/StackAlchemist.Web/src/lib/types.ts`. RLS policies and Realtime publication are included.
 
 This diagram illustrates the core relational structure within the Supabase PostgreSQL database.
 
@@ -25,7 +25,7 @@ erDiagram
         text last_stripe_event_id "Last Stripe webhook event applied"
         int tier "0 (Spark), 1 (Blueprint), 2 (Boilerplate), 3 (IaC)"
         int amount "In cents"
-        text status "pending, completed, failed, refunded, disputed"
+        text status "pending, completed, failed, refund_pending, refunded, disputed"
         timestamptz created_at
         timestamptz updated_at
     }
