@@ -268,6 +268,7 @@ All notable changes to this project will be documented in this file.
 - Split oversized client components (F10) ([#149](https://github.com/stevenfackley/StackAlchemist/issues/149))
 - Design-system sweep — blue→accent, z-scale, Alert/Button adoption ([#152](https://github.com/stevenfackley/StackAlchemist/issues/152))
 - Extract shared PageHeader for content surfaces ([#179](https://github.com/stevenfackley/StackAlchemist/issues/179))
+- Consolidate logo/header markup and adopt ui primitives on app surfaces ([#188](https://github.com/stevenfackley/StackAlchemist/issues/188))
 
 ### Security
 
