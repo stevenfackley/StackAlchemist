@@ -86,6 +86,7 @@ All notable changes to this project will be documented in this file.
 - Lock down generations SELECT and harden security-definer RPCs ([#183](https://github.com/stevenfackley/StackAlchemist/issues/183))
 - Provision build toolchain in prod image and restore before build ([#185](https://github.com/stevenfackley/StackAlchemist/issues/185))
 - Apply Supabase migrations in the prod deploy pipeline ([#186](https://github.com/stevenfackley/StackAlchemist/issues/186))
+- Require authentication and ownership in retryGeneration ([#189](https://github.com/stevenfackley/StackAlchemist/issues/189))
 
 ### Dependencies
 
