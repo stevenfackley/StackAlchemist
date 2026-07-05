@@ -191,6 +191,7 @@ All notable changes to this project will be documented in this file.
 - Dashboard live updates island (F7) ([#151](https://github.com/stevenfackley/StackAlchemist/issues/151))
 - Adopt mise for task running and Node versioning ([#154](https://github.com/stevenfackley/StackAlchemist/issues/154))
 - Automatic Stripe refund when the compile guarantee fails ([#190](https://github.com/stevenfackley/StackAlchemist/issues/190))
+- Decrypt and route per-user keys and model through generation ([#192](https://github.com/stevenfackley/StackAlchemist/issues/192))
 
 ### Miscellaneous Tasks
 
