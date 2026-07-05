@@ -50,6 +50,8 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
+      # BYOK: web encrypts stored per-user API keys with this secret.
+      BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:-}
       # SEO / Analytics — only populated on prod, empty elsewhere.
       NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
       GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
@@ -89,6 +91,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
+      # BYOK: engine decrypts stored per-user API keys with this secret (falls
+      # back to ENGINE_SERVICE_KEY for keys saved before the distinct-key rule).
+      BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/healthz || exit 1"]
       interval: 10s
