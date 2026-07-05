@@ -656,6 +656,14 @@ export async function retryGeneration(
     return { success: true };
   }
 
+  // Require authentication + ownership: this action re-fires the Engine (real
+  // LLM spend) through the service-role client, which bypasses RLS — without
+  // this check anyone holding a generation UUID could retry another user's build.
+  const user = await getServerUser();
+  if (!user) {
+    return { success: false, error: "Please sign in to retry a build." };
+  }
+
   let db;
 
   try {
@@ -672,6 +680,12 @@ export async function retryGeneration(
     .single();
 
   if (fetchErr || !gen) {
+    return { success: false, error: "Generation not found." };
+  }
+
+  // Same message as not-found so the response is not an existence oracle
+  // for other users' generation ids.
+  if (gen.user_id !== user.id) {
     return { success: false, error: "Generation not found." };
   }
 
