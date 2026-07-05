@@ -46,7 +46,7 @@ Every Boilerplate and Infrastructure package is run through the actual .NET and 
 2. `npm run build` is executed against the Next.js frontend
 3. If either fails, the error output is fed back to the LLM and the failing files are regenerated
 4. This retry loop runs up to **3 times**
-5. If the build is still failing after 3 attempts: **full refund, no questions asked**
+5. If the build is still failing after 3 attempts: **a full refund is initiated automatically, no questions asked**
 
 This is a hard technical constraint in the delivery pipeline — not a marketing claim.
 
@@ -82,7 +82,7 @@ See [Tiers and Pricing](./tiers-and-pricing) for full details.
 
 ### Do you offer refunds?
 
-- **Compile Guarantee failure:** Automatic full refund if the generated code fails to compile after 3 retries.
+- **Compile Guarantee failure:** A full refund is initiated automatically the moment the 3rd retry fails — no request needed. It reaches your original payment method in 5–10 business days.
 - **Other refunds:** Contact us within 24 hours of purchase if you have a legitimate issue.
 
 ### Are there agency or volume discounts?

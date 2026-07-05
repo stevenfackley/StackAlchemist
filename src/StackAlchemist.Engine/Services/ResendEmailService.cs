@@ -128,4 +128,12 @@ public static class EmailTemplates
          "<p>Your StackAlchemist build passed compile validation and is ready to download.</p>" +
          $"<p><a href=\"{downloadUrl}\">Download your project</a> (link is short-lived — save it locally).</p>" +
          "<p>If anything looks off, reply to this email — we read every one.</p>");
+
+    public static (string Subject, string Html) RefundIssued(int tier) =>
+        ("Your StackAlchemist build failed — refund initiated",
+         "<p>Your generated project still failed to compile after 3 automatic correction " +
+         $"attempts, so per the Compile Guarantee we've initiated a full refund for your tier {tier} purchase.</p>" +
+         "<p>No dispute needed on your end — the refund will appear on your original payment method " +
+         "within 5–10 business days.</p>" +
+         "<p>If you have any questions, just reply to this email — we read every one.</p>");
 }

@@ -18,6 +18,7 @@ public sealed partial class CompileWorkerService(
     IR2UploadService r2UploadService,
     IDeliveryService deliveryService,
     IEmailService emailService,
+    IRefundService refundService,
     IInFlightGenerationRegistry inFlight,
     ILogger<CompileWorkerService> logger) : BackgroundService
 {
@@ -168,6 +169,16 @@ public sealed partial class CompileWorkerService(
                     errorMessage: job.ErrorMessage,
                     errorCategory: ErrorCategorizer.Build,
                     ct: ct);
+
+                // Compile Guarantee: paid tiers (1-3) get an automatic refund when the
+                // build is still failing after MaxRetries corrections. Best-effort —
+                // see TryIssueCompileGuaranteeRefundAsync for why failures never
+                // propagate past this point.
+                if (job.Tier >= 1)
+                {
+                    await TryIssueCompileGuaranteeRefundAsync(job, ct);
+                }
+
                 return;
             }
 
@@ -251,6 +262,41 @@ public sealed partial class CompileWorkerService(
         }
     }
 
+    /// <summary>
+    /// Attempts the Compile Guarantee refund for a paid-tier generation that just
+    /// exhausted all build-correction retries, then emails the customer once the
+    /// refund is actually initiated. Deliberately swallows every exception: a
+    /// refund (or Supabase/Stripe) failure here must never crash the worker loop
+    /// or reverse the generation's already-persisted Failed status — the
+    /// charge.refunded webhook remains the eventual source of truth regardless of
+    /// whether this call succeeds.
+    /// </summary>
+    private async Task TryIssueCompileGuaranteeRefundAsync(GenerationContext job, CancellationToken ct)
+    {
+        try
+        {
+            var outcome = await refundService.RefundFailedGenerationAsync(job.GenerationId, ct);
+            if (outcome != RefundOutcome.Issued)
+            {
+                LogRefundNotIssued(logger, job.GenerationId, outcome);
+                return;
+            }
+
+            LogRefundIssued(logger, job.GenerationId);
+
+            var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
+            if (!string.IsNullOrWhiteSpace(ownerEmail))
+            {
+                var (subject, html) = EmailTemplates.RefundIssued(job.Tier);
+                await emailService.SendAsync(ownerEmail, subject, html, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogRefundAttemptFailed(logger, ex, job.GenerationId);
+        }
+    }
+
     private async Task FailMissingOutputDir(GenerationContext job, CancellationToken ct)
     {
         job.State = GenerationState.Failed;
@@ -309,4 +355,13 @@ public sealed partial class CompileWorkerService(
 
     [LoggerMessage(EventId = 607, Level = LogLevel.Warning, Message = "Failed to clean up temp directory for {Id}")]
     private static partial void LogTempDirCleanupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 608, Level = LogLevel.Information, Message = "Compile-guarantee refund issued for generation {Id}")]
+    private static partial void LogRefundIssued(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 609, Level = LogLevel.Information, Message = "Compile-guarantee refund not issued for generation {Id}: {Outcome}")]
+    private static partial void LogRefundNotIssued(ILogger logger, string id, RefundOutcome outcome);
+
+    [LoggerMessage(EventId = 610, Level = LogLevel.Error, Message = "Compile-guarantee refund attempt threw for generation {Id} — worker continues, generation stays Failed")]
+    private static partial void LogRefundAttemptFailed(ILogger logger, Exception ex, string id);
 }

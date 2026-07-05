@@ -11,7 +11,7 @@ For Tier 2 (Boilerplate) and Tier 3 (Infrastructure), before your archive is ass
 - `dotnet build` for the .NET 10 Web API
 - `npm run build` for the Next.js 15 frontend
 
-If either build fails, the Compile Guarantee triggers an automatic correction loop. If the code still fails after the maximum number of retries, you receive a full refund — no dispute, no questions asked.
+If either build fails, the Compile Guarantee triggers an automatic correction loop. If the code still fails after the maximum number of retries, a full refund is initiated automatically against your original payment method — no dispute, no questions asked, no email to send.
 
 ---
 
@@ -175,13 +175,13 @@ Generated code is a starting point — a foundation that's architecturally corre
 
 ## Refund Conditions
 
-A refund is issued automatically when:
+A refund is initiated automatically when:
 
 1. The generated code fails `dotnet build` or `npm run build`
 2. The auto-correction loop has been executed 3 times
 3. The build is still failing after all 3 correction attempts
 
-The refund is processed to the original payment method within 5–10 business days, depending on your payment provider.
+The moment the third attempt fails, the pipeline calls Stripe to refund the original charge in full — no manual step, no support ticket. Stripe's confirmation of the completed transfer is what finalizes the refund on our side; from there it posts to your original payment method within 5–10 business days, depending on your payment provider.
 
 There is no dispute process. The build logs are the objective evidence — if the build fails, the refund triggers automatically.
 

@@ -48,8 +48,9 @@ public class CompileWorkerRetryTests
             .Returns("https://r2.test/fake-presigned");
         var delivery = Substitute.For<IDeliveryService>();
         var email = Substitute.For<IEmailService>();
+        var refund = Substitute.For<IRefundService>();
 
-        var (queue, capturedJob) = await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email);
+        var (queue, capturedJob) = await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
 
         // The retry succeeded → terminal state Success.
         capturedJob.State.Should().Be(GenerationState.Success);
@@ -111,8 +112,12 @@ public class CompileWorkerRetryTests
         var r2 = Substitute.For<IR2UploadService>();
         var delivery = Substitute.For<IDeliveryService>();
         var email = Substitute.For<IEmailService>();
+        // Unconfigured: RefundOutcome.NotEligible is the enum default (0), so this
+        // test's tier-2 job hits the refund call site but no refund/email side
+        // effect happens — refund behavior itself is covered in CompileWorkerRefundTests.
+        var refund = Substitute.For<IRefundService>();
 
-        var (_, capturedJob) = await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email);
+        var (_, capturedJob) = await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
 
         // After 3 retries exhausted, the job is terminal Failed.
         capturedJob.State.Should().Be(GenerationState.Failed);
@@ -123,6 +128,10 @@ public class CompileWorkerRetryTests
         // No R2 upload — never reached pack/upload.
         await r2.DidNotReceive().UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await email.DidNotReceive().SendAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // The tier-2 job did reach the refund call site (job.Tier >= 1 guard).
+        await refund.Received(1).RefundFailedGenerationAsync(
+            capturedJob.GenerationId, Arg.Any<CancellationToken>());
 
         // Final delivery status push was Failed with the error message.
         await delivery.Received().UpdateStatusAsync(
@@ -167,7 +176,8 @@ public class CompileWorkerRetryTests
         IReconstructionService reconstruction,
         IR2UploadService r2,
         IDeliveryService delivery,
-        IEmailService email)
+        IEmailService email,
+        IRefundService? refund = null)
     {
         var queue = Channel.CreateUnbounded<GenerationContext>();
         await queue.Writer.WriteAsync(job);
@@ -181,6 +191,7 @@ public class CompileWorkerRetryTests
             r2,
             delivery,
             email,
+            refund ?? Substitute.For<IRefundService>(),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

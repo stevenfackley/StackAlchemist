@@ -100,7 +100,7 @@ For Tier 2 and Tier 3, every generated package goes through the following before
 3. `npm run build` is executed against the frontend
 4. If either build fails, the LLM receives the error output and regenerates the failing files
 5. Steps 2–4 repeat up to **3 times**
-6. If the build is still failing after 3 attempts: **full refund, no questions asked**
+6. If the build is still failing after 3 attempts: **a full refund is initiated automatically, no questions asked**
 
 This is a hard technical guarantee — not a marketing claim. Code that doesn't compile doesn't get delivered.
 
