@@ -91,7 +91,7 @@ jobs:
           # see a 502 for the full build duration (2-4 min). Instead we
           # swap in a lightweight maintenance page as sa-web so the tunnel
           # keeps serving real HTTP traffic right up until the new stack lands.
-          docker rm -f sa-web sa-engine sa-worker 2>/dev/null || true
+          docker rm -f sa-web sa-engine 2>/dev/null || true
 
           # Ensure the network exists. compose up will create it, but we need
           # it now so the maintenance container and tunnel can talk.
@@ -155,7 +155,6 @@ jobs:
           docker compose -f docker/docker-compose.test.yml ps > .artifacts/deploy-test/compose-ps.txt 2>&1
           docker logs sa-engine > .artifacts/deploy-test/sa-engine.log 2>&1 || true
           docker logs sa-web > .artifacts/deploy-test/sa-web.log 2>&1 || true
-          docker logs sa-worker > .artifacts/deploy-test/sa-worker.log 2>&1 || true
           docker compose -f docker/docker-compose.test.yml logs --tail 200 > .artifacts/deploy-test/compose.log 2>&1 || true
 
       - name: Upload deploy diagnostics
@@ -172,7 +171,7 @@ jobs:
         run: |
           echo "⚠️ Deploy failed — restoring maintenance placeholder..."
           docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
-          docker rm -f sa-web sa-engine sa-worker 2>/dev/null || true
+          docker rm -f sa-web sa-engine 2>/dev/null || true
 
           docker network create stackalchemist-test 2>/dev/null || true
 

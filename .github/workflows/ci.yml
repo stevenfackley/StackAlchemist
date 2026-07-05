@@ -457,7 +457,7 @@ jobs:
 
       - name: Build and Start Backend Services
         if: steps.validate-secrets.outputs.skip_e2e != 'true'
-        run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine sa-worker
+        run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine
 
       - name: Wait for Backend Health
         if: steps.validate-secrets.outputs.skip_e2e != 'true'
@@ -503,9 +503,6 @@ jobs:
           # actual stack trace is locked inside the container.
           echo "::group::sa-engine logs"
           docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 200 || true
-          echo "::endgroup::"
-          echo "::group::sa-worker logs"
-          docker compose -f docker/docker-compose.test.yml logs sa-worker --tail 200 || true
           echo "::endgroup::"
 
       - name: Upload Integration Playwright Report

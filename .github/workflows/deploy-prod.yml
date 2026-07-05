@@ -123,7 +123,7 @@ jobs:
           # with running containers consuming RAM. sa-tunnel is intentionally
           # excluded — it's a long-lived standalone container that must survive
           # deploys to avoid Cloudflare Error 1033.
-          docker rm -f sa-web sa-engine sa-worker sa-reverse-proxy 2>/dev/null || true
+          docker rm -f sa-web sa-engine sa-reverse-proxy 2>/dev/null || true
 
           # Ensure the prod network exists so the maintenance container and
           # the persistent tunnel can communicate.
