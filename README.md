@@ -5,9 +5,9 @@
 
   [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
   [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
-  [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+  [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
   [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com)
-  [![Claude](https://img.shields.io/badge/Claude-3.5%20Sonnet-D97757?logo=anthropic)](https://anthropic.com)
+  [![Claude](https://img.shields.io/badge/Claude-Sonnet%204.6-D97757?logo=anthropic)](https://anthropic.com)
   [![Tests](https://img.shields.io/badge/Tests-passing-success)](#-running-tests)
 </div>
 
@@ -32,7 +32,7 @@ See [LICENSE](LICENSE) for full terms.
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Next.js 15 (App Router), React 19, Tailwind CSS 3, `@xyflow/react` |
+| **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, `@xyflow/react` |
 | **Generation Engine** | .NET 10 Web API, Handlebars.Net, `System.IO.Abstractions` |
 | **LLM** | Anthropic Claude Sonnet 4.6 (configurable via `ANTHROPIC_MODEL`; mock fallback when `ANTHROPIC_API_KEY` is unset) |
 | **Compile Worker** | In-process `BackgroundService` — `dotnet build` + LLM retry loop |
@@ -176,7 +176,7 @@ StackAlchemist/
 ├── scripts/
 │   └── setup-env.mjs              # Auto-creates .env on install
 ├── src/
-│   ├── StackAlchemist.Web/        # Next.js 15 frontend (App Router)
+│   ├── StackAlchemist.Web/        # Next.js 16 frontend (App Router)
 │   ├── StackAlchemist.Engine/     # .NET 10 Web API + BackgroundService
 │   │   ├── Services/              # Orchestrator, LLM client, R2, Supabase delivery
 │   │   ├── Models/                # Generation state machine, schema models

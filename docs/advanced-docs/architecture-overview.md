@@ -13,8 +13,8 @@ This document describes the high-level architecture of the StackAlchemist platfo
 │                       StackAlchemist Platform                            │
 │                                                                          │
 │  ┌────────────────────────────────────────────┐                         │
-│  │      Next.js 15 Frontend (App Router)      │ ← User interface        │
-│  │   TypeScript + Tailwind + shadcn/ui        │   Simple/Advanced Mode  │
+│  │      Next.js 16 Frontend (App Router)      │ ← User interface        │
+│  │   TypeScript + Tailwind CSS 4 + shadcn/ui  │   Simple/Advanced Mode  │
 │  │   Server Actions + Supabase SSR            │   Progress tracking     │
 │  │   src/StackAlchemist.Web                   │   Download              │
 │  └────────────────┬─────────────────────────┘                          │
@@ -36,7 +36,7 @@ This document describes the high-level architecture of the StackAlchemist platfo
 │  └────────────────┘   └─────────────────┘  └──────────────┘          │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────┐          │
-│  │         Anthropic Claude 3.5 Sonnet API                 │          │
+│  │         Anthropic Claude Sonnet 4.6 API                 │          │
 │  │    (Schema extraction + Code generation)                │          │
 │  └──────────────────────────────────────────────────────────┘          │
 │                                                                          │
@@ -64,7 +64,7 @@ The solution is organized into focused, single-responsibility projects under `sr
 
 | Project | Type | Purpose |
 |---------|------|---------|
-| `StackAlchemist.Web` | Next.js 15 (App Router) | Frontend UI, authentication pages, server actions, Supabase SSR integration |
+| `StackAlchemist.Web` | Next.js 16 (App Router) | Frontend UI, authentication pages, server actions, Supabase SSR integration |
 | `StackAlchemist.Engine` | .NET 10 Web API | API host, generation orchestrator, in-process compile worker (BackgroundService) |
 | `StackAlchemist.Worker` | .NET 10 Worker Service | Standalone worker host for future scale-out; preserved but not used in current deployment |
 | `StackAlchemist.Templates` | Handlebars template library | V1-DotNet-NextJs and V1-Python-React template sets; injected into generation pipeline |
@@ -79,7 +79,7 @@ The typical flow for a free-tier (Spark) user generating a project:
 
 1. User enters a prompt and clicks "Synthesize"
 2. Next.js frontend calls `POST /api/extract-schema` with the prompt
-3. Engine calls Claude 3.5 Sonnet to extract entity/schema information; returns JSON schema
+3. Engine calls Claude (Sonnet 4.6 default, configurable via `ANTHROPIC_MODEL`) to extract entity/schema information; returns JSON schema
 4. Schema renders on React Flow canvas for user confirmation
 5. User optionally walks through the personalization wizard (business description, project name, color scheme, feature flags)
 6. For **free tier (Spark)**: Next.js directly calls `POST /api/generate` with the schema and personalization payload
@@ -92,7 +92,7 @@ Once generation is enqueued (free or paid):
 
 1. **GenerationOrchestrator** loads the appropriate template set (V1-DotNet-NextJs or V1-Python-React) based on `ProjectType`
 2. **Handlebars rendering** with sanitized personalization context (business description, project name, color scheme, feature flags)
-3. **LLM injection**: For each method placeholder in rendered files, call Claude 3.5 to generate business logic and persist token usage
+3. **LLM injection**: For each method placeholder in rendered files, call Claude (Sonnet 4.6 default) to generate business logic and persist token usage
 4. **Compile check**: Push rendered files to in-process Channel to CompileWorkerService
 5. **Build execution** via `IBuildStrategy` interface:
    - `DotNetBuildStrategy`: runs `dotnet build`
@@ -246,7 +246,7 @@ All API endpoints implement security controls:
 ## Key Design Decisions
 
 ### Why .NET for the backend?
-The generated output is .NET. The generation engine needed to closely match the conventions and tooling of the output — using .NET to generate .NET means the templating, validation, and compilation all happen in the same ecosystem. This eliminates friction when debugging template rendering, running test builds, or adjusting language conventions. See `docs/architecture/DECISIONS.md` for the full architectural decision record.
+The generated output is .NET. The generation engine needed to closely match the conventions and tooling of the output — using .NET to generate .NET means the templating, validation, and compilation all happen in the same ecosystem. This eliminates friction when debugging template rendering, running test builds, or adjusting language conventions. See `docs/DECISIONS.md` for the full architectural decision record.
 
 ### Why Supabase?
 Supabase provides authentication, row-level security (RLS), PostgreSQL, and Realtime subscriptions without requiring a separate identity provider. The generated code also targets Supabase — using the same stack for both the platform and the generated output lets us dogfood our own architecture and keep the stack coherent.
