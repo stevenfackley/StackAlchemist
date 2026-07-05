@@ -72,8 +72,27 @@ RUN dotnet restore ./StackAlchemist.Engine/StackAlchemist.Engine.csproj
 COPY src/StackAlchemist.Engine/ ./StackAlchemist.Engine/
 RUN dotnet publish ./StackAlchemist.Engine/StackAlchemist.Engine.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS engine
-RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+# NOTE: this used to be the slim `aspnet` runtime image. CompileWorkerService runs
+# in-process here (promoted from Worker in Phase 4) and shells out to `dotnet build`,
+# `npm`/`npx`, and — for PythonReact generations — `python`/pip/flake8/pytest. None of
+# that exists on the aspnet runtime image, so every paid Tier-2/3 generation failed at
+# the build step in production. Base on the SDK image (mirrors the worker stage below)
+# and install the same Node + Python toolchain the build strategies invoke. Tradeoff:
+# meaningfully larger image (SDK vs aspnet runtime) in exchange for generations that
+# actually compile.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS engine
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        python3 \
+        python3-pip \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+# Node.js — PythonReactBuildStrategy runs `npm install`, `npm run lint`, and `npx tsc`
+# against generated React frontends.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
+# flake8 + pytest are invoked directly by PythonReactBuildStrategy (not declared in the
+# generated project's requirements.txt), so they must be preinstalled in the image.
+RUN python3 -m pip install --no-cache-dir --break-system-packages flake8 pytest
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
@@ -106,4 +125,11 @@ WORKDIR /app
 COPY --from=worker-builder /app/publish .
 # Install Node.js in the worker container so it can run 'npm build' on generated repos
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
+# Not currently deployed (see docker-compose.*.yml — compile pipeline runs in-process
+# in the engine stage above), but kept buildable as a future scale-out host, so it
+# needs the same Python toolchain PythonReactBuildStrategy invokes.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+RUN python3 -m pip install --no-cache-dir --break-system-packages flake8 pytest
 ENTRYPOINT ["dotnet", "StackAlchemist.Worker.dll"]
