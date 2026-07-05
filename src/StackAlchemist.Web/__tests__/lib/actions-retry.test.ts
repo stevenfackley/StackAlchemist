@@ -1,12 +1,10 @@
 /**
  * actions.ts — retryGeneration guards (configured / non-demo runtime).
  *
- * NOTE on a real gap found while writing these tests: `retryGeneration` never
- * calls `getServerUser()` and never compares the generation's `user_id` to
- * the caller. There is no "wrong user" guard to exercise — the function will
- * happily retry *any* generation given only its id, authenticated or not.
- * The test below documents this as current behavior rather than asserting a
- * protection that doesn't exist.
+ * retryGeneration re-fires the Engine (real LLM spend) via the service-role
+ * client, which bypasses RLS — so it must authenticate the caller and verify
+ * ownership itself. The ownership rejection reuses the "Generation not found."
+ * message so responses are not an existence oracle for other users' ids.
  */
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
@@ -49,6 +47,8 @@ describe("actions.ts — retryGeneration (configured)", () => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
     vi.mocked(getServerUser).mockReset();
+    // Default: the signed-in caller owns baseGeneration().
+    vi.mocked(getServerUser).mockResolvedValue({ id: "owner-user" } as never);
     vi.mocked(createServerClient).mockReset();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -56,6 +56,27 @@ describe("actions.ts — retryGeneration (configured)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     consoleErrorSpy.mockRestore();
+  });
+
+  it("rejects unauthenticated callers before touching the database", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(null as never);
+
+    const result = await retryGeneration("gen-1");
+    expect(result).toEqual({ success: false, error: "Please sign in to retry a build." });
+    expect(createServerClient).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a caller who does not own the generation, without leaking its existence", async () => {
+    vi.mocked(getServerUser).mockResolvedValue({ id: "intruder" } as never);
+    vi.mocked(createServerClient).mockReturnValue(
+      makeDb([{ data: baseGeneration(), error: null }]) as never
+    );
+
+    const result = await retryGeneration("gen-1");
+    // Identical message to the missing-row case — no existence oracle.
+    expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns an error when the generation does not exist", async () => {
@@ -93,7 +114,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("resets status and re-fires the engine for a valid failed generation", async () => {
+  it("resets status and re-fires the engine for the owner of a failed generation", async () => {
     vi.mocked(createServerClient).mockReturnValue(
       makeDb([
         { data: baseGeneration(), error: null }, // select
@@ -104,6 +125,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
 
     const result = await retryGeneration("gen-1");
     expect(result).toEqual({ success: true });
+    expect(getServerUser).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/generate");
@@ -120,24 +142,5 @@ describe("actions.ts — retryGeneration (configured)", () => {
 
     const result = await retryGeneration("gen-1");
     expect(result).toEqual({ success: true });
-  });
-
-  it("BUG: never checks caller identity — retries a generation owned by a different user with no auth call at all", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { data: baseGeneration({ user_id: "someone-elses-account" }), error: null },
-        { error: null },
-      ]) as never
-    );
-    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
-
-    // No `getServerUser` mock resolution is configured at all — if
-    // `retryGeneration` called it, awaiting the bare `vi.fn()` would resolve
-    // to `undefined` and (correctly) be treated as "not signed in". It
-    // doesn't call it, so this succeeds regardless of who's asking.
-    const result = await retryGeneration("gen-1");
-
-    expect(result).toEqual({ success: true });
-    expect(getServerUser).not.toHaveBeenCalled();
   });
 });
