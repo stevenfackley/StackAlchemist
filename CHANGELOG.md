@@ -280,6 +280,7 @@ All notable changes to this project will be documented in this file.
 - Integration coverage for CompileWorkerService retry loop ([#85](https://github.com/stevenfackley/StackAlchemist/issues/85))
 - Tier 3 IaC + Helm + runbook integration coverage ([#86](https://github.com/stevenfackley/StackAlchemist/issues/86))
 - Realign config + delivery tests with tightened runtime guards
+- Cover actions.ts server layer (BYOK crypto, checkout, quota gating) ([#184](https://github.com/stevenfackley/StackAlchemist/issues/184))
 
 ### Ci
 
