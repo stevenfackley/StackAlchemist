@@ -160,7 +160,7 @@ public class CompileWorkerRefundTests
             .Returns("retry-prompt");
 
         var llm = Substitute.For<ILlmClient>();
-        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse("[[FILE:dummy.cs]]\nclass Dummy{}\n[[END_FILE]]", 10, 5, "v1-stub-retry"));
 
         var reconstruction = new ReconstructionService();
