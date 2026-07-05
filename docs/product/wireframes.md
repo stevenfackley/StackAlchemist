@@ -144,7 +144,7 @@ This document provides a visual representation of the StackAlchemist user interf
 |   YOUR STACK IS READY FOR DEPLOYMENT                        |
 |                                                             |
 |   [ DOWNLOAD SOURCE CODE (.ZIP) ]                           |
-|   (Expires in 24 Hours)                                     |
+|   (Expires in 7 Days)                                       |
 |                                                             |
 |   [ VIEW API DOCUMENTATION ] [ VIEW DEPLOYMENT RUNBOOK ]    |
 |                                                             |
