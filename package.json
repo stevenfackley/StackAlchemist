@@ -27,5 +27,8 @@
   "homepage": "https://github.com/stevenfackley/StackAlchemist#readme",
   "devDependencies": {
     "@playwright/test": "^1.59.1"
+  },
+  "overrides": {
+    "ws": "^8.21.0"
   }
 }
