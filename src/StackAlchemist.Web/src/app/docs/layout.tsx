@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { DocsSidebar } from "@/components/docs-sidebar";
+import { Logo } from "@/components/logo";
 import "highlight.js/styles/github-dark.css";
 
 export const metadata: Metadata = {
@@ -19,18 +19,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-14 items-center justify-between gap-4">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 shrink-0 transition-opacity hover:opacity-80">
-              <Image
-                src="/logo.svg"
-                alt="StackAlchemist"
-                width={26}
-                height={26}
-                className="drop-shadow-[0_0_8px_rgba(77,166,255,0.4)]"
-              />
-              <span className="hidden sm:block text-sm font-semibold tracking-[0.16em] text-slate-100 uppercase">
-                Stack&nbsp;<span className="text-[#4da6ff]">Al</span>chemist
-              </span>
-            </Link>
+            <Logo size={26} hideWordmarkOnMobile className="shrink-0" />
 
             {/* Breadcrumb label */}
             <div className="flex items-center gap-2 text-xs font-mono text-slate-500">

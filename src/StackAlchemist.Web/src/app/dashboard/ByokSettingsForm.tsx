@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Cpu, ExternalLink, Key, Save } from "lucide-react";
 import { saveProfileSettings } from "@/lib/actions";
+import { TextInput } from "@/components/ui";
 import type { ProfileSettings, SaveProfileSettingsState } from "@/lib/types";
 
 const INITIAL_STATE: SaveProfileSettingsState = {
@@ -73,13 +74,13 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
             API Key Override
             <span className="text-slate-600 normal-case tracking-normal">(optional)</span>
           </label>
-          <input
+          <TextInput
             id="apiKeyOverride"
             name="apiKeyOverride"
             type="password"
             autoComplete="off"
             placeholder={settings.hasApiKeyOverride ? "Saved key on file - enter a new key to replace" : "sk-ant-..."}
-            className="w-full bg-slate-800/60 border border-slate-600/40 rounded-xl px-4 py-3 font-mono text-sm text-slate-200 placeholder:text-ink-faint focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/10"
+            className="border-slate-600/40 bg-slate-800/60 px-4 py-3 text-sm text-slate-200 focus:ring-2 focus:ring-accent/10"
           />
           <p className="font-mono text-[10px] text-slate-600 leading-relaxed">
             Keys are AES-GCM encrypted before storage. Leave blank to keep the existing key.
@@ -123,15 +124,20 @@ export function ByokSettingsForm({ settings }: { settings: ProfileSettings }) {
           </p>
         </div>
 
-        {state.message && (
-          <p
-            className={`font-mono text-[10px] leading-relaxed ${
-              state.status === "success" ? "text-emerald-400" : "text-rose-400"
-            }`}
-          >
-            {state.message}
-          </p>
-        )}
+        {/* `hidden` (not Tailwind's `.hidden`) keeps this excluded from the parent's
+            space-y-5 spacing while idle, and keeps the live region mounted so screen
+            readers pick up the text change once a save result lands. */}
+        <div aria-live="polite" hidden={!state.message}>
+          {state.message && (
+            <p
+              className={`font-mono text-[10px] leading-relaxed ${
+                state.status === "success" ? "text-emerald-400" : "text-rose-400"
+              }`}
+            >
+              {state.message}
+            </p>
+          )}
+        </div>
 
         <div className="pt-2 border-t border-slate-700/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <a
