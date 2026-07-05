@@ -99,14 +99,14 @@ describe("actions.ts — demo mode short circuits", () => {
     });
   });
 
-  it("submitAdvancedGeneration does NOT validate blank entity names in demo mode (validation sits after the demo short-circuit)", async () => {
-    // Documents a real quirk: the blank-name entity check only runs on the
-    // non-demo path, so a malformed schema silently "succeeds" in demo mode.
+  it("submitAdvancedGeneration rejects blank entity names in demo mode too (validation runs before the short-circuit)", async () => {
+    // Input validation runs before the demo short-circuit, so a malformed schema
+    // is rejected identically in demo mode and in a live generation.
     const result = await submitAdvancedGeneration(
       { entities: [{ name: "   ", fields: [] }], relationships: [], endpoints: [] },
       1
     );
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: false, error: "All entities must have a name." });
   });
 
   it("createPendingGeneration returns a demo id without touching Supabase", async () => {
@@ -167,8 +167,8 @@ describe("actions.ts — demo mode short circuits", () => {
     });
   });
 
-  it("getMyGenerations returns an empty array when there's no authenticated user", async () => {
-    const generations = await getMyGenerations();
-    expect(generations).toEqual([]);
+  it("getMyGenerations returns an empty page when there's no authenticated user", async () => {
+    const result = await getMyGenerations();
+    expect(result).toEqual({ generations: [], total: 0 });
   });
 });

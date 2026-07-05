@@ -14,7 +14,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getServerUser } from "@/lib/supabase-server";
-import { getMyGenerations, getProfileSettings, getFreeQuotaStatus } from "@/lib/actions";
+import { getMyGenerations, getGenerationStats, getProfileSettings, getFreeQuotaStatus } from "@/lib/actions";
+
+const DASHBOARD_PAGE_SIZE = 20;
 import { ByokSettingsForm } from "./ByokSettingsForm";
 import { GenerationsLiveRefresher } from "./GenerationsLiveRefresher";
 import { SectionErrorBoundary } from "@/components/error-boundary";
@@ -179,7 +181,11 @@ function GenerationRow({ gen }: { gen: Generation }) {
 }
 
 /* ─── Dashboard Page (Server Component) ─────────────────────────────────── */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getServerUser();
 
   // Auth gate — redirect to login with returnTo so they come back after auth.
@@ -187,17 +193,26 @@ export default async function DashboardPage() {
     redirect("/login?returnTo=/dashboard");
   }
 
-  const [generations, profileSettings, quota] = await Promise.all([
-    getMyGenerations(),
-    getProfileSettings(),
-    getFreeQuotaStatus(),
-  ]);
+  const sp = await searchParams;
+  const requestedPage = Number.parseInt(sp.page ?? "1", 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const total = generations.length;
-  const completed = generations.filter((g) => g.status === "success").length;
-  const inProgress = generations.filter(
-    (g) => !["success", "failed"].includes(g.status)
-  ).length;
+  const [{ generations, total: totalGenerations }, stats, profileSettings, quota] =
+    await Promise.all([
+      getMyGenerations(page, DASHBOARD_PAGE_SIZE),
+      getGenerationStats(),
+      getProfileSettings(),
+      getFreeQuotaStatus(),
+    ]);
+
+  const { total, completed, inProgress } = stats;
+
+  const pageCount = Math.max(1, Math.ceil(totalGenerations / DASHBOARD_PAGE_SIZE));
+  // A page past the end (e.g. after deletions, or a hand-edited URL) shows empty
+  // rather than erroring; clamp the control labels to the real range.
+  const currentPage = Math.min(page, pageCount);
+  const rangeStart = totalGenerations === 0 ? 0 : (currentPage - 1) * DASHBOARD_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * DASHBOARD_PAGE_SIZE, totalGenerations);
 
   return (
     <div className="min-h-screen bg-slate-800 flex flex-col">
@@ -285,7 +300,7 @@ export default async function DashboardPage() {
             ))}
           </div>
 
-          {generations.length === 0 ? (
+          {totalGenerations === 0 ? (
             /* Empty state */
             <div className="px-5 py-16 text-center space-y-4">
               <div className="h-14 w-14 rounded-full bg-slate-700/30 border border-slate-600/30 flex items-center justify-center mx-auto">
@@ -304,6 +319,52 @@ export default async function DashboardPage() {
               {generations.map((gen) => (
                 <GenerationRow key={gen.id} gen={gen} />
               ))}
+            </div>
+          )}
+
+          {/* Pagination — only when there's more than one page */}
+          {pageCount > 1 && (
+            <div className="px-5 py-4 border-t border-slate-700/40 flex items-center justify-between gap-4">
+              <span className="font-mono text-[10px] text-slate-500">
+                {rangeStart}–{rangeEnd} of {totalGenerations}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link
+                    href={`/dashboard?page=${currentPage - 1}`}
+                    rel="prev"
+                    className="rounded-full border border-slate-600/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-300 hover:border-accent/40 hover:text-white transition-colors"
+                  >
+                    Prev
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="rounded-full border border-slate-700/30 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-600"
+                  >
+                    Prev
+                  </span>
+                )}
+                <span className="font-mono text-[10px] text-slate-500">
+                  Page {currentPage} / {pageCount}
+                </span>
+                {currentPage < pageCount ? (
+                  <Link
+                    href={`/dashboard?page=${currentPage + 1}`}
+                    rel="next"
+                    className="rounded-full border border-slate-600/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-300 hover:border-accent/40 hover:text-white transition-colors"
+                  >
+                    Next
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="rounded-full border border-slate-700/30 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-600"
+                  >
+                    Next
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>

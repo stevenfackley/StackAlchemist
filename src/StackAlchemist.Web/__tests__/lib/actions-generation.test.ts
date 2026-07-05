@@ -13,6 +13,7 @@ import {
   extractSchema,
   getFreeQuotaStatus,
   getMyGenerations,
+  getGenerationStats,
   submitAdvancedGeneration,
   submitSimpleGeneration,
 } from "@/lib/actions";
@@ -287,31 +288,77 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     expect(status.remaining).toBe(status.limit - 3);
   });
 
-  it("getMyGenerations returns [] when Supabase config is missing", async () => {
+  it("getMyGenerations returns an empty page when Supabase config is missing", async () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
 
-    const generations = await getMyGenerations();
-    expect(generations).toEqual([]);
+    const result = await getMyGenerations();
+    expect(result).toEqual({ generations: [], total: 0 });
   });
 
-  it("getMyGenerations returns the user's rows newest-first", async () => {
+  it("getMyGenerations returns the user's rows newest-first with the total count", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
     const rows = [{ id: "gen-2" }, { id: "gen-1" }];
-    vi.mocked(createServerClient).mockReturnValue(makeDb([{ data: rows, error: null }]) as never);
-
-    const generations = await getMyGenerations();
-    expect(generations).toEqual(rows);
-  });
-
-  it("getMyGenerations returns [] when the query errors", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
     vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: null, error: { message: "boom" } }]) as never
+      makeDb([{ data: rows, error: null, count: 57 }]) as never
     );
 
-    const generations = await getMyGenerations();
-    expect(generations).toEqual([]);
+    const result = await getMyGenerations();
+    expect(result.generations).toEqual(rows);
+    expect(result.total).toBe(57);
+  });
+
+  it("getMyGenerations requests the correct range window for a later page", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    const chain = makeDb([{ data: [], error: null, count: 100 }]) as never as {
+      from: ReturnType<typeof vi.fn>;
+    };
+    vi.mocked(createServerClient).mockReturnValue(chain as never);
+
+    await getMyGenerations(3, 20);
+
+    // Page 3 @ pageSize 20 → rows 40..59 (0-indexed range).
+    const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
+    expect(builder.range).toHaveBeenCalledWith(40, 59);
+  });
+
+  it("getMyGenerations returns an empty page when the query errors", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(createServerClient).mockReturnValue(
+      makeDb([{ data: null, error: { message: "boom" }, count: null }]) as never
+    );
+
+    const result = await getMyGenerations();
+    expect(result).toEqual({ generations: [], total: 0 });
+  });
+
+  it("getGenerationStats aggregates total / completed / in-progress counts", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    // Three .from() calls: total, completed, in-progress.
+    vi.mocked(createServerClient).mockReturnValue(
+      makeDb([
+        { count: 42, error: null },
+        { count: 30, error: null },
+        { count: 5, error: null },
+      ]) as never
+    );
+
+    const stats = await getGenerationStats();
+    expect(stats).toEqual({ total: 42, completed: 30, inProgress: 5 });
+  });
+
+  it("getGenerationStats returns zeros when a count query errors", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(createServerClient).mockReturnValue(
+      makeDb([
+        { count: 42, error: null },
+        { count: null, error: { message: "boom" } },
+        { count: 5, error: null },
+      ]) as never
+    );
+
+    const stats = await getGenerationStats();
+    expect(stats).toEqual({ total: 0, completed: 0, inProgress: 0 });
   });
 });
 
