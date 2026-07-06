@@ -137,6 +137,10 @@ All notable changes to this project will be documented in this file.
 - Bump lucide-react in /src/StackAlchemist.Web ([#169](https://github.com/stevenfackley/StackAlchemist/issues/169))
 - Bump lucide-react in /src/StackAlchemist.Web ([#176](https://github.com/stevenfackley/StackAlchemist/issues/176))
 - Bump @xyflow/react in /src/StackAlchemist.Web ([#177](https://github.com/stevenfackley/StackAlchemist/issues/177))
+- Bump the next-react group ([#197](https://github.com/stevenfackley/StackAlchemist/issues/197))
+- Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#199](https://github.com/stevenfackley/StackAlchemist/issues/199))
+- Bump lucide-react in /src/StackAlchemist.Web ([#202](https://github.com/stevenfackley/StackAlchemist/issues/202))
+- Bump @stackblitz/sdk in /src/StackAlchemist.Web ([#205](https://github.com/stevenfackley/StackAlchemist/issues/205))
 
 ### Documentation
 
@@ -262,6 +266,11 @@ All notable changes to this project will be documented in this file.
 - Bump autoprefixer in /src/StackAlchemist.Web ([#174](https://github.com/stevenfackley/StackAlchemist/issues/174))
 - Bump @vitejs/plugin-react in /src/StackAlchemist.Web ([#175](https://github.com/stevenfackley/StackAlchemist/issues/175))
 - Dependency audit gates, real coverage enforcement, pipeline cleanup ([#182](https://github.com/stevenfackley/StackAlchemist/issues/182))
+- Bump vitest ([#198](https://github.com/stevenfackley/StackAlchemist/issues/198))
+- Bump tailwindcss in /src/StackAlchemist.Web ([#200](https://github.com/stevenfackley/StackAlchemist/issues/200))
+- Bump @tailwindcss/postcss in /src/StackAlchemist.Web ([#201](https://github.com/stevenfackley/StackAlchemist/issues/201))
+- Bump @vitest/coverage-v8 in /src/StackAlchemist.Web ([#204](https://github.com/stevenfackley/StackAlchemist/issues/204))
+- Bump @types/node in /src/StackAlchemist.Web ([#203](https://github.com/stevenfackley/StackAlchemist/issues/203))
 
 ### Refactoring
 
