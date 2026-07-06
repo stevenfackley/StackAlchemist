@@ -9,6 +9,14 @@ updates:
         patterns: ["Microsoft.Extensions.*", "Microsoft.AspNetCore.*"]
       testing:
         patterns: ["xunit*", "coverlet.*", "Microsoft.NET.Test.*", "NetArchTest.*"]
+    ignore:
+      # Microsoft.OpenApi 3.x is incompatible with the AspNetCore.OpenApi 10.0.9
+      # XML-comment source generator (IOpenApiMediaType.Example is read-only in
+      # 3.x -> CS0200 in generated code; see Dependabot #206 and docs/DECISIONS.md
+      # 2026-07-06). Minors within 2.x still flow. Re-evaluate when
+      # Microsoft.AspNetCore.OpenApi supports OpenApi 3.x.
+      - dependency-name: "Microsoft.OpenApi"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /

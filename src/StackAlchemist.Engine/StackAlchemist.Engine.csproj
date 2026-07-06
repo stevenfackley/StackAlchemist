@@ -41,9 +41,13 @@
     <PackageReference Include="Handlebars.Net" Version="2.1.6" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
     <!-- Explicit pin: AspNetCore.OpenApi 10.0.9 pulls Microsoft.OpenApi 2.0.0
-         (NU1903 / GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). Drop when the
-         transitive floor moves past 2.7.5. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+         (NU1903 / GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). Keep on latest 2.x.
+         Do NOT move to 3.x: the AspNetCore.OpenApi 10.0.9 XML-comment source
+         generator emits assignments to IOpenApiMediaType.Example, which is
+         read-only in Microsoft.OpenApi 3.x (CS0200 in generated code; see
+         Dependabot #206). Revisit when Microsoft.AspNetCore.OpenApi supports
+         OpenApi 3.x. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.9.0" />
     <PackageReference Include="Stripe.net" Version="52.1.0" />
     <PackageReference Include="System.IO.Abstractions" Version="22.*" />
   </ItemGroup>
