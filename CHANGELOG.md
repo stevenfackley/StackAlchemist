@@ -141,6 +141,7 @@ All notable changes to this project will be documented in this file.
 - Bump @supabase/supabase-js in /src/StackAlchemist.Web ([#199](https://github.com/stevenfackley/StackAlchemist/issues/199))
 - Bump lucide-react in /src/StackAlchemist.Web ([#202](https://github.com/stevenfackley/StackAlchemist/issues/202))
 - Bump @stackblitz/sdk in /src/StackAlchemist.Web ([#205](https://github.com/stevenfackley/StackAlchemist/issues/205))
+- Defer Microsoft.OpenApi 3.x, advance pin to 2.9.0 ([#207](https://github.com/stevenfackley/StackAlchemist/issues/207))
 
 ### Documentation
 
