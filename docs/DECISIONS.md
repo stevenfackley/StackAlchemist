@@ -679,3 +679,21 @@ expandable (stripe/stripe-dotnet#3396).
 is ever added, account for the expandable type.
 
 ---
+
+## 2026-07-06 — Deferred: Microsoft.OpenApi 2.x → 3.x (major); pin advanced to 2.9.0
+
+**Context:** Dependabot #206 proposed Microsoft.OpenApi 2.7.5 → 3.7.0. The build
+fails in *generated* code: the Microsoft.AspNetCore.OpenApi 10.0.9 XML-comment
+source generator assigns `IOpenApiMediaType.Example`, which 3.x made read-only
+(CS0200 in OpenApiXmlCommentSupport.generated.cs). No first-party code uses
+Microsoft.OpenApi directly — the reference exists only as a security floor
+(GHSA-v5pm-xwqc-g5wc, patched in 2.7.5).
+**Decision:** Stay on the 2.x line until Microsoft.AspNetCore.OpenApi ships
+OpenApi 3.x support. Advance the pin 2.7.5 → 2.9.0 (latest 2.x). Add a
+Dependabot ignore for Microsoft.OpenApi majors; close #206 via
+`@dependabot ignore this major version`.
+**Consequences:** Minor/patch updates within 2.x continue to flow. Remove the
+ignore once AspNetCore.OpenApi is 3.x-compatible — check on .NET servicing
+releases.
+
+---
