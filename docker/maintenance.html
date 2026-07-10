@@ -6,7 +6,7 @@
 <!-- No-JS fallback: reload periodically so visitors are returned to the app
      once the deploy finishes instead of being stranded on this page. -->
 <meta http-equiv="refresh" content="20">
-<title>StackAlchemist — Updating</title>
+<title>StackAlchemist — Back in a moment</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -153,14 +153,17 @@
 
   <div class="wordmark">Stack&nbsp;&nbsp;<span class="accent">Al</span>chemist</div>
 
-  <div class="headline">Brewing a new version</div>
-  <div class="subtext">We&rsquo;re deploying an update. This usually takes a couple of minutes &mdash; check back shortly.</div>
+  <!-- This page fronts ANY window where the app is unreachable (deploy swap,
+       container restart, crash recovery) — the copy must not claim a deploy
+       is running when one might not be. -->
+  <div class="headline">Back in a moment</div>
+  <div class="subtext">We&rsquo;re rolling out an update or restarting a component. This page checks every few seconds and will bring you back automatically &mdash; usually in under a minute.</div>
 
   <div class="bar"></div>
 
   <div class="badge">
     <span class="dot"></span>
-    Deployment in progress
+    Auto-recovering
   </div>
 </div>
   <script>
