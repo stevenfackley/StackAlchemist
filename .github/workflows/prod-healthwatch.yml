@@ -1,0 +1,60 @@
+name: Prod Healthwatch
+
+# External uptime probe. The deploy pipeline can only observe the deploy it is
+# running; nothing watched prod BETWEEN deploys, so crashes/OOMs surfaced as a
+# user finding the maintenance page. This probes from a GitHub-hosted runner
+# (outside the box, through Cloudflare + tunnel — the same path users take)
+# and opens/updates a GitHub issue on sustained failure.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: prod-healthwatch
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe /api/healthz from outside
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          URL="https://stackalchemist.app/api/healthz"
+          # 3 probes 45s apart: a single blip (deploy swap ~<60s, CF hiccup)
+          # must not raise an issue; a real outage fails all three.
+          FAILS=0
+          for i in 1 2 3; do
+            CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || echo 000)
+            echo "probe $i: HTTP $CODE"
+            if [ "$CODE" != "200" ]; then FAILS=$((FAILS+1)); fi
+            if [ "$i" -lt 3 ]; then sleep 45; fi
+          done
+          if [ "$FAILS" -eq 3 ]; then
+            echo "::error::All 3 probes of $URL failed — prod is down from an external vantage."
+            exit 1
+          fi
+          echo "✅ prod healthy ($((3-FAILS))/3 probes OK)"
+
+      - name: Open or update outage issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          TITLE="Prod healthcheck failing (external probe)"
+          BODY="External probe of https://stackalchemist.app/api/healthz failed 3/3 times at $(date -u +'%Y-%m-%dT%H:%M:%SZ'). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${{ github.repository }}" --body "$BODY"
+          else
+            gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
+          fi

@@ -10,11 +10,28 @@ on:
   push:
     branches:
       - main
+    # Changes that never reach the shipped images must not cycle prod — a
+    # test-only merge used to cost a full build + maintenance window.
+    # NOTE: content/**/*.md is baked into the web image at build time, so
+    # markdown is NOT blanket-ignored here.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'HANDOFF.md'
+      - 'src/StackAlchemist.Engine.Tests/**'
+      - 'src/StackAlchemist.Web/e2e/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/deploy-test.yml'
+      - '.github/workflows/secret-scan.yml'
+      - '.github/workflows/dependabot-auto-merge.yml'
+      - '.github/workflows/prod-healthwatch.yml'
   workflow_dispatch:
 
 concurrency:
   group: deploy-prod
-  cancel-in-progress: true
+  # Queue deploys instead of cancelling: a cancel that lands between teardown
+  # and swap used to strand the maintenance page until the next run finished.
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -40,6 +57,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Full history so the migration gate below can diff the pushed range
+          # (github.event.before..github.sha) for supabase/migrations changes.
+          fetch-depth: 0
 
       - name: Explain OIDC usage
         run: |
@@ -99,12 +120,12 @@ jobs:
         # error_category, and the generations RLS lockdown) while the deployed
         # code already depended on them — paid checkout webhooks were failing.
         #
-        # Bootstrap-friendly gate: SKIP with a loud warning when the secret is
-        # absent (so the pipeline isn't bricked before PROD_SUPABASE_DB_URL is
-        # configured), but HARD-FAIL when the secret is present-but-broken or
-        # the push fails — that's the real drift-prevention. Add the secret to
-        # the prod environment to flip this from advisory to enforcing.
-        # See docs/runbooks/ci-supabase-migrations.md.
+        # Bootstrap-friendly gate: when the secret is absent, SKIP with a loud
+        # warning — UNLESS the push itself contains migration changes, in which
+        # case the deploy hard-fails (shipping that code would guarantee drift).
+        # With the secret present, hard-fail on any broken URL or failed push.
+        # Add the secret to the prod environment to flip this from advisory to
+        # fully enforcing. See docs/runbooks/ci-supabase-migrations.md.
         shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
@@ -112,6 +133,19 @@ jobs:
           set -Eeuo pipefail
 
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            # Drift guard: if THIS push changes supabase/migrations, shipping
+            # its code against a schema prod cannot receive re-creates the June
+            # incident (paid checkout silently broken ~3 weeks). Fail loudly
+            # instead. Pushes without migration changes still skip-with-warning
+            # so the pipeline stays bootstrap-friendly until the secret exists.
+            BEFORE="${{ github.event.before }}"
+            if [ "${{ github.event_name }}" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              if git diff --name-only "$BEFORE" "${{ github.sha }}" -- supabase/migrations 2>/dev/null | grep -q .; then
+                echo "::error::This push changes supabase/migrations but PROD_SUPABASE_DB_URL is unset — deploying would run new code against a stale prod schema. Set the secret (prod environment) or apply the migrations manually (with matching schema_migrations ledger rows), then re-run this workflow. See docs/runbooks/ci-supabase-migrations.md."
+                echo "### ❌ Deploy blocked: migration changes in this push cannot be applied (PROD_SUPABASE_DB_URL unset)" >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+              fi
+            fi
             echo "::warning::PROD_SUPABASE_DB_URL is not set — SKIPPING automatic migration apply. Prod schema parity is NOT enforced on this deploy. Add the secret (prod environment) to enable it. Format: postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres — same shape as CI_SUPABASE_DB_URL. See docs/runbooks/ci-supabase-migrations.md."
             echo "### ⚠️ Supabase migrations NOT applied (PROD_SUPABASE_DB_URL unset)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -172,43 +206,6 @@ jobs:
         shell: bash
         run: docker compose -f docker-compose.prod.yml config >/dev/null
 
-      - name: Start maintenance page
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          # Tear down old app containers before building so the build doesn't race
-          # with running containers consuming RAM. sa-tunnel is intentionally
-          # excluded — it's a long-lived standalone container that must survive
-          # deploys to avoid Cloudflare Error 1033.
-          docker rm -f sa-web sa-engine sa-reverse-proxy 2>/dev/null || true
-
-          # Ensure the prod network exists so the maintenance container and
-          # the persistent tunnel can communicate.
-          docker network create stackalchemist-prod 2>/dev/null || true
-
-          # Swap in a lightweight maintenance nginx as sa-reverse-proxy.
-          # This keeps the tunnel serving real HTTP traffic (maintenance page)
-          # throughout the 4–8 min build window instead of returning a 1033.
-          # --network-alias mirrors the compose alias so CF tunnel ingress keeps
-          # resolving whichever hostname it's pointed at.
-          docker run -d \
-            --name sa-reverse-proxy \
-            --restart no \
-            --network stackalchemist-prod \
-            --network-alias reverse-proxy \
-            -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
-            -v "$(pwd)/docker/nginx-maintenance.conf:/etc/nginx/conf.d/default.conf:ro" \
-            nginx:alpine
-
-          # Reconnect the persistent tunnel to the network so it can route to
-          # the maintenance container. Fails silently if tunnel doesn't exist yet.
-          if docker inspect sa-tunnel &>/dev/null; then
-            docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
-            echo "✅ sa-tunnel connected — maintenance page is live."
-          else
-            echo "ℹ️  sa-tunnel not found — tunnel will connect after first manual setup."
-          fi
-
       - name: Build production images
         shell: bash
         env:
@@ -216,12 +213,18 @@ jobs:
           COMPOSE_PARALLEL_LIMIT: '1'
         run: |
           set -Eeuo pipefail
-          echo "Building images in workspace root (sequentially to save resources)..."
+          # Build BEFORE any teardown: the live stack keeps serving traffic for
+          # the whole 4–8 min build, and a failed build aborts the deploy with
+          # the previous version still up — a red deploy is no longer an outage.
+          # Builds stay sequential to respect the small ARM box; if the first
+          # attempt OOMs against the running stack, the retry prunes the builder
+          # cache and tries once more before giving up (stack still untouched).
+          echo "Building images in workspace root (sequentially, live stack still serving)..."
           for service in sa-web sa-engine; do
             attempt=1
             until docker compose -f docker-compose.prod.yml build "$service"; do
               if [ "$attempt" -ge 2 ]; then
-                echo "❌ Failed to build $service after $attempt attempts."
+                echo "❌ Failed to build $service after $attempt attempts. Previous version is still serving traffic — no outage."
                 exit 1
               fi
               attempt=$((attempt + 1))
@@ -245,26 +248,85 @@ jobs:
           sudo systemctl enable stackalchemist-prod.service
           echo "✅ Reboot resilience configured at $DEPLOY_DIR"
 
-      - name: Build and deploy production stack
+      - name: Start maintenance page (swap window only)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Images are already built, so this shim fronts only the short
+          # container-swap window (~30–60s), not the multi-minute build.
+          # sa-tunnel is intentionally untouched — it's a long-lived standalone
+          # container that must survive deploys to avoid Cloudflare Error 1033.
+          docker network create stackalchemist-prod 2>/dev/null || true
+
+          # Replace the real reverse proxy with the maintenance shim.
+          # --network-alias mirrors the compose alias so CF tunnel ingress keeps
+          # resolving whichever hostname it's pointed at.
+          docker rm -f sa-reverse-proxy 2>/dev/null || true
+          docker run -d \
+            --name sa-reverse-proxy \
+            --restart no \
+            --network stackalchemist-prod \
+            --network-alias reverse-proxy \
+            -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
+            -v "$(pwd)/docker/nginx-maintenance.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine
+
+          # Connect the persistent tunnel so it can route to the shim.
+          if docker inspect sa-tunnel &>/dev/null; then
+            docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
+            echo "✅ sa-tunnel connected — maintenance page is live for the swap."
+          else
+            echo "ℹ️  sa-tunnel not found — tunnel will connect after first manual setup."
+          fi
+
+      - name: Deploy production stack
         shell: bash
         env:
-          DOCKER_BUILDKIT: '1'
           COMPOSE_PARALLEL_LIMIT: '1'
         run: |
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
 
-          # Remove the maintenance sa-reverse-proxy before compose up so
-          # --force-recreate can create the real container without a name conflict.
-          # sa-tunnel is NOT removed — it is a long-lived standalone container
-          # managed outside compose to avoid Cloudflare Error 1033 on every deploy.
+          # Recreate the app containers behind the maintenance shim, wait for
+          # health, and only THEN swap nginx in — visitors see the maintenance
+          # page for the recreate window and a few seconds of proxy swap,
+          # instead of the whole build.
+          docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans sa-web sa-engine
+
+          # Make sure the standalone tunnel is attached before nginx swaps in.
+          if docker inspect sa-tunnel &>/dev/null; then
+            docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
+          fi
+
+          echo "Waiting for sa-web / sa-engine to become healthy..."
+          MAX_WAIT=120
+          INTERVAL=5
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            WEB=$(docker inspect --format '{{.State.Health.Status}}' sa-web 2>/dev/null || echo missing)
+            ENGINE=$(docker inspect --format '{{.State.Health.Status}}' sa-engine 2>/dev/null || echo missing)
+            if [ "$WEB" = "healthy" ] && [ "$ENGINE" = "healthy" ]; then
+              echo "✅ App containers healthy after ${ELAPSED}s"
+              break
+            fi
+            echo "⏳ sa-web=$WEB sa-engine=$ENGINE (${ELAPSED}s / ${MAX_WAIT}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "❌ FATAL: app containers not healthy within ${MAX_WAIT}s — leaving maintenance shim up."
+            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml logs --tail 30
+            exit 1
+          fi
+
+          # Swap: replace the maintenance shim with the real reverse proxy.
+          # sa-web/sa-engine are already healthy, so nginx starts immediately —
+          # the shim-to-nginx gap is a few seconds, not a health-wait.
           docker rm -f sa-reverse-proxy 2>/dev/null || true
+          docker compose -f docker-compose.prod.yml up -d reverse-proxy
 
-          docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
-
-          # Reconnect the persistent tunnel to the freshly-created network.
-          # compose up creates a new stackalchemist-prod network; the standalone
-          # sa-tunnel container loses access to sa-reverse-proxy by container name.
+          # Reconnect the persistent tunnel in case compose recreated the network.
           if docker inspect sa-tunnel &>/dev/null; then
             docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true
             echo "✅ sa-tunnel reconnected to stackalchemist-prod network."
