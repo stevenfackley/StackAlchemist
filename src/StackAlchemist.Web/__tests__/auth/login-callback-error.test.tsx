@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-// Stub useSearchParams to inject ?error=auth_callback_failed
+// Stub useSearchParams to inject ?error=auth_callback_failed (mutable so
+// individual tests can add ?reason=)
+const mockParams = vi.hoisted(() => ({ value: "error=auth_callback_failed" }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("error=auth_callback_failed"),
+  useSearchParams: () => new URLSearchParams(mockParams.value),
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -19,6 +21,13 @@ describe("Login — ?error=auth_callback_failed", () => {
     render(<LoginPage />);
     expect(screen.getByTestId("login-callback-error")).toBeInTheDocument();
     expect(screen.getByText(/sign-in link expired or invalid/i)).toBeInTheDocument();
+  });
+
+  it("shows the failure reason when /auth/callback forwards one", () => {
+    mockParams.value = "error=auth_callback_failed&reason=flow_state_not_found";
+    render(<LoginPage />);
+    expect(screen.getByText(/flow_state_not_found/)).toBeInTheDocument();
+    mockParams.value = "error=auth_callback_failed";
   });
 
   it("clicking 'send a new magic link' switches to magic mode", () => {
