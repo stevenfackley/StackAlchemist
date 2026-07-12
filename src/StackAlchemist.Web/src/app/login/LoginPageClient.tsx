@@ -16,6 +16,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const returnTo = searchParams?.get("returnTo") ?? "/";
   const callbackError = searchParams?.get("error") === "auth_callback_failed";
+  const callbackReason = searchParams?.get("reason");
 
   const emailRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
@@ -82,7 +83,11 @@ function LoginPageContent() {
           {/* Callback error — shown when /auth/callback redirects here with ?error= */}
           {callbackError && (
             <Alert variant="error" data-testid="login-callback-error">
-              Sign-in link expired or invalid.{" "}
+              Sign-in link expired or invalid
+              {callbackReason ? (
+                <span className="font-mono text-xs"> ({callbackReason})</span>
+              ) : null}
+              .{" "}
               <button
                 type="button"
                 className="underline underline-offset-2 hover:no-underline"
