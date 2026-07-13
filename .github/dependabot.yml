@@ -44,6 +44,10 @@ updates:
       # See PRs #65 (original pin) and the follow-up that re-pinned after Dependabot bypassed via #72.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # TypeScript 7.0 is the native "Corsa" rewrite — a breaking major that
+      # fails typecheck (Dependabot #222, closed 2026-07-13). Allow 6.x, block 7+.
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
 
   - package-ecosystem: npm
     directory: /src/StackAlchemist.Templates
