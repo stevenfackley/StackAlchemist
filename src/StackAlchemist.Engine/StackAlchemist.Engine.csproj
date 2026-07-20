@@ -47,7 +47,7 @@
          read-only in Microsoft.OpenApi 3.x (CS0200 in generated code; see
          Dependabot #206). Revisit when Microsoft.AspNetCore.OpenApi supports
          OpenApi 3.x. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.10.0" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
     <PackageReference Include="Stripe.net" Version="52.1.1" />
     <PackageReference Include="System.IO.Abstractions" Version="22.*" />
   </ItemGroup>
