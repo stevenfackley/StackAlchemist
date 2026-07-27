@@ -60,3 +60,100 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
+
+  # ── Added by the project-wide Dependabot sweep ──────────────────────────
+  # Ecosystems present in the repo that no existing entry covered.
+  - package-ecosystem: "npm"
+    directories:
+      - "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/cdk"
+      - "/src/StackAlchemist.Templates/V0-Spark-NextJs"
+      - "/src/StackAlchemist.Templates/V1-DotNet-NextJs/nextjs"
+      - "/src/StackAlchemist.Templates/V1-Python-React/frontend"
+      - "/src/StackAlchemist.Templates/V2-DotNet-NextJs/nextjs"
+      - "/src/StackAlchemist.Templates/V2-Python-React/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "deps(npm)"
+      include: "scope"
+    groups:
+      javascript-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/src/StackAlchemist.Templates/V1-Python-React/backend"
+      - "/src/StackAlchemist.Templates/V2-Python-React/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps(pip)"
+      include: "scope"
+    groups:
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/src/StackAlchemist.Templates/V1-DotNet-NextJs/infra"
+      - "/src/StackAlchemist.Templates/V1-Python-React/infra"
+      - "/src/StackAlchemist.Templates/V2-Python-React/infra"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker)"
+
+  - package-ecosystem: "helm"
+    directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/helm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "helm"
+    commit-message:
+      prefix: "deps(helm)"
+
+  - package-ecosystem: "terraform"
+    directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/terraform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+    commit-message:
+      prefix: "deps(terraform)"
