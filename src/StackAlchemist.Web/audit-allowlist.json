@@ -1,0 +1,21 @@
+{
+  "comment": [
+    "Advisories the audit gate (scripts/audit-gate.mjs) tolerates, and only",
+    "because no upstream fix exists yet. Every entry must be dev-only, must",
+    "carry an expiry, and is re-checked on each run: the gate fails if an",
+    "entry expires, if the advisory starts affecting a production dependency,",
+    "or if it stops matching (upstream shipped a fix — delete the entry).",
+    "",
+    "This file is not a way to silence a fixable finding. If `npm audit` can",
+    "resolve it with an override or an upgrade, do that instead."
+  ],
+  "allow": [
+    {
+      "advisory": "GHSA-mh99-v99m-4gvg",
+      "package": "brace-expansion",
+      "scope": "dev",
+      "expires": "2026-10-31",
+      "reason": "DoS via unbounded expansion length. Patched only in brace-expansion 5.0.8 — the advisory covers the entire <=5.0.7 range, so the 1.x line has no fixed release at all. Our remaining exposure is minimatch@3.1.5, which pins brace-expansion ^1.1.7 and calls it as a bare function; brace-expansion 5 is a named-export module, so forcing it there breaks eslint at runtime. minimatch@3 reaches us only through eslint 9 and the eslint-config-next plugin set (eslint-plugin-import/jsx-a11y/react), whose latest releases still pin minimatch ^3.1.2 and cap their eslint peer at 9. `npm audit fix --force` 'resolves' this by downgrading eslint-config-next from ^16.2.10 to ^0.2.4, which is not a fix. Lint-time only, never shipped to users. Revisit when the eslint-config-next plugins move off minimatch 3."
+    }
+  ]
+}

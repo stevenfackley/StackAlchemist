@@ -57,7 +57,10 @@ jobs:
         run: npm run lint
 
       - name: Audit Dependencies
-        run: npm audit --audit-level=moderate
+        # Wraps `npm audit` so that advisories with no upstream fix can be
+        # allowlisted individually (audit-allowlist.json) instead of forcing us
+        # to weaken the gate for everything. See scripts/audit-gate.mjs.
+        run: npm run audit:ci
 
       - name: Type Check
         run: npx tsc --noEmit

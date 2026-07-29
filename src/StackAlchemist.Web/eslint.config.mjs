@@ -22,6 +22,14 @@ const config = [
       'react-hooks/exhaustive-deps': 'warn',
     },
   },
+  {
+    // Build and CI scripts are terminal tools — stdout is their interface, not
+    // a stray debug statement left in shipped code.
+    files: ['scripts/**/*.{mjs,cjs,js}'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ];
 
 export default config;
