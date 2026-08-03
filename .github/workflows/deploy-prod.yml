@@ -17,7 +17,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'README.md'
-      - 'HANDOFF.md'
       - 'src/StackAlchemist.Engine.Tests/**'
       - 'src/StackAlchemist.Web/e2e/**'
       - '.github/workflows/ci.yml'

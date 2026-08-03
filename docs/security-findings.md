@@ -89,3 +89,22 @@ If `NEXT_PUBLIC_IS_TEST_SITE=true` but credentials are missing, the middleware l
 **[I6] is stale.** `Microsoft.OpenApi` 2.0.0 — pulled in transitively via `Microsoft.AspNetCore.OpenApi` 10.0.9 — was later flagged as GHSA-v5pm-xwqc-g5wc (NU1903, High; the vulnerable range runs through 2.7.4). Fixed in PR #182 by pinning `Microsoft.OpenApi` explicitly to **2.7.5** and adding a `dotnet list package --vulnerable --include-transitive` gate to the backend CI job (counterpart to the existing `npm audit` step), so the next regression fails CI instead of going unnoticed.
 
 **CI Gap #2 (coverage thresholds not enforced) is also closed**, in the same PR. `@vitest/coverage-v8` had never actually been installed — the configured 80% thresholds never ran, and the "Upload Coverage" artifact was uploading an empty directory. PR #182 installs the provider, fixes the `include` globs (they pointed at `app/**`; source lives under `src/`), and replaces the fictional 80% thresholds with measured ratchet floors (`lines: 30, branches: 26, functions: 23, statements: 30` — 2026-07-04 baseline was ~32.7% lines) enforced as a blocking CI gate via `vitest.config.ts`.
+
+---
+
+### 2026-07-28 addendum
+
+**Nightly CI was red on `npm audit`, not on tests.** The `Audit Dependencies` step had been failing on `main` with 11 high-severity findings across two advisories.
+
+**Fixed properly:**
+
+| Package | Advisory | Resolution |
+|---|---|---|
+| `postcss` | GHSA-r28c-9q8g-f849 (path traversal via `sourceMappingURL` auto-loading) | Override raised `^8.5.10` → `^8.5.18`; the pin sat below the patched version. Reaches us through `next`, so this was a **production** exposure. |
+| `brace-expansion` (via `minimatch@10`) | GHSA-mh99-v99m-4gvg (DoS via unbounded expansion length) | Override raised `^5.0.7` → `^5.0.8`, the patched release. |
+
+Production dependencies now audit clean (`npm audit --omit=dev` → 0 vulnerabilities).
+
+**Accepted, with a gate that keeps it honest:** GHSA-mh99-v99m-4gvg is patched *only* in `brace-expansion` 5.0.8 — the advisory covers the whole `<=5.0.7` range, so the 1.x line has no fixed release. Our remaining exposure is `minimatch@3.1.5`, which pins `brace-expansion@^1.1.7` and calls it as a bare function; `brace-expansion@5` is a named-export module (`{ expand }`), so forcing it there breaks ESLint at runtime rather than fixing anything. `minimatch@3` reaches us only via ESLint 9 and the `eslint-config-next` plugin set (`eslint-plugin-import` / `-jsx-a11y` / `-react`), whose latest releases still pin `minimatch@^3.1.2` and cap their `eslint` peer at 9. There is no upgrade path today. For the record, `npm audit fix --force` "resolves" this by downgrading `eslint-config-next` from `^16.2.10` to `^0.2.4` — verified, and not a fix.
+
+**CI Gap #1 revisited.** The `npm audit --audit-level=moderate` step recommended above turned out to be all-or-nothing: one unfixable advisory would have kept CI red indefinitely, and the usual workarounds (drop the step, or add `--omit=dev`) stop gating production dependencies too. The step now runs `npm run audit:ci` → `scripts/audit-gate.mjs`, which fails on every moderate-or-worse advisory except those listed in `audit-allowlist.json`, and fails on the exceptions themselves when an entry expires, starts affecting a production dependency, covers a different package than recorded, or stops matching anything (upstream shipped a fix — delete the entry). The `brace-expansion` exception is dev-only and expires **2026-10-31**.

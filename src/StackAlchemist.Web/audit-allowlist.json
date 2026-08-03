@@ -1,0 +1,13 @@
+{
+  "comment": [
+    "Advisories the audit gate (scripts/audit-gate.mjs) tolerates, and only",
+    "because no upstream fix exists yet. Every entry must be dev-only, must",
+    "carry an expiry, and is re-checked on each run: the gate fails if an",
+    "entry expires, if the advisory starts affecting a production dependency,",
+    "or if it stops matching (upstream shipped a fix — delete the entry).",
+    "",
+    "This file is not a way to silence a fixable finding. If `npm audit` can",
+    "resolve it with an override or an upgrade, do that instead."
+  ],
+  "allow": []
+}
