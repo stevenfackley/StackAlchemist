@@ -1,0 +1,19 @@
+name: Tracker Guard
+
+# Guards this site's banner-free status: only the Supabase PKCE auth cookie
+# ships (strictly-necessary exemption; fleet audit 2026-08-05), so no
+# cookie-consent dialog is required. If this gate fails, switch to a
+# cookieless alternative or add consent gating before merging — see
+# stevenfackley/gh-actions tracker-guard for details.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tracker-guard:
+    uses: stevenfackley/gh-actions/.github/workflows/tracker-guard.yml@v1
