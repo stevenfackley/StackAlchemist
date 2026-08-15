@@ -59,6 +59,24 @@ describe("parseBuildReportSummary", () => {
     expect(verifiedHalves(summary).map((h) => h.half)).toEqual(["dotnet"]);
   });
 
+  it("carries whatever halves the stack has, without an allowlist of stack names", () => {
+    // A FastAPI + React generation reports `python` / `react`. Nothing in the parser or the
+    // panel may assume .NET + Next.js — assuming it is what shipped those customers a report
+    // about a stack they never chose.
+    const summary = parseBuildReportSummary(
+      log({
+        ...verified,
+        halves: [
+          { half: "python", label: "FastAPI", status: "passed" },
+          { half: "react", label: "React", status: "failed" },
+        ],
+      })
+    );
+
+    expect(summary!.halves.map((h) => h.label)).toEqual(["FastAPI", "React"]);
+    expect(verifiedHalves(summary).map((h) => h.half)).toEqual(["python"]);
+  });
+
   it.each([
     ["no log at all", null],
     ["a log with no report block", "Build succeeded.\nBUILD SUCCEEDED"],

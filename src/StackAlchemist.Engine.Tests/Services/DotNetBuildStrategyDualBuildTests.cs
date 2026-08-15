@@ -122,19 +122,62 @@ public sealed class DotNetBuildStrategyDualBuildTests : IDisposable
     {
         // The correction loop legitimately adds dependencies, which desyncs the lockfile and
         // makes `npm ci` hard-fail. That is not a compile failure and must not spend a retry.
-        WritePackageJson(withTypecheck: false);
-        var strategy = new StubbedStrategy
-        {
-            Failures = { ["ci --no-audit --no-fund"] = new StubResponse(1, "npm ERR! `npm ci` can only install with an existing package-lock.json") },
-        };
+        var result = await NpmCiFallbackBuildAsync();
 
-        var result = await strategy.ExecuteBuildAsync(_root);
-
-        result.IsSuccess.Should().BeTrue();
-        strategy.Commands.Should().ContainInOrder(
+        result.Strategy.Commands.Should().ContainInOrder(
             "npm ci --no-audit --no-fund",
             "npm install --no-audit --no-fund",
             "npm run build");
+
+        result.Build.IsSuccess.Should().BeTrue();
+
+        // The failed `npm ci` is kept as evidence — but flagged, because a step whose work a
+        // later step redid decided nothing about whether the frontend compiles.
+        var ciStep = result.Build.Steps.Single(s => s.Command == "npm ci");
+        ciStep.ExitCode.Should().Be(1);
+        ciStep.Superseded.Should().BeTrue();
+        result.Build.Steps.Single(s => s.Command == "npm install").Superseded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task NpmCiFallback_DoesNotReportTheFrontendHalfAsFailed()
+    {
+        // The customer-visible half of the bug. `npm ci` failing and `npm install` succeeding
+        // is the DOCUMENTED common path, and it used to ship an archive whose
+        // build-report.json said `"status": "verified"` and `halves[nextjs] = "failed"` in the
+        // same file — with the delivery page rendering "compiled and verified" directly above
+        // a red "Next.js failed to compile".
+        var result = await NpmCiFallbackBuildAsync();
+
+        var job = new GenerationContext
+        {
+            GenerationId = "gen-npm-ci",
+            Mode = "advanced",
+            Tier = 2,
+            ProjectType = ProjectType.DotNetNextJs,
+        };
+        job.BuildAttempts.Add(new BuildAttemptRecord
+        {
+            Attempt = 1,
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Passed = result.Build.IsSuccess,
+            Steps = result.Build.Steps,
+            Output = result.Build.StandardOutput,
+        });
+
+        var report = BuildReportWriter.Create(job, maxAttempts: 3, DateTimeOffset.UtcNow);
+
+        report.Status.Should().Be("verified");
+        var frontend = report.Halves.Single(h => h.Half == "nextjs");
+        frontend.Status.Should().Be("passed", "the frontend compiled; only the lockfile install was retried");
+        frontend.Commands.Should().NotContain("npm ci", "a superseded command did not produce the verdict");
+        frontend.Commands.Should().ContainInOrder("npm install", "npm run build");
+
+        // The evidence survives in the audit trail, correctly labelled.
+        var ciStep = report.Attempts[0].Steps.Single(s => s.Command == "npm ci");
+        ciStep.Status.Should().Be("superseded");
+        ciStep.ExitCode.Should().Be(1);
     }
 
     [Fact]
@@ -183,6 +226,21 @@ public sealed class DotNetBuildStrategyDualBuildTests : IDisposable
         var buildStep = result.Steps.Single(s => s.Command == "dotnet build --no-restore");
         buildStep.WarningCount.Should().Be(1);
         buildStep.ErrorCount.Should().Be(0);
+    }
+
+    /// <summary>
+    /// A build where only `npm ci` fails — the lockfile-desync path the strategy is designed
+    /// to recover from, and the one the report used to misreport.
+    /// </summary>
+    private async Task<(StubbedStrategy Strategy, BuildResult Build)> NpmCiFallbackBuildAsync()
+    {
+        WritePackageJson(withTypecheck: false);
+        var strategy = new StubbedStrategy
+        {
+            Failures = { ["ci --no-audit --no-fund"] = new StubResponse(1, "npm ERR! `npm ci` can only install with an existing package-lock.json") },
+        };
+
+        return (strategy, await strategy.ExecuteBuildAsync(_root));
     }
 
     private void WritePackageJson(bool withTypecheck)

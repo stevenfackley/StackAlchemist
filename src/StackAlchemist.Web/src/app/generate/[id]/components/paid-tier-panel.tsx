@@ -39,9 +39,15 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
   // The badge is driven by what the compile worker actually recorded, not by the fact that
   // a row reached "success". It used to read "Compile Verified" unconditionally — on
   // Blueprints that are never compiled, and on archives whose Next.js half was never built.
-  const buildReport = COMPILE_GUARANTEED_TIERS.includes(generation.tier)
+  const recordedVerdict = COMPILE_GUARANTEED_TIERS.includes(generation.tier)
     ? parseBuildReportSummary(generation.build_log)
     : null;
+
+  // A verdict that names no halves states nothing about what compiled, so it is not one:
+  // showing "compiled and verified" over an empty badge row would be the same unearned claim
+  // in a new shape. Halves are per stack (.NET/Next.js, FastAPI/React) and come from the
+  // report — the panel never assumes which stack it is looking at.
+  const buildReport = recordedVerdict && recordedVerdict.halves.length > 0 ? recordedVerdict : null;
 
   // Say "verified" only where the recorded verdict says so; otherwise say what is true —
   // the archive is packaged and downloadable.

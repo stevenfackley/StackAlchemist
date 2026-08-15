@@ -53,10 +53,13 @@ public sealed record BuildReport
 /// <summary>Final-attempt verdict for one half of the deliverable.</summary>
 public sealed record BuildHalfSummary
 {
-    /// <summary><c>dotnet</c> or <c>nextjs</c>.</summary>
+    /// <summary>
+    /// The half's wire name, per the customer's stack: <c>dotnet</c>/<c>nextjs</c>, or
+    /// <c>python</c>/<c>react</c>. See <see cref="BuildHalves"/>.
+    /// </summary>
     public required string Half { get; init; }
 
-    /// <summary>Human label for the UI: ".NET" / "Next.js".</summary>
+    /// <summary>Human label for the UI: ".NET" / "Next.js" / "FastAPI" / "React".</summary>
     public required string Label { get; init; }
 
     /// <summary><c>passed</c>, <c>failed</c>, or <c>skipped</c>.</summary>
@@ -129,7 +132,7 @@ public sealed class BuildAttemptRecord
 /// <summary>Serialized form of <see cref="BuildStepResult"/>.</summary>
 public sealed record BuildStepReport
 {
-    /// <summary><c>dotnet</c> or <c>nextjs</c>.</summary>
+    /// <summary>The half's wire name — see <see cref="BuildHalfSummary.Half"/>.</summary>
     public required string Half { get; init; }
 
     public required string Command { get; init; }
@@ -142,6 +145,9 @@ public sealed record BuildStepReport
 
     public required int WarningCount { get; init; }
 
-    /// <summary><c>passed</c>, <c>failed</c>, or <c>skipped</c>.</summary>
+    /// <summary>
+    /// <c>passed</c>, <c>failed</c>, <c>skipped</c>, or <c>superseded</c> — the last meaning
+    /// the command failed but a retry redid its work, so it decided nothing.
+    /// </summary>
     public required string Status { get; init; }
 }

@@ -174,14 +174,105 @@ public sealed class BuildReportWriterTests : IDisposable
         halves[1].GetProperty("label").GetString().Should().Be("Next.js");
     }
 
+    [Fact]
+    public void SupersededStep_DoesNotCondemnTheHalfThatCompiled()
+    {
+        // `npm ci` hard-fails whenever the correction loop added a dependency, and the
+        // strategy retries it as `npm install`. Counting that retried failure marked the
+        // frontend half "failed" on archives that compiled — in a report whose own top-level
+        // status said "verified".
+        var job = MakeJob();
+        job.BuildAttempts.Add(new BuildAttemptRecord { Attempt = 1, StartedAt = DateTimeOffset.UtcNow }
+            .With(passed: true, steps:
+            [
+                Step(BuildHalf.DotNet, "dotnet restore", 0),
+                Step(BuildHalf.DotNet, "dotnet build --no-restore", 0),
+                Step(BuildHalf.NextJs, "npm ci", 1, errorCount: 1, superseded: true),
+                Step(BuildHalf.NextJs, "npm install", 0),
+                Step(BuildHalf.NextJs, "npm run build", 0),
+            ]));
+
+        var report = BuildReportWriter.Create(job, maxAttempts: 3, DateTimeOffset.UtcNow);
+
+        report.Status.Should().Be("verified");
+        Half(report, "nextjs").Status.Should().Be("passed");
+        Half(report, "nextjs").Commands.Should().Equal("npm install", "npm run build");
+        report.Attempts[0].Steps.Single(s => s.Command == "npm ci").Status.Should().Be("superseded");
+    }
+
+    [Fact]
+    public void SupersededStepFollowedByARealFailure_StillFailsTheHalf()
+    {
+        // Superseding must not launder a genuine failure: if the fallback fails too, nothing
+        // redid its work and the half did not compile.
+        var job = MakeJob();
+        job.BuildAttempts.Add(new BuildAttemptRecord { Attempt = 1, StartedAt = DateTimeOffset.UtcNow }
+            .With(passed: false, steps:
+            [
+                Step(BuildHalf.DotNet, "dotnet build --no-restore", 0),
+                Step(BuildHalf.NextJs, "npm ci", 1, superseded: true),
+                Step(BuildHalf.NextJs, "npm install", 1, errorCount: 4),
+            ]));
+
+        var report = BuildReportWriter.Create(job, maxAttempts: 3, DateTimeOffset.UtcNow);
+
+        report.Status.Should().Be("failed");
+        Half(report, "nextjs").Status.Should().Be("failed");
+    }
+
+    [Fact]
+    public void PythonReactJob_ReportsItsOwnStackNotDotNetAndNextJs()
+    {
+        // FastAPI + React is a live, user-selectable Tier-2 option. The report hardcoded a
+        // ".NET" and a "Next.js" half for every generation, so those customers received a
+        // build-report.json describing a stack they never chose — both halves "not_run",
+        // under `"status": "verified"`, and the delivery page badged exactly that.
+        var job = MakeJob(ProjectType.PythonReact);
+        job.BuildAttempts.Add(new BuildAttemptRecord { Attempt = 1, StartedAt = DateTimeOffset.UtcNow }
+            .With(passed: true, steps:
+            [
+                Step(BuildHalf.Python, "python -m flake8 .", 0),
+                Step(BuildHalf.Python, "python -m pytest --collect-only", 0),
+                Step(BuildHalf.React, "npm run lint", 0),
+                Step(BuildHalf.React, "npx tsc --noEmit", 0),
+            ]));
+
+        var report = BuildReportWriter.Create(job, maxAttempts: 3, DateTimeOffset.UtcNow);
+
+        report.ProjectType.Should().Be("PythonReact");
+        report.Halves.Select(h => h.Half).Should().Equal("python", "react");
+        report.Halves.Select(h => h.Label).Should().Equal("FastAPI", "React");
+        report.Halves.Should().OnlyContain(h => h.Status == "passed");
+        report.Halves.Should().NotContain(h => h.Label == ".NET" || h.Label == "Next.js");
+
+        var summary = BuildReportWriter.ToLogSummary(report);
+        summary.Should().NotContain("Next.js");
+        summary.Should().Contain("\"half\":\"react\"");
+    }
+
+    [Fact]
+    public void PythonReactJob_WithNoRecordedSteps_DoesNotClaimVerifiedHalves()
+    {
+        // Belt and braces on the same bug: even with an empty step list the halves must be
+        // the customer's own, and must read "not_run" rather than borrowing another stack's.
+        var job = MakeJob(ProjectType.PythonReact);
+        job.BuildAttempts.Add(new BuildAttemptRecord { Attempt = 1, StartedAt = DateTimeOffset.UtcNow }
+            .With(passed: true, steps: []));
+
+        var report = BuildReportWriter.Create(job, maxAttempts: 3, DateTimeOffset.UtcNow);
+
+        report.Halves.Select(h => h.Half).Should().Equal("python", "react");
+        report.Halves.Should().OnlyContain(h => h.Status == "not_run");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static GenerationContext MakeJob() => new()
+    private static GenerationContext MakeJob(ProjectType projectType = ProjectType.DotNetNextJs) => new()
     {
         GenerationId = "gen-" + Guid.NewGuid().ToString("N")[..8],
         Mode = "advanced",
         Tier = 2,
-        ProjectType = ProjectType.DotNetNextJs,
+        ProjectType = projectType,
     };
 
     private static BuildHalfSummary Half(BuildReport report, string half) =>
@@ -203,7 +294,8 @@ public sealed class BuildReportWriterTests : IDisposable
         int exitCode,
         int errorCount = 0,
         int warningCount = 0,
-        bool skipped = false) => new()
+        bool skipped = false,
+        bool superseded = false) => new()
         {
             Half = half,
             Command = command,
@@ -212,6 +304,7 @@ public sealed class BuildReportWriterTests : IDisposable
             ErrorCount = errorCount,
             WarningCount = warningCount,
             Skipped = skipped,
+            Superseded = superseded,
         };
 }
 

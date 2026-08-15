@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -52,13 +50,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
         if (!nextResult.IsSuccess)
             return Fail(nextResult, transcript, steps);
 
-        return new BuildResult
-        {
-            ExitCode = 0,
-            StandardOutput = transcript.ToString(),
-            ErrorOutput = string.Empty,
-            Steps = steps,
-        };
+        return Success(transcript, steps);
     }
 
     private async Task<BuildResult> BuildDotNetAsync(
@@ -103,7 +95,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
             // "not built" rather than silently implying "built and passed".
             transcript.AppendLine("[nextjs] no nextjs/package.json — skipping frontend build.");
             steps.Add(Skipped(BuildHalf.NextJs, "npm run build"));
-            return Success();
+            return Success(transcript, steps);
         }
 
         LogRunningNextJs(Logger, nextDir);
@@ -112,6 +104,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
         // package.json and package-lock.json disagree, which is exactly what happens when
         // the LLM pass legitimately adds a dependency to a generated project — so fall back
         // to `npm install`, which re-resolves and rewrites the lockfile.
+        var ciStepIndex = steps.Count;
         var installResult = await RunStepAsync(
             BuildHalf.NextJs, "npm ci", NpmExecutable, "ci --no-audit --no-fund",
             nextDir, transcript, steps, ct);
@@ -119,6 +112,13 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
         if (!installResult.IsSuccess)
         {
             LogNpmCiFallback(Logger, nextDir);
+
+            // Keep the failed `npm ci` as evidence, but mark it superseded: the install
+            // below redoes its work, so it decided nothing. This is the DOCUMENTED common
+            // path, and counting it stamped `halves[nextjs] = "failed"` on archives whose
+            // frontend compiled — inside a report whose own status read "verified".
+            Supersede(steps, ciStepIndex);
+
             installResult = await RunStepAsync(
                 BuildHalf.NextJs, "npm install", NpmExecutable, "install --no-audit --no-fund",
                 nextDir, transcript, steps, ct);
@@ -149,61 +149,6 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
     }
 
     /// <summary>
-    /// Runs one command, appends it to the transcript, and records a <see cref="BuildStepResult"/>.
-    /// <paramref name="displayCommand"/> is what lands in the report and the log — never
-    /// <paramref name="fileName"/>, which on Windows is an absolute path to npm.cmd and would
-    /// leak the build host's filesystem layout into a customer-facing artifact.
-    /// </summary>
-    private async Task<BuildResult> RunStepAsync(
-        BuildHalf half,
-        string displayCommand,
-        string fileName,
-        string arguments,
-        string workingDirectory,
-        StringBuilder transcript,
-        List<BuildStepResult> steps,
-        CancellationToken ct)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = await RunProcessAsync(fileName, arguments, workingDirectory, ct);
-        stopwatch.Stop();
-
-        Append(transcript, displayCommand, result);
-
-        // Count over stdout AND stderr: `dotnet` writes diagnostics to stdout while `next
-        // build` and npm write most of theirs to stderr, and RunProcessAsync only mirrors
-        // stdout into ErrorOutput when stderr came back empty.
-        var combined = result.StandardOutput + "\n" + result.ErrorOutput;
-        steps.Add(new BuildStepResult
-        {
-            Half = half,
-            Command = displayCommand,
-            ExitCode = result.ExitCode,
-            DurationMs = stopwatch.ElapsedMilliseconds,
-            ErrorCount = ExtractBuildErrors(combined).Count,
-            WarningCount = WarningRegex().Count(combined),
-        });
-
-        return result;
-    }
-
-    private static BuildResult Success() => new()
-    {
-        ExitCode = 0,
-        StandardOutput = string.Empty,
-        ErrorOutput = string.Empty,
-    };
-
-    private static BuildStepResult Skipped(BuildHalf half, string command) => new()
-    {
-        Half = half,
-        Command = command,
-        ExitCode = 0,
-        DurationMs = 0,
-        Skipped = true,
-    };
-
-    /// <summary>
     /// True when <c>package.json</c> defines the named npm script. A malformed package.json
     /// is treated as "no script" rather than thrown: the build itself is about to fail on it
     /// with a far better message than a JSON parse exception from the verifier.
@@ -224,28 +169,6 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
             LogPackageJsonUnreadable(Logger, ex, packageJsonPath);
             return false;
         }
-    }
-
-    /// <summary>
-    /// Carries the failing step's exit code and stderr while replacing stdout with the
-    /// whole-run transcript, so the repair loop and the persisted build_log show every
-    /// command that ran, not just the one that blew up.
-    /// </summary>
-    private static BuildResult Fail(BuildResult failed, StringBuilder transcript, List<BuildStepResult> steps) => new()
-    {
-        ExitCode = failed.ExitCode,
-        StandardOutput = transcript.ToString(),
-        ErrorOutput = failed.ErrorOutput,
-        Steps = steps,
-    };
-
-    private static void Append(StringBuilder transcript, string step, BuildResult result)
-    {
-        transcript.AppendLine(CultureInfo.InvariantCulture, $"$ {step}  (exit {result.ExitCode})");
-        transcript.AppendLine(result.StandardOutput);
-        if (!result.IsSuccess && !string.IsNullOrWhiteSpace(result.ErrorOutput))
-            transcript.AppendLine(result.ErrorOutput);
-        transcript.AppendLine();
     }
 
     [LoggerMessage(EventId = 1099, Level = LogLevel.Information, Message = "Running dotnet restore in {Dir}")]

@@ -77,6 +77,37 @@ describe("PaidTierPanel — compile verdict", () => {
     expect(verdict).not.toHaveTextContent("Compile Verified");
   });
 
+  it("badges the FastAPI + React stack from the report, not a hardcoded .NET pair", () => {
+    // FastAPI + React is a live Tier-2 option, and its report used to describe a ".NET" and
+    // a "Next.js" half the customer never chose.
+    render(
+      <PaidTierPanel
+        generation={makeGeneration({
+          project_type: "PythonReact",
+          build_log: buildLog([
+            { half: "python", label: "FastAPI", status: "passed" },
+            { half: "react", label: "React", status: "passed" },
+          ]),
+        })}
+      />
+    );
+
+    const verdict = screen.getByTestId("compile-verdict");
+    expect(verdict).toHaveTextContent("FastAPI");
+    expect(verdict).toHaveTextContent("React");
+    expect(verdict).not.toHaveTextContent(".NET");
+    expect(verdict).not.toHaveTextContent("Next.js");
+  });
+
+  it("treats a verdict that names no halves as no record at all", () => {
+    // "verified" with nothing to point at is not a verdict; claiming it would be the same
+    // unearned badge in a new shape.
+    render(<PaidTierPanel generation={makeGeneration({ build_log: buildLog([]) })} />);
+
+    expect(screen.getByTestId("compile-verdict")).toHaveTextContent("Build record unavailable");
+    expect(screen.queryByText(/compiled and verified/i)).toBeNull();
+  });
+
   it("says the build record is unavailable rather than assuming verification", () => {
     render(<PaidTierPanel generation={makeGeneration({ build_log: "no report here" })} />);
 

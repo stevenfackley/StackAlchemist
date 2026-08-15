@@ -107,6 +107,58 @@ public sealed class CompileWorkerBuildReportTests
     }
 
     [Fact]
+    public async Task PythonReactArchive_ShipsAReportAboutFastApiAndReact()
+    {
+        // FastAPI + React is a live Tier-2 option. Its archive used to carry a report naming
+        // a ".NET" and a "Next.js" half — both "not_run" — under `"status": "verified"`.
+        var outputDir = MakeTempOutputDir();
+        var job = MakeJob(outputDir, tier: 2, GenerationState.Building, ProjectType.PythonReact);
+
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new BuildResult
+            {
+                ExitCode = 0,
+                StandardOutput = "$ python -m flake8 .  (exit 0)",
+                ErrorOutput = string.Empty,
+                Steps =
+                [
+                    Step(BuildHalf.Python, "python -m flake8 ."),
+                    Step(BuildHalf.Python, "python -m pytest --collect-only"),
+                    Step(BuildHalf.React, "npm run lint"),
+                    Step(BuildHalf.React, "npx tsc --noEmit"),
+                ],
+            }));
+
+        string? reportJson = null;
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var path = Path.Combine(call.ArgAt<string>(1), BuildReportWriter.FileName);
+                if (File.Exists(path))
+                    reportJson = File.ReadAllText(path);
+                return "https://r2.test/py-react";
+            });
+
+        await RunWorkerAsync(job, compile, r2, Substitute.For<IDeliveryService>());
+
+        reportJson.Should().NotBeNull();
+        using var document = JsonDocument.Parse(reportJson!);
+        var root = document.RootElement;
+
+        root.GetProperty("projectType").GetString().Should().Be("PythonReact");
+        root.GetProperty("status").GetString().Should().Be("verified");
+
+        var halves = root.GetProperty("halves").EnumerateArray()
+            .ToDictionary(h => h.GetProperty("half").GetString()!, h => h.GetProperty("status").GetString());
+        halves.Should().HaveCount(2);
+        halves["python"].Should().Be("passed");
+        halves["react"].Should().Be("passed");
+        reportJson.Should().NotContain("Next.js", "the customer never chose that stack");
+    }
+
+    [Fact]
     public async Task Tier1Blueprint_ShipsNoBuildReport()
     {
         // Nothing in a Blueprint is compiled. A report in that archive would be an unearned
@@ -139,12 +191,16 @@ public sealed class CompileWorkerBuildReportTests
         DurationMs = 2_500,
     };
 
-    private static GenerationContext MakeJob(string outputDir, int tier, GenerationState state) => new()
+    private static GenerationContext MakeJob(
+        string outputDir,
+        int tier,
+        GenerationState state,
+        ProjectType projectType = ProjectType.DotNetNextJs) => new()
     {
         GenerationId = "report-" + Guid.NewGuid().ToString("N")[..8],
         Mode = "advanced",
         Tier = tier,
-        ProjectType = ProjectType.DotNetNextJs,
+        ProjectType = projectType,
         Prompt = "Build an invoicing app",
         OutputDirectory = outputDir,
         State = state,

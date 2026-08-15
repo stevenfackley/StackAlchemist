@@ -305,14 +305,67 @@ public sealed class BuildResult
 }
 
 /// <summary>
-/// Which half of the V1 deliverable a build step belongs to. Serialized into
+/// Which half of the deliverable a build step belongs to. Serialized into
 /// <c>build-report.json</c>, so the wire values are part of the customer-facing contract
 /// documented in <c>docs/advanced-docs/compile-guarantee.md</c>.
+///
+/// The halves are per stack: a <see cref="ProjectType.DotNetNextJs"/> archive has a .NET and
+/// a Next.js half, a <see cref="ProjectType.PythonReact"/> archive has a FastAPI and a React
+/// one. See <see cref="BuildHalves"/> for the mapping.
 /// </summary>
 public enum BuildHalf
 {
     DotNet,
     NextJs,
+    Python,
+    React,
+}
+
+/// <summary>
+/// The wire name and display label of every <see cref="BuildHalf"/>, and which halves each
+/// <see cref="ProjectType"/> is verified in.
+///
+/// Single source of truth, because getting this wrong is customer-visible: the report used to
+/// hardcode ".NET" and "Next.js" for every generation, so a FastAPI + React customer received a
+/// <c>build-report.json</c> describing two halves of a stack they never chose — both of them
+/// "not_run", under a top-level <c>"status": "verified"</c>.
+///
+/// The wire names are the published contract in <c>docs/advanced-docs/compile-guarantee.md</c>;
+/// renaming one is a breaking change to a document customers are sold on.
+/// </summary>
+public static class BuildHalves
+{
+    private static readonly BuildHalf[] DotNetNextJsHalves = [BuildHalf.DotNet, BuildHalf.NextJs];
+    private static readonly BuildHalf[] PythonReactHalves = [BuildHalf.Python, BuildHalf.React];
+
+    private static readonly Dictionary<BuildHalf, (string Wire, string Label)> Descriptors = new()
+    {
+        [BuildHalf.DotNet] = ("dotnet", ".NET"),
+        [BuildHalf.NextJs] = ("nextjs", "Next.js"),
+        [BuildHalf.Python] = ("python", "FastAPI"),
+        [BuildHalf.React] = ("react", "React"),
+    };
+
+    /// <summary>Value of the <c>half</c> field in <c>build-report.json</c>.</summary>
+    public static string WireName(BuildHalf half) => Descriptors[half].Wire;
+
+    /// <summary>Display name the delivery page badges, e.g. ".NET" / "FastAPI".</summary>
+    public static string Label(BuildHalf half) => Descriptors[half].Label;
+
+    /// <summary>
+    /// The halves a generation of this project type is verified in, in build order.
+    ///
+    /// An unmapped project type reports NO halves rather than borrowing another stack's: an
+    /// empty <c>halves</c> array reads as "no per-half verdict recorded", which the delivery
+    /// page renders honestly, whereas defaulting to .NET + Next.js is the exact bug this map
+    /// was introduced to kill.
+    /// </summary>
+    public static IReadOnlyList<BuildHalf> For(ProjectType projectType) => projectType switch
+    {
+        ProjectType.DotNetNextJs => DotNetNextJsHalves,
+        ProjectType.PythonReact => PythonReactHalves,
+        _ => [],
+    };
 }
 
 /// <summary>Outcome of a single external command inside a build attempt.</summary>
@@ -341,6 +394,19 @@ public sealed record BuildStepResult
     /// also not evidence of compilation — the UI must not badge it as verified.
     /// </summary>
     public bool Skipped { get; init; }
+
+    /// <summary>
+    /// True when this step failed but a later step re-attempted the same work, so its exit
+    /// code did not decide anything — <c>npm ci</c> hard-failing on a desynced lockfile and
+    /// being retried as <c>npm install</c> is the documented common case.
+    ///
+    /// It stays in the report as evidence of what ran, but it must not condemn its half:
+    /// without this flag an archive whose frontend compiled perfectly shipped a
+    /// <c>build-report.json</c> reading <c>"status": "verified"</c> next to
+    /// <c>halves[nextjs].status: "failed"</c>, and the delivery page rendered "compiled and
+    /// verified" directly above a red "Next.js failed to compile".
+    /// </summary>
+    public bool Superseded { get; init; }
 
     public bool IsSuccess => !Skipped && ExitCode == 0;
 }

@@ -62,11 +62,9 @@ public static class BuildReportWriter
             Status = finalAttempt?.Passed == true ? "verified" : "failed",
             AttemptsUsed = attempts.Count,
             MaxAttempts = maxAttempts,
-            Halves =
-            [
-                SummariseHalf(finalAttempt, BuildHalf.DotNet, "dotnet", ".NET"),
-                SummariseHalf(finalAttempt, BuildHalf.NextJs, "nextjs", "Next.js"),
-            ],
+            // Per the job's OWN stack. Hardcoding .NET + Next.js shipped a FastAPI + React
+            // customer a report about two halves of a stack they never chose.
+            Halves = [.. BuildHalves.For(job.ProjectType).Select(half => SummariseHalf(finalAttempt, half))],
             Attempts = [.. attempts.Select(ToAttemptReport)],
         };
     }
@@ -123,14 +121,18 @@ public static class BuildReportWriter
     /// because the other half failed first) is not the same claim as <c>skipped</c> (the
     /// step was reached and deliberately not needed), and neither is <c>passed</c>. Only
     /// <c>passed</c> is evidence of compilation, and only <c>passed</c> may be badged.
+    ///
+    /// Superseded steps are excluded from the verdict entirely: a step whose work a later
+    /// step redid decided nothing, so counting it condemned halves that compiled — the
+    /// <c>npm ci</c> → <c>npm install</c> fallback is the documented common path, and it was
+    /// stamping <c>failed</c> on successful frontends. The step itself is still in
+    /// <c>attempts[].steps[]</c>, flagged <c>superseded</c>.
     /// </summary>
-    private static BuildHalfSummary SummariseHalf(
-        BuildAttemptRecord? attempt,
-        BuildHalf half,
-        string wireName,
-        string label)
+    private static BuildHalfSummary SummariseHalf(BuildAttemptRecord? attempt, BuildHalf half)
     {
-        var steps = attempt?.Steps.Where(step => step.Half == half).ToList() ?? [];
+        var steps = attempt?.Steps
+            .Where(step => step.Half == half && !step.Superseded)
+            .ToList() ?? [];
 
         var status = steps.Count switch
         {
@@ -142,8 +144,8 @@ public static class BuildReportWriter
 
         return new BuildHalfSummary
         {
-            Half = wireName,
-            Label = label,
+            Half = BuildHalves.WireName(half),
+            Label = BuildHalves.Label(half),
             Status = status,
             Commands = [.. steps.Where(step => !step.Skipped).Select(step => step.Command)],
         };
@@ -163,13 +165,18 @@ public static class BuildReportWriter
 
     private static BuildStepReport ToStepReport(BuildStepResult step) => new()
     {
-        Half = step.Half == BuildHalf.DotNet ? "dotnet" : "nextjs",
+        Half = BuildHalves.WireName(step.Half),
         Command = step.Command,
         ExitCode = step.ExitCode,
         DurationMs = step.DurationMs,
         ErrorCount = step.ErrorCount,
         WarningCount = step.WarningCount,
-        Status = step.Skipped ? "skipped" : step.ExitCode == 0 ? "passed" : "failed",
+        // `superseded` outranks the exit code: the step ran and failed, but a retry redid its
+        // work, so reporting it as a plain failure misdescribes an archive that compiled.
+        Status = step.Skipped ? "skipped"
+            : step.Superseded ? "superseded"
+            : step.ExitCode == 0 ? "passed"
+            : "failed",
     };
 
     private static string TrimToTail(string output)
