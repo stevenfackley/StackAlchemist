@@ -1,18 +1,41 @@
 # Tiers and Pricing
 
-StackAlchemist uses a three-tier model. Each tier builds on the one before it. All prices are **one-time payments** — there are no subscriptions, seat licenses, or recurring fees.
+StackAlchemist has three paid tiers plus a free one. All prices are **one-time payments** — there are no subscriptions, seat licenses, or recurring fees.
 
 ---
 
 ## Tier Overview
 
-| | **Tier 1 — Blueprint** | **Tier 2 — Boilerplate** | **Tier 3 — Infrastructure** |
-|---|---|---|---|
-| **Price** | $299 | $599 | $999 |
-| **Best For** | Planning, RFPs, architecture review | Developers starting a new product | Teams ready to deploy to production |
-| **Compile Guarantee** | — | ✅ Yes | ✅ Yes |
-| **Source Code** | — | ✅ Yes | ✅ Yes |
-| **Cloud IaC** | — | — | ✅ Yes |
+| | **Tier 0 — Spark** | **Tier 1 — Blueprint** | **Tier 2 — Boilerplate** | **Tier 3 — Infrastructure** |
+|---|---|---|---|---|
+| **Price** | Free | $299 | $599 | $999 |
+| **Best For** | Seeing the workflow run | Planning, RFPs, architecture review | Developers starting a new product | Teams ready to deploy to production |
+| **Built from your schema** | — | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Compile Guarantee** | — | — | ✅ Yes | ✅ Yes |
+| **Source Code** | — | — | ✅ Yes | ✅ Yes |
+| **Cloud IaC** | — | — | — | ✅ Yes |
+
+---
+
+## Tier 0 — Spark
+
+**Free · 5 builds per calendar month**
+
+Spark runs the whole workflow so you can watch it work before paying. It renders one fixed
+template — a small task tracker — with your project name substituted in, and makes **no AI
+call**. That is why it is instant, costs nothing, and always boots.
+
+Be clear about what it is not: the app you see is **not generated from your description**, it
+has no .NET half, and it cannot be downloaded. Code built from your own schema starts at
+Blueprint.
+
+### What's included
+
+- A working Next.js 15 app running in your browser via StackBlitz WebContainers (Chromium-based browsers only)
+- Every file open in the embedded editor — read it, edit it, re-run it
+- The same delivery page and flow that a paid run uses
+- In Advanced Mode: the entity wizard and live ER canvas, with your schema saved on the build
+  so you can return and buy a paid run against it
 
 ---
 
@@ -24,11 +47,16 @@ The Blueprint tier delivers the architecture and planning artifacts for your sys
 
 ### What's included
 
-- **Entity-Relationship Schema** (JSON) — The normalized data model derived from your description
-- **OpenAPI 3.0 Specification** — Full API surface in machine-readable format, importable into Postman, Insomnia, or any API tooling
-- **SQL Migration Scripts** — PostgreSQL DDL to create all tables, indexes, foreign keys, and constraints
-- **Data Flow Diagram** — Visual representation of how data moves through the system
-- **Architecture Decision Records (ADRs)** — Documented reasoning behind key technical choices
+Two files, and they are the whole deliverable:
+
+- **`schema.json`** — the normalized entity-relationship model: every entity, every field with
+  its type, primary key, nullability and default, and the relationships between them
+- **`api-docs.md`** — the CRUD contract in Markdown: a field table per entity and the five REST
+  endpoints it implies (`GET` list, `GET` by id, `POST`, `PUT`, `DELETE`), plus the
+  relationship list
+
+No code is generated at this tier, and no SQL — the migration is produced at Boilerplate. What
+you get is the model, in a form you can hand to a person or paste into a design doc.
 
 ### Who it's for
 
@@ -47,14 +75,24 @@ The Boilerplate tier delivers a complete, compilable source repository. This is 
 
 ### What's included
 
-**Everything in Blueprint, plus:**
+- **.NET 10 minimal API** — a single ASP.NET Core project: a record and DTO per entity,
+  an interface plus Dapper implementation per entity, and a CRUD endpoint group per entity,
+  all wired into `Program.cs`. Not a multi-project clean-architecture solution — one project,
+  organized by folder.
+- **Next.js 15 frontend** — App Router, TypeScript strict mode, Tailwind CSS, a typed API
+  client and generated interfaces. A home page linking your entities; the screens are yours
+  to build.
+- **PostgreSQL migration** — `001_initial_schema.sql` with UUID primary keys, foreign keys,
+  and row-level security enabled per table. Runs automatically on first `docker compose up`.
+- **Docker Compose dev environment** — one command spins up Postgres, the API, and the
+  frontend, from a multi-stage Dockerfile with `web` and `engine` targets.
+- **Compile Guarantee** — both halves are put through their real toolchains before the archive
+  is packed, with up to 3 correction attempts; if it still fails, the charge is refunded
+  automatically. The archive carries `build-report.json`, the record of every command.
 
-- **.NET 10 Web API** — Controllers, repositories, models, and service layer with Dapper ORM and PostgreSQL. Clean architecture with proper project separation.
-- **Next.js 15 Frontend** — App Router, TypeScript strict mode, Tailwind CSS, and a type-safe API client generated from your schema. Authentication UI wired up.
-- **PostgreSQL Schema + Migrations** — Ready to run via Docker or against any Postgres instance
-- **Supabase Auth Integration** — Row Level Security policies scaffolded for your entities. Auth flows wired into the frontend (sign up, sign in, session management).
-- **Docker Compose Dev Environment** — One command spins up the database, API, and frontend together
-- **Compile Guarantee** — The 3-retry auto-correction loop. If the code doesn't compile, it doesn't ship. If it still fails after 3 retries, you get a full refund.
+Not included, so you can plan for it: no authentication flow, no RLS policies (RLS is enabled
+but unpolicied), no payments integration, and no README. See
+[Understanding your output](./your-output) for the exact file tree.
 
 ### Who it's for
 
@@ -73,14 +111,16 @@ The Infrastructure tier is everything in Boilerplate plus a complete cloud deplo
 
 ### What's included
 
-**Everything in Boilerplate, plus:**
+**Everything in Boilerplate, plus an `infra/` tree and a runbook:**
 
-- **AWS CDK Stack (TypeScript)** — Lambda functions, RDS Aurora (PostgreSQL-compatible), S3, CloudFront distribution, IAM roles and policies — all as code.
-- **Helm Charts** — Kubernetes deployment manifests for teams running container orchestration.
-- **GitHub Actions CI/CD Pipeline** — Test, build, and deploy workflow that runs on every push to `main`.
-- **Deployment Runbook** — Step-by-step instructions: account setup, secrets configuration, first deploy, monitoring setup, rollback procedure.
-- **Environment Configuration Guide** — Every environment variable documented, with instructions for dev, staging, and production environments.
-- **Cost Estimation Report** — AWS cost projections at 1k, 10k, and 100k monthly active users.
+- **AWS CDK stack (TypeScript)** — VPC, ECS Fargate service behind an Application Load
+  Balancer, and an RDS PostgreSQL instance, deployed with an image URI you supply.
+- **Terraform AWS baseline** — the same shape as HCL for teams that live in Terraform: ECS,
+  ALB, RDS, networking, and service logs.
+- **Helm chart** — deployment, service, ingress, HPA, ConfigMap and Secret templates for
+  teams running Kubernetes.
+- **`DEPLOYMENT.md` runbook** — preflight checklist, the exact CDK / Terraform / Helm command
+  sequences, secret handling, migration ordering, and rollback.
 
 ### Who it's for
 
@@ -96,11 +136,13 @@ The Infrastructure tier is everything in Boilerplate plus a complete cloud deplo
 For Tier 2 and Tier 3, every generated package goes through the following before delivery:
 
 1. Generated code is written to a temporary container
-2. `dotnet build` is executed against the API project
-3. `npm run build` is executed against the frontend
-4. If either build fails, the LLM receives the error output and regenerates the failing files
+2. `dotnet restore` then `dotnet build --no-restore` run against the API half
+3. `npm ci`, `npm run typecheck` (`tsc --noEmit`) then `next build` run against the frontend half
+4. If either half fails, the LLM receives the error output and regenerates the failing files
 5. Steps 2–4 repeat up to **3 times**
 6. If the build is still failing after 3 attempts: **a full refund is initiated automatically, no questions asked**
+7. On success, `build-report.json` — every command, exit code, and per-half verdict — is written
+   into the archive, and the same verdict is shown on your delivery page
 
 This is a hard technical guarantee — not a marketing claim. Code that doesn't compile doesn't get delivered.
 

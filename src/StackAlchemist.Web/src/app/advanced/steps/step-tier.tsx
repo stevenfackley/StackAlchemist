@@ -13,12 +13,14 @@ export function StepTier({ selectedTier, setSelectedTier, quota }: {
 }) {
   const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
     {
+      // Tier 0 renders a fixed demo template with no LLM call — it is not built
+      // from the schema in this wizard. Say so here, where the choice is made.
       id: 0, name: "SPARK", price: "Free", isFree: true,
-      items: ["ER Canvas", "Generated Next.js UI (view-only)", "Live Micro IDE Preview"],
+      items: ["Fixed demo app — not your schema", "Runs live in your browser", "No download"],
     },
-    { id: 1, name: "BLUEPRINT", price: "$299", items: ["Schema JSON", "API Specifications", "SQL Scripts"] },
-    { id: 2, name: "BOILERPLATE", price: "$599", items: ["Blueprint features", "Full Source Code", "Compile Guarantee"], recommended: true },
-    { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK Stack", "Helm Charts", "Deployment Runbook"] },
+    { id: 1, name: "BLUEPRINT", price: "$299", items: ["schema.json", "api-docs.md (CRUD contract)", "No code"] },
+    { id: 2, name: "BOILERPLATE", price: "$599", items: ["Full source from your schema", "Both halves compiled", "build-report.json"], recommended: true },
+    { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK + Terraform", "Helm Chart", "Deployment Runbook"] },
   ];
   return (
     <div data-testid="advanced-step-5-tier-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">

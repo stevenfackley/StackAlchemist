@@ -147,17 +147,17 @@ BUILD FAILURE — Attempt 1
 ========================
 
 Error 1:
-  File: api/YourProject.Api/Controllers/ProjectController.cs
+  File: dotnet/Controllers/ProjectEndpoints.cs
   Line: 47
-  Error: CS0161 — 'ProjectController.GetByWorkspace': not all code paths return a value
+  Error: CS0161 — 'ProjectEndpoints.GetByWorkspace': not all code paths return a value
 
 Error 2:
-  File: api/YourProject.Data/Repositories/ProjectRepository.cs
+  File: dotnet/Repositories/ProjectRepository.cs
   Line: 89
-  Error: CS1061 — 'DapperConnection' does not contain a definition for 'QuerySingleAsync'
+  Error: CS1061 — 'IDbConnection' does not contain a definition for 'QuerySingleAsync'
 
 AFFECTED FILES (full content):
-[ProjectController.cs — full file content]
+[ProjectEndpoints.cs — full file content]
 [ProjectRepository.cs — full file content]
 
 TASK: Fix only the specific errors listed above. Do not modify other files.

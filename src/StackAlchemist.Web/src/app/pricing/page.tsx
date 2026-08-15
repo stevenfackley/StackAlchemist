@@ -13,19 +13,23 @@ export const metadata: Metadata = {
   alternates: { canonical: "/pricing" },
 };
 
+// Spark is a fixed demo, not a generated codebase: the engine renders the
+// V0-Spark-NextJs template with your project name substituted and makes no LLM
+// call at all (GenerationOrchestrator.RenderTier0Preview). Copy here describes
+// exactly that — the run, not an imagined generation.
 const freeTier = {
   id: "spark",
   name: "Spark",
-  tagline: "Try Before You Buy",
+  tagline: "Take the Workflow for a Lap",
   price: "Free",
   description:
-    "Describe your SaaS, watch the architecture come alive, and explore the generated Next.js frontend in a live embedded IDE — all without spending a cent. Code is view-only; upgrade to download.",
+    "Run the whole pipeline before you pay a cent: describe your product, watch the build, and land on a delivery page with a real Next.js 15 app already running in your browser. Spark hands everyone the same fixed demo app — a working task tracker, renamed to your project — so it is instant, costs nothing, and always boots.",
   items: [
-    "Entity-Relationship Canvas",
-    "AI Schema Extraction",
-    "Generated Next.js Frontend (view-only)",
-    "Live Preview in Micro IDE",
-    "Architecture Overview",
+    "5 free builds a month — no card, ever",
+    "A real Next.js 15 app running in-browser (StackBlitz WebContainers)",
+    "Every file open in the embedded editor — read it, edit it, re-run it",
+    "Entity wizard with a live ER canvas (Advanced Mode)",
+    "The same delivery flow the paid tiers use",
   ],
   highlight: false,
   cta: "Start Free",
@@ -40,13 +44,13 @@ const tiers = [
     tagline: "The Architecture",
     price: 299,
     description:
-      "Everything you need to understand the system before a single line of code is written. The full schema, API surface, and SQL scripts — delivered as precise technical documentation.",
+      "Your data model and API contract, written down. No code — the documents you hand to a stakeholder, drop into an RFP, or give to the engineer who is going to build it.",
     items: [
-      "Entity-Relationship Schema (JSON)",
-      "API Specification (OpenAPI 3.0)",
-      "SQL Migration Scripts",
-      "Data Flow Diagram",
-      "Architecture Decision Records",
+      "schema.json — the normalized entity-relationship model",
+      "api-docs.md — the CRUD contract, endpoint by endpoint",
+      "Every field with its type, key, nullability and default",
+      "The relationship map between entities",
+      "Stack-agnostic — nothing in it assumes .NET or Next.js",
     ],
     highlight: false,
     cta: "Get the Blueprint",
@@ -59,16 +63,15 @@ const tiers = [
     tagline: "The Foundation",
     price: 599,
     description:
-      "A complete, compiled, download-ready source repository. Every file. Every layer. Guaranteed to build on the first try — or we correct it automatically, up to three times.",
+      "A complete, download-ready source repository shaped around your schema. Both halves are put through their real compilers before it ships — or we correct and rebuild, up to three times.",
     items: [
-      "Everything in Blueprint",
-      ".NET 10 Web API (Controllers, Repos, Models)",
-      "Next.js 15 Frontend (App Router, TypeScript)",
-      "PostgreSQL Schema + Migrations",
-      "Supabase Auth Integration",
-      "Stripe Payments Integration",
-      "Docker Compose Dev Environment",
-      "Compile Guarantee (3-retry auto-correction)",
+      ".NET 10 minimal API — records, Dapper repositories, CRUD endpoints per entity",
+      "Next.js 15 frontend (App Router, TypeScript) with a typed API client",
+      "PostgreSQL migration — UUID keys, foreign keys, row-level security enabled",
+      "Docker Compose + multi-stage Dockerfile (web and engine targets)",
+      "Supabase client and env wiring preinstalled (auth flows are yours to write)",
+      "Compile Guarantee — .NET and Next.js both built before delivery",
+      "build-report.json — every command, exit code and verdict, in the archive",
     ],
     highlight: true,
     cta: "Get the Boilerplate",
@@ -81,15 +84,13 @@ const tiers = [
     tagline: "The Kingdom",
     price: 999,
     description:
-      "Production-ready from day one. Cloud infrastructure as code, Kubernetes manifests, and a deployment runbook so complete you could hand it to a junior engineer and disappear.",
+      "The Boilerplate repository plus the infrastructure to put it in a cloud. Two IaC paths, a Kubernetes chart, and a runbook complete enough to hand to a junior engineer.",
     items: [
       "Everything in Boilerplate",
-      "AWS CDK Stack (Lambda, RDS, S3, CloudFront)",
-      "Helm Charts for Kubernetes",
-      "CI/CD Pipeline (GitHub Actions)",
-      "Deployment Runbook (step-by-step)",
-      "Environment Configuration Guide",
-      "Cost Estimation Report",
+      "AWS CDK stack (VPC, ECS Fargate, ALB, RDS PostgreSQL)",
+      "Terraform AWS baseline (ECS, ALB, RDS, networking, logs)",
+      "Helm chart — deployment, service, ingress, HPA, config and secrets",
+      "DEPLOYMENT.md runbook — preflight, deploy, rollback",
     ],
     highlight: false,
     cta: "Get the Infrastructure",
@@ -101,7 +102,15 @@ const tiers = [
 const faqs = [
   {
     q: "What does the free Spark tier include?",
-    a: "Spark generates the Next.js frontend for your described SaaS and opens it in a live embedded IDE so you can see the running app. The code is view-only — you can't download it — but you can explore every file and interact with the live preview. Upgrade to any paid tier to get the full downloadable codebase.",
+    a: "Spark runs the full workflow — describe your product, watch the build, land on a delivery page — and hands back a working Next.js 15 app that boots and runs inside your browser via StackBlitz WebContainers. You get five free builds a month, no card required.",
+  },
+  {
+    q: "Is the Spark app generated from my description?",
+    a: "No, and we would rather say so than let you find out. Spark renders one fixed demo app — a small task tracker — with your project name substituted in. It makes no AI call, which is why it is free and always boots. Code generated from your own schema starts at Blueprint.",
+  },
+  {
+    q: "Then what is Spark actually for?",
+    a: "Seeing the machine run before you pay for it. You confirm the flow works in your browser, see exactly what the delivery page looks like, read a real Next.js 15 App Router project file by file, and — in Advanced Mode — model your entities on the ER canvas and keep that schema for a paid run later.",
   },
   {
     q: "Is this a subscription?",
@@ -109,7 +118,7 @@ const faqs = [
   },
   {
     q: "What is the Compile Guarantee?",
-    a: "Your generated Boilerplate or Infrastructure package is run through dotnet build before delivery. If it fails, an automatic correction loop re-runs the LLM with the compiler output and retries — up to three times. If it still fails, you get a full refund.",
+    a: "Before a Boilerplate or Infrastructure archive is packed, both halves are put through their real toolchains: dotnet restore and dotnet build for the API, npm ci, tsc --noEmit and next build for the frontend. If either fails, the compiler output goes back to the LLM and the failing files are regenerated — up to three times, after which the charge is refunded automatically. The archive ships a build-report.json recording every command and its verdict.",
   },
   {
     q: "What stack does V1 generate?",
@@ -125,28 +134,32 @@ const faqs = [
   },
   {
     q: "What if my idea doesn't fit the V1 stack?",
-    a: "The Blueprint tier is stack-agnostic — schema, API specs, and SQL are transferable to any stack. Additional templates are on the roadmap.",
+    a: "The Blueprint tier is stack-agnostic — the schema and the CRUD contract transfer to any stack you like. Additional templates are on the roadmap.",
   },
 ];
 
+// Every row here is a claim about what the engine actually emits. Sources:
+// Spark = V0-Spark-NextJs (fixed template, no LLM call); Blueprint =
+// Tier1ArtifactBuilder (schema.json + api-docs.md, and nothing else);
+// Boilerplate = the V1-DotNet-NextJs tree filled by the generation prompt;
+// Infrastructure = that tree plus Tier3-Infrastructure. Do not add a row you
+// cannot point at a rendered file for.
 const comparison = [
-  { label: "Schema JSON + ER Diagram",       spark: true,  bp: true,  bb: true,  infra: true },
-  { label: "AI Schema Extraction",           spark: true,  bp: true,  bb: true,  infra: true },
-  { label: "Generated Next.js Frontend",     spark: true,  bp: false, bb: true,  infra: true },
-  { label: "Live Micro IDE Preview",         spark: true,  bp: false, bb: false, infra: false },
-  { label: "Code Download",                  spark: false, bp: true,  bb: true,  infra: true },
-  { label: "OpenAPI Specification",          spark: false, bp: true,  bb: true,  infra: true },
-  { label: "SQL Migration Scripts",          spark: false, bp: true,  bb: true,  infra: true },
-  { label: ".NET 10 Web API Source",         spark: false, bp: false, bb: true,  infra: true },
-  { label: "Supabase Auth Integration",      spark: false, bp: false, bb: true,  infra: true },
-  { label: "Stripe Payments Integration",    spark: false, bp: false, bb: true,  infra: true },
-  { label: "Docker Compose Environment",     spark: false, bp: false, bb: true,  infra: true },
-  { label: "Compile Guarantee (3-retry)",    spark: false, bp: false, bb: true,  infra: true },
-  { label: "AWS CDK Infrastructure Stack",   spark: false, bp: false, bb: false, infra: true },
-  { label: "Helm Charts (Kubernetes)",       spark: false, bp: false, bb: false, infra: true },
-  { label: "GitHub Actions CI/CD",           spark: false, bp: false, bb: false, infra: true },
-  { label: "Deployment Runbook",             spark: false, bp: false, bb: false, infra: true },
-  { label: "Cost Estimation Report",         spark: false, bp: false, bb: false, infra: true },
+  { label: "Live demo app running in-browser",        spark: true,  bp: false, bb: false, infra: false },
+  { label: "Entity wizard + live ER canvas",          spark: true,  bp: true,  bb: true,  infra: true },
+  { label: "Built from your own schema",              spark: false, bp: true,  bb: true,  infra: true },
+  { label: "Downloadable archive",                    spark: false, bp: true,  bb: true,  infra: true },
+  { label: "Schema + API contract documents",         spark: false, bp: true,  bb: false, infra: false },
+  { label: ".NET 10 minimal API source",              spark: false, bp: false, bb: true,  infra: true },
+  { label: "Next.js 15 frontend + typed API client",  spark: false, bp: false, bb: true,  infra: true },
+  { label: "PostgreSQL migration (UUID keys, RLS)",   spark: false, bp: false, bb: true,  infra: true },
+  { label: "Docker Compose + Dockerfile",             spark: false, bp: false, bb: true,  infra: true },
+  { label: "Compile Guarantee (both halves built)",   spark: false, bp: false, bb: true,  infra: true },
+  { label: "build-report.json in the archive",        spark: false, bp: false, bb: true,  infra: true },
+  { label: "AWS CDK stack",                           spark: false, bp: false, bb: false, infra: true },
+  { label: "Terraform AWS baseline",                  spark: false, bp: false, bb: false, infra: true },
+  { label: "Helm chart (Kubernetes)",                 spark: false, bp: false, bb: false, infra: true },
+  { label: "Deployment runbook",                      spark: false, bp: false, bb: false, infra: true },
 ];
 
 
@@ -217,8 +230,9 @@ export default function PricingPage() {
               <span className="text-accent">OWN IT FOREVER.</span>
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-lg mx-auto">
-              Start with a free live preview in our micro IDE. No credit card required.
-              Upgrade to download the full codebase — yours to keep, modify, and ship.
+              Run the workflow free — a demo app boots in your browser, no credit card.
+              Pay once when you want the codebase generated from your own schema, downloaded,
+              and yours to keep, modify, and ship.
             </p>
           </div>
         </section>
@@ -246,7 +260,7 @@ export default function PricingPage() {
                   <div>
                     <p className="font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-1">Spark</p>
                     <h2 className="text-3xl font-bold text-white">
-                      Free Preview
+                      Free Demo Run
                       <span className="ml-3 font-mono text-lg text-emerald-400">$0</span>
                     </h2>
                   </div>
@@ -261,10 +275,12 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    <span className="font-mono text-xs text-slate-500">
-                      Code is view-only in the IDE. Download requires a paid tier.
+                  <div className="flex items-start gap-2 pt-1">
+                    <Lock className="mt-0.5 h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span className="font-mono text-xs text-slate-500 leading-relaxed">
+                      The demo app is the same for everyone and is not generated from your
+                      description. There is no download and no .NET half at this tier — code
+                      built from your schema starts at Blueprint.
                     </span>
                   </div>
                 </div>
@@ -281,7 +297,7 @@ export default function PricingPage() {
                   >
                     Start Free &rarr;
                   </Link>
-                  <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Select Spark in the tier chooser</p>
+                  <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">5 builds a month &middot; no card</p>
                 </div>
               </div>
             </div>
@@ -391,6 +407,12 @@ export default function PricingPage() {
                 </tbody>
               </table>
             </div>
+            <p className="mt-4 text-center text-xs text-slate-500 leading-relaxed max-w-2xl mx-auto">
+              Boilerplate and Infrastructure ship the code instead of the Blueprint documents:
+              your schema arrives as the SQL migration, the C# records, and the TypeScript
+              types rather than as <span className="font-mono">schema.json</span>. Spark&apos;s
+              in-browser app is a fixed demo, not a build of your schema.
+            </p>
           </div>
         </section>
 
@@ -426,7 +448,8 @@ export default function PricingPage() {
               Ready to transmute your idea?
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Start free with Spark — no credit card, no commitment. Upgrade when you&apos;re ready to own the code.
+              Watch the machine run first — Spark is free, instant, and needs no card. Pay when
+              you want it pointed at your own schema.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

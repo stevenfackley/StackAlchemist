@@ -92,8 +92,8 @@ export default function FaqPage() {
               Still have questions?
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Dig into the docs or just start building — the free Spark tier
-              lets you explore the schema workflow end-to-end.
+              Dig into the docs or just start building — the free Spark tier runs
+              the workflow end-to-end and boots a demo app in your browser.
             </p>
             <div className="flex items-center justify-center gap-4 flex-wrap">
               <Link href="/" className="font-mono text-xs bg-electric hover:bg-accent/90 text-white px-6 py-2.5 uppercase tracking-widest transition-colors">
