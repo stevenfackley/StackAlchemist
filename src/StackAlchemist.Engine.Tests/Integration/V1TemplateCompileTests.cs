@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackAlchemist.Engine.Services;
@@ -16,7 +17,9 @@ namespace StackAlchemist.Engine.Tests.Integration;
 ///
 /// This test renders the real template set through the real render path and runs the real
 /// <see cref="DotNetBuildStrategy"/> over it — both halves, `dotnet build` and
-/// `npm run build`, exactly what compile-guarantee.md promises the customer.
+/// `npm run build`, exactly what compile-guarantee.md promises the customer — and then
+/// builds the shipped Dockerfile's `web` and `engine` targets over the same tree, which is
+/// what the customer's own first command does.
 ///
 /// Guarded (not [Fact(Skip=…)]'d) on the toolchains being reachable on PATH, the same way
 /// <see cref="DotNetBuildStrategyIntegrationTests"/> is, so it runs for real in the backend
@@ -102,6 +105,116 @@ public sealed class V1TemplateCompileTests : IDisposable
     }
 
     /// <summary>
+    /// Builds the shipped Dockerfile, which is the customer's very first command
+    /// (<c>docker compose up --build</c>, per the template's own header comment).
+    ///
+    /// The host-side gate above proves <c>dotnet build</c> and <c>npm run build</c> succeed;
+    /// that is a different thing from the multi-stage image build actually working, and the
+    /// difference was not academic. The <c>engine</c> target ran
+    /// <c>addgroup --system … &amp;&amp; adduser --system …</c> — BusyBox syntax that exists on the
+    /// Alpine base used by the <c>web</c> target but not on the Debian/Ubuntu
+    /// <c>dotnet/aspnet</c> base — so <c>docker build --target engine</c> died at exit 127 on
+    /// every archive we sold, and nothing in the suite noticed because nothing built it.
+    ///
+    /// Both targets, because the failure was in exactly the one that was not exercised by
+    /// anything else.
+    /// </summary>
+    [Theory]
+    [InlineData("web")]
+    [InlineData("engine")]
+    public async Task RenderedTemplate_DockerTargetBuilds(string target)
+    {
+        if (!ToolchainAvailable("docker", "version", "Docker"))
+            return;
+
+        V1TemplateHarness.RenderTo(_outputDir);
+
+        var (exitCode, transcript) = await RunAsync(
+            "docker",
+            $"build --target {target} --tag {DockerImageTagPrefix}:{target} .",
+            _outputDir);
+
+        exitCode.Should().Be(0,
+            $"`docker build --target {target}` is the customer's first command against the " +
+            $"archive they paid for.\n\n{Tail(transcript)}");
+    }
+
+    private const string DockerImageTagPrefix = "sa-v1-template-gate";
+
+    /// <summary>
+    /// Cold image pulls plus <c>npm ci</c> plus <c>next build</c> plus <c>dotnet publish</c>.
+    /// Generous, because a timeout here should mean "hung", not "the runner was slow".
+    /// </summary>
+    private static readonly TimeSpan DockerBuildTimeout = TimeSpan.FromMinutes(20);
+
+    /// <summary>
+    /// Runs a process to completion, interleaving stdout and stderr into one transcript.
+    /// Docker writes its build log to stderr, so capturing only stdout would leave a failing
+    /// assertion with nothing useful in it.
+    /// </summary>
+    private static async Task<(int ExitCode, string Transcript)> RunAsync(
+        string fileName, string arguments, string workingDirectory)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+
+        var transcript = new StringBuilder();
+        void Append(object _, DataReceivedEventArgs e)
+        {
+            if (e.Data is null)
+                return;
+            lock (transcript)
+                transcript.AppendLine(e.Data);
+        }
+
+        process.OutputDataReceived += Append;
+        process.ErrorDataReceived += Append;
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        using var cts = new CancellationTokenSource(DockerBuildTimeout);
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { /* already gone */ }
+
+            lock (transcript)
+                return (-1, $"[killed after {DockerBuildTimeout}]\n{transcript}");
+        }
+
+        lock (transcript)
+            return (process.ExitCode, transcript.ToString());
+    }
+
+    /// <summary>Last <see cref="TranscriptTailLines"/> lines — a docker build log is megabytes.</summary>
+    private static string Tail(string transcript)
+    {
+        var lines = transcript.Split('\n');
+        return lines.Length <= TranscriptTailLines
+            ? transcript
+            : string.Join('\n', lines[^TranscriptTailLines..]);
+    }
+
+    private const int TranscriptTailLines = 120;
+
+    /// <summary>
     /// The build above filled this directory with a Linux/Windows-specific
     /// <c>node_modules/</c> and a <c>.next/</c> cache — 525 MB / 25,488 files, measured. This
     /// is the same directory <c>CompileWorkerService.PackUploadAndNotifyAsync</c> hands to the
@@ -185,8 +298,9 @@ public sealed class V1TemplateCompileTests : IDisposable
         Assert.False(
             IsContinuousIntegration,
             $"{label} is required to verify the Compile Guarantee and was not found on PATH " +
-            $"(tried '{fileName}'). The backend CI job installs it — if this fires, the gate " +
-            "is no longer actually building the template.");
+            $"(tried '{fileName}'). The backend CI job runs on ubuntu-latest, which provides " +
+            "the .NET SDK, Node and Docker — if this fires, the gate is no longer actually " +
+            "building the template.");
 
         Console.WriteLine($"Skipping — {label} not found on PATH.");
         return false;

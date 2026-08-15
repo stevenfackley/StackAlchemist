@@ -1,0 +1,14 @@
+# Keep local build output out of the image build context.
+#
+# Both targets install their own dependencies (`npm ci` in web-deps, `dotnet restore` in
+# engine-builder). Without these exclusions, running `dotnet build` or `npm install` here
+# before `docker compose up --build` ships a few hundred MB of host-specific output into
+# the context — and, worse, `COPY dotnet/ ./` would drop a stale obj/project.assets.json
+# with absolute host paths into the builder stage and break the in-container restore.
+**/node_modules
+**/.next
+**/bin
+**/obj
+.git
+.vs
+.vscode
