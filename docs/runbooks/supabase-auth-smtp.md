@@ -71,7 +71,14 @@ and receiving servers will junk it even if it does.
 
 ## Applying the configuration
 
-Two routes. They write the same project settings — pick one, not both.
+Two routes, writing the same seven settings — pick one, not both. Route A is a
+dashboard click-path across two panels; Route B sends them in a single PATCH.
+Sender address, sender name, host, port, username, password, per-user interval
+and the hourly rate limit end up identical either way. Email sign-in
+(`external_email_enabled`) is the one difference: Route B sets it explicitly,
+whereas the dashboard exposes it separately under **Authentication → Sign In /
+Providers → Email**. It is on by default, so Route A only needs it if sign-in
+was previously disabled.
 
 ### Route A — Supabase dashboard (recommended for the first run)
 
@@ -124,7 +131,9 @@ node scripts/supabase-auth-smtp.mjs apply
 ```
 
 The script never prints the password, never writes it to disk, and is not
-wired into any workflow — see "Why this is not in CI" below.
+wired into any workflow — see "Why this is not in CI" below. Anything it
+prints, including API error bodies, is passed through a redaction step first,
+so a credential the API echoes back comes out as a fingerprint.
 
 ## Verifying
 
@@ -133,9 +142,15 @@ export SUPABASE_ACCESS_TOKEN=…
 node scripts/supabase-auth-smtp.mjs verify
 ```
 
-Exit code 0 means the live project has a custom SMTP host, an email rate
-limit above the built-in floor, and email sign-in enabled. Exit 1 prints
-which of those three is wrong.
+Exit code 0 means the live project has custom SMTP whose host, username and
+sender address match the values above, an email rate limit above the built-in
+floor, and email sign-in enabled. Exit 1 prints every check that failed.
+
+Matching, not merely present, is the point: a project pointed at the wrong
+relay or sending as the wrong address is broken in a way that a
+"custom SMTP is on" check reports as green. Override
+`SUPABASE_AUTH_SMTP_HOST` / `_USER` / `_SENDER` in the shell if you are
+verifying a project that is deliberately configured differently.
 
 **A green verify is not a delivered email.** It proves Supabase will attempt
 the relay; it says nothing about whether Resend accepts the handoff or

@@ -31,7 +31,9 @@
  *  ✗ It does not mint, store or read API keys from disk. Every secret arrives
  *    as an environment variable for the duration of one run.
  *  ✗ It does not print the SMTP password, or echo it back from the API, under
- *    any flag — including --dry-run.
+ *    any flag — including --dry-run. Everything bound for the terminal goes
+ *    through redact(), so an API error body that echoes the credential prints
+ *    as a fingerprint. Truncating the body would not have been enough.
  *  ✗ It is not wired into CI. Applying auth config is a deliberate, audited
  *    act; a workflow that can silently repoint the mailer is a phishing
  *    primitive, not a convenience.
@@ -79,13 +81,28 @@ const DEFAULT_PROJECT_REF = "ctqhwykryoglhdwatljt";
  */
 const DEFAULTS = {
   host: "smtp.resend.com",
-  port: 587,
+  /**
+   * A STRING, not a number. The Management API types `smtp_port` as
+   * `{"type": "string"}` in both UpdateAuthConfigBody and AuthConfigResponse,
+   * while `smtp_max_frequency` and `rate_limit_email_sent` in the same DTOs are
+   * typed `integer` — so the schema distinguishes the two deliberately and is
+   * not relying on implicit coercion. Sending 587 as a JSON number risks a 400
+   * at the exact moment an operator is trying to restore sign-in.
+   */
+  port: "587",
   user: "resend",
   // Matches RESEND_FROM_EMAIL in .env.example so users see one consistent
   // sender across auth mail and Engine mail. Resend verifies the DOMAIN, so
   // any address at stackalchemist.app works once DNS is in place.
   sender: "noreply@stackalchemist.app",
   senderName: "StackAlchemist",
+  /**
+   * Per-user cooldown in seconds between auth emails — GoTrue's own default,
+   * and the value the dashboard route tells you to set by hand. Written
+   * explicitly so both routes in the runbook leave the project in the same
+   * state instead of one of them silently relying on the default.
+   */
+  minEmailIntervalSeconds: 60,
   /**
    * Emails per hour, project-wide. Supabase only honours a custom value once
    * custom SMTP is enabled — on the built-in mailer it is pinned at 2. 100 is
@@ -124,11 +141,49 @@ function fingerprint(secret) {
   return `${secret.slice(0, 5)}…${secret.slice(-2)} (${secret.length} chars)`;
 }
 
+/**
+ * Every secret this run has seen, so that anything printed can be scrubbed of
+ * it. Populated once at startup rather than at each use, so `verify` — which
+ * never reads the SMTP password itself — still redacts it if it happens to be
+ * exported in the operator's shell.
+ */
+const knownSecrets = new Set();
+for (const name of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_AUTH_SMTP_PASS"]) {
+  const value = process.env[name];
+  if (value && value.length > 8) knownSecrets.add(value);
+}
+
+/**
+ * Scrubs secrets out of text destined for the terminal.
+ *
+ * Truncation is NOT redaction. `smtp_pass` sits about 110 characters into a
+ * serialised auth-config payload, so any slice long enough to be useful
+ * contains the whole key. Two passes:
+ *
+ *   1. Replace known secret VALUES with their fingerprint — catches the key
+ *      wherever it lands, including inside a URL or a prose error message.
+ *   2. Blank the value of any secret-shaped JSON key — catches credentials the
+ *      API echoes that this run never held (`smtp_pass` is a *required* field
+ *      of AuthConfigResponse, so a GET can carry one too).
+ */
+function redact(text) {
+  if (!text) return text;
+  let scrubbed = String(text);
+  for (const secret of knownSecrets) {
+    scrubbed = scrubbed.split(secret).join(`[redacted ${fingerprint(secret)}]`);
+  }
+  return scrubbed.replace(
+    /("(?:smtp_pass|password|passwd|secret|token|api_key|apikey)"\s*:\s*")(?:\\.|[^"\\])*(")/gi,
+    "$1[redacted]$2",
+  );
+}
+
 async function callApi(method, path, body) {
   const token = requireEnv(
     "SUPABASE_ACCESS_TOKEN",
     "Create one at https://supabase.com/dashboard/account/tokens",
   );
+  knownSecrets.add(token);
 
   const response = await fetch(`${API_ROOT}${path}`, {
     method,
@@ -142,9 +197,11 @@ async function callApi(method, path, body) {
   if (!response.ok) {
     const text = await response.text();
     // The auth config payload echoes secrets on some error paths, so the body
-    // is truncated rather than dumped wholesale.
+    // is redacted before printing. The slice afterwards is only noise control —
+    // it is the redaction, not the length cap, that keeps the password out.
     throw new Error(
-      `${method} ${path} -> ${response.status} ${response.statusText}: ${text.slice(0, 300)}`,
+      `${method} ${path} -> ${response.status} ${response.statusText}: ` +
+        `${redact(text).slice(0, 500)}`,
     );
   }
 
@@ -152,6 +209,23 @@ async function callApi(method, path, body) {
 }
 
 const projectRef = process.env.SUPABASE_PROJECT_REF || DEFAULT_PROJECT_REF;
+
+/**
+ * The configuration this run intends the project to have, resolved from the
+ * environment once. `verify` asserts against it and `apply` writes it, so a
+ * verify run checks exactly what an apply run in the same shell would set —
+ * they cannot drift apart into two different notions of "correct".
+ */
+const intended = {
+  host: process.env.SUPABASE_AUTH_SMTP_HOST || DEFAULTS.host,
+  port: String(process.env.SUPABASE_AUTH_SMTP_PORT || DEFAULTS.port),
+  user: process.env.SUPABASE_AUTH_SMTP_USER || DEFAULTS.user,
+  sender: process.env.SUPABASE_AUTH_SMTP_SENDER || DEFAULTS.sender,
+  senderName: process.env.SUPABASE_AUTH_SMTP_SENDER_NAME || DEFAULTS.senderName,
+  emailRateLimit: Number(
+    process.env.SUPABASE_AUTH_EMAIL_RATE_LIMIT || DEFAULTS.emailRateLimit,
+  ),
+};
 
 async function verify() {
   console.log(`Project: ${projectRef}`);
@@ -178,6 +252,25 @@ async function verify() {
       "No custom SMTP host. Supabase Auth is on the built-in mailer: 2 emails/hour " +
         "project-wide, best-effort delivery. Magic links WILL be dropped.",
     );
+  }
+
+  // Presence of *a* host only proves someone configured *something*. Drift to
+  // a wrong relay, wrong sender or wrong username is exactly the failure this
+  // script exists to catch, and it would otherwise pass green.
+  if (customSmtpOn) {
+    const mismatches = [
+      ["smtp_host", host, intended.host],
+      ["smtp_user", config.smtp_user ?? null, intended.user],
+      ["smtp_admin_email", config.smtp_admin_email ?? null, intended.sender],
+    ].filter(([, actual, expected]) => actual !== expected);
+
+    for (const [field, actual, expected] of mismatches) {
+      problems.push(
+        `${field} is "${actual ?? "(unset)"}", expected "${expected}". ` +
+          "Either the project drifted or this run's environment overrides do " +
+          "not match the live config.",
+      );
+    }
   }
 
   // A rate limit still sitting at the built-in default means the limit was
@@ -214,17 +307,19 @@ async function apply() {
       "Set it in your shell for this run only — never commit it.",
   );
 
+  knownSecrets.add(pass);
+
   const payload = {
     external_email_enabled: true,
-    smtp_host: process.env.SUPABASE_AUTH_SMTP_HOST || DEFAULTS.host,
-    smtp_port: Number(process.env.SUPABASE_AUTH_SMTP_PORT || DEFAULTS.port),
-    smtp_user: process.env.SUPABASE_AUTH_SMTP_USER || DEFAULTS.user,
+    smtp_host: intended.host,
+    // String, per the DTO — see DEFAULTS.port.
+    smtp_port: intended.port,
+    smtp_user: intended.user,
     smtp_pass: pass,
-    smtp_admin_email: process.env.SUPABASE_AUTH_SMTP_SENDER || DEFAULTS.sender,
-    smtp_sender_name: process.env.SUPABASE_AUTH_SMTP_SENDER_NAME || DEFAULTS.senderName,
-    rate_limit_email_sent: Number(
-      process.env.SUPABASE_AUTH_EMAIL_RATE_LIMIT || DEFAULTS.emailRateLimit,
-    ),
+    smtp_admin_email: intended.sender,
+    smtp_sender_name: intended.senderName,
+    rate_limit_email_sent: intended.emailRateLimit,
+    smtp_max_frequency: DEFAULTS.minEmailIntervalSeconds,
   };
 
   console.log(`Project: ${projectRef}`);
@@ -258,6 +353,6 @@ if (!Object.hasOwn(commands, command)) {
 try {
   await commands[command]();
 } catch (error) {
-  console.error(`ERROR: ${error.message}`);
+  console.error(`ERROR: ${redact(error.message)}`);
   process.exit(1);
 }
