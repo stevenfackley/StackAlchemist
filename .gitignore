@@ -2,6 +2,13 @@
 
 # .NET Specific
 [Bb]in/
+# ...except the Tier-3 CDK entrypoint. `bin/` is a SOURCE directory in the CDK
+# convention (bin/app.ts instantiates the stack), and the .NET rule above swallowed
+# the whole thing: infra/cdk/bin/app.ts sat untracked on one machine while every
+# clone — and therefore every Tier-3 archive built from a clone — shipped a CDK app
+# with no entrypoint. Negate the DIRECTORY: git cannot re-include a file whose
+# parent directory is excluded.
+!src/StackAlchemist.Templates/*/infra/cdk/bin/
 [Oo]bj/
 *.user
 *.userosscache

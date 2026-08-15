@@ -29,11 +29,29 @@ This runbook is generated for Tier 3 deliveries. It assumes the application zip 
 
 ## AWS CDK
 
+The app entrypoint is `infra/cdk/bin/app.ts`; it instantiates `{{ProjectName}}Stack` from
+`infra/cdk/lib/{{ProjectNameKebab}}-stack.ts`. `cdk.json` points the CLI at it.
+
 ```bash
 cd infra/cdk
-npm install
-npm run synth
+npm ci
+npm run synth -- --context imageUri=<account>.dkr.ecr.<region>.amazonaws.com/{{ProjectNameKebab}}:<tag>
 npm run deploy -- --context imageUri=<account>.dkr.ecr.<region>.amazonaws.com/{{ProjectNameKebab}}:<tag>
+```
+
+`imageUri` is required, not optional: the stack raises `Missing CDK context value: imageUri`
+rather than synthesising a template that points at a placeholder image.
+
+**Synth needs no AWS credentials.** With none configured the CLI leaves `CDK_DEFAULT_ACCOUNT`
+and `CDK_DEFAULT_REGION` unset, so `bin/app.ts` builds an environment-agnostic stack and the
+CloudFormation template lands in `cdk.out/{{ProjectName}}Stack.template.json`. Review it there
+before you have an account wired up. Deployment does need credentials, and pinning the target
+explicitly is worth doing:
+
+```bash
+export CDK_DEFAULT_ACCOUNT=<account>
+export CDK_DEFAULT_REGION=<region>
+npx cdk bootstrap   # once per account/region
 ```
 
 The CDK stack creates managed AWS resources with secure defaults, but you should review sizing, region, tags, and deletion policies before production use.
