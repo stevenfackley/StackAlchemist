@@ -140,6 +140,58 @@ public sealed partial class ReconstructionService : IReconstructionService
     }
 
     /// <summary>
+    /// Routes the file blocks of a BUILD-REPAIR response — the second, later write site, where
+    /// the model is handed compiler errors and asked for corrected files.
+    ///
+    /// Reconstruct's guarantee only ever covered the first write. The repair loop parsed the
+    /// response and wrote every block straight into the output directory, so all three failures
+    /// Reconstruct exists to prevent were still reachable from here: <c>src/lib/api.ts</c>
+    /// orphaned at the archive root, a <c>__zone__/RouteRegistrations</c> fragment written as a
+    /// literal file into the customer's zip, and a <c>..</c> segment escaping the directory
+    /// entirely. This applies the same <see cref="BelongsToRenderedTree"/> rule to that write,
+    /// against the tree as it actually exists on disk.
+    ///
+    /// It reports rather than throws, and the difference is the customer's money. The repair
+    /// loop already has a defined failure mode — retries exhaust, the build stays red, and the
+    /// Compile Guarantee refunds a paid generation. Throwing here would abort the job on the
+    /// spot through the worker's generic catch, which marks it Failed WITHOUT ever reaching the
+    /// refund branch: the customer would lose both the app and the money. Dropping the block and
+    /// naming it in the log leaves that path intact, and the retry prompt states the tree roots
+    /// up front so the next attempt has what it needs to get the path right.
+    ///
+    /// Zone pseudo-paths are rejected here even though Reconstruct honours them: by repair time
+    /// the <c>[[LLM_INJECTION_*]]</c> markers have been stripped, so there is no zone left to
+    /// fill and the only thing writing one could do is drop scaffolding into the archive.
+    /// </summary>
+    /// <param name="llmBlocks">Parsed blocks from the repair response.</param>
+    /// <param name="outputDirectory">The generated project directory the fixes are written into.</param>
+    public RepairWriteSet ResolveRepairWrites(Dictionary<string, string> llmBlocks, string outputDirectory)
+    {
+        // The tree as built, not as planned: the customer's archive is what it is on disk by now.
+        var treeRoots = new HashSet<string>(
+            Directory.EnumerateDirectories(outputDirectory).Select(d => Path.GetFileName(d)!),
+            StringComparer.OrdinalIgnoreCase);
+
+        var writes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var rejected = new List<string>();
+
+        foreach (var (path, content) in llmBlocks)
+        {
+            if (IsInjectionZoneContent(path) || !BelongsToRenderedTree(path, treeRoots))
+                rejected.Add(path);
+            else
+                writes[path] = content;
+        }
+
+        return new RepairWriteSet(
+            writes,
+            rejected,
+            rejected.Count == 0
+                ? null
+                : UnmappedLlmFileException.DescribeUnmappedPaths(rejected, treeRoots));
+    }
+
+    /// <summary>
     /// Resolves the LLM block that fills <paramref name="zoneName"/>.
     ///
     /// One rule, no heuristics: zone <c>X</c> is filled by the block at
@@ -193,9 +245,22 @@ public sealed partial class ReconstructionService : IReconstructionService
     /// A <c>..</c> segment anywhere is rejected outright: these paths come from model output
     /// and are combined with the output directory before being written, so a traversal would
     /// escape the archive entirely.
+    ///
+    /// So is any rooted path, and for a subtler reason: validation normalizes, the write does
+    /// not. The caller stores the block under its ORIGINAL path and later does
+    /// <c>Path.Combine(outputDirectory, path)</c>, and Path.Combine discards its first argument
+    /// whenever the second is rooted — so <c>/nextjs/src/x.ts</c> would pass a check performed
+    /// on the trimmed <c>nextjs/src/x.ts</c> and then be written to the root of the current
+    /// drive. The drive-relative form <c>C:evil.cs</c> is the same hole with no separator at
+    /// all: it has one segment, so the bare-file-name allowance would wave it through.
+    /// <see cref="Path.IsPathRooted(string)"/> covers all three shapes (rooted, drive-relative,
+    /// UNC), so the path that is validated is always the path that gets written.
     /// </summary>
     private static bool BelongsToRenderedTree(string path, HashSet<string> treeRoots)
     {
+        if (Path.IsPathRooted(path))
+            return false;
+
         var normalized = path.Replace('\\', '/').TrimStart('/');
         if (normalized.Length == 0)
             return false;

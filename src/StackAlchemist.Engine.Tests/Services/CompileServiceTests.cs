@@ -51,6 +51,41 @@ public class CompileServiceTests
         context.Should().Contain(originalPrompt);
     }
 
+    /// <summary>
+    /// The one prompt in the pipeline that asked for <c>[[FILE:path]]</c> blocks while stating no
+    /// paths at all — and the only one that runs when a paid generation is already failing. Its
+    /// "original prompt" is the user's natural-language brief, which names no directories, so a
+    /// model answering it had nothing to go on but the build errors. Blocks that miss the tree are
+    /// now dropped rather than orphaned, which makes an unstated rule an expensive one: the fix
+    /// is discarded, the build fails again identically, and the retry budget drains toward a
+    /// Compile Guarantee refund.
+    /// </summary>
+    [Fact]
+    public void BuildRetryContext_WithTreeRoots_StatesWhereCorrectedFilesMayGo()
+    {
+        var sut = BuildSut();
+
+        var context = sut.BuildRetryContext(
+            "Build an invoicing app.", ["error CS0246: type not found"], retryAttempt: 1,
+            treeRoots: ["dotnet", "nextjs"]);
+
+        context.Should().Contain("`dotnet/`").And.Contain("`nextjs/`");
+        context.Should().Contain("nextjs/src/", "the frontend path is the one the old prompt got wrong");
+        context.Should().Contain("__zone__", "zones are resolved by repair time and cannot be filled again");
+    }
+
+    [Fact]
+    public void BuildRetryContext_WithNoTreeRoots_OmitsThePathRulesRatherThanInventingThem()
+    {
+        var sut = BuildSut();
+
+        var context = sut.BuildRetryContext(
+            "Build an invoicing app.", ["error CS0246: type not found"], retryAttempt: 1);
+
+        context.Should().NotContain("Paths Are Not Negotiable");
+        context.Should().Contain("Fix ALL build errors listed above.");
+    }
+
     [Fact]
     public void BuildRetryContext_WhenTheOnlyErrorEntryExceedsTheBudget_TruncatesInsteadOfDroppingIt()
     {

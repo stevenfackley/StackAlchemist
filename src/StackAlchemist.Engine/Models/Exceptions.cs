@@ -28,7 +28,7 @@ public class TruncatedLlmResponseException : MalformedLlmOutputException
 public class UnmappedLlmFileException : MalformedLlmOutputException
 {
     public UnmappedLlmFileException(IReadOnlyCollection<string> unmappedPaths, IReadOnlyCollection<string> treeRoots)
-        : base(BuildMessage(unmappedPaths, treeRoots))
+        : base(DescribeUnmappedPaths(unmappedPaths, treeRoots))
     {
         UnmappedPaths = [.. unmappedPaths];
     }
@@ -36,7 +36,12 @@ public class UnmappedLlmFileException : MalformedLlmOutputException
     /// <summary>The emitted paths that matched nothing, in the order they were parsed.</summary>
     public IReadOnlyList<string> UnmappedPaths { get; }
 
-    private static string BuildMessage(IReadOnlyCollection<string> unmappedPaths, IReadOnlyCollection<string> treeRoots)
+    /// <summary>
+    /// The wording used for out-of-tree paths, wherever they are caught. Public because the
+    /// build-repair loop applies the same routing rule but must NOT throw — aborting there
+    /// would skip the Compile Guarantee refund — so it reports this text instead.
+    /// </summary>
+    public static string DescribeUnmappedPaths(IReadOnlyCollection<string> unmappedPaths, IReadOnlyCollection<string> treeRoots)
     {
         var paths = string.Join(", ", unmappedPaths);
         var roots = treeRoots.Count > 0

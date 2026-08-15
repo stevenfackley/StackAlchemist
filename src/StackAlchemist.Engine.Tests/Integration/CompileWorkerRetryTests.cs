@@ -33,13 +33,13 @@ public class CompileWorkerRetryTests
                 Task.FromResult<BuildResult>(new BuildResult { ExitCode = 0, StandardOutput = "Build succeeded.", ErrorOutput = "" }));
         compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>())
             .Returns(["CS0103: name 'Foo' does not exist"]);
-        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>())
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
             .Returns(call => $"RETRY-PROMPT[errors={call.ArgAt<List<string>>(1).Count},attempt={call.ArgAt<int>(2)}]");
 
         var llm = Substitute.For<ILlmClient>();
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new LlmResponse(
-                "[[FILE:Models/Product.cs]]\npublic record Product;\n[[END_FILE]]",
+                "[[FILE:dotnet/Models/Product.cs]]\npublic record Product;\n[[END_FILE]]",
                 100, 50, "v1-stub-retry"));
 
         var reconstruction = new ReconstructionService();
@@ -66,7 +66,18 @@ public class CompileWorkerRetryTests
         compile.Received(1).BuildRetryContext(
             Arg.Any<string>(),
             Arg.Is<List<string>>(h => h.Count == 1 && h[0].Contains("CS0103")),
-            Arg.Is<int>(n => n == 1));
+            Arg.Is<int>(n => n == 1),
+            // The tree roots are handed over so the retry prompt can state where files may go;
+            // job.Prompt is the user's brief and names no paths.
+            Arg.Is<IReadOnlyCollection<string>>(roots => roots.Contains("dotnet")));
+
+        // An in-tree correction is applied silently — nothing refused, so no rejection notice
+        // reaches the build log. (The file itself cannot be asserted here: the worker deletes
+        // the output directory on exit.)
+        await delivery.DidNotReceive().AppendBuildLogAsync(
+            Arg.Any<string>(),
+            Arg.Is<string>(s => s.Contains("do not belong", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
 
         // ILlmClient called exactly once (the retry).
         await llm.Received(1).GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
@@ -101,7 +112,7 @@ public class CompileWorkerRetryTests
             }));
         compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>())
             .Returns(["CS9999: persistent failure"]);
-        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>())
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
             .Returns("retry-prompt");
 
         var llm = Substitute.For<ILlmClient>();
@@ -175,7 +186,9 @@ public class CompileWorkerRetryTests
         // Deliberately returns nothing: this asserts the raw-transcript fallback, the guard
         // against burning three retries (and a refund) on a failure shape no matcher knows.
         compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>()).Returns([]);
-        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>()).Returns("retry-prompt");
+        compile.BuildRetryContext(
+            Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(),
+            Arg.Any<IReadOnlyCollection<string>>()).Returns("retry-prompt");
 
         var llm = Substitute.For<ILlmClient>();
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
@@ -202,6 +215,87 @@ public class CompileWorkerRetryTests
         capturedJob.State.Should().Be(GenerationState.Success);
     }
 
+    /// <summary>
+    /// The repair loop was the second write site, and it was unguarded: it parsed the response
+    /// and wrote every block straight into the customer's output directory. So the whole class of
+    /// failure the routing rule exists to prevent was still reachable one build attempt later —
+    /// <c>src/lib/api.ts</c> orphaned at the archive root, a <c>__zone__/</c> fragment shipped as
+    /// a literal file, and a <c>..</c> segment escaping the directory altogether.
+    ///
+    /// The job must still walk its normal course: refused blocks are dropped and reported, the
+    /// retries run out, and a paid generation reaches the Compile Guarantee refund. Throwing here
+    /// would abort through the worker's generic catch and skip that refund entirely.
+    /// </summary>
+    [Fact]
+    public async Task WithRepairBlocksOutsideTheTree_DropsThemAndStillReachesTheRefund()
+    {
+        var outputDir = MakeTempOutputDir();
+        var job = MakeJob(outputDir);
+        // One level up from the output directory — exactly where "../x.cs" would land.
+        var escape = Path.Combine(
+            Path.GetDirectoryName(outputDir)!, "sa-escape-" + Guid.NewGuid().ToString("N")[..8] + ".cs");
+
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BuildResult>(new BuildResult
+            {
+                ExitCode = 1,
+                StandardOutput = "",
+                ErrorOutput = "error CS9999: persistent failure",
+            }));
+        compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>())
+            .Returns(["CS9999: persistent failure"]);
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
+            .Returns("retry-prompt");
+
+        // A repair response in the exact shape the prompt used to elicit: a frontend path from
+        // the old prompt, a zone fragment, and a traversal out of the archive.
+        var llm = Substitute.For<ILlmClient>();
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new LlmResponse(
+                $$"""
+                [[FILE:src/lib/api.ts]]
+                export async function getCustomers() { return []; }
+                [[END_FILE]]
+                [[FILE:__zone__/RouteRegistrations]]
+                app.MapCustomerEndpoints();
+                [[END_FILE]]
+                [[FILE:../{{Path.GetFileName(escape)}}]]
+                // escaped the archive
+                [[END_FILE]]
+                """,
+                10, 5, "v1-stub-retry"));
+
+        var reconstruction = new ReconstructionService();
+        var r2 = Substitute.For<IR2UploadService>();
+        var delivery = Substitute.For<IDeliveryService>();
+        var email = Substitute.For<IEmailService>();
+        var refund = Substitute.For<IRefundService>();
+
+        var (_, capturedJob) = await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
+
+        // The traversal never happened. This is the one refusal still observable after the run:
+        // the worker deletes the output directory on exit, so the in-tree cases (orphan root
+        // file, literal __zone__ file) are asserted directly against the routing rule in
+        // ReconstructionServiceTests.ResolveRepairWrites_PathOutsideTheTree_IsRefusedNotWritten.
+        File.Exists(escape).Should().BeFalse(
+            "a `..` segment must never write outside the generation's output directory");
+
+        // Every refusal is reported rather than swallowed — the build log is what explains to the
+        // customer why the next attempt failed on the same errors.
+        await delivery.Received().AppendBuildLogAsync(
+            Arg.Any<string>(),
+            Arg.Is<string>(s => s.Contains("src/lib/api.ts", StringComparison.Ordinal)
+                             && s.Contains("__zone__/RouteRegistrations", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+
+        // The job still ended the normal way, so the Compile Guarantee still applies.
+        capturedJob.State.Should().Be(GenerationState.Failed);
+        capturedJob.RetryCount.Should().Be(3, "refusing a block must not short-circuit the retry budget");
+        await refund.Received(1).RefundFailedGenerationAsync(
+            capturedJob.GenerationId, Arg.Any<CancellationToken>());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static GenerationContext MakeJob(string outputDir) => new()
@@ -215,10 +309,16 @@ public class CompileWorkerRetryTests
         State = GenerationState.Building, // orchestrator hands the job over already in Building.
     };
 
+    /// <summary>
+    /// An output directory shaped like a rendered V1 archive. The top-level directories are not
+    /// decoration: a build-repair block may only be written under one the tree actually has, so
+    /// a bare empty directory would make every correction in these tests a refused no-op.
+    /// </summary>
     private static string MakeTempOutputDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "stackalchemist-test", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "dotnet", "Models"));
+        Directory.CreateDirectory(Path.Combine(dir, "nextjs", "src"));
         return dir;
     }
 

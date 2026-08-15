@@ -470,5 +470,136 @@ public class ReconstructionServiceTests
             "the entity is a real file; duplicating it into the placeholder is a duplicate definition");
     }
 
+    [Fact]
+    public void Reconstruct_DriveRelativePath_IsRejected()
+    {
+        // "C:evil.cs" has no separator, so it is a single segment and the bare-file-name
+        // allowance would wave it through — but Path.Combine(outputDir, "C:evil.cs") returns
+        // "C:evil.cs", writing to the process's current directory on C: instead of the archive.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["C:evil.cs"] = "pwned" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    [Fact]
+    public void Reconstruct_RootedPath_IsRejectedRatherThanSilentlyTrimmed()
+    {
+        // The check normalizes but the write does not: the block is stored under its original
+        // path and later Path.Combine'd, and Path.Combine discards the base directory when the
+        // second argument is rooted. Validating the trimmed form would green-light a write to
+        // the root of the drive.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["/nextjs/src/lib/api.ts"] = "export {};" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    #endregion
+
+    #region Build-Repair Routing
+
+    /// <summary>An output directory shaped like a rendered V1 archive.</summary>
+    private static string MakeTreeOnDisk()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sa-repair-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(Path.Combine(root, "dotnet", "Repositories"));
+        Directory.CreateDirectory(Path.Combine(root, "nextjs", "src", "lib"));
+        return root;
+    }
+
+    [Fact]
+    public void ResolveRepairWrites_PathInsideTheTree_IsWritten()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var blocks = new Dictionary<string, string>
+            {
+                ["dotnet/Repositories/CustomerRepository.cs"] = "// fixed",
+                ["nextjs/src/lib/api.ts"] = "export {};",
+            };
+
+            var result = _sut.ResolveRepairWrites(blocks, root);
+
+            result.Writes.Should().HaveCount(2);
+            result.Rejected.Should().BeEmpty();
+            result.RejectionNotice.Should().BeNull();
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// The repair loop was the second, unguarded write site: it parsed the response and wrote
+    /// every block straight to disk, so the exact failures Reconstruct rejects were all still
+    /// reachable — just one build attempt later, on a generation already in trouble.
+    /// </summary>
+    [Theory]
+    [InlineData("src/lib/api.ts", "orphans at the archive root, where nothing serves it")]
+    [InlineData("__zone__/RouteRegistrations", "the zones are resolved by now — this lands in the zip as a literal file")]
+    [InlineData("dotnet/../../../evil.cs", "a traversal segment escapes the output directory")]
+    [InlineData("C:evil.cs", "a drive-relative path escapes the output directory")]
+    public void ResolveRepairWrites_PathOutsideTheTree_IsRefusedNotWritten(string path, string because)
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var result = _sut.ResolveRepairWrites(
+                new Dictionary<string, string> { [path] = "content" }, root);
+
+            result.Writes.Should().BeEmpty(because);
+            result.Rejected.Should().ContainSingle().Which.Should().Be(path);
+            result.RejectionNotice.Should().Contain(path);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void ResolveRepairWrites_MixedResponse_AppliesTheGoodBlocksAndRefusesTheRest()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var blocks = new Dictionary<string, string>
+            {
+                ["dotnet/Repositories/CustomerRepository.cs"] = "// fixed",
+                ["src/lib/api.ts"] = "export {};",
+            };
+
+            var result = _sut.ResolveRepairWrites(blocks, root);
+
+            result.Writes.Should().ContainKey("dotnet/Repositories/CustomerRepository.cs")
+                  .And.NotContainKey("src/lib/api.ts");
+            result.Rejected.Should().ContainSingle().Which.Should().Be("src/lib/api.ts");
+            result.RejectionNotice.Should().Contain("dotnet").And.Contain("nextjs",
+                "the notice has to name the roots that WOULD have worked");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// Reporting, not throwing, is deliberate. Aborting the repair would take the job out
+    /// through the worker's generic catch, which marks it Failed without reaching the
+    /// compile-guarantee refund — costing a paying customer both the app and the money.
+    /// </summary>
+    [Fact]
+    public void ResolveRepairWrites_WithEveryBlockRefused_ReportsRatherThanThrows()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var act = () => _sut.ResolveRepairWrites(
+                new Dictionary<string, string> { ["src/app/page.tsx"] = "x" }, root);
+
+            act.Should().NotThrow();
+            act().Rejected.Should().ContainSingle();
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     #endregion
 }

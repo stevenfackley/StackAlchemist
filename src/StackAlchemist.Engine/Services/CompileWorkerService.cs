@@ -217,8 +217,13 @@ public sealed partial class CompileWorkerService(
             await deliveryService.UpdateStatusAsync(
                 job.GenerationId, GenerationState.Generating, ct: ct);
 
+            // job.Prompt is the user's natural-language brief — it says nothing about where
+            // files go, so without the tree roots this is the one prompt in the pipeline that
+            // asks for [[FILE:path]] blocks while stating no paths, and it is the prompt that
+            // only ever runs when a paid generation is already failing.
             var retryPrompt = compileService.BuildRetryContext(
-                job.Prompt ?? "Generate code", job.BuildErrorHistory, job.RetryCount);
+                job.Prompt ?? "Generate code", job.BuildErrorHistory, job.RetryCount,
+                TreeRootsOf(job.OutputDirectory));
 
             // Reuse the SAME resolved credential/model the orchestrator used for codegen, so a
             // BYOK build-repair hits the user's provider/key — not the global Anthropic default.
@@ -235,10 +240,16 @@ public sealed partial class CompileWorkerService(
             // fails too, burning the remaining retries on reproducible truncation.
             LlmResponseGuard.ThrowIfTruncated(llmResponse, "fixing the compilation errors");
 
-            var fixedBlocks = reconstructionService.Parse(llmResponse.Text);
+            // Route the repair through the same rule as the first pass: a corrected file may
+            // only land inside the tree the customer's archive actually has. Writing blindly
+            // here re-opened every hole Reconstruct closes — an orphan src/ at the archive
+            // root, a __zone__/ fragment shipped as a literal file, a `..` escaping the
+            // output directory — because this is a second, later write site.
+            var repair = reconstructionService.ResolveRepairWrites(
+                reconstructionService.Parse(llmResponse.Text), job.OutputDirectory);
 
             // Overwrite only the files that changed
-            foreach (var (relativePath, content) in fixedBlocks)
+            foreach (var (relativePath, content) in repair.Writes)
             {
                 var fullPath = Path.Combine(job.OutputDirectory, relativePath);
                 var dir = Path.GetDirectoryName(fullPath)!;
@@ -249,6 +260,15 @@ public sealed partial class CompileWorkerService(
                 // build-report.json is the customer's only record of what the repair loop
                 // touched once the temp directory is gone.
                 attempt.CorrectedFiles.Add(relativePath);
+            }
+
+            // Refused blocks are dropped, never written — but never silently: the build log is
+            // the customer's view of the repair loop, and this is why the next attempt still
+            // fails on the same errors.
+            if (repair.RejectionNotice is not null)
+            {
+                LogRepairBlocksRejected(logger, job.GenerationId, string.Join(", ", repair.Rejected));
+                await deliveryService.AppendBuildLogAsync(job.GenerationId, repair.RejectionNotice, ct);
             }
 
             // Generating → Building
@@ -420,6 +440,15 @@ public sealed partial class CompileWorkerService(
             ct: ct);
     }
 
+    /// <summary>
+    /// The top-level directories of the generated project as it stands on disk — the roots a
+    /// repair block's path is allowed to start with, and the list the retry prompt quotes.
+    /// </summary>
+    private static IReadOnlyCollection<string> TreeRootsOf(string outputDirectory)
+        => [.. Directory.EnumerateDirectories(outputDirectory)
+                        .Select(d => Path.GetFileName(d)!)
+                        .Order(StringComparer.Ordinal)];
+
     private void CleanupTempDirectory(GenerationContext job)
     {
         if (job.OutputDirectory is null || !Directory.Exists(job.OutputDirectory))
@@ -473,4 +502,10 @@ public sealed partial class CompileWorkerService(
 
     [LoggerMessage(EventId = 611, Level = LogLevel.Warning, Message = "Could not write build-report.json for generation {Id} — archive ships without it")]
     private static partial void LogBuildReportWriteFailed(ILogger logger, Exception ex, string id);
+
+    // 612, not 611: this branch was written against a tree where 611 was free, and
+    // build-report.json claimed it first. Duplicate ids inside one class are a SYSLIB1006
+    // build error, not a style nit.
+    [LoggerMessage(EventId = 612, Level = LogLevel.Warning, Message = "Build-repair blocks refused for generation {Id} — outside the project tree, not written: {Paths}")]
+    private static partial void LogRepairBlocksRejected(ILogger logger, string id, string paths);
 }
