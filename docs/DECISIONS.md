@@ -728,9 +728,16 @@ several files' `using` directives into one file (CS1529).
 **Consequences:** A misrouted generation now fails loudly instead of shipping a
 half-empty archive — a visible, refundable failure beats a plausible-looking one.
 The zone→file table under *Phase 2* above still describes where each zone lives,
-but for V1 only `RepositoryRegistrations`, `RouteRegistrations`, `HomePageContent`,
-`ApiRouteHandlers`, `TypeDefinitions` and `SqlSchema` are still filled by zone; the
-`Models`/`Repositories`/`Controllers` zones are retired in favour of real files.
+but for V1 only `RepositoryRegistrations` and `RouteRegistrations` are still filled
+by zone — they are the only two the prompt names and the only two the model is asked
+to emit as `__zone__/…` blocks. Every other V1 zone is now dead: `Models`,
+`Repositories` and `Controllers` are retired in favour of real per-entity files, and
+`HomePageContent`, `ApiRouteHandlers`, `TypeDefinitions` and `SqlSchema` are retired
+because the prompt asks for `nextjs/src/app/page.tsx`, `nextjs/src/lib/api.ts`,
+`nextjs/src/types/index.ts` and `dotnet/Migrations/001_initial_schema.sql` as whole
+files instead. The markers still sit in those four template files and collapse to
+nothing when unfilled, which is exactly what keeps the bare template compiling; they
+are harmless, not load-bearing, and should not be read as a live contract.
 Guarded by `V1TemplateCompileTests.GoldenLlmResponse_*`, which reconstructs a
 recorded response through the real services and builds both halves in CI.
 

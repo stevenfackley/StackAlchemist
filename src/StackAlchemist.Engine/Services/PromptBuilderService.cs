@@ -66,11 +66,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
 
         if (projectType == ProjectType.PythonReact)
         {
-            sb.AppendLine("## Stack");
-            sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
-            sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
-            sb.AppendLine("- Use `backend/` prefix for Python files and `frontend/src/` prefix for React files");
-            sb.AppendLine();
+            AppendPythonReactLayout(sb);
         }
         else
         {
@@ -161,6 +157,35 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// The same path manifest for the Python + React tree.
+    ///
+    /// It used to be a single bullet ("use `backend/` and `frontend/src/` prefixes") with no
+    /// statement of what happens otherwise, which was survivable while an unmatched path was
+    /// quietly written to the archive root. It no longer is: routing is fatal for every project
+    /// type, so a stray path here fails the generation rather than orphaning a file, and the
+    /// prompt has to say so. Roots match the rendered <c>V1-Python-React</c> tree
+    /// (<c>backend/</c>, <c>frontend/</c>, <c>infra/</c>).
+    /// </summary>
+    private static void AppendPythonReactLayout(StringBuilder sb)
+    {
+        sb.AppendLine("## Stack");
+        sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
+        sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
+        sb.AppendLine();
+        sb.AppendLine("## Project Tree — paths are not negotiable");
+        sb.AppendLine();
+        sb.AppendLine("Your output is merged into an EXISTING tree whose top-level directories are");
+        sb.AppendLine("`backend/` (the FastAPI service), `frontend/` (the Vite app) and `infra/`. Every file path");
+        sb.AppendLine("you emit MUST start with one of them — Python under `backend/`, React under");
+        sb.AppendLine("`frontend/src/`. A path that matches none of them is rejected and the generation fails;");
+        sb.AppendLine("it is NOT created for you somewhere sensible.");
+        sb.AppendLine();
+        sb.AppendLine("Fragments that belong inside an existing file are addressed by zone name instead of a");
+        sb.AppendLine("path: emit `[[FILE:__zone__/<ZoneName>]]` containing ONLY the fragment.");
+        sb.AppendLine();
     }
 
     /// <summary>
