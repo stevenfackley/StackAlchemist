@@ -81,7 +81,7 @@ export const FAQS = [
   {
     category: "pricing",
     question: "What are the pricing tiers?",
-      answer:
+    answer:
       "Spark is free and runs the workflow end to end, handing back a fixed demo app that boots in your browser — it is not generated from your description. Blueprint ($299) delivers the architecture documents: schema.json and a CRUD API contract. Boilerplate ($599) delivers the generated source itself, compiled on both halves before delivery, with Docker Compose. Infrastructure ($999) adds AWS CDK, Terraform, a Helm chart, and a deployment runbook.",
   },
   {
