@@ -20,7 +20,7 @@
 
 ## Overview
 
-StackAlchemist generates a complete, compilable source repository from a description of your SaaS idea. You describe what you're building — your entities, relationships, and API surface — and receive a full project archive with a .NET 10 Web API backend, Next.js 15 frontend, PostgreSQL migrations, Supabase auth integration, and Docker Compose dev environment.
+StackAlchemist generates a complete, compilable source repository from a description of your SaaS idea. You describe what you're building — your entities, relationships, and API surface — and receive a full project archive with a .NET 10 Web API backend, Next.js 15 frontend, PostgreSQL migrations, the Supabase client preinstalled and env-wired, and a Docker Compose dev environment.
 
 There are two ways to describe your project:
 
@@ -203,18 +203,18 @@ lands inside one of them.
 ```
 infra/
 ├── cdk/
-│   ├── bin/app.ts                  # CDK app entry
-│   ├── lib/
-│   │   ├── database-stack.ts       # RDS PostgreSQL
-│   │   ├── api-stack.ts            # Lambda + API Gateway
-│   │   ├── frontend-stack.ts       # S3 + CloudFront
-│   │   └── auth-stack.ts           # Cognito / Supabase wiring
-│   └── package.json
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                  # Build + test pipeline
-│       └── deploy.yml              # CDK deploy on merge to main
-└── DEPLOYMENT.md
+│   ├── lib/<project>-stack.ts      # VPC, ECS Fargate + ALB, RDS PostgreSQL
+│   ├── package.json
+│   └── tsconfig.json
+├── terraform/
+│   ├── main.tf                     # VPC, ECS, ALB, RDS, CloudWatch logs
+│   ├── variables.tf
+│   └── outputs.tf
+└── helm/
+    ├── Chart.yaml
+    ├── values.yaml
+    └── templates/                  # deployment, service, ingress, HPA, config, secrets
+DEPLOYMENT.md                       # preflight, deploy, rollback runbook
 ```
 
 ---
