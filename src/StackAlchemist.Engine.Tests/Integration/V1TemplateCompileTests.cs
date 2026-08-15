@@ -135,12 +135,35 @@ public sealed class V1TemplateCompileTests : IDisposable
             bytes.Should().BeLessThan(MaxCustomerArchiveBytes,
                 $"the archive is what the buyer downloads; it was {bytes:N0} bytes with " +
                 $"{entries.Count} entries");
+
+            KeepArchiveIfRequested(zipPath);
         }
         finally
         {
             ProjectArchiver.TryDelete(zipPath);
         }
     }
+
+    /// <summary>
+    /// Copies the packed archive somewhere durable when <c>SA_TEMPLATE_ARCHIVE_OUTPUT</c>
+    /// names a path. This is how you get the exact bytes a Tier-2 buyer downloads — built
+    /// by the real strategy, packed by the real <see cref="ProjectArchiver"/> — without
+    /// spending money on a live generation.
+    /// </summary>
+    private static void KeepArchiveIfRequested(string zipPath)
+    {
+        var destination = Environment.GetEnvironmentVariable(ArchiveOutputEnvVar);
+        if (string.IsNullOrWhiteSpace(destination))
+            return;
+
+        var fullPath = Path.GetFullPath(destination);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.Copy(zipPath, fullPath, overwrite: true);
+        Console.WriteLine($"Customer archive written to {fullPath}");
+    }
+
+    /// <summary>Env var naming a file to copy the packed customer archive to.</summary>
+    private const string ArchiveOutputEnvVar = "SA_TEMPLATE_ARCHIVE_OUTPUT";
 
     /// <summary>
     /// Ceiling for the packed Tier-2 deliverable. Generous against the real figure (the
