@@ -210,6 +210,8 @@ StackAlchemist/
 | [Generation State Machine](docs/architecture/Generation%20State%20Machine.md) | Pipeline state transitions |
 | [PRD](docs/product/Product%20Requirements%20Document.md) | Product requirements |
 | [User Guide](docs/user/user-guide.md) | End-user guide |
+| [Runbook: CI Supabase migrations](docs/runbooks/ci-supabase-migrations.md) | `CI_SUPABASE_DB_URL` and the migration step's failure modes |
+| [Runbook: Supabase Auth SMTP](docs/runbooks/supabase-auth-smtp.md) | Moving magic-link email off the 2/hour built-in mailer |
 
 ---
 
