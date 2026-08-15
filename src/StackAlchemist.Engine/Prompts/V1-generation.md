@@ -43,7 +43,7 @@ app.MapCustomerEndpoints();
 ## Stack
 
 - **Backend:** .NET 10, Minimal API, Dapper, PostgreSQL (Npgsql)
-- **Frontend:** Next.js 15 (App Router), TypeScript strict, Tailwind CSS
+- **Frontend:** Next.js 16 (App Router), TypeScript strict, Tailwind CSS
 - **Database:** PostgreSQL with UUID primary keys and Row Level Security
 
 ## Project Identity

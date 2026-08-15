@@ -51,7 +51,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
             ProjectType.PythonReact =>
                 "You are an expert Python (FastAPI, SQLAlchemy, Pydantic, Alembic) and React (Vite, TypeScript, Tailwind CSS, TanStack Query) developer generating production-quality code.",
             _ =>
-                "You are an expert .NET 10 and Next.js 15 developer generating production-quality code.",
+                "You are an expert .NET 10 and Next.js 16 developer generating production-quality code.",
         };
 
         sb.AppendLine(stackDescription);
@@ -204,7 +204,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
     {
         sb.AppendLine("## Stack");
         sb.AppendLine("- Backend: .NET 10 Minimal API with Dapper and PostgreSQL (Npgsql)");
-        sb.AppendLine("- Frontend: Next.js 15 App Router, TypeScript strict mode, Tailwind CSS");
+        sb.AppendLine("- Frontend: Next.js 16 App Router, TypeScript strict mode, Tailwind CSS");
         sb.AppendLine();
         sb.AppendLine("## Project Tree — paths are not negotiable");
         sb.AppendLine();
