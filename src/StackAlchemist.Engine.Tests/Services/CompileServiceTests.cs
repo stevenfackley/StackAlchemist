@@ -52,6 +52,26 @@ public class CompileServiceTests
     }
 
     [Fact]
+    public void BuildRetryContext_WhenTheOnlyErrorEntryExceedsTheBudget_TruncatesInsteadOfDroppingIt()
+    {
+        // A `next build` failure now carries file paths and code frames, so a single
+        // attempt's entry can be larger than the whole 8k context budget. The old loop
+        // silently included nothing, producing a retry prompt with an empty error section
+        // — which teaches the LLM nothing, burns all three attempts, and ends in a
+        // Compile Guarantee refund.
+        var sut = BuildSut();
+        var huge = "./src/app/page.tsx:5:9\nType error: MARKER-START "
+                   + new string('x', 20_000) + " MARKER-END";
+
+        var context = sut.BuildRetryContext("Generate CRUD", [huge], retryAttempt: 1);
+
+        context.Should().Contain("MARKER-START", "the retry prompt must never ship an empty error section");
+        context.Should().Contain("./src/app/page.tsx:5:9");
+        context.Should().Contain("truncated");
+        context.Should().NotContain("MARKER-END", "the tail is what gets clipped, not the actionable head");
+    }
+
+    [Fact]
     public void ExtractBuildErrors_WithPythonAndEslintOutput_ReturnsOnlyErrorLines()
     {
         var sut = BuildSut();

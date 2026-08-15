@@ -143,6 +143,65 @@ public class CompileWorkerRetryTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task WithFailureReportedOnStdout_StillFeedsTheRepairLoopRealContext()
+    {
+        // `next build` writes type errors to stdout and DotNetBuildStrategy.Fail keeps the
+        // whole transcript there, putting only the failing step's stderr in ErrorOutput.
+        // The worker used to extract from ErrorOutput alone, so any stderr chatter at all
+        // (an npm notice is enough) hid the frontend failure completely.
+        var outputDir = MakeTempOutputDir();
+        var job = MakeJob(outputDir);
+
+        const string transcript = """
+            $ npm run build  (exit 1)
+            Failed to compile.
+
+            ./src/app/page.tsx:5:9
+            Type error: Type 'string' is not assignable to type 'number'.
+            """;
+
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult<BuildResult>(new BuildResult
+                {
+                    ExitCode = 1,
+                    StandardOutput = transcript,
+                    ErrorOutput = "npm notice New minor version of npm available!",
+                }),
+                Task.FromResult<BuildResult>(new BuildResult { ExitCode = 0, StandardOutput = "ok", ErrorOutput = "" }));
+
+        // Deliberately returns nothing: this asserts the raw-transcript fallback, the guard
+        // against burning three retries (and a refund) on a failure shape no matcher knows.
+        compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>()).Returns([]);
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>()).Returns("retry-prompt");
+
+        var llm = Substitute.For<ILlmClient>();
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new LlmResponse("[[FILE:dummy.cs]]\nclass Dummy{}\n[[END_FILE]]", 10, 5, "v1-stub-retry"));
+
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://r2.test/fake-presigned");
+
+        var (_, capturedJob) = await RunWorkerAsync(
+            job, compile, llm, new ReconstructionService(), r2,
+            Substitute.For<IDeliveryService>(), Substitute.For<IEmailService>(), Substitute.For<IRefundService>());
+
+        // The extractor was handed the stdout transcript, not just the stderr noise.
+        compile.Received().ExtractBuildErrors(
+            Arg.Is<string>(s => s.Contains("Type error:", StringComparison.Ordinal)
+                             && s.Contains("./src/app/page.tsx:5:9", StringComparison.Ordinal)),
+            Arg.Any<ProjectType>());
+
+        // And with the extractor returning nothing, the retry context is the raw tail
+        // rather than an empty string.
+        capturedJob.BuildErrorHistory.Should().ContainSingle();
+        capturedJob.BuildErrorHistory[0].Should().Contain("./src/app/page.tsx:5:9");
+        capturedJob.State.Should().Be(GenerationState.Success);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static GenerationContext MakeJob(string outputDir) => new()

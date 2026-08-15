@@ -40,11 +40,27 @@ public sealed partial class TemplateProvider : ITemplateProvider
         foreach (var file in _fs.Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
         {
             var relativePath = _fs.Path.GetRelativePath(dir, file).Replace('\\', '/');
+            if (IsBuildResidue(relativePath))
+                continue;
+
             result[relativePath] = _fs.File.ReadAllText(file);
         }
 
         return result;
     }
+
+    /// <summary>
+    /// True when a template-relative path sits under a build-output directory
+    /// (<c>obj/</c>, <c>bin/</c>, <c>node_modules/</c>, <c>.next/</c>, …).
+    ///
+    /// Build residue appears inside a template tree whenever anyone runs `dotnet build` /
+    /// `npm install` in it while working on the templates. Those files are machine-local
+    /// (absolute NuGet paths, binary caches) and must never be Handlebars-compiled nor
+    /// shipped to a customer — the glob in <see cref="LoadTemplate"/> is "*" recursive, so
+    /// without this filter a stray obj/ directory becomes part of the paid deliverable.
+    /// </summary>
+    internal static bool IsBuildResidue(string relativePath) =>
+        BuildResiduePaths.IsResidueFile(relativePath);
 
     public Dictionary<string, string> Render(Dictionary<string, string> templates, TemplateVariables variables)
     {

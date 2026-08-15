@@ -13,6 +13,12 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
 
     protected ILogger Logger { get; } = logger;
 
+    /// <inheritdoc cref="ProcessCommandResolver"/>
+    protected static string NpmExecutable => ProcessCommandResolver.Npm;
+
+    /// <inheritdoc cref="ProcessCommandResolver"/>
+    protected static string NpxExecutable => ProcessCommandResolver.Npx;
+
     protected static async Task<BuildResult> RunProcessAsync(
         string fileName,
         string arguments,
