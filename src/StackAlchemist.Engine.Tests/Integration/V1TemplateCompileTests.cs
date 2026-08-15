@@ -75,17 +75,11 @@ public sealed class V1TemplateCompileTests : IDisposable
     [Fact]
     public async Task RenderedTemplate_BuildsBothHalves()
     {
-        if (!IsOnPath("dotnet", "--version"))
-        {
-            Console.WriteLine("Skipping — `dotnet` not found on PATH.");
+        if (!ToolchainAvailable("dotnet", "--version", "the .NET SDK"))
             return;
-        }
 
-        if (!IsOnPath(ProcessCommandResolver.Npm, "--version"))
-        {
-            Console.WriteLine("Skipping — `npm` not found on PATH.");
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
             return;
-        }
 
         V1TemplateHarness.RenderTo(_outputDir);
 
@@ -98,6 +92,31 @@ public sealed class V1TemplateCompileTests : IDisposable
             because: "the V1 template is the baseline of every Tier-2 'Compile Guarantee' " +
                      $"archive and must compile before the LLM adds anything.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
     }
+
+    /// <summary>
+    /// Skips locally when a toolchain is missing, but FAILS on CI. A gate that quietly
+    /// passes in 0.4s because npm moved is not a gate — and this one exists precisely
+    /// because a whole class of breakage went unnoticed for want of an assertion.
+    /// </summary>
+    private static bool ToolchainAvailable(string fileName, string arguments, string label)
+    {
+        if (IsOnPath(fileName, arguments))
+            return true;
+
+        Assert.False(
+            IsContinuousIntegration,
+            $"{label} is required to verify the Compile Guarantee and was not found on PATH " +
+            $"(tried '{fileName}'). The backend CI job installs it — if this fires, the gate " +
+            "is no longer actually building the template.");
+
+        Console.WriteLine($"Skipping — {label} not found on PATH.");
+        return false;
+    }
+
+    private static bool IsContinuousIntegration =>
+        Environment.GetEnvironmentVariable("CI") is { Length: > 0 } ci
+        && !ci.Equals("false", StringComparison.OrdinalIgnoreCase)
+        && !ci.Equals("0", StringComparison.Ordinal);
 
     private static bool IsOnPath(string fileName, string arguments)
     {
