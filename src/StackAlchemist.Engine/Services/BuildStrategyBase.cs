@@ -19,7 +19,16 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
     /// <inheritdoc cref="ProcessCommandResolver"/>
     protected static string NpxExecutable => ProcessCommandResolver.Npx;
 
-    protected static async Task<BuildResult> RunProcessAsync(
+    /// <summary>
+    /// Runs one external build command and captures its output.
+    ///
+    /// Virtual purely as a test seam: the dual-build orchestration in
+    /// <see cref="DotNetBuildStrategy"/> — which half runs first, what a failure in either
+    /// half does, whether an optional step is skipped — is logic worth unit-testing, and it
+    /// cannot be tested by shelling out to a real toolchain. Overrides stub this; nothing in
+    /// production replaces it.
+    /// </summary>
+    protected virtual async Task<BuildResult> RunProcessAsync(
         string fileName,
         string arguments,
         string workingDirectory,

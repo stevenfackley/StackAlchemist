@@ -48,6 +48,12 @@ public sealed class GenerationContext
     public DateTimeOffset StartedAt { get; init; } = DateTimeOffset.UtcNow;
     public int RetryCount { get; set; }
     public List<string> BuildErrorHistory { get; } = [];
+
+    /// <summary>
+    /// One entry per compile attempt, oldest first. Source of <c>build-report.json</c> in the
+    /// customer archive and of the per-half verdict the delivery UI badges.
+    /// </summary>
+    public List<BuildAttemptRecord> BuildAttempts { get; } = [];
     public string? OutputDirectory { get; set; }
     public string? DownloadUrl { get; set; }
     public string? ErrorMessage { get; set; }
@@ -283,4 +289,58 @@ public sealed class BuildResult
     public required string StandardOutput { get; init; }
     public required string ErrorOutput { get; init; }
     public bool IsSuccess => ExitCode == 0;
+
+    /// <summary>
+    /// Per-command breakdown of everything the strategy ran, in execution order.
+    ///
+    /// <see cref="StandardOutput"/> is a flat transcript, which is fine for the LLM repair
+    /// prompt but cannot answer "did the Next.js half actually compile?" — the question the
+    /// Compile Guarantee is selling an answer to. These entries are what
+    /// <c>build-report.json</c> and the delivery UI's per-half badge are built from.
+    ///
+    /// Empty for strategies that have not been taught to record steps; consumers must treat
+    /// an empty list as "no per-step detail available", never as "nothing ran".
+    /// </summary>
+    public IReadOnlyList<BuildStepResult> Steps { get; init; } = [];
+}
+
+/// <summary>
+/// Which half of the V1 deliverable a build step belongs to. Serialized into
+/// <c>build-report.json</c>, so the wire values are part of the customer-facing contract
+/// documented in <c>docs/advanced-docs/compile-guarantee.md</c>.
+/// </summary>
+public enum BuildHalf
+{
+    DotNet,
+    NextJs,
+}
+
+/// <summary>Outcome of a single external command inside a build attempt.</summary>
+public sealed record BuildStepResult
+{
+    /// <summary>Which half of the archive this command verified.</summary>
+    public required BuildHalf Half { get; init; }
+
+    /// <summary>
+    /// The command as the customer would type it (e.g. <c>npm run build</c>) — never the
+    /// resolved absolute launcher path, which leaks the build host's filesystem layout.
+    /// </summary>
+    public required string Command { get; init; }
+
+    public required int ExitCode { get; init; }
+
+    public required long DurationMs { get; init; }
+
+    public int ErrorCount { get; init; }
+
+    public int WarningCount { get; init; }
+
+    /// <summary>
+    /// True when the step was not run at all (e.g. no <c>nextjs/</c> directory, or the
+    /// template has no <c>typecheck</c> script). A skipped step is not a failure, but it is
+    /// also not evidence of compilation — the UI must not badge it as verified.
+    /// </summary>
+    public bool Skipped { get; init; }
+
+    public bool IsSuccess => !Skipped && ExitCode == 0;
 }

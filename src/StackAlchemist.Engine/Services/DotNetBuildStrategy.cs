@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using StackAlchemist.Engine.Models;
 
@@ -13,35 +15,56 @@ namespace StackAlchemist.Engine.Services;
 /// promise <c>dotnet build</c> AND <c>npm run build</c>. Until this class grew the
 /// nextjs/ leg it only ever ran <c>dotnet</c>, so a Boilerplate archive whose frontend
 /// did not compile still shipped stamped "Compile Verified".
+///
+/// Every command is recorded as a <see cref="BuildStepResult"/> on the returned
+/// <see cref="BuildResult"/>. The flat transcript is what the LLM repair loop reads; the
+/// step list is what <c>build-report.json</c> and the delivery UI's per-half badge are
+/// built from, because "the build passed" and "the Next.js half compiled" are different
+/// claims and only the second one is the thing being sold.
 /// </summary>
-public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
+/// <remarks>
+/// Not sealed solely so tests can override <see cref="BuildStrategyBase.RunProcessAsync"/>
+/// and drive the dual-build orchestration without a real toolchain. Nothing in production
+/// subclasses it.
+/// </remarks>
+public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
     : BuildStrategyBase(logger)
 {
+    /// <summary>
+    /// npm script the frontend is type-checked with when the template defines it. Optional
+    /// on purpose: `next build` already type-checks, so a generated project that dropped the
+    /// script is not thereby unverified — it just gets one signal instead of two.
+    /// </summary>
+    private const string TypecheckScript = "typecheck";
+
     public override ProjectType SupportedProjectType => ProjectType.DotNetNextJs;
 
     public override async Task<BuildResult> ExecuteBuildAsync(string projectDirectory, CancellationToken ct = default)
     {
         var transcript = new StringBuilder();
+        var steps = new List<BuildStepResult>();
 
-        var dotnetResult = await BuildDotNetAsync(projectDirectory, transcript, ct);
+        var dotnetResult = await BuildDotNetAsync(projectDirectory, transcript, steps, ct);
         if (!dotnetResult.IsSuccess)
-            return dotnetResult;
+            return Fail(dotnetResult, transcript, steps);
 
-        var nextResult = await BuildNextJsAsync(projectDirectory, transcript, ct);
+        var nextResult = await BuildNextJsAsync(projectDirectory, transcript, steps, ct);
         if (!nextResult.IsSuccess)
-            return nextResult;
+            return Fail(nextResult, transcript, steps);
 
         return new BuildResult
         {
             ExitCode = 0,
             StandardOutput = transcript.ToString(),
             ErrorOutput = string.Empty,
+            Steps = steps,
         };
     }
 
     private async Task<BuildResult> BuildDotNetAsync(
         string projectDirectory,
         StringBuilder transcript,
+        List<BuildStepResult> steps,
         CancellationToken ct)
     {
         var dotnetDir = Path.Combine(projectDirectory, "dotnet");
@@ -53,29 +76,34 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
         // from a compile failure, and so `build --no-restore` below never runs against a
         // freshly-written temp dir that was never restored (was NETSDK1004 every time).
         LogRunningRestore(Logger, dotnetDir);
-        var restoreResult = await RunProcessAsync("dotnet", "restore", dotnetDir, ct);
-        Append(transcript, "dotnet restore", restoreResult);
+        var restoreResult = await RunStepAsync(
+            BuildHalf.DotNet, "dotnet restore", "dotnet", "restore", dotnetDir, transcript, steps, ct);
         if (!restoreResult.IsSuccess)
-            return Fail(restoreResult, transcript);
+            return restoreResult;
 
         LogRunningBuild(Logger, dotnetDir);
-        var buildResult = await RunProcessAsync("dotnet", "build --no-restore", dotnetDir, ct);
-        Append(transcript, "dotnet build --no-restore", buildResult);
-        return buildResult.IsSuccess ? buildResult : Fail(buildResult, transcript);
+        return await RunStepAsync(
+            BuildHalf.DotNet, "dotnet build --no-restore", "dotnet", "build --no-restore",
+            dotnetDir, transcript, steps, ct);
     }
 
     private async Task<BuildResult> BuildNextJsAsync(
         string projectDirectory,
         StringBuilder transcript,
+        List<BuildStepResult> steps,
         CancellationToken ct)
     {
         var nextDir = Path.Combine(projectDirectory, "nextjs");
-        if (!File.Exists(Path.Combine(nextDir, "package.json")))
+        var packageJsonPath = Path.Combine(nextDir, "package.json");
+        if (!File.Exists(packageJsonPath))
         {
             // A .NET-only archive (or a caller pointing straight at the dotnet dir) is
-            // still a legitimate success — there is simply no frontend to verify.
+            // still a legitimate success — there is simply no frontend to verify. It is
+            // recorded as a SKIPPED step, not omitted, so the report and the badge say
+            // "not built" rather than silently implying "built and passed".
             transcript.AppendLine("[nextjs] no nextjs/package.json — skipping frontend build.");
-            return new BuildResult { ExitCode = 0, StandardOutput = string.Empty, ErrorOutput = string.Empty };
+            steps.Add(Skipped(BuildHalf.NextJs, "npm run build"));
+            return Success();
         }
 
         LogRunningNextJs(Logger, nextDir);
@@ -84,23 +112,118 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
         // package.json and package-lock.json disagree, which is exactly what happens when
         // the LLM pass legitimately adds a dependency to a generated project — so fall back
         // to `npm install`, which re-resolves and rewrites the lockfile.
-        var installResult = await RunProcessAsync(
-            NpmExecutable, "ci --no-audit --no-fund", nextDir, ct);
-        Append(transcript, "npm ci", installResult);
+        var installResult = await RunStepAsync(
+            BuildHalf.NextJs, "npm ci", NpmExecutable, "ci --no-audit --no-fund",
+            nextDir, transcript, steps, ct);
 
         if (!installResult.IsSuccess)
         {
             LogNpmCiFallback(Logger, nextDir);
-            installResult = await RunProcessAsync(
-                NpmExecutable, "install --no-audit --no-fund", nextDir, ct);
-            Append(transcript, "npm install (fallback)", installResult);
+            installResult = await RunStepAsync(
+                BuildHalf.NextJs, "npm install", NpmExecutable, "install --no-audit --no-fund",
+                nextDir, transcript, steps, ct);
             if (!installResult.IsSuccess)
-                return Fail(installResult, transcript);
+                return installResult;
         }
 
-        var buildResult = await RunProcessAsync(NpmExecutable, "run build", nextDir, ct);
-        Append(transcript, "npm run build", buildResult);
-        return buildResult.IsSuccess ? buildResult : Fail(buildResult, transcript);
+        // Mirrors PythonReactBuildStrategy's `tsc --noEmit` leg. Runs before `next build`
+        // because tsc's diagnostics name every offending file at once, whereas `next build`
+        // aborts on the first type error — one round-trip of repair context instead of N.
+        if (HasScript(packageJsonPath, TypecheckScript))
+        {
+            var typecheckResult = await RunStepAsync(
+                BuildHalf.NextJs, $"npm run {TypecheckScript}", NpmExecutable, $"run {TypecheckScript}",
+                nextDir, transcript, steps, ct);
+            if (!typecheckResult.IsSuccess)
+                return typecheckResult;
+        }
+        else
+        {
+            LogNoTypecheckScript(Logger, nextDir);
+            steps.Add(Skipped(BuildHalf.NextJs, $"npm run {TypecheckScript}"));
+        }
+
+        return await RunStepAsync(
+            BuildHalf.NextJs, "npm run build", NpmExecutable, "run build",
+            nextDir, transcript, steps, ct);
+    }
+
+    /// <summary>
+    /// Runs one command, appends it to the transcript, and records a <see cref="BuildStepResult"/>.
+    /// <paramref name="displayCommand"/> is what lands in the report and the log — never
+    /// <paramref name="fileName"/>, which on Windows is an absolute path to npm.cmd and would
+    /// leak the build host's filesystem layout into a customer-facing artifact.
+    /// </summary>
+    private async Task<BuildResult> RunStepAsync(
+        BuildHalf half,
+        string displayCommand,
+        string fileName,
+        string arguments,
+        string workingDirectory,
+        StringBuilder transcript,
+        List<BuildStepResult> steps,
+        CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var result = await RunProcessAsync(fileName, arguments, workingDirectory, ct);
+        stopwatch.Stop();
+
+        Append(transcript, displayCommand, result);
+
+        // Count over stdout AND stderr: `dotnet` writes diagnostics to stdout while `next
+        // build` and npm write most of theirs to stderr, and RunProcessAsync only mirrors
+        // stdout into ErrorOutput when stderr came back empty.
+        var combined = result.StandardOutput + "\n" + result.ErrorOutput;
+        steps.Add(new BuildStepResult
+        {
+            Half = half,
+            Command = displayCommand,
+            ExitCode = result.ExitCode,
+            DurationMs = stopwatch.ElapsedMilliseconds,
+            ErrorCount = ExtractBuildErrors(combined).Count,
+            WarningCount = WarningRegex().Count(combined),
+        });
+
+        return result;
+    }
+
+    private static BuildResult Success() => new()
+    {
+        ExitCode = 0,
+        StandardOutput = string.Empty,
+        ErrorOutput = string.Empty,
+    };
+
+    private static BuildStepResult Skipped(BuildHalf half, string command) => new()
+    {
+        Half = half,
+        Command = command,
+        ExitCode = 0,
+        DurationMs = 0,
+        Skipped = true,
+    };
+
+    /// <summary>
+    /// True when <c>package.json</c> defines the named npm script. A malformed package.json
+    /// is treated as "no script" rather than thrown: the build itself is about to fail on it
+    /// with a far better message than a JSON parse exception from the verifier.
+    /// </summary>
+    private bool HasScript(string packageJsonPath, string scriptName)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(packageJsonPath));
+            return document.RootElement.TryGetProperty("scripts", out var scripts)
+                && scripts.ValueKind == JsonValueKind.Object
+                && scripts.TryGetProperty(scriptName, out var script)
+                && script.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(script.GetString());
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            LogPackageJsonUnreadable(Logger, ex, packageJsonPath);
+            return false;
+        }
     }
 
     /// <summary>
@@ -108,11 +231,12 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
     /// whole-run transcript, so the repair loop and the persisted build_log show every
     /// command that ran, not just the one that blew up.
     /// </summary>
-    private static BuildResult Fail(BuildResult failed, StringBuilder transcript) => new()
+    private static BuildResult Fail(BuildResult failed, StringBuilder transcript, List<BuildStepResult> steps) => new()
     {
         ExitCode = failed.ExitCode,
         StandardOutput = transcript.ToString(),
         ErrorOutput = failed.ErrorOutput,
+        Steps = steps,
     };
 
     private static void Append(StringBuilder transcript, string step, BuildResult result)
@@ -135,6 +259,12 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
 
     [LoggerMessage(EventId = 1102, Level = LogLevel.Warning, Message = "npm ci failed in {Dir}; falling back to npm install")]
     private static partial void LogNpmCiFallback(ILogger logger, string dir);
+
+    [LoggerMessage(EventId = 1103, Level = LogLevel.Information, Message = "No 'typecheck' script in {Dir}/package.json; relying on next build's type checking")]
+    private static partial void LogNoTypecheckScript(ILogger logger, string dir);
+
+    [LoggerMessage(EventId = 1104, Level = LogLevel.Warning, Message = "Could not read {Path} to look for npm scripts")]
+    private static partial void LogPackageJsonUnreadable(ILogger logger, Exception ex, string path);
 
     public override List<string> ExtractBuildErrors(string buildOutput)
     {
@@ -285,4 +415,14 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
     // A code-frame line: "  3 | const x = 1", "> 4 |   …", "    |       ^".
     [GeneratedRegex(@"^\s*(?:>\s*)?\d*\s*\|")]
     private static partial Regex CodeFrameLineRegex();
+
+    protected override int CountWarnings(string output) => WarningRegex().Count(output);
+
+    // Warnings are counted, never failed on — they are report detail, not a refund trigger.
+    // Both halves: MSBuild/Roslyn "warning CS0168:", ESLint "<line>:<col>  warning  …",
+    // and npm's "npm WARN …".
+    [GeneratedRegex(
+        @"^(?:.+:\s*)?warning\s+[A-Z]+\d+:.+$|^\s*\d+:\d+\s+warning\s+.+$|^npm WARN\b.+$",
+        RegexOptions.Multiline)]
+    private static partial Regex WarningRegex();
 }
