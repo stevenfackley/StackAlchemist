@@ -1,8 +1,8 @@
-{{- define "{{ProjectNameKebab}}.name" -}}
+{{- define "app.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{- define "{{ProjectNameKebab}}.fullname" -}}
+{{- define "app.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -15,26 +15,26 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "{{ProjectNameKebab}}.labels" -}}
-helm.sh/chart: {{ include "{{ProjectNameKebab}}.chart" . }}
-app.kubernetes.io/name: {{ include "{{ProjectNameKebab}}.name" . }}
+{{- define "app.labels" -}}
+helm.sh/chart: {{ include "app.chart" . }}
+app.kubernetes.io/name: {{ include "app.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{- define "{{ProjectNameKebab}}.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "{{ProjectNameKebab}}.name" . }}
+{{- define "app.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "app.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "{{ProjectNameKebab}}.chart" -}}
+{{- define "app.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{- define "{{ProjectNameKebab}}.serviceAccountName" -}}
+{{- define "app.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{- default (include "{{ProjectNameKebab}}.fullname" .) .Values.serviceAccount.name -}}
+{{- default (include "app.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}

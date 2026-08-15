@@ -75,16 +75,14 @@ public sealed partial class TemplateProvider : ITemplateProvider
                 {
                     var ctx = BuildEntityContext(variables, entity);
                     var renderedPath = RenderString(path, ctx);
-                    var renderedContent = RenderString(content, ctx);
-                    result[renderedPath] = renderedContent;
+                    result[renderedPath] = RenderContent(path, content, ctx);
                 }
             }
             else
             {
                 // Schema-wide template: render once with full variables.
                 var renderedPath = RenderString(path, variables);
-                var renderedContent = RenderString(content, variables);
-                result[renderedPath] = renderedContent;
+                result[renderedPath] = RenderContent(path, content, variables);
             }
         }
 
@@ -111,6 +109,17 @@ public sealed partial class TemplateProvider : ITemplateProvider
     {
         return InjectionMarkerLineRegex().Replace(content, string.Empty);
     }
+
+    /// <summary>
+    /// Handlebars-renders a template file's contents — unless the file belongs to another
+    /// templating engine, in which case it is passed through untouched.
+    ///
+    /// The path decides, not the content: see <see cref="ForeignTemplatePaths"/>. Only the
+    /// file BODY is exempt; the path is still rendered, because template paths are ours in
+    /// every set.
+    /// </summary>
+    private string RenderContent(string path, string content, object ctx) =>
+        ForeignTemplatePaths.IsForeignTemplate(path) ? content : RenderString(content, ctx);
 
     private string RenderString(string input, object ctx)
     {

@@ -5,10 +5,20 @@ obj/
 *.suo
 .vs/
 
+# ...but infra/cdk/bin/ is the AWS CDK entrypoint directory, not .NET build output.
+# Without this negation `git add .` silently drops bin/app.ts and the CDK app you
+# committed cannot synth on any other machine.
+!infra/cdk/bin/
+
 # Next.js
 node_modules/
 .next/
 out/
+
+# AWS CDK
+cdk.out/
+infra/cdk/**/*.js
+infra/cdk/**/*.d.ts
 
 # Environment
 .env
