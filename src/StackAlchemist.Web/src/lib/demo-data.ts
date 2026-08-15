@@ -88,7 +88,24 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     download_url: tier === 0 ? null : "/demo-download.zip",
     preview_files_json: demoPreviewFiles,
     personalization_json: null,
-    build_log: "Demo mode active: backend services are mocked so the UI can run standalone.",
+    // Includes the Compile Guarantee verdict block the Engine appends, so demo mode
+    // exercises the same parse path the delivery page runs in production rather than
+    // silently falling back to "Build record unavailable".
+    build_log: [
+      "Demo mode active: backend services are mocked so the UI can run standalone.",
+      "=== COMPILE GUARANTEE REPORT ===",
+      JSON.stringify({
+        schemaVersion: 1,
+        status: "verified",
+        attemptsUsed: 1,
+        maxAttempts: 3,
+        halves: [
+          { half: "dotnet", label: ".NET", status: "passed" },
+          { half: "nextjs", label: "Next.js", status: "passed" },
+        ],
+      }),
+      "=== END COMPILE GUARANTEE REPORT ===",
+    ].join("\n"),
     error_message: null,
     error_category: null,
     attempt_count: 0,

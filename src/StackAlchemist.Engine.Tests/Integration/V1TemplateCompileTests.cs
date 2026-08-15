@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Integration;
@@ -91,9 +93,11 @@ public sealed class V1TemplateCompileTests : IDisposable
 
         var result = await strategy.ExecuteBuildAsync(_outputDir, cts.Token);
 
+        var transcript = $"{result.StandardOutput}\n{result.ErrorOutput}";
+
         result.IsSuccess.Should().BeTrue(
             because: "the V1 template is the baseline of every Tier-2 'Compile Guarantee' " +
-                     $"archive and must compile before the LLM adds anything.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
+                     $"archive and must compile before the LLM adds anything.\n\n{transcript}");
 
         // The frontend leg genuinely ran. BuildNextJsAsync returns success when
         // nextjs/package.json is absent, so a green result alone does not prove `next build`
@@ -101,7 +105,43 @@ public sealed class V1TemplateCompileTests : IDisposable
         File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "standalone", "server.js"))
             .Should().BeTrue("`next build` must have produced the standalone output, not been skipped");
 
+        // A pass with no recorded steps would mean the strategy short-circuited — exactly
+        // the failure mode that let a never-built frontend ship stamped "Compile Verified".
+        // Assert both halves were really exercised, not just that nothing threw.
+        result.Steps.Where(step => step.Half == BuildHalf.DotNet && !step.Skipped)
+            .Select(step => step.Command)
+            .Should().Contain(["dotnet restore", "dotnet build --no-restore"],
+                $"the .NET half must actually build.\n\n{transcript}");
+
+        result.Steps.Where(step => step.Half == BuildHalf.NextJs && !step.Skipped)
+            .Select(step => step.Command)
+            .Should().Contain("npm run build",
+                $"the Next.js half must actually build — this is the half the Compile " +
+                $"Guarantee promised and never verified.\n\n{transcript}");
+
+        result.Steps.Should().OnlyContain(step => step.Skipped || step.ExitCode == 0);
+
         AssertArchiveIsCustomerReady();
+    }
+
+    /// <summary>
+    /// The template must keep the <c>typecheck</c> script the build strategy runs. Cheap to
+    /// drop in a package.json edit, and dropping it silently downgrades the frontend from two
+    /// verification signals to one.
+    /// </summary>
+    [Fact]
+    public void RenderedTemplate_KeepsTheTypecheckScript()
+    {
+        V1TemplateHarness.RenderTo(_outputDir);
+
+        var packageJson = File.ReadAllText(Path.Combine(_outputDir, "nextjs", "package.json"));
+
+        using var document = JsonDocument.Parse(packageJson);
+        document.RootElement
+            .GetProperty("scripts")
+            .TryGetProperty("typecheck", out var typecheck)
+            .Should().BeTrue("DotNetBuildStrategy runs `npm run typecheck` when the template defines it");
+        typecheck.GetString().Should().Contain("tsc");
     }
 
     /// <summary>

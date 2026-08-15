@@ -199,4 +199,37 @@ public sealed class DotNetBuildStrategyTests
         errors.Should().Contain(e => e.Contains("CS1002", StringComparison.Ordinal));
         errors.Should().Contain(e => e.Contains("./src/app/page.tsx:5:9", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ExtractBuildErrors_TscDiagnostics_AreCaptured()
+    {
+        // `npm run typecheck` (tsc --noEmit) emits the file(line,col) TSxxxx shape rather
+        // than next build's "Type error:" banner. The typecheck step is only worth running
+        // if what it prints survives the trip to the repair prompt.
+        var output = """
+            src/lib/api.ts(14,3): error TS2322: Type 'string' is not assignable to type 'number'.
+            src/lib/api.ts(21,9): error TS2554: Expected 1 arguments, but got 2.
+            """;
+
+        var errors = _sut.ExtractBuildErrors(output);
+
+        errors.Should().HaveCount(2);
+        errors.Should().Contain(e => e.Contains("TS2322", StringComparison.Ordinal));
+        errors.Should().Contain(e => e.Contains("TS2554", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExtractBuildErrors_NpmInstallFailure_IsCaptured()
+    {
+        // `npm ci`/`npm install` blowing up is a build failure like any other, and its
+        // output has none of the file/line shape the compiler errors do.
+        var output = """
+            npm ERR! code ERESOLVE
+            npm ERR! ERESOLVE unable to resolve dependency tree
+            """;
+
+        var errors = _sut.ExtractBuildErrors(output);
+
+        errors.Should().Contain(e => e.Contains("ERESOLVE", StringComparison.Ordinal));
+    }
 }
