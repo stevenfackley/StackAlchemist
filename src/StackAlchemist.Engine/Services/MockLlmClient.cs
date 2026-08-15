@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
@@ -11,16 +12,35 @@ namespace StackAlchemist.Engine.Services;
 /// <c>src/Models/…</c> / <c>src/types/index.ts</c> — paths that exist nowhere in that tree —
 /// so anyone exercising the pipeline offline saw the orphaned-<c>src/</c> layout and took it
 /// for correct output.
+///
+/// The root namespace is read out of the prompt for the same reason. It is NOT a constant:
+/// <c>GenerationOrchestrator.BuildVariables</c> derives it from the schema, so the csproj
+/// rendered for an invoicing app is <c>InvoiceHub</c>, not <c>GeneratedApp</c>, and files
+/// declaring <c>namespace GeneratedApp.Repositories;</c> reference <c>GeneratedApp.Models</c>
+/// and <c>GeneratedApp.Infrastructure</c> — namespaces that exist in no tree ever rendered
+/// (CS0234 / CS0246). That used to be harmless only because those files landed at the archive
+/// root where nothing compiled them; now that they are routed into <c>dotnet/</c> they are
+/// compiled, and <c>Program.cs</c> makes this client the fallback whenever
+/// <c>ANTHROPIC_API_KEY</c> is unset — so a key misconfiguration would turn every generation
+/// into a build failure, three retries, and a Compile Guarantee refund. Reading the namespace
+/// back out of the prompt is also what a real model does with the same instruction, which is
+/// the point of a stand-in.
 /// </summary>
-public sealed class MockLlmClient : ILlmClient
+public sealed partial class MockLlmClient : ILlmClient
 {
+    /// <summary>Placeholder substituted with the resolved root namespace before returning.</summary>
+    private const string RootNamespaceToken = "__ROOT_NS__";
+
+    /// <summary>Used when the prompt states no namespace — the same fallback the orchestrator uses.</summary>
+    private const string DefaultRootNamespace = "GeneratedApp";
+
     public Task<LlmResponse> GenerateAsync(
         string systemPrompt, string userPrompt, LlmCallOptions? options = null, CancellationToken ct = default)
     {
         // A minimal but compilable set of files for a "Product" entity.
         var response = """
             [[FILE:dotnet/Models/Product.cs]]
-            namespace GeneratedApp.Models;
+            namespace __ROOT_NS__.Models;
 
             public record Product
             {
@@ -34,10 +54,10 @@ public sealed class MockLlmClient : ILlmClient
             [[END_FILE]]
             [[FILE:dotnet/Repositories/ProductRepository.cs]]
             using Dapper;
-            using GeneratedApp.Infrastructure;
-            using GeneratedApp.Models;
+            using __ROOT_NS__.Infrastructure;
+            using __ROOT_NS__.Models;
 
-            namespace GeneratedApp.Repositories;
+            namespace __ROOT_NS__.Repositories;
 
             public interface IProductRepository
             {
@@ -73,10 +93,10 @@ public sealed class MockLlmClient : ILlmClient
             }
             [[END_FILE]]
             [[FILE:dotnet/Controllers/ProductEndpoints.cs]]
-            using GeneratedApp.Models;
-            using GeneratedApp.Repositories;
+            using __ROOT_NS__.Models;
+            using __ROOT_NS__.Repositories;
 
-            namespace GeneratedApp.Controllers;
+            namespace __ROOT_NS__.Controllers;
 
             public static class ProductEndpoints
             {
@@ -157,7 +177,7 @@ public sealed class MockLlmClient : ILlmClient
             export default function HomePage() {
               return (
                 <main className="min-h-screen p-8">
-                  <h1 className="text-2xl font-bold">GeneratedApp</h1>
+                  <h1 className="text-2xl font-bold">__ROOT_NS__</h1>
                   <ul className="mt-6 space-y-2">
                     <li>
                       <a className="text-blue-600 underline" href="/api/v1/products">
@@ -172,9 +192,34 @@ public sealed class MockLlmClient : ILlmClient
             """;
 
         return Task.FromResult(new LlmResponse(
-            response,
+            response.Replace(RootNamespaceToken, ResolveRootNamespace(systemPrompt, userPrompt), StringComparison.Ordinal),
             InputTokens: 0,
             OutputTokens: 0,
             Model: "mock-llm"));
     }
+
+    /// <summary>
+    /// Pulls the root namespace out of the generation prompt — the single line both prompt
+    /// sources emit verbatim (<c>PromptBuilderService.AppendDotNetNextJsLayout</c> writes it,
+    /// and <c>Prompts/V1-generation.md</c> carries it as a substituted <c>{{PROJECT_NAME}}</c>).
+    /// Falls back to the orchestrator's own default when the prompt states none, which is the
+    /// name the template would have been rendered with in that case anyway.
+    /// </summary>
+    internal static string ResolveRootNamespace(params string?[] prompts)
+    {
+        foreach (var prompt in prompts)
+        {
+            if (string.IsNullOrEmpty(prompt))
+                continue;
+
+            var match = RootNamespaceRegex().Match(prompt);
+            if (match.Success)
+                return match.Groups[1].Value;
+        }
+
+        return DefaultRootNamespace;
+    }
+
+    [GeneratedRegex(@"Root namespace:\s*`([A-Za-z_][A-Za-z0-9_]*)`")]
+    private static partial Regex RootNamespaceRegex();
 }

@@ -111,6 +111,43 @@ internal static class V1TemplateHarness
         ],
     };
 
+    /// <summary>
+    /// The <see cref="SampleBrief"/> schema in the shape the API receives it — the input
+    /// <c>GenerationOrchestrator.BuildVariables</c> derives <see cref="SampleVariables"/> from.
+    /// Entities and fields deliberately mirror it one-for-one.
+    /// </summary>
+    public static GenerationSchema SampleSchema() => new()
+    {
+        Entities =
+        [
+            Entity("Customer", ("Id", "uuid", true), ("Name", "string", false), ("Email", "string", false)),
+            Entity("Invoice", ("Id", "uuid", true), ("CustomerId", "uuid", false), ("Number", "string", false),
+                   ("Total", "decimal", false), ("IssuedAt", "datetime", false)),
+            Entity("LineItem", ("Id", "uuid", true), ("InvoiceId", "uuid", false), ("Description", "string", false),
+                   ("Quantity", "int", false), ("UnitPrice", "decimal", false)),
+        ],
+    };
+
+    /// <summary>
+    /// The REAL generation prompt for <see cref="SampleSchema"/>, built by the shipping
+    /// <see cref="PromptBuilderService"/> under the same project name the tree is rendered with.
+    ///
+    /// Tests that feed a stand-in client must hand it this, not a placeholder string: the prompt
+    /// is where the root namespace is stated, so a client answering a fake prompt is not
+    /// answering the question production asks.
+    /// </summary>
+    public static string SampleGenerationPrompt() => new PromptBuilderService().BuildGenerationPrompt(
+        SampleSchema(),
+        ProjectType.DotNetNextJs,
+        personalization: null,
+        projectName: SampleVariables().ProjectName);
+
+    private static SchemaEntity Entity(string name, params (string Name, string Type, bool Pk)[] fields) => new()
+    {
+        Name = name,
+        Fields = [.. fields.Select(f => new SchemaField { Name = f.Name, Type = f.Type, Pk = f.Pk })],
+    };
+
     /// <summary>Reads the recorded golden model response from the test fixtures directory.</summary>
     public static string ReadGoldenResponse()
     {

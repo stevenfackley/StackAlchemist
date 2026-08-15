@@ -340,8 +340,15 @@ public sealed class V1TemplateCompileTests : IDisposable
     /// two-file maps, and <see cref="RenderedTemplate_BuildsBothHalves"/> renders the template
     /// with an EMPTY block set, so it never sees where model output lands. This test feeds a
     /// recorded response for the same InvoiceHub brief through the real ReconstructionService and
-    /// asserts on the resulting tree — it fails on the pre-fix code with exactly the orphan
-    /// <c>src/…</c> paths listed below.
+    /// asserts on the resulting tree.
+    ///
+    /// It is the POSITIVE half of the gate and does not, on its own, fail on the pre-fix code:
+    /// the fixture uses correct paths by construction, so the old reconstructor routes it the
+    /// same way. What it pins is that a well-formed response still lands in the customer's real
+    /// tree — no orphan <c>src/</c>, zones filled, stubs replaced. Rejection of the prompt-shaped
+    /// paths that caused the bug is the sibling test,
+    /// <see cref="PromptShapedPathsOutsideTheTree_AreRejectedRatherThanOrphaned"/>, which is the
+    /// one that goes red without the fix.
     /// </summary>
     [Fact]
     public void GoldenLlmResponse_LandsInTheRealTreeWithNoOrphanFiles()
@@ -467,6 +474,50 @@ public sealed class V1TemplateCompileTests : IDisposable
         result.IsSuccess.Should().BeTrue(
             because: "a Tier-2 archive is the template PLUS the model's files; the Compile "
                      + $"Guarantee covers the combination, not the template alone.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
+    }
+
+    /// <summary>
+    /// The no-API-key path, held to the same standard as the real one.
+    ///
+    /// <see cref="MockLlmClient"/> is not a test double: <c>Program.cs</c> wires it in as the
+    /// live fallback whenever <c>ANTHROPIC_API_KEY</c> is unset, so a key that expires or a
+    /// config that drops the variable routes real paid generations through it. Its files used to
+    /// declare <c>namespace GeneratedApp.*</c> against a tree whose RootNamespace is derived from
+    /// the schema — which cost nothing only while those files orphaned at the archive root and
+    /// were compiled by no one. Routed into <c>dotnet/</c> they are compiled, and the mismatch is
+    /// CS0234/CS0246 on every entity: build failure → three retries → Compile Guarantee refund.
+    ///
+    /// <see cref="MockLlmClientTests"/> asserts the shape of the response; only building it
+    /// against the tree it is merged into proves it still compiles, which is the property that
+    /// actually broke.
+    /// </summary>
+    [Fact]
+    public async Task MockLlmResponse_BuildsBothHalves()
+    {
+        if (!ToolchainAvailable("dotnet", "--version", "the .NET SDK"))
+            return;
+
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
+            return;
+
+        var mockDir = Path.Combine(_outputDir, "mock-build");
+
+        // The real prompt, so the client resolves the namespace the way production makes it.
+        var response = await new MockLlmClient().GenerateAsync(
+            V1TemplateHarness.SampleGenerationPrompt(),
+            $"Generate code for this schema:\n\n{V1TemplateHarness.SampleBrief}");
+
+        V1TemplateHarness.RenderWithLlmResponseTo(mockDir, response.Text);
+
+        var strategy = new DotNetBuildStrategy(NullLogger<DotNetBuildStrategy>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+
+        var result = await strategy.ExecuteBuildAsync(mockDir, cts.Token);
+
+        result.IsSuccess.Should().BeTrue(
+            because: "MockLlmClient is the live fallback when no API key is configured — if its "
+                     + "output no longer compiles against the tree, a key misconfiguration becomes "
+                     + $"a refunded generation.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
     }
 
     /// <summary>
