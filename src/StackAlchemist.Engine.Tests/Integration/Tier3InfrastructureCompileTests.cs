@@ -1,3 +1,4 @@
+using System.IO.Abstractions;
 using System.Text.Json;
 using FluentAssertions;
 using StackAlchemist.Engine.Services;
@@ -222,6 +223,119 @@ public sealed class Tier3InfrastructureCompileTests : IDisposable
         validateExit.Should().Be(0,
             $"`terraform validate` must pass on the shipped baseline.\n\n{IntegrationToolchain.Tail(validateLog)}");
     }
+
+    /// <summary>
+    /// Everything above renders from the working tree. In production nothing does: the engine
+    /// loads its templates from <c>/app/StackAlchemist.Templates</c>, put there by the
+    /// Dockerfile's <c>COPY src/StackAlchemist.Templates/</c>, and <c>sa-engine</c> builds
+    /// <c>context: .</c> with no volume mount and no <c>Templates__Root</c> override. So the
+    /// build context is the only route a template file has into the product, and
+    /// <c>.dockerignore</c> gets a veto the working-tree gates cannot see.
+    ///
+    /// It used that veto: <c>**/bin/</c> stripped <c>infra/cdk/bin/app.ts</c> out of every image
+    /// even after the file was committed and every test above went green — the third ignore
+    /// layer, after the root <c>.gitignore</c> and the buyer-facing one, and the only one that
+    /// decides what customers actually receive.
+    ///
+    /// Asserting on that one path would just re-fight the last battle, so this asserts the
+    /// invariant instead: every path <see cref="TemplateProvider.LoadTemplate"/> returns must
+    /// survive into the context, for every template set. Any future <c>**/…</c> rule that
+    /// swallows a template file fails here rather than in a customer's archive.
+    /// </summary>
+    [Fact]
+    public async Task DockerBuildContext_KeepsEveryFileTheEngineLoads()
+    {
+        if (!IntegrationToolchain.Available("docker", "version", "Docker", requiredOnCi: true))
+            return;
+
+        var templatesRoot = V1TemplateHarness.ResolveTemplatesRoot();
+        var repositoryRoot = FindRepositoryRoot(templatesRoot);
+        if (repositoryRoot is null)
+        {
+            Assert.False(
+                IntegrationToolchain.IsContinuousIntegration,
+                "the repository root (the directory holding both Dockerfile and .dockerignore) "
+                + $"was not found above '{templatesRoot}'. On CI the tests run from a checkout, so "
+                + "this means the layout moved and the build-context gate is no longer gating.");
+
+            Console.WriteLine("Skipping — not running from a repository checkout.");
+            return;
+        }
+
+        // `FROM scratch` pulls no base image and starts no container: the build's whole job is
+        // to hand the context back, so `--output type=local` writes exactly the files that got
+        // past .dockerignore. Keeping the probe Dockerfile outside the context also keeps it
+        // out of its own result — and BuildKit only prefers a `<dockerfile>.dockerignore`
+        // sibling, so with none there it reads the repository's real one, which is the point.
+        Directory.CreateDirectory(_tempDir);
+        var probeDockerfile = Path.Combine(_tempDir, "context-probe.Dockerfile");
+        var contextDir = Path.Combine(_tempDir, "context");
+        await File.WriteAllTextAsync(
+            probeDockerfile, "FROM scratch\nCOPY src/StackAlchemist.Templates/ /\n");
+
+        var (exitCode, log) = await IntegrationToolchain.RunAsync(
+            "docker",
+            $"build -f \"{probeDockerfile}\" --output \"type=local,dest={contextDir}\" .",
+            repositoryRoot,
+            DockerContextTimeout,
+            // `--output` is a BuildKit feature; ask for it explicitly rather than depend on the
+            // daemon's default builder being buildx.
+            new Dictionary<string, string?> { ["DOCKER_BUILDKIT"] = "1" });
+
+        exitCode.Should().Be(0,
+            "exporting the template half of the engine image's build context must succeed — "
+            + $"without it this gate proves nothing.\n\n{IntegrationToolchain.Tail(log)}");
+
+        var provider = new TemplateProvider(new FileSystem(), templatesRoot);
+        var checkedPaths = 0;
+        var missing = new List<string>();
+
+        foreach (var setDirectory in Directory.GetDirectories(templatesRoot))
+        {
+            var setName = Path.GetFileName(setDirectory);
+            foreach (var relativePath in provider.LoadTemplate(setName).Keys)
+            {
+                checkedPaths++;
+                var inContext = Path.Combine(
+                    contextDir, setName, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+                if (!File.Exists(inContext))
+                    missing.Add($"{setName}/{relativePath}");
+            }
+        }
+
+        // A silently empty export would make every assertion below vacuously true.
+        checkedPaths.Should().BeGreaterThan(0,
+            "LoadTemplate returned nothing for any template set, so this gate checked nothing");
+
+        missing.Should().BeEmpty(
+            "every file the engine loads at runtime has to reach the image it loads them from. "
+            + "These are in the repository and in LoadTemplate's output, but .dockerignore drops "
+            + "them from the build context — so in production they do not exist, and the archives "
+            + "customers pay for ship without them. Add a `!` negation for each");
+    }
+
+    /// <summary>
+    /// Walks up from the templates root to the directory holding both <c>Dockerfile</c> and
+    /// <c>.dockerignore</c> — the build context root. Null when the tests are not running from
+    /// a checkout (an installed or published layout has neither).
+    /// </summary>
+    private static string? FindRepositoryRoot(string templatesRoot)
+    {
+        for (var dir = new DirectoryInfo(templatesRoot); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "Dockerfile"))
+                && File.Exists(Path.Combine(dir.FullName, ".dockerignore")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Context transfer is small; the headroom is for a cold buildx builder start.</summary>
+    private static readonly TimeSpan DockerContextTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>Cold npm registry fetch of the CDK toolchain.</summary>
     private static readonly TimeSpan NpmTimeout = TimeSpan.FromMinutes(10);

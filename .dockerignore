@@ -15,6 +15,25 @@
 **/bin/
 **/obj/
 
+# …except inside the template sets, which are SOURCE. Dockerfile's `COPY
+# src/StackAlchemist.Templates/ ./StackAlchemist.Templates/` puts this tree next to the
+# engine entrypoint, and it is the ONLY copy of the shipped templates in production —
+# sa-engine builds `context: .` with no volume mount and no Templates__Root override, so
+# whatever `**/bin/` strips here is simply absent from every generated customer archive.
+#
+# A `bin/` under a template set is not build output: it is a CDK app's entrypoint directory
+# (infra/cdk/bin/app.ts, the file cdk.json names). .NET output is always bin/<Configuration>/,
+# so that shape — and only that shape — stays ignored. This is the same distinction
+# BuildResiduePaths draws for the runtime loader; the two must agree, or the engine loads a
+# file that never reached the image.
+#
+# Enforced by Tier3InfrastructureCompileTests.DockerBuildContext_KeepsEveryFileTheEngineLoads,
+# which builds this context for real and diffs it against TemplateProvider.LoadTemplate.
+!src/StackAlchemist.Templates/**/bin/
+!src/StackAlchemist.Templates/**/bin/**
+src/StackAlchemist.Templates/**/bin/Debug/
+src/StackAlchemist.Templates/**/bin/Release/
+
 # ─── Node / Next.js build artefacts ──────────────────────────────────────────
 **/node_modules/
 **/.next/

@@ -9,6 +9,14 @@
 **/.next
 **/bin
 **/obj
+
+# …but `bin/` is not always build output. A Tier-3 tree carries its CDK app at
+# infra/cdk/bin/app.ts — the entrypoint cdk.json names — sitting at this same root, because
+# the Tier-3 overlay is merged into this tree rather than shipped beside it. .NET output is
+# always bin/<Configuration>/, so the rule above still covers dotnet/bin/Debug etc.
+!infra/cdk/bin
+!infra/cdk/bin/**
+
 .git
 .vs
 .vscode
