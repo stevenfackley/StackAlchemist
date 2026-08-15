@@ -24,6 +24,9 @@ public sealed partial class CompileWorkerService(
 {
     private const int MaxRetries = 3;
 
+    /// <summary>How much raw transcript to fall back on when no error matcher fired.</summary>
+    private const int RawLogTailChars = 4_000;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LogWorkerStarted(logger);
@@ -137,8 +140,17 @@ public sealed partial class CompileWorkerService(
             }
 
             // ── Build failed — extract errors and decide: retry or fail ───────
-            var errors = compileService.ExtractBuildErrors(buildResult.ErrorOutput, job.ProjectType);
-            var errorSummary = string.Join("\n", errors);
+            var buildLog = CombineBuildOutput(buildResult);
+            var errors = compileService.ExtractBuildErrors(buildLog, job.ProjectType);
+
+            // No matcher fired: send the tail of the raw transcript rather than nothing.
+            // An empty error section makes the repair prompt unusable, and three unusable
+            // prompts end in TryIssueCompileGuaranteeRefundAsync — a real refund on a
+            // failure shape we simply failed to parse.
+            var errorSummary = errors.Count > 0
+                ? string.Join("\n", errors)
+                : TailOf(buildLog, RawLogTailChars);
+
             job.BuildErrorHistory.Add($"Attempt {job.RetryCount + 1}: {errorSummary}");
 
             await deliveryService.AppendBuildLogAsync(
@@ -221,6 +233,40 @@ public sealed partial class CompileWorkerService(
             job.State = GenerationStateMachine.Transition(
                 job.State, GenerationEvent.CodeReconstructed, job);
         }
+    }
+
+    /// <summary>
+    /// Everything the build wrote, for error extraction.
+    ///
+    /// <see cref="DotNetBuildStrategy"/> puts the whole multi-command transcript in
+    /// <see cref="BuildResult.StandardOutput"/> and only the failing step's stderr in
+    /// <see cref="BuildResult.ErrorOutput"/>. `next build` reports type errors on stdout,
+    /// so reading ErrorOutput alone — as this used to — loses the frontend failure
+    /// entirely the moment the tool writes anything at all to stderr.
+    /// </summary>
+    internal static string CombineBuildOutput(BuildResult result)
+    {
+        var stdout = result.StandardOutput ?? string.Empty;
+        var stderr = result.ErrorOutput ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(stderr) || string.Equals(stdout, stderr, StringComparison.Ordinal))
+            return stdout;
+        if (string.IsNullOrWhiteSpace(stdout))
+            return stderr;
+
+        return stdout + "\n" + stderr;
+    }
+
+    /// <summary>Last <paramref name="maxChars"/> characters of <paramref name="log"/>, marked when clipped.</summary>
+    internal static string TailOf(string log, int maxChars)
+    {
+        if (string.IsNullOrWhiteSpace(log))
+            return string.Empty;
+
+        var trimmed = log.TrimEnd();
+        return trimmed.Length <= maxChars
+            ? trimmed
+            : "… (build log truncated)\n" + trimmed[^maxChars..];
     }
 
     /// <summary>

@@ -141,11 +141,124 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
         return DotNetErrorRegex()
             .Matches(buildOutput)
             .Select(match => match.Value.Trim())
-            .Concat(FrontendErrorRegex()
-                .Matches(buildOutput)
-                .Select(match => match.Value.Trim()))
+            .Concat(ExtractFrontendErrors(buildOutput))
             .Distinct(StringComparer.Ordinal)
             .ToList();
+    }
+
+    // ── Frontend error reassembly ─────────────────────────────────────────────
+    //
+    // `next build` puts the location on the line ABOVE the message and the offending
+    // source in a code frame BELOW it:
+    //
+    //     ./src/app/page.tsx:5:9
+    //     Type error: Type 'string' is not assignable to type 'number'.
+    //
+    //       3 | export default function Home() {
+    //     > 4 |   const total: number = "12";
+    //         |         ^
+    //
+    // Matching only the message line — which is all FrontendErrorRegex can do on its own —
+    // hands the repair loop "Type error: Type 'string' is not assignable to type 'number'."
+    // with no file and no line. The LLM cannot fix that, so all three retries burn and
+    // TryIssueCompileGuaranteeRefundAsync refunds a paying customer. The surrounding
+    // context is therefore stitched back on here.
+
+    /// <summary>Cap on reassembled frontend errors, so one bad file cannot crowd the retry prompt out.</summary>
+    private const int MaxFrontendErrors = 20;
+
+    /// <summary>How far above a message line to look for its <c>./path:line:col</c> header.</summary>
+    private const int MaxLocationLookbackLines = 25;
+
+    /// <summary>Cap on code-frame lines kept per error.</summary>
+    private const int MaxCodeFrameLines = 12;
+
+    /// <summary>Blank lines tolerated between the message and the start of its code frame.</summary>
+    private const int MaxBlankLinesBeforeFrame = 2;
+
+    private static List<string> ExtractFrontendErrors(string buildOutput)
+    {
+        var lines = buildOutput.Split('\n');
+
+        // Keyed by message line: a failing step contributes its output to the transcript
+        // twice (stdout, then stderr), and the copies do not always carry the same amount
+        // of surrounding context. Keep the richest block for each distinct message.
+        var byMessage = new Dictionary<string, int>(StringComparer.Ordinal);
+        var blocks = new List<string>();
+
+        for (var i = 0; i < lines.Length && blocks.Count < MaxFrontendErrors; i++)
+        {
+            var message = lines[i].Trim();
+            if (message.Length == 0 || !FrontendErrorRegex().IsMatch(message))
+                continue;
+
+            var block = new List<string>();
+            if (FindLocationAbove(lines, i) is { } location)
+                block.Add(location);
+            block.Add(message);
+            block.AddRange(CodeFrameBelow(lines, i));
+
+            var text = string.Join('\n', block);
+            if (byMessage.TryGetValue(message, out var existing))
+            {
+                if (text.Length > blocks[existing].Length)
+                    blocks[existing] = text;
+            }
+            else
+            {
+                byMessage[message] = blocks.Count;
+                blocks.Add(text);
+            }
+        }
+
+        return blocks;
+    }
+
+    /// <summary>
+    /// The nearest preceding <c>./src/app/page.tsx:5:9</c>-shaped line. Blank lines and
+    /// sibling error lines are stepped over (ESLint groups several errors under one file
+    /// header); anything else stops the walk, so an unrelated path is never attached.
+    /// </summary>
+    private static string? FindLocationAbove(string[] lines, int messageIndex)
+    {
+        var stop = Math.Max(0, messageIndex - MaxLocationLookbackLines);
+        for (var i = messageIndex - 1; i >= stop; i--)
+        {
+            var candidate = lines[i].Trim();
+            if (candidate.Length == 0)
+                continue;
+            if (FrontendLocationRegex().IsMatch(candidate))
+                return candidate;
+            if (FrontendErrorRegex().IsMatch(candidate))
+                continue;
+            return null;
+        }
+
+        return null;
+    }
+
+    private static List<string> CodeFrameBelow(string[] lines, int messageIndex)
+    {
+        var frame = new List<string>();
+        var blanksSkipped = 0;
+
+        for (var i = messageIndex + 1; i < lines.Length && frame.Count < MaxCodeFrameLines; i++)
+        {
+            var line = lines[i].TrimEnd();
+            if (line.Trim().Length == 0)
+            {
+                if (frame.Count > 0 || ++blanksSkipped > MaxBlankLinesBeforeFrame)
+                    break;
+                continue;
+            }
+
+            if (!CodeFrameLineRegex().IsMatch(line))
+                break;
+
+            frame.Add(line);
+        }
+
+        return frame;
     }
 
     // Covers compiler errors (CS), SDK resolution failures (NETSDK, e.g. missing
@@ -161,4 +274,15 @@ public sealed partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> log
         @"^\s*Type error:.+$|^\s*Module not found:.+$|^.+:\s*error\s+TS\d+:.+$|^\s*\d+:\d+\s+error\s+.+$|^npm ERR!.+$",
         RegexOptions.Multiline)]
     private static partial Regex FrontendErrorRegex();
+
+    // A location header on its own line: "./src/app/page.tsx:5:9" (next build) or
+    // "./src/app/page.tsx" (the ESLint group header). Anchored end-to-end and
+    // extension-qualified so ordinary log prose can never be mistaken for a path.
+    [GeneratedRegex(
+        @"^(?:\.{1,2}[\\/])?[^\s:*?""<>|]+\.(?:tsx?|jsx?|mjs|cjs|mts|cts|css|scss|json)(?::\d+(?::\d+)?)?$")]
+    private static partial Regex FrontendLocationRegex();
+
+    // A code-frame line: "  3 | const x = 1", "> 4 |   …", "    |       ^".
+    [GeneratedRegex(@"^\s*(?:>\s*)?\d*\s*\|")]
+    private static partial Regex CodeFrameLineRegex();
 }

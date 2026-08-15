@@ -12,6 +12,9 @@ public sealed partial class CompileService(
 {
     private const int MaxContextChars = 8_000;
 
+    /// <summary>Floor for the truncation fallback, so the prompt always carries some error text.</summary>
+    private const int MinTruncatedErrorChars = 1_000;
+
     private readonly Dictionary<ProjectType, IBuildStrategy> _strategies = strategies
         .GroupBy(strategy => strategy.SupportedProjectType)
         .ToDictionary(group => group.Key, group => group.Last());
@@ -50,6 +53,16 @@ public sealed partial class CompileService(
             totalLength += errorHistory[i].Length;
         }
 
+        // Nothing fit: a single `next build` failure carrying file paths and code frames
+        // can exceed the whole budget on its own. Truncate the most recent attempt instead
+        // of emitting a retry prompt with an empty error section — that shape teaches the
+        // LLM nothing, burns all three attempts, and ends in a Compile Guarantee refund.
+        if (includedErrors.Count == 0 && errorHistory.Count > 0)
+        {
+            var budget = Math.Max(MinTruncatedErrorChars, MaxContextChars - totalLength);
+            includedErrors.Add(Truncate(errorHistory[^1], budget));
+        }
+
         for (var i = 0; i < includedErrors.Count; i++)
             context += $"### Attempt {i + 1}\n```\n{includedErrors[i]}\n```\n\n";
 
@@ -66,6 +79,9 @@ public sealed partial class CompileService(
 
         return context;
     }
+
+    private static string Truncate(string value, int maxChars) =>
+        value.Length <= maxChars ? value : value[..maxChars] + "\n… (errors truncated)";
 
     private IBuildStrategy ResolveStrategy(ProjectType projectType)
     {
