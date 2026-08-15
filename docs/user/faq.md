@@ -15,16 +15,20 @@ No. StackAlchemist generates real source code that you own and modify. It's a **
 ### What stack does StackAlchemist generate?
 
 V1 generates:
-- **Backend:** .NET 10 Web API with Dapper ORM and PostgreSQL
-- **Frontend:** Next.js 15 (App Router, TypeScript, Tailwind CSS)
-- **Database:** PostgreSQL with Supabase auth
-- **Dev Environment:** Docker Compose
+- **Backend:** .NET 10 minimal API with Dapper and PostgreSQL (one project, not a solution)
+- **Frontend:** Next.js 15 (App Router, TypeScript, Tailwind CSS) with a typed API client
+- **Database:** PostgreSQL migration with UUID keys and row-level security enabled
+- **Dev Environment:** Docker Compose + a multi-stage Dockerfile
 
-Additional stacks are planned for V2.
+No authentication flow is generated — the Supabase client and env slots ship preinstalled, the
+wiring is yours. Additional stacks are planned for V2.
 
 ### Do I need an account to try it?
 
-You can explore the interface and define your schema without an account. An account is required at the point of purchase and download.
+Yes, for anything past reading. The marketing pages, this FAQ, and the docs are public, but both
+build modes are gated: `/simple` and `/advanced` redirect a signed-out visitor to sign-in, so the
+account comes before the schema wizard, not after it. Starting a build needs one too — including
+a free Spark build, which is limited to 5 per calendar month.
 
 ---
 
@@ -42,11 +46,13 @@ You'll see real-time progress updates throughout.
 
 Every Boilerplate and Infrastructure package is run through the actual .NET and Next.js compilers before delivery:
 
-1. `dotnet build` is executed against the .NET API
-2. `npm run build` is executed against the Next.js frontend
+1. `dotnet restore` and `dotnet build --no-restore` are executed against the .NET API
+2. `npm ci`, `npm run typecheck` and `next build` are executed against the Next.js frontend
 3. If either fails, the error output is fed back to the LLM and the failing files are regenerated
 4. This retry loop runs up to **3 times**
 5. If the build is still failing after 3 attempts: **a full refund is initiated automatically, no questions asked**
+6. On success the archive gets a `build-report.json` naming every command, its exit code, and
+   the verdict per half — the same verdict your delivery page shows
 
 This is a hard technical constraint in the delivery pipeline — not a marketing claim.
 
@@ -74,9 +80,10 @@ Yes. The generated code has no licensing restrictions. Use it, sell it, scale it
 
 | Tier | What you get |
 |------|-------------|
-| Blueprint ($299) | Architecture documents: schema, OpenAPI spec, SQL, data flow diagram |
-| Boilerplate ($599) | Full compiled source code + Docker Compose |
-| Infrastructure ($999) | Everything + AWS CDK, Helm charts, CI/CD pipeline, deployment runbook |
+| Spark (free) | A fixed demo app running in your browser. Not built from your description, not downloadable. |
+| Blueprint ($299) | Architecture documents: `schema.json` and `api-docs.md` (the CRUD contract) |
+| Boilerplate ($599) | The generated source built from your schema, both halves compiled, + Docker Compose |
+| Infrastructure ($999) | Everything + AWS CDK, Terraform, Helm chart, deployment runbook |
 
 See [Tiers and Pricing](./tiers-and-pricing) for full details.
 
@@ -114,7 +121,7 @@ Yes. The Boilerplate tier generates a Docker Compose setup that runs on any mach
 
 ### What database does it use?
 
-PostgreSQL for the primary data store. Supabase provides auth, real-time subscriptions, and storage on top of PostgreSQL. The generated code uses raw SQL via Dapper — not Entity Framework — so the database layer is lightweight and explicit.
+PostgreSQL for the primary data store, reached with raw SQL via Dapper — not Entity Framework — so the database layer is lightweight and explicit. Supabase is the intended home for auth, real-time, and storage on top of that PostgreSQL: the client library and the env slots ship in the archive, but no auth code is generated for you.
 
 ---
 

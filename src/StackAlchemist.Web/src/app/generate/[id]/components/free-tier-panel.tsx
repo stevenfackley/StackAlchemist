@@ -23,10 +23,10 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
       </div>
 
       <div className="text-center space-y-2 max-w-md">
-        <h3 className="text-lg font-bold text-white">Your Architecture is Ready</h3>
+        <h3 className="text-lg font-bold text-white">Your Build Finished</h3>
         <p className="text-slate-400 text-sm leading-relaxed">
-          The live IDE preview will be available once the engine populates the
-          preview files. In the meantime, here&apos;s your generated schema:
+          The in-browser demo app could not be attached to this build. If you modelled
+          entities in Advanced Mode, here is the schema this row is carrying:
         </p>
       </div>
 
@@ -98,10 +98,11 @@ function SchemaFallbackView({ generation, onUpgrade }: { generation: Generation;
 
       {/* Upgrade CTA */}
       <div className="rounded-xl border border-accent/20 bg-accent/5 p-5 max-w-md text-center space-y-3">
-        <p className="text-slate-300 text-sm font-medium">Want the full downloadable codebase?</p>
+        <p className="text-slate-300 text-sm font-medium">Want the downloadable codebase?</p>
         <p className="text-slate-500 text-xs leading-relaxed">
-          Upgrade to Blueprint ($299), Boilerplate ($599), or Infrastructure ($999) to get the full
-          source code — compiled, tested, and yours forever.
+          Blueprint ($299) delivers the schema and API contract as documents. Boilerplate ($599)
+          and Infrastructure ($999) deliver the source built from your schema, compiled on both
+          halves before it ships — and yours forever.
         </p>
         <button
           onClick={onUpgrade}
@@ -134,10 +135,11 @@ export function FreeTierPanel({ generation }: { generation: Generation }) {
           <Eye className="h-4 w-4 text-emerald-400 shrink-0" />
           <div>
             <p className="font-mono text-xs font-bold text-emerald-400 tracking-widest uppercase">
-              Spark — Live Preview
+              Spark — Demo App, Running Live
             </p>
             <p className="font-mono text-[10px] text-slate-500 mt-0.5">
-              Code is view-only. Download requires a paid tier.
+              A fixed sample project, not built from your description. Code from your
+              schema starts at Blueprint.
             </p>
           </div>
         </div>

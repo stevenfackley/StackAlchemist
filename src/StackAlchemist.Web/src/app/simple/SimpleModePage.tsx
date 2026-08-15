@@ -12,14 +12,16 @@ import { isDemoMode } from "@/lib/runtime-config";
 import { Logo } from "@/components/logo";
 import type { Generation } from "@/lib/types";
 
-// Friendly, jargon-free narration of the backend pipeline — no "schema",
-// "migration", ".NET", or "compile". Spark renders a deterministic preview, so
-// these are reassurance, not literal step gating.
+// Friendly, jargon-free narration while the row is worked — no "schema",
+// "migration", ".NET", or "compile". Spark renders a deterministic demo project
+// and makes no AI call, so these must not claim your idea is being interpreted:
+// they narrate what genuinely happens (save the prompt, render the project,
+// hand it to the in-browser runtime).
 const BUILD_STEPS = [
-  "Understanding your idea...",
-  "Designing your data model...",
-  "Assembling your live preview...",
-  "Polishing the details...",
+  "Saving your description...",
+  "Preparing your demo project...",
+  "Packing it for the in-browser runtime...",
+  "Almost there...",
 ];
 
 export default function SimpleModePage() {
@@ -125,11 +127,11 @@ export default function SimpleModePage() {
       case "pending": return "Queued — starting in a moment...";
       case "extracting_schema": return "Understanding your idea...";
       case "generating_code":
-      case "generating": return "Assembling your live preview...";
+      case "generating": return "Assembling your demo project...";
       case "building": return "Putting it together...";
       case "packing": return "Almost ready...";
       case "uploading": return "Finalizing...";
-      case "success": return "Ready! Opening your preview...";
+      case "success": return "Ready! Opening your demo app...";
       case "failed": return "Something went wrong...";
       default: return "Building your app...";
     }
@@ -195,7 +197,7 @@ export default function SimpleModePage() {
               <div className="w-full max-w-sm rounded-xl border border-slate-600/30 bg-slate-700/20 p-4 space-y-1 text-left">
                 <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Generation ID</p>
                 <p className="font-mono text-xs text-accent break-all">{generationId}</p>
-                <p className="font-mono text-[10px] text-slate-600">Keep this page open — your live preview opens automatically.</p>
+                <p className="font-mono text-[10px] text-slate-600">Keep this page open — your demo app opens automatically.</p>
               </div>
             )}
           </div>

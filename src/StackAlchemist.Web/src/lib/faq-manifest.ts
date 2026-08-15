@@ -32,7 +32,7 @@ export const FAQS = [
     category: "general",
     question: "What is StackAlchemist?",
     answer:
-      "StackAlchemist is an AI SaaS generator that turns natural-language product descriptions into fully compiled, production-ready full-stack code repositories. The output includes a .NET 10 Web API, a Next.js 15 frontend, a PostgreSQL schema, Supabase auth, Docker Compose, and optional AWS CDK infrastructure — all guaranteed to build on delivery.",
+      "StackAlchemist is an AI SaaS generator that turns natural-language product descriptions into compiled, download-ready full-stack code repositories. The output includes a .NET 10 minimal API, a Next.js 15 frontend, a PostgreSQL migration, Docker Compose, and optional AWS CDK, Terraform and Helm infrastructure — with both halves built before delivery.",
   },
   {
     category: "general",
@@ -82,7 +82,7 @@ export const FAQS = [
     category: "pricing",
     question: "What are the pricing tiers?",
     answer:
-      "Spark is a free tier for exploring schemas. Blueprint ($299) delivers architecture documents — schema, OpenAPI spec, SQL, and data-flow diagrams. Boilerplate ($599) adds the full compiled source plus Docker Compose. Infrastructure ($999) includes everything plus AWS CDK, Helm charts, a CI/CD pipeline, and a deployment runbook.",
+      "Spark is free and runs the workflow end to end, handing back a fixed demo app that boots in your browser — it is not generated from your description. Blueprint ($299) delivers the architecture documents: schema.json and a CRUD API contract. Boilerplate ($599) delivers the generated source itself, compiled on both halves before delivery, with Docker Compose. Infrastructure ($999) adds AWS CDK, Terraform, a Helm chart, and a deployment runbook.",
   },
   {
     category: "pricing",
@@ -101,7 +101,7 @@ export const FAQS = [
     category: "output",
     question: "What stack does StackAlchemist generate?",
     answer:
-      "The V1 stack is a .NET 10 Web API with Dapper and PostgreSQL on the backend, Next.js 15 with the App Router and Tailwind CSS on the frontend, Supabase for auth and storage, and Docker Compose for local development. Infrastructure tier adds AWS CDK infrastructure-as-code.",
+      "The V1 stack is a .NET 10 minimal API with Dapper and PostgreSQL on the backend, Next.js 15 with the App Router and Tailwind CSS on the frontend, and Docker Compose for local development. The Supabase client and its env slots ship preinstalled but no auth flow is generated. Infrastructure tier adds AWS CDK, Terraform and a Helm chart.",
   },
   {
     category: "output",

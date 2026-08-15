@@ -215,27 +215,31 @@ export default function AboutPage() {
             <p className="font-mono text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-12">
               V1 Stack
             </p>
+            {/* Every row below is a claim about what the engine emits, so each one is
+                sourced from the template tree or the generation prompt — not from what the
+                stack could plausibly include. Keep it in substance identical to the tier
+                lists on /pricing; the two pages disagreeing is how a false claim survives. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-border">
               {[
                 {
                   tech: ".NET 10 Web API",
                   role: "Backend",
-                  desc: "RESTful API with controllers, repository pattern, model validation, and Entity Framework-ready data access. Clean architecture, proper layering.",
+                  desc: "Minimal-API endpoint groups with a Dapper repository per entity over Npgsql. One real file each for the model, the repository and the CRUD endpoints.",
                 },
                 {
                   tech: "Next.js 15",
                   role: "Frontend",
-                  desc: "App Router, TypeScript strict mode, Tailwind CSS. Type-safe API client generated from your schema. No config required to run.",
+                  desc: "App Router, TypeScript strict mode, Tailwind CSS. Type-safe API client generated from your schema. Copy .env.example and it runs.",
                 },
                 {
                   tech: "PostgreSQL",
                   role: "Database",
-                  desc: "Schema migrations scripted from your entity definitions. Foreign keys, indexes, and constraints modeled from your relationships.",
+                  desc: "Schema migrations scripted from your entity definitions. UUID primary keys and foreign key constraints modeled from your relationships.",
                 },
                 {
                   tech: "Supabase",
-                  role: "Auth + Storage",
-                  desc: "Row Level Security policies scaffolded for your entities. Auth flows wired into the frontend. Ready for production the moment you deploy.",
+                  role: "Preinstalled",
+                  desc: "The client library and its environment variables ship wired through Docker Compose. The migration enables row-level security — the policies and the auth flows are yours to write.",
                 },
                 {
                   tech: "Docker Compose",
@@ -245,7 +249,7 @@ export default function AboutPage() {
                 {
                   tech: "AWS CDK (Infra tier)",
                   role: "Cloud",
-                  desc: "Lambda, RDS, S3, CloudFront — all as TypeScript infrastructure code. Deploy to production with a single CDK deploy command.",
+                  desc: "A TypeScript stack — VPC, ECS Fargate behind an Application Load Balancer, RDS PostgreSQL. Terraform and Helm equivalents ship beside it.",
                 },
               ].map((item) => (
                 <div key={item.tech} className="bg-void p-6 space-y-2">

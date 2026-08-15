@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 
+// Keep these lists identical in substance to /pricing — both are claims about
+// what the engine emits, and the two pages disagreeing is how a false one
+// survives. See the sourcing note above `comparison` in app/pricing/page.tsx.
 const PRICING_TIERS = [
   {
     id: "blueprint",
@@ -8,13 +11,13 @@ const PRICING_TIERS = [
     name: "Blueprint",
     tagline: "The Architecture",
     price: 299,
-    description: "The full schema, API surface, and SQL scripts — delivered as precise technical documentation. Stack-agnostic.",
+    description: "Your data model and API contract, written down. No code — the documents you hand to a stakeholder or the engineer who will build it. Stack-agnostic.",
     features: [
-      "Entity-Relationship Schema (JSON)",
-      "API Specification (OpenAPI 3.0)",
-      "SQL Migration Scripts",
-      "Data Flow Diagram",
-      "Architecture Decision Records",
+      "schema.json — normalized entity-relationship model",
+      "api-docs.md — the CRUD contract per entity",
+      "Types, keys, nullability and defaults per field",
+      "The relationship map between entities",
+      "Transfers to any stack you like",
     ],
     featured: false,
     href: "/advanced?step=4&tier=1",
@@ -25,15 +28,14 @@ const PRICING_TIERS = [
     name: "Boilerplate",
     tagline: "The Foundation",
     price: 599,
-    description: "A complete, compiled, download-ready source repository. Guaranteed to build on first try — or we auto-correct up to three times.",
+    description: "A download-ready source repository shaped around your schema. Both halves go through their real compilers before it ships — or we correct and rebuild, up to three times.",
     features: [
-      "Everything in Blueprint",
-      ".NET 10 Web API (Controllers, Repos)",
-      "Next.js 15 Frontend (App Router, TS)",
-      "PostgreSQL Schema + Migrations",
-      "Supabase Auth Integration",
-      "Docker Compose Dev Environment",
-      "Compile Guarantee (3-retry loop)",
+      ".NET 10 minimal API (records, Dapper repos, endpoints)",
+      "Next.js 15 frontend (App Router, TS) + typed client",
+      "PostgreSQL migration — UUID keys, FKs, RLS enabled",
+      "Docker Compose + multi-stage Dockerfile",
+      "Compile Guarantee — .NET and Next.js both built",
+      "build-report.json with every command and verdict",
     ],
     featured: true,
     href: "/advanced?step=4&tier=2",
@@ -44,15 +46,13 @@ const PRICING_TIERS = [
     name: "Infrastructure",
     tagline: "The Kingdom",
     price: 999,
-    description: "Production-ready from day one. Cloud IaC, Kubernetes manifests, and a deployment runbook so complete a junior engineer could ship it.",
+    description: "The Boilerplate repository plus the infrastructure to put it in a cloud. Two IaC paths, a Kubernetes chart, and a runbook a junior engineer could ship from.",
     features: [
       "Everything in Boilerplate",
-      "AWS CDK Stack (Lambda, RDS, S3)",
-      "Helm Charts for Kubernetes",
-      "CI/CD Pipeline (GitHub Actions)",
-      "Deployment Runbook (step-by-step)",
-      "Environment Configuration Guide",
-      "Cost Estimation Report",
+      "AWS CDK stack (VPC, ECS Fargate, ALB, RDS)",
+      "Terraform AWS baseline",
+      "Helm chart (deployment, service, ingress, HPA)",
+      "DEPLOYMENT.md runbook — preflight, deploy, rollback",
     ],
     featured: false,
     href: "/advanced?step=4&tier=3",

@@ -20,10 +20,18 @@ Use [Advanced Mode](./advanced-mode) instead when you have a precise data model 
 
 1. Enter your application description in the prompt field on the home page
 2. Click **Synthesize** or press `Ctrl + Enter`
-3. StackAlchemist's LLM layer parses your description and produces a structured entity schema
-4. You review the generated schema before committing to purchase
-5. Select your tier and complete checkout
-6. The generation pipeline runs and packages your output
+3. A free Spark build starts immediately and lands you on the delivery page with a demo app
+   running in your browser. Spark is a fixed template, so nothing is interpreted at this step.
+4. Choose a paid tier from that page and complete checkout
+5. The generation pipeline reruns against your description — for Boilerplate and
+   Infrastructure the model reads your prose directly and emits the entities, repositories,
+   endpoints, migration, and typed frontend client in one pass
+6. Both halves are compiled, then your archive is packed and made available
+
+> **There is no schema-review step in Simple Mode.** Your description goes to the model as
+> written. If you want to see and edit the entity model before you buy, use
+> [Advanced Mode](./advanced-mode) — its wizard is where the ER canvas lives, and the schema
+> you build there is what the paid run generates from.
 
 ---
 

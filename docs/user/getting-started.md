@@ -59,12 +59,31 @@ Use the entity wizard to define your schema step by step:
 
 | Tier | Name | Price | What You Receive |
 |------|------|-------|-----------------|
-| **Tier 0** | Spark | Free | Live preview only, with schema canvas and no download |
-| **Tier 1** | Blueprint | $299 | Architecture documents: ER schema, OpenAPI spec, SQL migration scripts, data flow diagram |
-| **Tier 2** | Boilerplate | $599 | Everything in Blueprint + compiled .NET 10 API, Next.js 15 frontend, PostgreSQL schema, Docker Compose |
-| **Tier 3** | Infrastructure | $999 | Everything in Boilerplate + AWS CDK stack, Helm charts, CI/CD pipeline, deployment runbook |
+| **Tier 0** | Spark | Free | A fixed demo app that boots in your browser. Not built from your description, and not downloadable. |
+| **Tier 1** | Blueprint | $299 | Architecture documents: `schema.json` and `api-docs.md` (the CRUD contract per entity) |
+| **Tier 2** | Boilerplate | $599 | The generated source: .NET 10 minimal API, Next.js 15 frontend, PostgreSQL migration, Docker Compose — both halves compiled before delivery |
+| **Tier 3** | Infrastructure | $999 | Everything in Boilerplate + AWS CDK stack, Terraform baseline, Helm chart, deployment runbook |
 
 > **All prices are one-time.** No subscriptions, no recurring fees. The generated code is entirely yours.
+
+### About the free tier
+
+Spark exists so you can watch the machine run before paying for it. It renders one fixed
+template — a small task tracker — with your project name substituted in, and makes **no AI
+call at all**. That is why it is instant, free, and always boots. It is not a preview of the
+code a paid tier would produce for you, it contains no .NET half, and it cannot be
+downloaded.
+
+What Spark is genuinely good for:
+
+- Proving the end-to-end flow works in your browser before you pay (the in-browser runtime
+  needs a Chromium-based browser — Chrome, Edge, Arc)
+- Seeing the delivery page and the embedded editor exactly as a paid run presents them
+- Reading a real Next.js 15 App Router project file by file, and editing it live
+- Modelling your entities on the Advanced Mode ER canvas — that schema is saved with the
+  build, so you can come back and buy a paid run against it
+
+You get **5 free builds per calendar month** per account.
 
 ---
 
@@ -72,27 +91,35 @@ Use the entity wizard to define your schema step by step:
 
 Click **Synthesize** (or press `Ctrl + Enter` in Simple Mode). Watch real-time progress as StackAlchemist:
 
-1. Parses and validates your schema
-2. Applies Handlebars templates to the structure
-3. Injects LLM-generated business logic into the holes
-4. Runs the output through the compiler
-5. Auto-corrects any build errors (up to 3 retries)
-6. Packages everything into a ZIP archive
+1. Renders the template tree for your stack and substitutes your project name
+2. Sends your description or schema to the model and reconstructs the returned files into that tree
+3. Runs `dotnet restore` and `dotnet build` against the API half
+4. Runs `npm ci`, `npm run typecheck`, and `next build` against the frontend half
+5. Auto-corrects any build errors and retries (up to 3 retries)
+6. Writes `build-report.json` and packages everything into a ZIP archive
 
 Generation typically takes **30–90 seconds** depending on schema complexity.
+
+A free Spark build skips all of that: it renders the fixed demo template and hands it to the
+in-browser runtime, which is why it returns almost immediately.
 
 ---
 
 ## Step 5: Download and Run
 
-Extract the ZIP archive. Every Boilerplate and Infrastructure package includes a `README.md` with specific setup instructions, but the general pattern is:
+Extract the ZIP archive. The root of a Boilerplate or Infrastructure package holds
+`docker-compose.yml`, a multi-stage `Dockerfile`, `.env.example`, and `build-report.json`
+(the record of the builds that were run against your code). The two halves live in
+`dotnet/` and `nextjs/`.
 
 > **Prerequisite — configure `.env` before starting the stack.** The API will not
 > boot with an empty `.env`: after copying `.env.example`, open `.env` and fill in
-> the required values (database credentials and, if your package uses Supabase
-> auth, the keys from your Supabase dashboard). Every required key is documented
-> in the generated `README.md`. Skipping this is the #1 cause of "the frontend
-> loads but every API call fails" on a fresh download.
+> the required values — at minimum `DATABASE_URL` /
+> `ConnectionStrings__DefaultConnection`. The Supabase entries are placeholders for
+> the client library that ships preinstalled in the frontend; no auth flow is
+> generated, so leave them alone until you wire one up. Skipping the database
+> values is the #1 cause of "the frontend loads but every API call fails" on a
+> fresh download.
 
 ```bash
 # 1. Unzip and navigate
@@ -114,10 +141,13 @@ Your dev environment will be running at:
 
 ## Common First Steps After Download
 
-- Review `README.md` in the root — it has all env variable documentation
+- Read `build-report.json` in the root — it names every command that was run against your
+  code, its exit code, and the per-half verdict
 - The `.env.example` file lists all required configuration keys
-- Database migrations are in `/migrations` — they run automatically on first `docker compose up`
-- Supabase auth keys need to be populated from your Supabase project dashboard
+- Database migrations are in `dotnet/Migrations/` — `docker compose up` mounts that directory
+  into the Postgres init hook, so they run automatically on first boot
+- API endpoints are mapped under `/api/v1/{entity}` and the OpenAPI document is served in
+  Development at `/openapi/v1.json`
 
 ---
 
