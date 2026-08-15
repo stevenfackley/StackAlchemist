@@ -95,7 +95,7 @@ Click **Synthesize** (or press `Ctrl + Enter` in Simple Mode). Watch real-time p
 2. Sends your description or schema to the model and reconstructs the returned files into that tree
 3. Runs `dotnet restore` and `dotnet build` against the API half
 4. Runs `npm ci`, `npm run typecheck`, and `next build` against the frontend half
-5. Auto-corrects any build errors and retries (up to 3 attempts total)
+5. Auto-corrects any build errors and retries (up to 3 retries)
 6. Writes `build-report.json` and packages everything into a ZIP archive
 
 Generation typically takes **30–90 seconds** depending on schema complexity.

@@ -25,9 +25,10 @@ wiring is yours. Additional stacks are planned for V2.
 
 ### Do I need an account to try it?
 
-You can browse the site and model a schema in the Advanced Mode wizard without an account. An
-account is required to start a build — including a free Spark build, which is limited to 5 per
-calendar month.
+Yes, for anything past reading. The marketing pages, this FAQ, and the docs are public, but both
+build modes are gated: `/simple` and `/advanced` redirect a signed-out visitor to sign-in, so the
+account comes before the schema wizard, not after it. Starting a build needs one too — including
+a free Spark build, which is limited to 5 per calendar month.
 
 ---
 
