@@ -91,7 +91,63 @@ public sealed class V1TemplateCompileTests : IDisposable
         result.IsSuccess.Should().BeTrue(
             because: "the V1 template is the baseline of every Tier-2 'Compile Guarantee' " +
                      $"archive and must compile before the LLM adds anything.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
+
+        // The frontend leg genuinely ran. BuildNextJsAsync returns success when
+        // nextjs/package.json is absent, so a green result alone does not prove `next build`
+        // happened — the standalone server entrypoint does.
+        File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "standalone", "server.js"))
+            .Should().BeTrue("`next build` must have produced the standalone output, not been skipped");
+
+        AssertArchiveIsCustomerReady();
     }
+
+    /// <summary>
+    /// The build above filled this directory with a Linux/Windows-specific
+    /// <c>node_modules/</c> and a <c>.next/</c> cache — 525 MB / 25,488 files, measured. This
+    /// is the same directory <c>CompileWorkerService.PackUploadAndNotifyAsync</c> hands to the
+    /// R2 uploader, so without exclusions every paid generation would have emailed the buyer a
+    /// ~141 MB zip of another machine's build output. Asserted here, on the real post-build
+    /// tree, because that is the only place the regression is actually observable.
+    /// </summary>
+    private void AssertArchiveIsCustomerReady()
+    {
+        var entries = ProjectArchiver.EnumerateArchiveEntries(_outputDir);
+
+        entries.Should().NotContain(
+            e => e.Contains("node_modules/", StringComparison.Ordinal)
+              || e.Contains(".next/", StringComparison.Ordinal)
+              || e.Contains("/obj/", StringComparison.Ordinal)
+              || e.Contains("/bin/Debug/", StringComparison.Ordinal)
+              || e.Contains("/bin/Release/", StringComparison.Ordinal),
+            "build output belongs to the build machine, not to the customer");
+
+        entries.Should().Contain("dotnet/Program.cs");
+        entries.Should().Contain("nextjs/package.json");
+        entries.Should().Contain("nextjs/package-lock.json");
+        entries.Should().Contain("docker-compose.yml");
+
+        var zipPath = ProjectArchiver.CreateArchiveFile(_outputDir);
+        try
+        {
+            var bytes = new FileInfo(zipPath).Length;
+            Console.WriteLine($"Customer archive: {entries.Count} entries, {bytes:N0} bytes.");
+
+            bytes.Should().BeLessThan(MaxCustomerArchiveBytes,
+                $"the archive is what the buyer downloads; it was {bytes:N0} bytes with " +
+                $"{entries.Count} entries");
+        }
+        finally
+        {
+            ProjectArchiver.TryDelete(zipPath);
+        }
+    }
+
+    /// <summary>
+    /// Ceiling for the packed Tier-2 deliverable. Generous against the real figure (the
+    /// rendered tree is a few hundred KB zipped) but two orders of magnitude below the
+    /// 147,720,784-byte archive the unfiltered writer produced after the build ran.
+    /// </summary>
+    private const long MaxCustomerArchiveBytes = 5 * 1024 * 1024;
 
     /// <summary>
     /// Skips locally when a toolchain is missing, but FAILS on CI. A gate that quietly

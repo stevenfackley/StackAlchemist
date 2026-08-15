@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -39,22 +38,35 @@ public sealed partial class CloudflareR2UploadService(
 
         await EnsureBucketExistsAsync(s3, bucket, accountId, ct);
 
-        // ── 2. Zip the directory into an in-memory stream ─────────────────────
-        using var memStream = new MemoryStream();
-        ZipFile.CreateFromDirectory(directoryPath, memStream);
-        memStream.Position = 0;
+        // ── 2. Zip the directory to a temp file ───────────────────────────────
+        // Streamed to disk, not a MemoryStream: the Compile Guarantee build runs inside
+        // this same directory, and buffering the result in memory was a ~141 MB LOH
+        // allocation per generation. ProjectArchiver also strips node_modules/.next/obj —
+        // see its docs for why the customer must never receive them.
+        var zipPath = ProjectArchiver.CreateArchiveFile(directoryPath, ct);
 
-        LogUploadingZip(logger, generationId, memStream.Length, bucket, key);
-
-        // ── 3. Upload via AWS SDK (R2 is S3-compatible) ───────────────────────
-        var putRequest = new PutObjectRequest
+        try
         {
-            BucketName = bucket,
-            Key = key,
-            InputStream = memStream,
-            ContentType = "application/zip",
-        };
-        await s3.PutObjectAsync(putRequest, ct);
+            await using var zipStream = new FileStream(
+                zipPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            LogUploadingZip(logger, generationId, zipStream.Length, bucket, key);
+
+            // ── 3. Upload via AWS SDK (R2 is S3-compatible) ───────────────────
+            var putRequest = new PutObjectRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                InputStream = zipStream,
+                ContentType = "application/zip",
+                AutoCloseStream = false,
+            };
+            await s3.PutObjectAsync(putRequest, ct);
+        }
+        finally
+        {
+            ProjectArchiver.TryDelete(zipPath);
+        }
 
         // ── 4. Generate a presigned download URL ─────────────────────────────
         var presignRequest = new GetPreSignedUrlRequest

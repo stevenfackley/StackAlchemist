@@ -12,21 +12,6 @@ public sealed partial class TemplateProvider : ITemplateProvider
     // so all variants count without enumerating each.
     private const string EntityNameTokenPrefix = "{{EntityName";
 
-    // Build residue that appears inside a template tree whenever anyone runs
-    // `dotnet build` / `npm install` inside it while working on the templates.
-    // Those files are machine-local (absolute NuGet paths, binary caches) and must
-    // never be Handlebars-compiled nor shipped to a customer — the glob below is
-    // "*" recursive, so without this filter a stray obj/ directory becomes part of
-    // the paid deliverable.
-    private static readonly string[] ExcludedDirectorySegments =
-    [
-        "obj", "node_modules", ".next", ".git", "__pycache__", ".venv",
-    ];
-
-    // "bin" alone is NOT excludable: a CDK app's entrypoint lives at infra/cdk/bin/app.ts.
-    // .NET build output is always bin/<Configuration>/, so match that shape instead.
-    private static readonly string[] DotNetBuildConfigurations = ["Debug", "Release"];
-
     private readonly IFileSystem _fs;
     private readonly string _templatesRoot;
     private readonly IHandlebars _handlebars;
@@ -67,33 +52,15 @@ public sealed partial class TemplateProvider : ITemplateProvider
     /// <summary>
     /// True when a template-relative path sits under a build-output directory
     /// (<c>obj/</c>, <c>bin/</c>, <c>node_modules/</c>, <c>.next/</c>, …).
+    ///
+    /// Build residue appears inside a template tree whenever anyone runs `dotnet build` /
+    /// `npm install` in it while working on the templates. Those files are machine-local
+    /// (absolute NuGet paths, binary caches) and must never be Handlebars-compiled nor
+    /// shipped to a customer — the glob in <see cref="LoadTemplate"/> is "*" recursive, so
+    /// without this filter a stray obj/ directory becomes part of the paid deliverable.
     /// </summary>
-    internal static bool IsBuildResidue(string relativePath)
-    {
-        var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        // The final segment is the file name — only directory segments are checked.
-        for (var i = 0; i < segments.Length - 1; i++)
-        {
-            foreach (var excluded in ExcludedDirectorySegments)
-            {
-                if (string.Equals(segments[i], excluded, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-
-            if (!string.Equals(segments[i], "bin", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            // bin/Debug/… or bin/Release/… — .NET output, not a source directory.
-            if (i + 1 < segments.Length - 1
-                && DotNetBuildConfigurations.Contains(segments[i + 1], StringComparer.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    internal static bool IsBuildResidue(string relativePath) =>
+        BuildResiduePaths.IsResidueFile(relativePath);
 
     public Dictionary<string, string> Render(Dictionary<string, string> templates, TemplateVariables variables)
     {
