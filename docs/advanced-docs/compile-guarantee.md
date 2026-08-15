@@ -91,7 +91,12 @@ Common failure modes that the correction loop handles:
 - Missing using directives (LLM referenced a type from an unimported namespace)
 - Incorrect Dapper query parameter names
 
-### Next.js Build (`npm run build`)
+### Next.js Build (`npm ci` → `npm run typecheck` → `npm run build`)
+
+Dependencies are installed with `npm ci` against the lockfile in your archive, falling back
+to `npm install` if the correction loop added a dependency. `npm run typecheck`
+(`tsc --noEmit`) runs before `next build` because it reports every type error at once, where
+`next build` stops at the first — so a correction round fixes them all together.
 
 The build checks:
 - TypeScript type checking across the entire frontend
@@ -189,14 +194,111 @@ There is no dispute process. The build logs are the objective evidence — if th
 
 ## Build Logs
 
-Your download archive includes a `build-report.json` file that records:
-- Build attempt number
-- Timestamp
-- Full compiler output for each attempt
-- Files that were corrected and the corrections applied
-- Final build status
+Your download archive includes a **`build-report.json`** at its root: the pipeline's own
+record of every compiler invocation it ran against your code, written immediately before the
+archive is zipped, so it describes exactly the code you received.
 
-This provides full transparency into what the pipeline did.
+Field names are camelCase and stable within a `schemaVersion`.
+
+### Top level
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schemaVersion` | number | Shape version of this file. Currently `1`. |
+| `generationId` | string | Your generation's id — quote it in any support request. |
+| `projectType` | string | Template family, e.g. `DotNetNextJs`. |
+| `tier` | number | 1 Blueprint, 2 Boilerplate, 3 Infrastructure. |
+| `generatedAt` | string | ISO-8601 UTC timestamp of delivery. |
+| `status` | string | `verified` (final attempt compiled) or `failed` (refund issued). |
+| `attemptsUsed` | number | Build attempts that ran, including the successful one. |
+| `maxAttempts` | number | The retry ceiling — `3`. |
+| `halves` | array | Final verdict per half. See below. |
+| `attempts` | array | Full history, oldest first. See below. |
+
+### `halves[]` — what actually compiled
+
+This is the honest answer to "is my code verified?", and it is per half, because the two
+halves are verified by different toolchains and either can fail alone.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `half` | string | `dotnet` or `nextjs`. |
+| `label` | string | Display name — `.NET` / `Next.js`. |
+| `status` | string | `passed`, `failed`, `skipped`, or `not_run`. |
+| `commands` | string[] | The commands that produced this verdict, in order. |
+
+Only `passed` is evidence of compilation. `skipped` means the step was reached and not
+needed (no frontend in the archive, or no `typecheck` script). `not_run` means the half was
+never reached, because the other half failed first.
+
+### `attempts[]` — the audit trail
+
+| Field | Type | Meaning |
+|---|---|---|
+| `attempt` | number | 1-based, matching the `[Attempt N]` lines in your live build log. |
+| `startedAt` / `completedAt` | string | ISO-8601 UTC. |
+| `status` | string | `passed` or `failed`. |
+| `steps` | array | Per-command detail — see below. |
+| `output` | string | Full compiler output for the attempt, both halves, verbatim. Very long transcripts are truncated from the front; the tail (where the errors are) is always kept. |
+| `errors` | string[] | The parsed error lines the correction prompt was built from. Empty on a passing attempt. |
+| `correctedFiles` | string[] | Files the correction loop rewrote after this attempt failed. |
+
+### `attempts[].steps[]` — per-command detail
+
+| Field | Type | Meaning |
+|---|---|---|
+| `half` | string | `dotnet` or `nextjs`. |
+| `command` | string | The command as you would type it, e.g. `npm run build`. |
+| `exitCode` | number | Process exit code. |
+| `durationMs` | number | Wall-clock time for that command. |
+| `errorCount` / `warningCount` | number | Diagnostics parsed out of that command's output. |
+| `status` | string | `passed`, `failed`, or `skipped`. |
+
+### Example
+
+```json
+{
+  "schemaVersion": 1,
+  "generationId": "b3f1c8e2-…",
+  "projectType": "DotNetNextJs",
+  "tier": 2,
+  "generatedAt": "2026-08-15T18:04:11.7420000+00:00",
+  "status": "verified",
+  "attemptsUsed": 1,
+  "maxAttempts": 3,
+  "halves": [
+    { "half": "dotnet", "label": ".NET", "status": "passed",
+      "commands": ["dotnet restore", "dotnet build --no-restore"] },
+    { "half": "nextjs", "label": "Next.js", "status": "passed",
+      "commands": ["npm ci", "npm run typecheck", "npm run build"] }
+  ],
+  "attempts": [
+    {
+      "attempt": 1,
+      "startedAt": "2026-08-15T18:02:40.1120000+00:00",
+      "completedAt": "2026-08-15T18:04:09.8830000+00:00",
+      "status": "passed",
+      "steps": [
+        { "half": "dotnet", "command": "dotnet restore", "exitCode": 0,
+          "durationMs": 8412, "errorCount": 0, "warningCount": 0, "status": "passed" },
+        { "half": "nextjs", "command": "npm run build", "exitCode": 0,
+          "durationMs": 41207, "errorCount": 0, "warningCount": 2, "status": "passed" }
+      ],
+      "output": "$ dotnet restore  (exit 0)\n…",
+      "errors": [],
+      "correctedFiles": []
+    }
+  ]
+}
+```
+
+Tier 1 (Blueprint) archives contain no `build-report.json`: nothing in a Blueprint is
+compiled, so there is no build to report. A Blueprint is not sold under the Compile
+Guarantee.
+
+The same verdict — `halves` plus `status` — is appended to your live build log inside a
+`=== COMPILE GUARANTEE REPORT ===` block, which is what the delivery page reads to show
+which halves compiled.
 
 ---
 

@@ -115,7 +115,19 @@ public sealed partial class CompileWorkerService(
                 $"[Attempt {job.RetryCount + 1}] Running {job.ProjectType} build validation...",
                 ct);
 
+            var attempt = new BuildAttemptRecord
+            {
+                Attempt = job.RetryCount + 1,
+                StartedAt = DateTimeOffset.UtcNow,
+            };
+            job.BuildAttempts.Add(attempt);
+
             var buildResult = await compileService.ExecuteBuildAsync(job.OutputDirectory, job.ProjectType, ct);
+
+            attempt.CompletedAt = DateTimeOffset.UtcNow;
+            attempt.Passed = buildResult.IsSuccess;
+            attempt.Steps = buildResult.Steps;
+            attempt.Output = buildResult.StandardOutput;
 
             // Stream build output to Supabase
             if (!string.IsNullOrWhiteSpace(buildResult.StandardOutput))
@@ -150,6 +162,11 @@ public sealed partial class CompileWorkerService(
             var errorSummary = errors.Count > 0
                 ? string.Join("\n", errors)
                 : TailOf(buildLog, RawLogTailChars);
+
+            // The report records the PARSED errors, not the raw-tail fallback: the fallback
+            // is repair-prompt material, and a list of transcript lines masquerading as
+            // "errors" would be worse than an honest empty list in a customer-facing file.
+            attempt.Errors = errors;
 
             job.BuildErrorHistory.Add($"Attempt {job.RetryCount + 1}: {errorSummary}");
 
@@ -227,6 +244,11 @@ public sealed partial class CompileWorkerService(
                 var dir = Path.GetDirectoryName(fullPath)!;
                 Directory.CreateDirectory(dir);
                 File.WriteAllText(fullPath, content);
+
+                // "Files that were corrected and the corrections applied" — the archive's
+                // build-report.json is the customer's only record of what the repair loop
+                // touched once the temp directory is gone.
+                attempt.CorrectedFiles.Add(relativePath);
             }
 
             // Generating → Building
@@ -276,6 +298,8 @@ public sealed partial class CompileWorkerService(
     /// </summary>
     private async Task PackUploadAndNotifyAsync(GenerationContext job, CancellationToken ct)
     {
+        await TryWriteBuildReportAsync(job, ct);
+
         var downloadUrl = await r2UploadService.UploadZipAsync(
             job.GenerationId, job.OutputDirectory!, ct);
         job.DownloadUrl = downloadUrl;
@@ -307,6 +331,34 @@ public sealed partial class CompileWorkerService(
         {
             var (subject, html) = EmailTemplates.GenerationComplete(downloadUrl);
             await emailService.SendAsync(ownerEmail, subject, html, ct);
+        }
+    }
+
+    /// <summary>
+    /// Writes <c>build-report.json</c> into the archive root and appends its verdict to the
+    /// streamed build log, which is what the delivery UI badges each half from.
+    ///
+    /// No-ops for Tier 1, whose Blueprint deliverable never goes near a compiler — a report
+    /// claiming otherwise would be exactly the kind of unearned "verified" this exists to
+    /// stop. Best-effort: a generation that compiled and uploaded must not be failed over an
+    /// unwritable metadata file, so the customer still gets the archive and the log says the
+    /// report is missing.
+    /// </summary>
+    private async Task TryWriteBuildReportAsync(GenerationContext job, CancellationToken ct)
+    {
+        if (job.BuildAttempts.Count == 0 || job.OutputDirectory is null)
+            return;
+
+        try
+        {
+            var report = BuildReportWriter.Create(job, MaxRetries, DateTimeOffset.UtcNow);
+            await BuildReportWriter.WriteAsync(job.OutputDirectory, report, ct);
+            await deliveryService.AppendBuildLogAsync(
+                job.GenerationId, BuildReportWriter.ToLogSummary(report), ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            LogBuildReportWriteFailed(logger, ex, job.GenerationId);
         }
     }
 
@@ -412,4 +464,7 @@ public sealed partial class CompileWorkerService(
 
     [LoggerMessage(EventId = 610, Level = LogLevel.Error, Message = "Compile-guarantee refund attempt threw for generation {Id} — worker continues, generation stays Failed")]
     private static partial void LogRefundAttemptFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 611, Level = LogLevel.Warning, Message = "Could not write build-report.json for generation {Id} — archive ships without it")]
+    private static partial void LogBuildReportWriteFailed(ILogger logger, Exception ex, string id);
 }

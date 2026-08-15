@@ -1,12 +1,52 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { CheckCircle2, Download, Loader2 } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MinusCircle, XCircle } from "lucide-react";
 import type { Generation } from "@/lib/types";
+import { parseBuildReportSummary, type BuildHalfStatus } from "@/lib/build-report";
 import { TIER_NAMES } from "./status";
+
+/**
+ * Tier 1 (Blueprint) is schema + API docs. Nothing in it is compiled, so it is not sold
+ * under the Compile Guarantee and must never be badged as verified.
+ */
+const COMPILE_GUARANTEED_TIERS = [2, 3];
+
+const HALF_ICONS: Record<BuildHalfStatus, typeof CheckCircle2> = {
+  passed: CheckCircle2,
+  failed: XCircle,
+  skipped: MinusCircle,
+  not_run: MinusCircle,
+};
+
+const HALF_STYLES: Record<BuildHalfStatus, string> = {
+  passed: "text-emerald-400",
+  failed: "text-red-400",
+  skipped: "text-slate-500",
+  not_run: "text-slate-500",
+};
+
+const HALF_LABELS: Record<BuildHalfStatus, string> = {
+  passed: "compiled",
+  failed: "failed to compile",
+  skipped: "not included",
+  not_run: "not built",
+};
 
 export function PaidTierPanel({ generation }: { generation: Generation }) {
   const tierName = TIER_NAMES[generation.tier] ?? "Unknown";
+
+  // The badge is driven by what the compile worker actually recorded, not by the fact that
+  // a row reached "success". It used to read "Compile Verified" unconditionally — on
+  // Blueprints that are never compiled, and on archives whose Next.js half was never built.
+  const buildReport = COMPILE_GUARANTEED_TIERS.includes(generation.tier)
+    ? parseBuildReportSummary(generation.build_log)
+    : null;
+
+  // Say "verified" only where the recorded verdict says so; otherwise say what is true —
+  // the archive is packaged and downloadable.
+  const verifiedBlurb = (verified: string, unverified: string) =>
+    buildReport?.status === "verified" ? verified : unverified;
 
   return (
     <div data-testid="generate-paid-tier-panel" className="flex-1 flex flex-col items-center justify-center px-4 py-16 space-y-8">
@@ -29,8 +69,14 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
           {generation.tier === 1
             ? "Your schema, API spec, and SQL scripts are packaged and ready to download."
             : generation.tier === 2
-            ? "Your full-stack codebase has been compiled and verified. Download, run, and ship."
-            : "Your production-ready stack — code + infrastructure + runbook — is packaged and verified."}
+            ? verifiedBlurb(
+                "Your full-stack codebase has been compiled and verified. Download, run, and ship.",
+                "Your full-stack codebase is packaged and ready to download.",
+              )
+            : verifiedBlurb(
+                "Your production-ready stack — code + infrastructure + runbook — is packaged and verified.",
+                "Your production-ready stack — code + infrastructure + runbook — is packaged and ready to download.",
+              )}
         </p>
       </div>
 
@@ -44,11 +90,34 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Mode</span>
           <span className="font-mono text-xs text-white capitalize">{generation.mode}</span>
         </div>
-        <div className="px-5 py-3 flex items-center justify-between">
-          <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Status</span>
-          <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5">
-            <CheckCircle2 className="h-3 w-3" /> Compile Verified
+        <div className="px-5 py-3 flex items-center justify-between gap-4">
+          <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
+            {buildReport ? "Compiles" : "Status"}
           </span>
+          {buildReport ? (
+            <span data-testid="compile-verdict" className="flex items-center gap-3 flex-wrap justify-end">
+              {buildReport.halves.map((half) => {
+                const Icon = HALF_ICONS[half.status];
+                return (
+                  <span
+                    key={half.half}
+                    title={`${half.label} ${HALF_LABELS[half.status]}`}
+                    className={`font-mono text-xs flex items-center gap-1.5 ${HALF_STYLES[half.status]}`}
+                  >
+                    <Icon className="h-3 w-3" aria-hidden="true" />
+                    {half.label}
+                    <span className="sr-only"> {HALF_LABELS[half.status]}</span>
+                  </span>
+                );
+              })}
+            </span>
+          ) : (
+            <span data-testid="compile-verdict" className="font-mono text-xs text-slate-400">
+              {COMPILE_GUARANTEED_TIERS.includes(generation.tier)
+                ? "Build record unavailable"
+                : "Packaged"}
+            </span>
+          )}
         </div>
         {generation.completed_at && (
           <div className="px-5 py-3 flex items-center justify-between">
