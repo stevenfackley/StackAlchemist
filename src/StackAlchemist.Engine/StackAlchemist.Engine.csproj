@@ -27,7 +27,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.*" />
     <!-- scrypt for BYOK key decryption (.NET has no built-in scrypt). Reproduces the Node
          encryptApiKeyOverride scheme byte-for-byte — see ByokKeyProtector + golden-vector test. -->
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.*" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.*" />
