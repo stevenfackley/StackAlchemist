@@ -10,6 +10,53 @@ public class TruncatedLlmResponseException : MalformedLlmOutputException
     public TruncatedLlmResponseException(string message) : base(message) { }
 }
 
+/// <summary>
+/// Thrown when the LLM emits <c>[[FILE:…]]</c> blocks whose paths exist nowhere in the
+/// rendered project tree, so writing them would drop source files at the archive root where
+/// no compiler, bundler or dev server ever looks at them.
+///
+/// This is deliberately fatal rather than a warning. The failure it replaces was silent: the
+/// V1 prompt asked for <c>src/types/index.ts</c> while the tree keeps its frontend under
+/// <c>nextjs/src/</c>, so every paid generation quietly shipped an orphan <c>src/</c>
+/// directory and a frontend with no types, no API client and an empty page — a broken
+/// deliverable that still passed the build gate. A failed generation is visible and
+/// refundable; a plausible-looking archive that is missing half the app is neither.
+///
+/// Derives from <see cref="MalformedLlmOutputException"/> so <c>ErrorCategorizer</c> reports
+/// it as a schema-class failure and the retry prompt can name the offending paths.
+/// </summary>
+public class UnmappedLlmFileException : MalformedLlmOutputException
+{
+    public UnmappedLlmFileException(IReadOnlyCollection<string> unmappedPaths, IReadOnlyCollection<string> treeRoots)
+        : base(DescribeUnmappedPaths(unmappedPaths, treeRoots))
+    {
+        UnmappedPaths = [.. unmappedPaths];
+    }
+
+    /// <summary>The emitted paths that matched nothing, in the order they were parsed.</summary>
+    public IReadOnlyList<string> UnmappedPaths { get; }
+
+    /// <summary>
+    /// The wording used for out-of-tree paths, wherever they are caught. Public because the
+    /// build-repair loop applies the same routing rule but must NOT throw — aborting there
+    /// would skip the Compile Guarantee refund — so it reports this text instead.
+    /// </summary>
+    public static string DescribeUnmappedPaths(IReadOnlyCollection<string> unmappedPaths, IReadOnlyCollection<string> treeRoots)
+    {
+        var paths = string.Join(", ", unmappedPaths);
+        var roots = treeRoots.Count > 0
+            ? string.Join(", ", treeRoots.Order(StringComparer.Ordinal))
+            : "(none — the rendered template produced no directories)";
+
+        // "__zone__/" is ReconstructionService.ZonePathPrefix, spelled out here so the
+        // Models layer stays free of a Services reference.
+        return $"The model emitted {unmappedPaths.Count} file block(s) that do not belong to the generated " +
+               $"project tree and would have been written to the archive root, where nothing reads them: {paths}. " +
+               $"Emit paths under one of the project's top-level directories ({roots}), " +
+               "or address an injection zone as '__zone__/<ZoneName>'.";
+    }
+}
+
 public class MissingTemplateVariableException : Exception
 {
     public MissingTemplateVariableException(string message) : base(message) { }

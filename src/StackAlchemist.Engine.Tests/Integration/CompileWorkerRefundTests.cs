@@ -156,7 +156,7 @@ public class CompileWorkerRefundTests
             }));
         compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>())
             .Returns(["CS9999: persistent failure"]);
-        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>())
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
             .Returns("retry-prompt");
 
         var llm = Substitute.For<ILlmClient>();

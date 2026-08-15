@@ -32,7 +32,11 @@ public sealed partial class CompileService(
         return ResolveStrategy(projectType).ExtractBuildErrors(buildOutput);
     }
 
-    public string BuildRetryContext(string originalPrompt, List<string> errorHistory, int retryAttempt)
+    public string BuildRetryContext(
+        string originalPrompt,
+        List<string> errorHistory,
+        int retryAttempt,
+        IReadOnlyCollection<string>? treeRoots = null)
     {
         var context = $"""
             The previous code generation attempt failed to compile. This is retry attempt {retryAttempt} of 3.
@@ -72,7 +76,7 @@ public sealed partial class CompileService(
             ## Instructions
             Fix ALL build errors listed above. Output the corrected files using the same [[FILE:path]]...[[END_FILE]] format.
             Only output files that need changes — do not repeat unchanged files.
-
+            {BuildPathRules(treeRoots)}
             ## Original Prompt
             {originalPrompt}
             """;
@@ -82,6 +86,36 @@ public sealed partial class CompileService(
 
     private static string Truncate(string value, int maxChars) =>
         value.Length <= maxChars ? value : value[..maxChars] + "\n… (errors truncated)";
+
+    /// <summary>
+    /// The path contract, restated on every repair attempt.
+    ///
+    /// A correction is merged back into a tree that already exists, and a block whose path
+    /// falls outside it is dropped rather than written — so a model that answers with
+    /// <c>src/lib/api.ts</c> gets no fix applied, fails the next build on the same errors, and
+    /// walks the generation one step closer to a Compile Guarantee refund. The rule is cheap to
+    /// state and the roots are known, so state them.
+    /// </summary>
+    private static string BuildPathRules(IReadOnlyCollection<string>? treeRoots)
+    {
+        if (treeRoots is null or { Count: 0 })
+            return string.Empty;
+
+        var roots = string.Join(", ", treeRoots.Select(r => $"`{r}/`"));
+
+        return $"""
+
+
+            ## Paths Are Not Negotiable
+            Your corrections are merged into the EXISTING project tree, whose top-level directories are: {roots}.
+            Every [[FILE:...]] path MUST start with one of them — in particular the frontend lives under
+            `nextjs/src/...`, NOT `src/...`. A path starting anywhere else is REJECTED and never written,
+            so the build fails again on the exact same errors.
+            Do NOT emit `__zone__/...` blocks in a correction: the injection zones are already resolved,
+            and a zone block at this stage can only be discarded. Emit the whole file instead.
+
+            """;
+    }
 
     private IBuildStrategy ResolveStrategy(ProjectType projectType)
     {

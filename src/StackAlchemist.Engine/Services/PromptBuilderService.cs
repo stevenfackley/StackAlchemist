@@ -8,7 +8,12 @@ namespace StackAlchemist.Engine.Services;
 
 public interface IPromptBuilderService
 {
-    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null);
+    /// <param name="projectName">
+    /// The PascalCase project name the template set was rendered with. It is the .NET root
+    /// namespace and the csproj file name, so the prompt has to state it: code generated
+    /// against a guessed namespace does not resolve against the tree it is merged into.
+    /// </param>
+    string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null, string projectName = "GeneratedApp");
     string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt);
     string BuildSchemaExtractionPrompt(string userPrompt);
     string BuildInjectionPrompt(InjectionPromptContext context);
@@ -33,10 +38,13 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
 
     // ── Generation prompt ─────────────────────────────────────────────────────
 
-    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null)
+    public string BuildGenerationPrompt(GenerationSchema schema, ProjectType projectType = ProjectType.DotNetNextJs, GenerationPersonalization? personalization = null, string projectName = "GeneratedApp")
     {
         var schemaJson = JsonSerializer.Serialize(schema, IndentedJson);
         var sb = new StringBuilder();
+
+        if (string.IsNullOrWhiteSpace(projectName))
+            projectName = "GeneratedApp";
 
         var stackDescription = projectType switch
         {
@@ -58,11 +66,11 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
 
         if (projectType == ProjectType.PythonReact)
         {
-            sb.AppendLine("## Stack");
-            sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
-            sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
-            sb.AppendLine("- Use `backend/` prefix for Python files and `frontend/src/` prefix for React files");
-            sb.AppendLine();
+            AppendPythonReactLayout(sb);
+        }
+        else
+        {
+            AppendDotNetNextJsLayout(sb, projectName);
         }
 
         sb.AppendLine("## Schema");
@@ -149,6 +157,96 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// The same path manifest for the Python + React tree.
+    ///
+    /// It used to be a single bullet ("use `backend/` and `frontend/src/` prefixes") with no
+    /// statement of what happens otherwise, which was survivable while an unmatched path was
+    /// quietly written to the archive root. It no longer is: routing is fatal for every project
+    /// type, so a stray path here fails the generation rather than orphaning a file, and the
+    /// prompt has to say so. Roots match the rendered <c>V1-Python-React</c> tree
+    /// (<c>backend/</c>, <c>frontend/</c>, <c>infra/</c>).
+    /// </summary>
+    private static void AppendPythonReactLayout(StringBuilder sb)
+    {
+        sb.AppendLine("## Stack");
+        sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
+        sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
+        sb.AppendLine();
+        sb.AppendLine("## Project Tree — paths are not negotiable");
+        sb.AppendLine();
+        sb.AppendLine("Your output is merged into an EXISTING tree whose top-level directories are");
+        sb.AppendLine("`backend/` (the FastAPI service), `frontend/` (the Vite app) and `infra/`. Every file path");
+        sb.AppendLine("you emit MUST start with one of them — Python under `backend/`, React under");
+        sb.AppendLine("`frontend/src/`. A path that matches none of them is rejected and the generation fails;");
+        sb.AppendLine("it is NOT created for you somewhere sensible.");
+        sb.AppendLine();
+        sb.AppendLine("Fragments that belong inside an existing file are addressed by zone name instead of a");
+        sb.AppendLine("path: emit `[[FILE:__zone__/<ZoneName>]]` containing ONLY the fragment.");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// States the exact shape of the V1 .NET + Next.js tree the model's output is merged into.
+    ///
+    /// This is not decoration. The reconstructor routes each <c>[[FILE:…]]</c> block by path;
+    /// a path that matches nothing in the rendered tree used to be written to the archive root,
+    /// so a prompt asking for <c>src/types/index.ts</c> against a tree whose frontend lives at
+    /// <c>nextjs/src/</c> shipped customers an orphan <c>src/</c> directory and an app with no
+    /// types, no API client and an empty page. Keep this manifest in lockstep with
+    /// <c>Prompts/V1-generation.md</c> and with the real
+    /// <c>StackAlchemist.Templates/V1-DotNet-NextJs</c> tree — <c>PromptBuilderTests</c>
+    /// asserts all three agree.
+    /// </summary>
+    private static void AppendDotNetNextJsLayout(StringBuilder sb, string projectName)
+    {
+        sb.AppendLine("## Stack");
+        sb.AppendLine("- Backend: .NET 10 Minimal API with Dapper and PostgreSQL (Npgsql)");
+        sb.AppendLine("- Frontend: Next.js 15 App Router, TypeScript strict mode, Tailwind CSS");
+        sb.AppendLine();
+        sb.AppendLine("## Project Tree — paths are not negotiable");
+        sb.AppendLine();
+        sb.AppendLine("Your output is merged into an EXISTING tree with exactly two top-level directories:");
+        sb.AppendLine("`dotnet/` (the API) and `nextjs/` (the frontend). Every file path you emit MUST start");
+        sb.AppendLine("with one of them. A path that matches neither is rejected and the generation fails —");
+        sb.AppendLine("in particular the frontend lives at `nextjs/src/...`, NOT at `src/...`.");
+        sb.AppendLine();
+        sb.AppendLine("Fragments that belong inside an existing file are addressed by zone name instead of a");
+        sb.AppendLine("path: emit `[[FILE:__zone__/<ZoneName>]]` containing ONLY the fragment.");
+        sb.AppendLine();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- Root namespace: `{projectName}` — use it verbatim; it is the csproj's RootNamespace.");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- `IDbConnectionFactory` already exists in `{projectName}.Infrastructure`. Use it; do not redefine it.");
+        sb.AppendLine();
+        sb.AppendLine("### Emit exactly these");
+        sb.AppendLine();
+        sb.AppendLine(CultureInfo.InvariantCulture,
+            $"1. `dotnet/Models/{{EntityName}}.cs` — `namespace {projectName}.Models;`, the entity record + a `Create{{EntityName}}Request` DTO.");
+        sb.AppendLine(CultureInfo.InvariantCulture,
+            $"2. `dotnet/Repositories/{{EntityName}}Repository.cs` — `namespace {projectName}.Repositories;`, interface + Dapper implementation.");
+        sb.AppendLine(CultureInfo.InvariantCulture,
+            $"   MUST open with `using Dapper;`, `using {projectName}.Infrastructure;` and `using {projectName}.Models;` —");
+        sb.AppendLine("   the entity types live in another namespace and will not resolve (CS0246) without that last one.");
+        sb.AppendLine(CultureInfo.InvariantCulture,
+            $"3. `dotnet/Controllers/{{EntityName}}Endpoints.cs` — `namespace {projectName}.Controllers;`, a");
+        sb.AppendLine("   `public static class {EntityName}Endpoints` exposing `public static void Map{EntityName}Endpoints(this WebApplication app)`.");
+        sb.AppendLine("   Bare `app.MapGroup(...)` statements are NOT valid in this file; only Program.cs may use top-level statements.");
+        sb.AppendLine("4. `__zone__/RepositoryRegistrations` — DI lines only: `builder.Services.AddScoped<I{EntityName}Repository, {EntityName}Repository>();`");
+        sb.AppendLine("5. `__zone__/RouteRegistrations` — route lines only: `app.Map{EntityName}Endpoints();`");
+        sb.AppendLine("6. `dotnet/Migrations/001_initial_schema.sql` — whole file: uuid-ossp extension, UUID PKs with");
+        sb.AppendLine("   `DEFAULT uuid_generate_v4()`, foreign keys, and `ENABLE ROW LEVEL SECURITY` per table.");
+        sb.AppendLine("7. `nextjs/src/types/index.ts` — one interface per entity plus its `Create{EntityName}Input` type.");
+        sb.AppendLine("8. `nextjs/src/lib/api.ts` — whole file. Keep the exported `apiFetch<T>` helper (other code imports it),");
+        sb.AppendLine("   add typed helpers per entity, and import the entity types from `@/types`.");
+        sb.AppendLine("9. `nextjs/src/app/page.tsx` — whole file: a default-exported home page linking to each entity.");
+        sb.AppendLine("   ESLint runs during `next build`: no unused symbols, no unescaped apostrophes in JSX text.");
+        sb.AppendLine();
+        sb.AppendLine("### .NET constraints");
+        sb.AppendLine("- Dapper, not Entity Framework. Parameterized SQL only — never interpolate into a query.");
+        sb.AppendLine("- `Guid` IDs, `DateTime` timestamps, `async`/`await` throughout (never `.Result` / `.Wait()`).");
+        sb.AppendLine("- Table names are the lowercase plural of the entity (`Customer` -> `customers`); columns snake_case.");
+        sb.AppendLine();
     }
 
     // ── Retry prompt ──────────────────────────────────────────────────────────

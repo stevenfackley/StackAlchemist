@@ -1,5 +1,11 @@
 using Serilog;
+// The generation pass fills Models/, Repositories/ and Controllers/ with one real file per
+// entity. Each directory ships a namespace anchor (_placeholder.cs) so these directives
+// resolve — and the template still compiles — even when nothing was generated.
+using {{ProjectName}}.Controllers;
 using {{ProjectName}}.Infrastructure;
+using {{ProjectName}}.Models;
+using {{ProjectName}}.Repositories;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()

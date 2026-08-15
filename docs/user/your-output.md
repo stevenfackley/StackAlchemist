@@ -111,7 +111,8 @@ src/app/
 
 ### Generated API Client
 
-A fully typed API client is generated at `src/lib/api.ts`:
+A fully typed API client is generated at `nextjs/src/lib/api.ts` (the frontend half of
+the archive — paths are relative to `nextjs/`):
 
 ```typescript
 // Auto-generated — do not edit manually

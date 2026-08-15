@@ -326,6 +326,201 @@ public sealed class V1TemplateCompileTests : IDisposable
     private const long MaxCustomerArchiveBytes = 5 * 1024 * 1024;
 
     /// <summary>
+    /// THE regression gate for the orphaned-<c>src/</c> bug.
+    ///
+    /// The V1 prompt asked the model for <c>src/types/index.ts</c>, <c>src/lib/api.ts</c> and
+    /// <c>src/app/page.tsx</c> while the rendered tree keeps its frontend under
+    /// <c>nextjs/src/</c>. Those paths matched no injection zone, so <c>Reconstruct</c> wrote
+    /// them verbatim at the archive root as an orphan <c>src/</c> directory while the customer's
+    /// real <c>nextjs/src/</c> kept the empty stubs. Every Tier-2/3 archive still compiled — the
+    /// stubs are valid TypeScript — so the existing build gate went green while paying customers
+    /// received a frontend with no types, no API client and a blank page.
+    ///
+    /// Nothing in the suite could have caught that: the reconstruction tests assert on synthetic
+    /// two-file maps, and <see cref="RenderedTemplate_BuildsBothHalves"/> renders the template
+    /// with an EMPTY block set, so it never sees where model output lands. This test feeds a
+    /// recorded response for the same InvoiceHub brief through the real ReconstructionService and
+    /// asserts on the resulting tree.
+    ///
+    /// It is the POSITIVE half of the gate and does not, on its own, fail on the pre-fix code:
+    /// the fixture uses correct paths by construction, so the old reconstructor routes it the
+    /// same way. What it pins is that a well-formed response still lands in the customer's real
+    /// tree — no orphan <c>src/</c>, zones filled, stubs replaced. Rejection of the prompt-shaped
+    /// paths that caused the bug is the sibling test,
+    /// <see cref="PromptShapedPathsOutsideTheTree_AreRejectedRatherThanOrphaned"/>, which is the
+    /// one that goes red without the fix.
+    /// </summary>
+    [Fact]
+    public void GoldenLlmResponse_LandsInTheRealTreeWithNoOrphanFiles()
+    {
+        var goldenDir = Path.Combine(_outputDir, "golden");
+        var baseline = V1TemplateHarness.RenderTo(Path.Combine(_outputDir, "baseline"));
+
+        var files = V1TemplateHarness.RenderWithLlmResponseTo(
+            goldenDir, V1TemplateHarness.ReadGoldenResponse());
+
+        // Everything the model contributed, over and above the bare rendered template.
+        var contributed = files.Except(baseline, StringComparer.Ordinal).ToList();
+
+        contributed.Should().NotBeEmpty("the golden response adds entity code the template has no stub for");
+        contributed.Should().OnlyContain(
+            p => p.StartsWith("dotnet/", StringComparison.Ordinal) || p.StartsWith("nextjs/", StringComparison.Ordinal),
+            "model output must land in one of the archive's two project halves — a file at the "
+            + "archive root is compiled by nothing and served by nothing");
+
+        files.Should().NotContain(p => p.StartsWith("src/", StringComparison.Ordinal),
+            "an orphan src/ directory at the archive root is the exact shape of the shipped bug");
+
+        // The frontend the customer paid for, in the place the customer's Next.js app reads.
+        var types = File.ReadAllText(Path.Combine(goldenDir, "nextjs", "src", "types", "index.ts"));
+        types.Should().Contain("export interface Customer")
+             .And.Contain("export interface Invoice")
+             .And.Contain("export interface LineItem",
+                 "nextjs/src/types/index.ts must hold the real entity types, not the empty stub");
+
+        var api = File.ReadAllText(Path.Combine(goldenDir, "nextjs", "src", "lib", "api.ts"));
+        api.Should().Contain("export async function getCustomers")
+           .And.Contain("export async function apiFetch",
+               "the generated client must keep the helper the rest of the app imports");
+
+        var page = File.ReadAllText(Path.Combine(goldenDir, "nextjs", "src", "app", "page.tsx"));
+        page.Should().Contain("Invoices", "the home page must link the entities, not stay a stub");
+
+        // The .NET half: real files per entity, and Program.cs actually wired to them.
+        files.Should().Contain("dotnet/Models/Customer.cs")
+             .And.Contain("dotnet/Repositories/InvoiceRepository.cs")
+             .And.Contain("dotnet/Controllers/LineItemEndpoints.cs");
+
+        var program = File.ReadAllText(Path.Combine(goldenDir, "dotnet", "Program.cs"));
+        program.Should().Contain("AddScoped<ICustomerRepository, CustomerRepository>",
+            "the RepositoryRegistrations zone must be filled — unregistered repositories 500 at runtime");
+        program.Should().Contain("app.MapInvoiceEndpoints();",
+            "the RouteRegistrations zone must be filled — unmapped endpoints are a 404 API");
+
+        foreach (var relativePath in files)
+        {
+            File.ReadAllText(Path.Combine(goldenDir, relativePath))
+                .Should().NotContain("[[", $"{relativePath} leaked pipeline scaffolding to the customer");
+        }
+    }
+
+    /// <summary>
+    /// The bug, verbatim: these are the seven paths the shipped V1 prompt asked for. Against the
+    /// real template they used to produce an orphan <c>src/</c> directory at the archive root
+    /// while <c>nextjs/src/</c> kept its stubs, and nothing anywhere complained. They must now be
+    /// rejected by name.
+    /// </summary>
+    [Fact]
+    public void PromptShapedPathsOutsideTheTree_AreRejectedRatherThanOrphaned()
+    {
+        const string preFixPromptShape = """
+            [[FILE:src/Models/Customer.cs]]
+            public record Customer(Guid Id, string Name);
+            [[END_FILE]]
+            [[FILE:src/types/index.ts]]
+            export interface Customer { id: string }
+            [[END_FILE]]
+            [[FILE:src/lib/api.ts]]
+            export async function getCustomers() { return []; }
+            [[END_FILE]]
+            [[FILE:src/app/page.tsx]]
+            export default function HomePage() { return <main />; }
+            [[END_FILE]]
+            """;
+
+        var provider = new TemplateProvider(
+            new System.IO.Abstractions.FileSystem(), V1TemplateHarness.ResolveTemplatesRoot());
+        var reconstruction = new ReconstructionService();
+        var rendered = provider.Render(
+            provider.LoadTemplate(V1TemplateHarness.TemplateSetName), V1TemplateHarness.SampleVariables());
+
+        var act = () => reconstruction.Reconstruct(
+            rendered, reconstruction.Parse(preFixPromptShape), provider);
+
+        act.Should().Throw<UnmappedLlmFileException>(
+                "silently writing these to the archive root is how customers received an app "
+                + "with no types, no API client and an empty page")
+           .Which.UnmappedPaths.Should().BeEquivalentTo(
+               ["src/Models/Customer.cs", "src/types/index.ts", "src/lib/api.ts", "src/app/page.tsx"]);
+    }
+
+    /// <summary>
+    /// The other half of the gate: the tree the golden response produces has to COMPILE.
+    /// Asserting on paths alone would pass for output that lands correctly and then fails
+    /// `dotnet build` on a missing using — which is the second defect this branch fixes
+    /// (the few-shot repository omitted `using {Project}.Models;`, guaranteeing CS0246 and
+    /// burning the repair loop's retries).
+    ///
+    /// Toolchain-guarded exactly like <see cref="RenderedTemplate_BuildsBothHalves"/>: skips
+    /// locally when dotnet/npm are missing, hard-fails on CI so the gate cannot go quiet.
+    /// </summary>
+    [Fact]
+    public async Task GoldenLlmResponse_BuildsBothHalves()
+    {
+        if (!ToolchainAvailable("dotnet", "--version", "the .NET SDK"))
+            return;
+
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
+            return;
+
+        var goldenDir = Path.Combine(_outputDir, "golden-build");
+        V1TemplateHarness.RenderWithLlmResponseTo(goldenDir, V1TemplateHarness.ReadGoldenResponse());
+
+        var strategy = new DotNetBuildStrategy(NullLogger<DotNetBuildStrategy>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+
+        var result = await strategy.ExecuteBuildAsync(goldenDir, cts.Token);
+
+        result.IsSuccess.Should().BeTrue(
+            because: "a Tier-2 archive is the template PLUS the model's files; the Compile "
+                     + $"Guarantee covers the combination, not the template alone.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
+    }
+
+    /// <summary>
+    /// The no-API-key path, held to the same standard as the real one.
+    ///
+    /// <see cref="MockLlmClient"/> is not a test double: <c>Program.cs</c> wires it in as the
+    /// live fallback whenever <c>ANTHROPIC_API_KEY</c> is unset, so a key that expires or a
+    /// config that drops the variable routes real paid generations through it. Its files used to
+    /// declare <c>namespace GeneratedApp.*</c> against a tree whose RootNamespace is derived from
+    /// the schema — which cost nothing only while those files orphaned at the archive root and
+    /// were compiled by no one. Routed into <c>dotnet/</c> they are compiled, and the mismatch is
+    /// CS0234/CS0246 on every entity: build failure → three retries → Compile Guarantee refund.
+    ///
+    /// <see cref="MockLlmClientTests"/> asserts the shape of the response; only building it
+    /// against the tree it is merged into proves it still compiles, which is the property that
+    /// actually broke.
+    /// </summary>
+    [Fact]
+    public async Task MockLlmResponse_BuildsBothHalves()
+    {
+        if (!ToolchainAvailable("dotnet", "--version", "the .NET SDK"))
+            return;
+
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
+            return;
+
+        var mockDir = Path.Combine(_outputDir, "mock-build");
+
+        // The real prompt, so the client resolves the namespace the way production makes it.
+        var response = await new MockLlmClient().GenerateAsync(
+            V1TemplateHarness.SampleGenerationPrompt(),
+            $"Generate code for this schema:\n\n{V1TemplateHarness.SampleBrief}");
+
+        V1TemplateHarness.RenderWithLlmResponseTo(mockDir, response.Text);
+
+        var strategy = new DotNetBuildStrategy(NullLogger<DotNetBuildStrategy>.Instance);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+
+        var result = await strategy.ExecuteBuildAsync(mockDir, cts.Token);
+
+        result.IsSuccess.Should().BeTrue(
+            because: "MockLlmClient is the live fallback when no API key is configured — if its "
+                     + "output no longer compiles against the tree, a key misconfiguration becomes "
+                     + $"a refunded generation.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
+    }
+
+    /// <summary>
     /// Skips locally when a toolchain is missing, but FAILS on CI. A gate that quietly
     /// passes in 0.4s because npm moved is not a gate — and this one exists precisely
     /// because a whole class of breakage went unnoticed for want of an assertion.

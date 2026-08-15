@@ -259,7 +259,10 @@ public sealed partial class GenerationOrchestrator(
         }
 
         // V1 one-shot path: whole-codebase LLM call + Reconstruct.
-        var systemPrompt = LoadPromptTemplate(request);
+        // The rendered project name is threaded into the prompt: it is the .NET root namespace
+        // the tree was rendered with, and code generated against a different one does not
+        // resolve against the files it is merged into.
+        var systemPrompt = LoadPromptTemplate(request, variables.ProjectName);
         var userPrompt = BuildUserPrompt(request);
         var llmResponse = await llmClient.GenerateAsync(systemPrompt, userPrompt, llmOptions, ct);
         await deliveryService.UpdateTokenUsageAsync(
@@ -432,10 +435,10 @@ public sealed partial class GenerationOrchestrator(
         return sb.ToString();
     }
 
-    private string LoadPromptTemplate(GenerateRequest request)
+    private string LoadPromptTemplate(GenerateRequest request, string projectName)
     {
         if (request.Schema is not null)
-            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType, request.Personalization);
+            return promptBuilder.BuildGenerationPrompt(request.Schema, request.ProjectType, request.Personalization, projectName);
 
         var promptPath = fileSystem.Path.Combine(
             AppContext.BaseDirectory, "Prompts", "V1-generation.md");
@@ -454,7 +457,7 @@ public sealed partial class GenerationOrchestrator(
                 : "{}";
             return template
                 .Replace("{{SCHEMA_JSON}}", schemaJson)
-                .Replace("{{PROJECT_NAME}}", "GeneratedApp");
+                .Replace("{{PROJECT_NAME}}", projectName);
         }
 
         // Inline fallback for testing

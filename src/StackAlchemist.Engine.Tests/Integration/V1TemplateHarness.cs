@@ -27,6 +27,14 @@ internal static class V1TemplateHarness
     public const string OutputDirEnvVar = "SA_TEMPLATE_HARNESS_OUTPUT";
 
     /// <summary>
+    /// A recorded, hand-authored V1 model response for <see cref="SampleBrief"/> — exactly what
+    /// <c>Prompts/V1-generation.md</c> is meant to elicit, with the paths the real tree actually
+    /// has. Lets the golden gate exercise the full one-shot path (parse → reconstruct → build)
+    /// with no network, no API key and no nondeterminism.
+    /// </summary>
+    public const string GoldenResponseFixture = "v1-invoicehub-golden.txt";
+
+    /// <summary>
     /// The sample brief the harness renders. Deliberately a plausible multi-entity SaaS
     /// rather than a one-entity toy — a single entity would hide any per-entity template
     /// that only breaks when rendered more than once.
@@ -104,10 +112,69 @@ internal static class V1TemplateHarness
     };
 
     /// <summary>
+    /// The <see cref="SampleBrief"/> schema in the shape the API receives it — the input
+    /// <c>GenerationOrchestrator.BuildVariables</c> derives <see cref="SampleVariables"/> from.
+    /// Entities and fields deliberately mirror it one-for-one.
+    /// </summary>
+    public static GenerationSchema SampleSchema() => new()
+    {
+        Entities =
+        [
+            Entity("Customer", ("Id", "uuid", true), ("Name", "string", false), ("Email", "string", false)),
+            Entity("Invoice", ("Id", "uuid", true), ("CustomerId", "uuid", false), ("Number", "string", false),
+                   ("Total", "decimal", false), ("IssuedAt", "datetime", false)),
+            Entity("LineItem", ("Id", "uuid", true), ("InvoiceId", "uuid", false), ("Description", "string", false),
+                   ("Quantity", "int", false), ("UnitPrice", "decimal", false)),
+        ],
+    };
+
+    /// <summary>
+    /// The REAL generation prompt for <see cref="SampleSchema"/>, built by the shipping
+    /// <see cref="PromptBuilderService"/> under the same project name the tree is rendered with.
+    ///
+    /// Tests that feed a stand-in client must hand it this, not a placeholder string: the prompt
+    /// is where the root namespace is stated, so a client answering a fake prompt is not
+    /// answering the question production asks.
+    /// </summary>
+    public static string SampleGenerationPrompt() => new PromptBuilderService().BuildGenerationPrompt(
+        SampleSchema(),
+        ProjectType.DotNetNextJs,
+        personalization: null,
+        projectName: SampleVariables().ProjectName);
+
+    private static SchemaEntity Entity(string name, params (string Name, string Type, bool Pk)[] fields) => new()
+    {
+        Name = name,
+        Fields = [.. fields.Select(f => new SchemaField { Name = f.Name, Type = f.Type, Pk = f.Pk })],
+    };
+
+    /// <summary>Reads the recorded golden model response from the test fixtures directory.</summary>
+    public static string ReadGoldenResponse()
+    {
+        var path = Path.Combine("Fixtures", "LlmResponses", GoldenResponseFixture);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Golden V1 response fixture not found at {Path.GetFullPath(path)}", path);
+
+        return File.ReadAllText(path);
+    }
+
+    /// <summary>
     /// Loads → renders → reconstructs (with zero LLM blocks) → writes to
     /// <paramref name="outputDirectory"/>. Returns the written relative paths.
     /// </summary>
     public static IReadOnlyList<string> RenderTo(string outputDirectory)
+        => WriteTo(outputDirectory, llmResponse: null);
+
+    /// <summary>
+    /// The full V1 one-shot path against a recorded response: load → render → <b>Parse</b> →
+    /// <b>Reconstruct</b> → write. Uses the same real <see cref="TemplateProvider"/> and
+    /// <see cref="ReconstructionService"/> production runs, so where each emitted block lands
+    /// is decided by the shipping code, not by the test.
+    /// </summary>
+    public static IReadOnlyList<string> RenderWithLlmResponseTo(string outputDirectory, string llmResponse)
+        => WriteTo(outputDirectory, llmResponse);
+
+    private static IReadOnlyList<string> WriteTo(string outputDirectory, string? llmResponse)
     {
         var provider = new TemplateProvider(new FileSystem(), ResolveTemplatesRoot());
         var reconstruction = new ReconstructionService();
@@ -115,10 +182,13 @@ internal static class V1TemplateHarness
         var raw = provider.LoadTemplate(TemplateSetName);
         var rendered = provider.Render(raw, SampleVariables());
 
-        // The production V1 path always goes through Reconstruct — an empty block map is
+        // The production V1 path always goes through Parse + Reconstruct — an empty block map is
         // the honest "the LLM contributed nothing" case, and it is Reconstruct that
         // resolves and strips the [[LLM_INJECTION_*]] scaffolding.
-        var files = reconstruction.Reconstruct(rendered, [], provider);
+        var blocks = llmResponse is null
+            ? []
+            : reconstruction.Parse(llmResponse);
+        var files = reconstruction.Reconstruct(rendered, blocks, provider);
 
         Directory.CreateDirectory(outputDirectory);
         foreach (var (relativePath, content) in files)

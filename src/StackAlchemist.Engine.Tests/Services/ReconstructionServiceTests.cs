@@ -346,4 +346,264 @@ public class ReconstructionServiceTests
     }
 
     #endregion
+
+    #region Path Routing
+
+    private static TemplateProvider RealZoneProvider() => new(
+        new System.IO.Abstractions.TestingHelpers.MockFileSystem(), "/templates");
+
+    private static Dictionary<string, string> V1TreeShape() => new()
+    {
+        ["dotnet/Program.cs"] = "// program\n",
+        ["nextjs/src/types/index.ts"] = "export {};\n",
+        ["Dockerfile"] = "FROM scratch\n",
+    };
+
+    [Fact]
+    public void Reconstruct_WithPathOutsideTheRenderedTree_ThrowsInsteadOfOrphaningTheFile()
+    {
+        // The shipped bug: the prompt asked for src/types/index.ts while the tree keeps its
+        // frontend at nextjs/src/. The path matched no zone, so the file was written at the
+        // archive root — present in the zip, invisible to the app — and the build stayed green.
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["src/types/index.ts"] = "export interface Customer { id: string }",
+            ["src/lib/api.ts"] = "export const getCustomers = () => {};",
+        };
+
+        var act = () => _sut.Reconstruct(V1TreeShape(), llmBlocks, RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>()
+           .Which.UnmappedPaths.Should().BeEquivalentTo(["src/types/index.ts", "src/lib/api.ts"]);
+    }
+
+    [Fact]
+    public void Reconstruct_UnmappedPathMessage_NamesThePathsAndTheValidRoots()
+    {
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["src/app/page.tsx"] = "export default function P() {}" },
+            RealZoneProvider());
+
+        // The message is what reaches the customer's error_message and the retry prompt.
+        act.Should().Throw<UnmappedLlmFileException>()
+           .WithMessage("*src/app/page.tsx*")
+           .And.Message.Should().Contain("dotnet").And.Contain("nextjs");
+    }
+
+    [Fact]
+    public void Reconstruct_WithPathInsideTheRenderedTree_OverwritesOrAddsTheFile()
+    {
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["nextjs/src/types/index.ts"] = "export interface Customer { id: string }",
+            ["dotnet/Models/Customer.cs"] = "namespace App.Models;\npublic record Customer;",
+            ["README.md"] = "# InvoiceHub",
+        };
+
+        var result = _sut.Reconstruct(V1TreeShape(), llmBlocks, RealZoneProvider());
+
+        result["nextjs/src/types/index.ts"].Should().Contain("interface Customer",
+            "a real file at a real path replaces the template stub — that is how the customer gets types");
+        result.Should().ContainKey("dotnet/Models/Customer.cs");
+        result.Should().ContainKey("README.md", "a bare file name sits beside the template's own root files");
+    }
+
+    [Theory]
+    [InlineData("../../etc/passwd")]
+    [InlineData("dotnet/../../../evil.cs")]
+    [InlineData("C:/Windows/System32/evil.cs")]
+    public void Reconstruct_TraversalPath_IsRejected(string path)
+    {
+        // These paths are model output and get Path.Combine'd with the output directory
+        // before being written, so a traversal segment escapes the archive entirely.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { [path] = "pwned" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    [Fact]
+    public void Reconstruct_ZoneBlock_FillsTheZoneAndIsNeverWrittenAsAFile()
+    {
+        var rendered = new Dictionary<string, string>
+        {
+            ["dotnet/Program.cs"] =
+                "var app = builder.Build();\n" +
+                "[[LLM_INJECTION_START: RouteRegistrations]]\n" +
+                "[[LLM_INJECTION_END: RouteRegistrations]]\n",
+        };
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["__zone__/RouteRegistrations"] = "app.MapCustomerEndpoints();",
+        };
+
+        var result = _sut.Reconstruct(rendered, llmBlocks, RealZoneProvider());
+
+        result["dotnet/Program.cs"].Should().Contain("app.MapCustomerEndpoints();");
+        result.Keys.Should().NotContain(k => k.StartsWith("__zone__", StringComparison.Ordinal),
+            "a zone pseudo-path is an address, not a file");
+    }
+
+    [Fact]
+    public void Reconstruct_FilePathNamingAZoneDirectory_IsNotSwallowedByTheZone()
+    {
+        // Zones used to be matched by directory substring: any path containing "Models/"
+        // filled the Models zone AND was written as a file, so the same records could exist
+        // twice (CS0101) or land somewhere unreadable. Routing is now by zone name only.
+        var rendered = new Dictionary<string, string>
+        {
+            ["dotnet/Models/_placeholder.cs"] =
+                "[[LLM_INJECTION_START: Models]]\n[[LLM_INJECTION_END: Models]]\n",
+        };
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["dotnet/Models/Customer.cs"] = "namespace App.Models;\npublic record Customer;",
+        };
+
+        var result = _sut.Reconstruct(rendered, llmBlocks, RealZoneProvider());
+
+        result["dotnet/Models/Customer.cs"].Should().Contain("public record Customer;");
+        result["dotnet/Models/_placeholder.cs"].Should().NotContain("public record Customer;",
+            "the entity is a real file; duplicating it into the placeholder is a duplicate definition");
+    }
+
+    [Fact]
+    public void Reconstruct_DriveRelativePath_IsRejected()
+    {
+        // "C:evil.cs" has no separator, so it is a single segment and the bare-file-name
+        // allowance would wave it through — but Path.Combine(outputDir, "C:evil.cs") returns
+        // "C:evil.cs", writing to the process's current directory on C: instead of the archive.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["C:evil.cs"] = "pwned" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    [Fact]
+    public void Reconstruct_RootedPath_IsRejectedRatherThanSilentlyTrimmed()
+    {
+        // The check normalizes but the write does not: the block is stored under its original
+        // path and later Path.Combine'd, and Path.Combine discards the base directory when the
+        // second argument is rooted. Validating the trimmed form would green-light a write to
+        // the root of the drive.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["/nextjs/src/lib/api.ts"] = "export {};" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    #endregion
+
+    #region Build-Repair Routing
+
+    /// <summary>An output directory shaped like a rendered V1 archive.</summary>
+    private static string MakeTreeOnDisk()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sa-repair-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(Path.Combine(root, "dotnet", "Repositories"));
+        Directory.CreateDirectory(Path.Combine(root, "nextjs", "src", "lib"));
+        return root;
+    }
+
+    [Fact]
+    public void ResolveRepairWrites_PathInsideTheTree_IsWritten()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var blocks = new Dictionary<string, string>
+            {
+                ["dotnet/Repositories/CustomerRepository.cs"] = "// fixed",
+                ["nextjs/src/lib/api.ts"] = "export {};",
+            };
+
+            var result = _sut.ResolveRepairWrites(blocks, root);
+
+            result.Writes.Should().HaveCount(2);
+            result.Rejected.Should().BeEmpty();
+            result.RejectionNotice.Should().BeNull();
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// The repair loop was the second, unguarded write site: it parsed the response and wrote
+    /// every block straight to disk, so the exact failures Reconstruct rejects were all still
+    /// reachable — just one build attempt later, on a generation already in trouble.
+    /// </summary>
+    [Theory]
+    [InlineData("src/lib/api.ts", "orphans at the archive root, where nothing serves it")]
+    [InlineData("__zone__/RouteRegistrations", "the zones are resolved by now — this lands in the zip as a literal file")]
+    [InlineData("dotnet/../../../evil.cs", "a traversal segment escapes the output directory")]
+    [InlineData("C:evil.cs", "a drive-relative path escapes the output directory")]
+    [InlineData("C:/Windows/System32/evil.cs", "a drive-absolute path escapes the output directory")]
+    [InlineData(@"\\server\share\evil.cs", "a UNC path escapes the output directory")]
+    [InlineData("/nextjs/src/lib/api.ts", "Path.Combine discards the output directory for a rooted path")]
+    [InlineData("nextjs/src/lib/api.ts:evil", "an alternate data stream is not a file the archive can carry")]
+    public void ResolveRepairWrites_PathOutsideTheTree_IsRefusedNotWritten(string path, string because)
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var result = _sut.ResolveRepairWrites(
+                new Dictionary<string, string> { [path] = "content" }, root);
+
+            result.Writes.Should().BeEmpty(because);
+            result.Rejected.Should().ContainSingle().Which.Should().Be(path);
+            result.RejectionNotice.Should().Contain(path);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void ResolveRepairWrites_MixedResponse_AppliesTheGoodBlocksAndRefusesTheRest()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var blocks = new Dictionary<string, string>
+            {
+                ["dotnet/Repositories/CustomerRepository.cs"] = "// fixed",
+                ["src/lib/api.ts"] = "export {};",
+            };
+
+            var result = _sut.ResolveRepairWrites(blocks, root);
+
+            result.Writes.Should().ContainKey("dotnet/Repositories/CustomerRepository.cs")
+                  .And.NotContainKey("src/lib/api.ts");
+            result.Rejected.Should().ContainSingle().Which.Should().Be("src/lib/api.ts");
+            result.RejectionNotice.Should().Contain("dotnet").And.Contain("nextjs",
+                "the notice has to name the roots that WOULD have worked");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// Reporting, not throwing, is deliberate. Aborting the repair would take the job out
+    /// through the worker's generic catch, which marks it Failed without reaching the
+    /// compile-guarantee refund — costing a paying customer both the app and the money.
+    /// </summary>
+    [Fact]
+    public void ResolveRepairWrites_WithEveryBlockRefused_ReportsRatherThanThrows()
+    {
+        var root = MakeTreeOnDisk();
+        try
+        {
+            var act = () => _sut.ResolveRepairWrites(
+                new Dictionary<string, string> { ["src/app/page.tsx"] = "x" }, root);
+
+            act.Should().NotThrow();
+            act().Rejected.Should().ContainSingle();
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    #endregion
 }

@@ -169,23 +169,27 @@ StackAlchemist offers three tiers of output, each building on the previous:
 **What you receive (ZIP archive):**
 ```
 your-project/
-├── backend/
-│   ├── YourProject.csproj         # .NET 10 Web API
+├── dotnet/
+│   ├── YourProject.csproj          # .NET 10 Web API
 │   ├── Program.cs                  # Minimal API + DI setup
-│   ├── Controllers/                # Generated REST controllers
-│   ├── Models/                     # Entity classes
-│   ├── Repositories/               # Data access layer
+│   ├── Controllers/                # One endpoint class per entity
+│   ├── Models/                     # Entity records
+│   ├── Repositories/               # Dapper data access
+│   ├── Infrastructure/             # IDbConnectionFactory
 │   ├── Migrations/                 # SQL migration files
 │   └── appsettings.json
-├── frontend/
+├── nextjs/
 │   ├── package.json                # Next.js 15 + TypeScript
 │   ├── src/app/                    # App Router pages
 │   ├── src/lib/api.ts              # Type-safe API client
 │   └── src/types/index.ts          # Generated TypeScript types
 ├── docker-compose.yml              # Full stack orchestration
 ├── .env.example                    # Environment variable template
-└── README.md
+└── Dockerfile
 ```
+
+The two top-level directories are `dotnet/` and `nextjs/` — every generated file
+lands inside one of them.
 
 **Compile guarantee:** The generated backend is compiled with `dotnet build` before delivery. If compilation fails, the engine auto-corrects (up to 3 attempts) before reporting success.
 

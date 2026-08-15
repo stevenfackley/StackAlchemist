@@ -697,3 +697,48 @@ ignore once AspNetCore.OpenApi is 3.x-compatible — check on .NET servicing
 releases.
 
 ---
+## 2026-08-15 — V1 block routing: zone name or real path, never both
+
+**Context:** `Prompts/V1-generation.md` asked the model for `src/types/index.ts`,
+`src/lib/api.ts`, `src/app/page.tsx` and `src/Models/*.cs`, but the rendered tree
+keeps its halves under `dotnet/` and `nextjs/`. `Reconstruct` matched zones by
+directory substring and then wrote every remaining block verbatim, so those paths
+landed at the archive root as an orphan `src/` directory while `nextjs/src/` kept
+its stubs. `dotnet build` and `npm run build` both passed — the stubs are valid —
+so Tier-2/3 customers received a "Compile Verified" archive whose frontend had no
+types, no API client and an empty page. The same substring matching also copied
+each backend file into `_placeholder.cs` *and* the archive root, concatenating
+several files' `using` directives into one file (CS1529).
+
+**Decision:** One routing rule, no heuristics.
+- A block whose path is `__zone__/<ZoneName>` fills that zone and is never written
+  to disk. This is the only way to address a zone.
+- Every other block is a real file and must sit under a top-level directory the
+  rendered template actually produced (or be a bare root-level file name).
+- Anything else throws `UnmappedLlmFileException` (a `MalformedLlmOutputException`,
+  so `error_category` = `schema`) naming the offending paths and the valid roots.
+- The V1 .NET half therefore emits one real file per entity under
+  `dotnet/Models|Repositories|Controllers/`, each with its own namespace and usings.
+  The `_placeholder.cs` files are now namespace anchors so `Program.cs` can `using`
+  those namespaces even when the model contributes nothing.
+- `BuildGenerationPrompt` takes the rendered project name: the tree's RootNamespace
+  is schema-derived, and a prompt hardcoding `GeneratedApp` produced code whose
+  namespaces do not exist in the project it is merged into.
+
+**Consequences:** A misrouted generation now fails loudly instead of shipping a
+half-empty archive — a visible, refundable failure beats a plausible-looking one.
+The zone→file table under *Phase 2* above still describes where each zone lives,
+but for V1 only `RepositoryRegistrations` and `RouteRegistrations` are still filled
+by zone — they are the only two the prompt names and the only two the model is asked
+to emit as `__zone__/…` blocks. Every other V1 zone is now dead: `Models`,
+`Repositories` and `Controllers` are retired in favour of real per-entity files, and
+`HomePageContent`, `ApiRouteHandlers`, `TypeDefinitions` and `SqlSchema` are retired
+because the prompt asks for `nextjs/src/app/page.tsx`, `nextjs/src/lib/api.ts`,
+`nextjs/src/types/index.ts` and `dotnet/Migrations/001_initial_schema.sql` as whole
+files instead. The markers still sit in those four template files and collapse to
+nothing when unfilled, which is exactly what keeps the bare template compiling; they
+are harmless, not load-bearing, and should not be read as a live contract.
+Guarded by `V1TemplateCompileTests.GoldenLlmResponse_*`, which reconstructs a
+recorded response through the real services and builds both halves in CI.
+
+---

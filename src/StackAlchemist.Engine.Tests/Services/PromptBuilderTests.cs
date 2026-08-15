@@ -350,4 +350,89 @@ public class PromptBuilderTests
         prompt.Should().Contain("Friendly buyer");
         prompt.Should().Contain("Authentication method: jwt");
     }
+
+    #region Prompt ↔ template-tree agreement
+
+    /// <summary>
+    /// The paths the V1 prompt asks for, and the file in the real template tree each one
+    /// corresponds to. Every entry here was verified against
+    /// <c>src/StackAlchemist.Templates/V1-DotNet-NextJs</c>; the tests below re-verify it on
+    /// every run, because a prompt that names a path the tree does not have is exactly how
+    /// generated frontend files ended up orphaned at the archive root.
+    /// </summary>
+    private static readonly (string PromptPath, string TemplateFile)[] V1DotNetPaths =
+    [
+        ("nextjs/src/types/index.ts", "nextjs/src/types/index.ts"),
+        ("nextjs/src/lib/api.ts",     "nextjs/src/lib/api.ts"),
+        ("nextjs/src/app/page.tsx",   "nextjs/src/app/page.tsx"),
+        ("dotnet/Models/",            "dotnet/Models/_placeholder.cs"),
+        ("dotnet/Repositories/",      "dotnet/Repositories/_placeholder.cs"),
+        ("dotnet/Controllers/",       "dotnet/Controllers/_placeholder.cs"),
+        ("dotnet/Migrations/001_initial_schema.sql", "dotnet/Migrations/001_initial_schema.sql"),
+    ];
+
+    [Fact]
+    public void BuildGenerationPrompt_DotNet_AsksOnlyForPathsTheRealTemplateTreeHas()
+    {
+        var templateRoot = Path.Combine(
+            Integration.V1TemplateHarness.ResolveTemplatesRoot(),
+            Integration.V1TemplateHarness.TemplateSetName);
+
+        var prompt = _sut.BuildGenerationPrompt(new GenerationSchema(), ProjectType.DotNetNextJs);
+
+        foreach (var (promptPath, templateFile) in V1DotNetPaths)
+        {
+            prompt.Should().Contain(promptPath,
+                $"the model has to be told where {templateFile} lives");
+            File.Exists(Path.Combine(templateRoot, templateFile.Replace('/', Path.DirectorySeparatorChar)))
+                .Should().BeTrue($"the prompt promises {promptPath} but {templateFile} is not in the template set");
+        }
+    }
+
+    [Fact]
+    public void V1GenerationPromptFile_AgreesWithTheBuilderOnEveryPath()
+    {
+        // Two prompt sources exist: this markdown file (schema-less fallback) and
+        // BuildGenerationPrompt (every real paid generation). They drifted apart once already —
+        // the markdown still asked for src/… long after the tree moved to nextjs/src/….
+        var promptFile = Path.Combine(AppContext.BaseDirectory, "Prompts", "V1-generation.md");
+        File.Exists(promptFile).Should().BeTrue($"the V1 prompt template ships with the Engine ({promptFile})");
+
+        var markdown = File.ReadAllText(promptFile);
+
+        foreach (var (promptPath, _) in V1DotNetPaths)
+            markdown.Should().Contain(promptPath);
+
+        markdown.Should().Contain("__zone__/RouteRegistrations")
+                .And.Contain("__zone__/RepositoryRegistrations",
+                    "Program.cs registration fragments are addressed by zone, not by file path");
+    }
+
+    [Fact]
+    public void BuildGenerationPrompt_UsesTheRenderedProjectNameForNamespaces()
+    {
+        // The tree is rendered with a project name derived from the schema, and the csproj's
+        // RootNamespace follows it. A prompt that hardcodes "GeneratedApp" produces code whose
+        // namespaces do not exist in the project it is merged into — CS0246 on every file.
+        var prompt = _sut.BuildGenerationPrompt(
+            new GenerationSchema(), ProjectType.DotNetNextJs, projectName: "InvoiceHub");
+
+        prompt.Should().Contain("InvoiceHub.Models")
+              .And.Contain("InvoiceHub.Repositories")
+              .And.Contain("InvoiceHub.Infrastructure");
+        prompt.Should().NotContain("GeneratedApp");
+    }
+
+    [Fact]
+    public void BuildGenerationPrompt_DotNet_TellsTheModelRepositoriesMustImportTheModelsNamespace()
+    {
+        var prompt = _sut.BuildGenerationPrompt(
+            new GenerationSchema(), ProjectType.DotNetNextJs, projectName: "InvoiceHub");
+
+        prompt.Should().Contain("using InvoiceHub.Models;",
+            "the few-shot omitted it, so injected repository code referenced entity types with no "
+            + "using and failed CS0246 — burning the build-repair loop's retries on a prompt defect");
+    }
+
+    #endregion
 }
