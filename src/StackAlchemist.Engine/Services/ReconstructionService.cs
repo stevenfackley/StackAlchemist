@@ -90,7 +90,15 @@ public sealed partial class ReconstructionService : IReconstructionService
                 }
             }
 
-            result[path] = updated;
+            // The [[LLM_INJECTION_*]] markers are scaffolding for this pipeline, not
+            // source code: `[[LLM_INJECTION_START: RouteRegistrations]]` sitting in
+            // Program.cs is a CS1525 syntax error and in page.tsx it renders as literal
+            // text. InjectIntoZone deliberately preserves them (a zone may be filled
+            // more than once), so they are stripped here, once, after every zone in the
+            // file has been resolved — matching what the Swiss-Cheese path already does
+            // in InjectionEngine. Unfilled zones collapse to nothing, which is what makes
+            // the bare template compile on its own.
+            result[path] = templateProvider.StripInjectionMarkers(updated);
         }
 
         // Add any LLM blocks that don't map to injection zones as standalone files

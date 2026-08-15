@@ -34,15 +34,15 @@ public sealed partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStr
         {
             LogRunningReact(Logger, reactDir);
 
-            var npmInstallResult = await RunProcessAsync("npm", "install --silent", reactDir, ct);
+            var npmInstallResult = await RunProcessAsync(NpmExecutable, "install --silent", reactDir, ct);
             if (!npmInstallResult.IsSuccess)
                 return npmInstallResult;
 
-            var eslintResult = await RunProcessAsync("npm", "run lint -- --max-warnings=0", reactDir, ct);
+            var eslintResult = await RunProcessAsync(NpmExecutable, "run lint -- --max-warnings=0", reactDir, ct);
             if (!eslintResult.IsSuccess)
                 return eslintResult;
 
-            var tscResult = await RunProcessAsync("npx", "tsc --noEmit", reactDir, ct);
+            var tscResult = await RunProcessAsync(NpxExecutable, "tsc --noEmit", reactDir, ct);
             if (!tscResult.IsSuccess)
                 return tscResult;
         }

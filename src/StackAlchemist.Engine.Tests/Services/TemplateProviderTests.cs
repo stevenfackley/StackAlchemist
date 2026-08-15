@@ -190,6 +190,45 @@ public class TemplateProviderTests
     }
 
     [Fact]
+    public void LoadTemplate_SkipsBuildResidueLeftInsideTheTemplateTree()
+    {
+        // `dotnet build` / `npm install` run inside a template tree while editing it leave
+        // machine-local artefacts behind — absolute NuGet paths, binary caches. The glob is
+        // "*" recursive, so without an exclusion those get Handlebars-compiled and shipped
+        // inside the archive the customer pays for.
+        _fs.AddFile("/templates/V1-DotNet-NextJs/dotnet/Program.cs", new MockFileData("var app = builder.Build();"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/dotnet/obj/project.assets.json", new MockFileData("{}"));
+        _fs.AddFile(
+            "/templates/V1-DotNet-NextJs/dotnet/obj/{{ProjectName}}.csproj.nuget.g.props",
+            new MockFileData("<Project><PropertyGroup><NuGetPackageRoot>D:\\packages\\nuget</NuGetPackageRoot></PropertyGroup></Project>"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/dotnet/bin/Release/net10.0/App.dll", new MockFileData("MZ"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/nextjs/node_modules/next/package.json", new MockFileData("{}"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/nextjs/.next/build-manifest.json", new MockFileData("{}"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/nextjs/package.json", new MockFileData("{}"));
+
+        var result = _sut.LoadTemplate("V1-DotNet-NextJs");
+
+        result.Keys.Should().BeEquivalentTo(["dotnet/Program.cs", "nextjs/package.json"]);
+    }
+
+    [Fact]
+    public void LoadTemplate_KeepsFilesWhoseNameMerelyContainsAnExcludedSegment()
+    {
+        // Only whole directory segments are excluded — a file called "obj.cs" or a
+        // directory called "objects" is legitimate template content. And a bare "bin/"
+        // is a source directory in the CDK convention (infra/cdk/bin/app.ts): only
+        // bin/<Configuration>/ is .NET build output.
+        _fs.AddFile("/templates/V1-DotNet-NextJs/dotnet/obj.cs", new MockFileData("// obj"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/dotnet/objects/Thing.cs", new MockFileData("// thing"));
+        _fs.AddFile("/templates/V1-DotNet-NextJs/infra/cdk/bin/app.ts", new MockFileData("// cdk entrypoint"));
+
+        var result = _sut.LoadTemplate("V1-DotNet-NextJs");
+
+        result.Keys.Should().BeEquivalentTo(
+            ["dotnet/obj.cs", "dotnet/objects/Thing.cs", "infra/cdk/bin/app.ts"]);
+    }
+
+    [Fact]
     public void FindInjectionZones_NoZones_ReturnsEmpty()
     {
         var zones = _sut.FindInjectionZones("plain code, no zones");

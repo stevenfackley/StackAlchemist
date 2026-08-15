@@ -293,4 +293,57 @@ public class ReconstructionServiceTests
     }
 
     #endregion
+
+    #region Injection Marker Stripping
+
+    [Fact]
+    public void Reconstruct_StripsInjectionMarkersFromFilledZones()
+    {
+        // Prod bug: the V1 one-shot path injected LLM content into the zone and shipped the
+        // [[LLM_INJECTION_*]] lines along with it. In Program.cs that is a C# syntax error,
+        // so every Tier-2 archive failed `dotnet build` no matter how good the LLM output was.
+        var rendered = new Dictionary<string, string>
+        {
+            ["dotnet/Program.cs"] =
+                "var app = builder.Build();\n" +
+                "[[LLM_INJECTION_START: RouteRegistrations]]\n" +
+                "[[LLM_INJECTION_END: RouteRegistrations]]\n" +
+                "app.Run();\n",
+        };
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["__zone__/RouteRegistrations"] = "app.MapGet(\"/health\", () => Results.Ok());",
+        };
+
+        var result = _sut.Reconstruct(rendered, llmBlocks, new TemplateProvider(
+            new System.IO.Abstractions.TestingHelpers.MockFileSystem(), "/templates"));
+
+        var program = result["dotnet/Program.cs"];
+        program.Should().NotContain("[[LLM_INJECTION_");
+        program.Should().Contain("app.MapGet(\"/health\"");
+        program.Should().Contain("var app = builder.Build();");
+        program.Should().Contain("app.Run();");
+    }
+
+    [Fact]
+    public void Reconstruct_WithNoLlmBlocks_CollapsesZonesSoTheBareTemplateIsStillValid()
+    {
+        // The LLM pass is additive: an empty response must degrade to the plain template,
+        // not to a file full of marker lines.
+        var rendered = new Dictionary<string, string>
+        {
+            ["nextjs/src/app/page.tsx"] =
+                "<main>\n" +
+                "  [[LLM_INJECTION_START: HomePageContent]]\n" +
+                "  [[LLM_INJECTION_END: HomePageContent]]\n" +
+                "</main>\n",
+        };
+
+        var result = _sut.Reconstruct(rendered, [], new TemplateProvider(
+            new System.IO.Abstractions.TestingHelpers.MockFileSystem(), "/templates"));
+
+        result["nextjs/src/app/page.tsx"].Should().Be("<main>\n</main>\n");
+    }
+
+    #endregion
 }

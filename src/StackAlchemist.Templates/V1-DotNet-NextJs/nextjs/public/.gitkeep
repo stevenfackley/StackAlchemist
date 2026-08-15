@@ -1,0 +1,4 @@
+# Static assets served from / (favicon, images, robots.txt).
+# Kept in version control because Dockerfile's web target does
+# `COPY --from=web-builder /app/public ./public`, which fails the image build
+# outright when the directory does not exist.
