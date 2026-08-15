@@ -1,0 +1,498 @@
+[[FILE:dotnet/Models/Customer.cs]]
+namespace InvoiceHub.Models;
+
+public record Customer
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; }
+}
+
+public record CreateCustomerRequest(string Name, string Email);
+[[END_FILE]]
+[[FILE:dotnet/Models/Invoice.cs]]
+namespace InvoiceHub.Models;
+
+public record Invoice
+{
+    public Guid Id { get; init; }
+    public Guid CustomerId { get; init; }
+    public string Number { get; init; } = string.Empty;
+    public decimal Total { get; init; }
+    public DateTime IssuedAt { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+
+public record CreateInvoiceRequest(Guid CustomerId, string Number, decimal Total, DateTime IssuedAt);
+[[END_FILE]]
+[[FILE:dotnet/Models/LineItem.cs]]
+namespace InvoiceHub.Models;
+
+public record LineItem
+{
+    public Guid Id { get; init; }
+    public Guid InvoiceId { get; init; }
+    public string Description { get; init; } = string.Empty;
+    public int Quantity { get; init; }
+    public decimal UnitPrice { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+
+public record CreateLineItemRequest(Guid InvoiceId, string Description, int Quantity, decimal UnitPrice);
+[[END_FILE]]
+[[FILE:dotnet/Repositories/CustomerRepository.cs]]
+using Dapper;
+using InvoiceHub.Infrastructure;
+using InvoiceHub.Models;
+
+namespace InvoiceHub.Repositories;
+
+public interface ICustomerRepository
+{
+    Task<IEnumerable<Customer>> GetAllAsync();
+    Task<Customer?> GetByIdAsync(Guid id);
+    Task<Customer> CreateAsync(CreateCustomerRequest request);
+    Task<bool> UpdateAsync(Guid id, CreateCustomerRequest request);
+    Task<bool> DeleteAsync(Guid id);
+}
+
+public sealed class CustomerRepository(IDbConnectionFactory db) : ICustomerRepository
+{
+    public async Task<IEnumerable<Customer>> GetAllAsync()
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryAsync<Customer>(
+            "SELECT id, name, email, created_at AS CreatedAt FROM customers ORDER BY created_at DESC");
+    }
+
+    public async Task<Customer?> GetByIdAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<Customer>(
+            "SELECT id, name, email, created_at AS CreatedAt FROM customers WHERE id = @Id",
+            new { Id = id });
+    }
+
+    public async Task<Customer> CreateAsync(CreateCustomerRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var id = Guid.NewGuid();
+        await conn.ExecuteAsync(
+            "INSERT INTO customers (id, name, email, created_at) VALUES (@Id, @Name, @Email, @CreatedAt)",
+            new { Id = id, request.Name, request.Email, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+
+    public async Task<bool> UpdateAsync(Guid id, CreateCustomerRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync(
+            "UPDATE customers SET name = @Name, email = @Email WHERE id = @Id",
+            new { Id = id, request.Name, request.Email });
+        return rows > 0;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync("DELETE FROM customers WHERE id = @Id", new { Id = id });
+        return rows > 0;
+    }
+}
+[[END_FILE]]
+[[FILE:dotnet/Repositories/InvoiceRepository.cs]]
+using Dapper;
+using InvoiceHub.Infrastructure;
+using InvoiceHub.Models;
+
+namespace InvoiceHub.Repositories;
+
+public interface IInvoiceRepository
+{
+    Task<IEnumerable<Invoice>> GetAllAsync();
+    Task<Invoice?> GetByIdAsync(Guid id);
+    Task<Invoice> CreateAsync(CreateInvoiceRequest request);
+    Task<bool> UpdateAsync(Guid id, CreateInvoiceRequest request);
+    Task<bool> DeleteAsync(Guid id);
+}
+
+public sealed class InvoiceRepository(IDbConnectionFactory db) : IInvoiceRepository
+{
+    private const string SelectColumns =
+        "id, customer_id AS CustomerId, number, total, issued_at AS IssuedAt, created_at AS CreatedAt";
+
+    public async Task<IEnumerable<Invoice>> GetAllAsync()
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryAsync<Invoice>(
+            $"SELECT {SelectColumns} FROM invoices ORDER BY issued_at DESC");
+    }
+
+    public async Task<Invoice?> GetByIdAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<Invoice>(
+            $"SELECT {SelectColumns} FROM invoices WHERE id = @Id", new { Id = id });
+    }
+
+    public async Task<Invoice> CreateAsync(CreateInvoiceRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var id = Guid.NewGuid();
+        await conn.ExecuteAsync(
+            "INSERT INTO invoices (id, customer_id, number, total, issued_at, created_at) " +
+            "VALUES (@Id, @CustomerId, @Number, @Total, @IssuedAt, @CreatedAt)",
+            new { Id = id, request.CustomerId, request.Number, request.Total, request.IssuedAt, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+
+    public async Task<bool> UpdateAsync(Guid id, CreateInvoiceRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync(
+            "UPDATE invoices SET customer_id = @CustomerId, number = @Number, total = @Total, issued_at = @IssuedAt WHERE id = @Id",
+            new { Id = id, request.CustomerId, request.Number, request.Total, request.IssuedAt });
+        return rows > 0;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync("DELETE FROM invoices WHERE id = @Id", new { Id = id });
+        return rows > 0;
+    }
+}
+[[END_FILE]]
+[[FILE:dotnet/Repositories/LineItemRepository.cs]]
+using Dapper;
+using InvoiceHub.Infrastructure;
+using InvoiceHub.Models;
+
+namespace InvoiceHub.Repositories;
+
+public interface ILineItemRepository
+{
+    Task<IEnumerable<LineItem>> GetAllAsync();
+    Task<LineItem?> GetByIdAsync(Guid id);
+    Task<LineItem> CreateAsync(CreateLineItemRequest request);
+    Task<bool> UpdateAsync(Guid id, CreateLineItemRequest request);
+    Task<bool> DeleteAsync(Guid id);
+}
+
+public sealed class LineItemRepository(IDbConnectionFactory db) : ILineItemRepository
+{
+    private const string SelectColumns =
+        "id, invoice_id AS InvoiceId, description, quantity, unit_price AS UnitPrice, created_at AS CreatedAt";
+
+    public async Task<IEnumerable<LineItem>> GetAllAsync()
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryAsync<LineItem>(
+            $"SELECT {SelectColumns} FROM lineitems ORDER BY created_at DESC");
+    }
+
+    public async Task<LineItem?> GetByIdAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<LineItem>(
+            $"SELECT {SelectColumns} FROM lineitems WHERE id = @Id", new { Id = id });
+    }
+
+    public async Task<LineItem> CreateAsync(CreateLineItemRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var id = Guid.NewGuid();
+        await conn.ExecuteAsync(
+            "INSERT INTO lineitems (id, invoice_id, description, quantity, unit_price, created_at) " +
+            "VALUES (@Id, @InvoiceId, @Description, @Quantity, @UnitPrice, @CreatedAt)",
+            new { Id = id, request.InvoiceId, request.Description, request.Quantity, request.UnitPrice, CreatedAt = DateTime.UtcNow });
+        return (await GetByIdAsync(id))!;
+    }
+
+    public async Task<bool> UpdateAsync(Guid id, CreateLineItemRequest request)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync(
+            "UPDATE lineitems SET invoice_id = @InvoiceId, description = @Description, quantity = @Quantity, unit_price = @UnitPrice WHERE id = @Id",
+            new { Id = id, request.InvoiceId, request.Description, request.Quantity, request.UnitPrice });
+        return rows > 0;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id)
+    {
+        using var conn = db.CreateConnection();
+        var rows = await conn.ExecuteAsync("DELETE FROM lineitems WHERE id = @Id", new { Id = id });
+        return rows > 0;
+    }
+}
+[[END_FILE]]
+[[FILE:dotnet/Controllers/CustomerEndpoints.cs]]
+using InvoiceHub.Models;
+using InvoiceHub.Repositories;
+
+namespace InvoiceHub.Controllers;
+
+public static class CustomerEndpoints
+{
+    public static void MapCustomerEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/v1/customers").WithTags("Customer");
+
+        group.MapGet("/", async (ICustomerRepository repo) =>
+            Results.Ok(await repo.GetAllAsync()));
+
+        group.MapGet("/{id:guid}", async (Guid id, ICustomerRepository repo) =>
+            await repo.GetByIdAsync(id) is { } customer ? Results.Ok(customer) : Results.NotFound());
+
+        group.MapPost("/", async (CreateCustomerRequest request, ICustomerRepository repo) =>
+        {
+            var created = await repo.CreateAsync(request);
+            return Results.Created($"/api/v1/customers/{created.Id}", created);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, CreateCustomerRequest request, ICustomerRepository repo) =>
+            await repo.UpdateAsync(id, request) ? Results.NoContent() : Results.NotFound());
+
+        group.MapDelete("/{id:guid}", async (Guid id, ICustomerRepository repo) =>
+            await repo.DeleteAsync(id) ? Results.NoContent() : Results.NotFound());
+    }
+}
+[[END_FILE]]
+[[FILE:dotnet/Controllers/InvoiceEndpoints.cs]]
+using InvoiceHub.Models;
+using InvoiceHub.Repositories;
+
+namespace InvoiceHub.Controllers;
+
+public static class InvoiceEndpoints
+{
+    public static void MapInvoiceEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/v1/invoices").WithTags("Invoice");
+
+        group.MapGet("/", async (IInvoiceRepository repo) =>
+            Results.Ok(await repo.GetAllAsync()));
+
+        group.MapGet("/{id:guid}", async (Guid id, IInvoiceRepository repo) =>
+            await repo.GetByIdAsync(id) is { } invoice ? Results.Ok(invoice) : Results.NotFound());
+
+        group.MapPost("/", async (CreateInvoiceRequest request, IInvoiceRepository repo) =>
+        {
+            var created = await repo.CreateAsync(request);
+            return Results.Created($"/api/v1/invoices/{created.Id}", created);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, CreateInvoiceRequest request, IInvoiceRepository repo) =>
+            await repo.UpdateAsync(id, request) ? Results.NoContent() : Results.NotFound());
+
+        group.MapDelete("/{id:guid}", async (Guid id, IInvoiceRepository repo) =>
+            await repo.DeleteAsync(id) ? Results.NoContent() : Results.NotFound());
+    }
+}
+[[END_FILE]]
+[[FILE:dotnet/Controllers/LineItemEndpoints.cs]]
+using InvoiceHub.Models;
+using InvoiceHub.Repositories;
+
+namespace InvoiceHub.Controllers;
+
+public static class LineItemEndpoints
+{
+    public static void MapLineItemEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/v1/lineitems").WithTags("LineItem");
+
+        group.MapGet("/", async (ILineItemRepository repo) =>
+            Results.Ok(await repo.GetAllAsync()));
+
+        group.MapGet("/{id:guid}", async (Guid id, ILineItemRepository repo) =>
+            await repo.GetByIdAsync(id) is { } lineItem ? Results.Ok(lineItem) : Results.NotFound());
+
+        group.MapPost("/", async (CreateLineItemRequest request, ILineItemRepository repo) =>
+        {
+            var created = await repo.CreateAsync(request);
+            return Results.Created($"/api/v1/lineitems/{created.Id}", created);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, CreateLineItemRequest request, ILineItemRepository repo) =>
+            await repo.UpdateAsync(id, request) ? Results.NoContent() : Results.NotFound());
+
+        group.MapDelete("/{id:guid}", async (Guid id, ILineItemRepository repo) =>
+            await repo.DeleteAsync(id) ? Results.NoContent() : Results.NotFound());
+    }
+}
+[[END_FILE]]
+[[FILE:__zone__/RepositoryRegistrations]]
+    builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+    builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+    builder.Services.AddScoped<ILineItemRepository, LineItemRepository>();
+[[END_FILE]]
+[[FILE:__zone__/RouteRegistrations]]
+    app.MapCustomerEndpoints();
+    app.MapInvoiceEndpoints();
+    app.MapLineItemEndpoints();
+[[END_FILE]]
+[[FILE:dotnet/Migrations/001_initial_schema.sql]]
+-- InvoiceHub — Initial Schema
+-- Generated by StackAlchemist v1
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE customers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID NOT NULL,
+    number TEXT NOT NULL,
+    total NUMERIC(10,2) NOT NULL,
+    issued_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE lineitems (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID NOT NULL,
+    description TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE invoices ADD CONSTRAINT fk_invoices_customers
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+
+ALTER TABLE lineitems ADD CONSTRAINT fk_lineitems_invoices
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE;
+
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lineitems ENABLE ROW LEVEL SECURITY;
+[[END_FILE]]
+[[FILE:nextjs/src/types/index.ts]]
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  customerId: string;
+  number: string;
+  total: number;
+  issuedAt: string;
+  createdAt: string;
+}
+
+export interface LineItem {
+  id: string;
+  invoiceId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  createdAt: string;
+}
+
+export type CreateCustomerInput = Omit<Customer, "id" | "createdAt">;
+export type CreateInvoiceInput = Omit<Invoice, "id" | "createdAt">;
+export type CreateLineItemInput = Omit<LineItem, "id" | "createdAt">;
+[[END_FILE]]
+[[FILE:nextjs/src/lib/api.ts]]
+import type {
+  CreateCustomerInput,
+  CreateInvoiceInput,
+  CreateLineItemInput,
+  Customer,
+  Invoice,
+  LineItem,
+} from "@/types";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { "Content-Type": "application/json", ...init?.headers },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json() as Promise<T>;
+}
+
+export async function getCustomers(): Promise<Customer[]> {
+  return apiFetch<Customer[]>("/api/v1/customers");
+}
+
+export async function getCustomer(id: string): Promise<Customer> {
+  return apiFetch<Customer>(`/api/v1/customers/${id}`);
+}
+
+export async function createCustomer(data: CreateCustomerInput): Promise<Customer> {
+  return apiFetch<Customer>("/api/v1/customers", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getInvoices(): Promise<Invoice[]> {
+  return apiFetch<Invoice[]>("/api/v1/invoices");
+}
+
+export async function getInvoice(id: string): Promise<Invoice> {
+  return apiFetch<Invoice>(`/api/v1/invoices/${id}`);
+}
+
+export async function createInvoice(data: CreateInvoiceInput): Promise<Invoice> {
+  return apiFetch<Invoice>("/api/v1/invoices", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getLineItems(): Promise<LineItem[]> {
+  return apiFetch<LineItem[]>("/api/v1/lineitems");
+}
+
+export async function getLineItem(id: string): Promise<LineItem> {
+  return apiFetch<LineItem>(`/api/v1/lineitems/${id}`);
+}
+
+export async function createLineItem(data: CreateLineItemInput): Promise<LineItem> {
+  return apiFetch<LineItem>("/api/v1/lineitems", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+[[END_FILE]]
+[[FILE:nextjs/src/app/page.tsx]]
+const entities = [
+  { label: "Customers", href: "/api/v1/customers" },
+  { label: "Invoices", href: "/api/v1/invoices" },
+  { label: "Line Items", href: "/api/v1/lineitems" },
+];
+
+export default function HomePage() {
+  return (
+    <main className="min-h-screen p-8">
+      <h1 className="text-2xl font-bold">InvoiceHub</h1>
+      <p className="text-gray-500 mt-2">Small-business invoicing. Generated by StackAlchemist.</p>
+
+      <ul className="mt-6 space-y-2">
+        {entities.map((entity) => (
+          <li key={entity.href}>
+            <a className="text-blue-600 underline" href={entity.href}>
+              {entity.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+[[END_FILE]]

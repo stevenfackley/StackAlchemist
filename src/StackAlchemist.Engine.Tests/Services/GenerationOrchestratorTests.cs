@@ -59,7 +59,7 @@ public class GenerationOrchestratorTests
                 "claude-sonnet-4-6"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
-        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
         var injectionEngine = Substitute.For<IInjectionEngine>();
         var delivery = deliveryOverride ?? Substitute.For<IDeliveryService>();
@@ -153,7 +153,7 @@ public class GenerationOrchestratorTests
             .Returns(new LlmResponse("", 10, 20, "claude-sonnet-4-6"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
-        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>())
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
             .Returns("Generate code for the provided schema using [[FILE:path]]...[[END_FILE]] format.");
         var injectionEngine = Substitute.For<IInjectionEngine>();
         var delivery = Substitute.For<IDeliveryService>();

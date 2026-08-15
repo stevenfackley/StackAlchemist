@@ -45,7 +45,7 @@ public class MultiEcosystemPipelineTests
                 10,
                 20,
                 "claude-sonnet-4-6"));
-        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>())
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
             .Returns($"Prompt for {projectType}");
         reconstruction.Parse(Arg.Any<string>()).Returns(new Dictionary<string, string>
         {
@@ -96,7 +96,7 @@ public class MultiEcosystemPipelineTests
         response.ProjectType.Should().Be(projectType);
         response.Status.Should().Be("building");
         templates.Received(1).LoadTemplate(expectedTemplateSet);
-        promptBuilder.Received(1).BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>());
+        promptBuilder.Received(1).BuildGenerationPrompt(Arg.Any<GenerationSchema>(), projectType, Arg.Any<GenerationPersonalization?>(), Arg.Any<string>());
         queue.Reader.TryRead(out var context).Should().BeTrue();
         context!.ProjectType.Should().Be(projectType);
     }

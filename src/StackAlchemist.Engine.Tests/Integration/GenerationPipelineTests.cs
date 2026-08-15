@@ -69,10 +69,11 @@ public class GenerationPipelineTests
             .Select(p => p.Replace('\\', '/'))
             .ToList();
 
-        // V1 path emits the LLM-supplied files directly via reconstruction.
-        emitted.Should().Contain(p => p.EndsWith("Models/Product.cs", StringComparison.Ordinal),
-            "stub LLM returned a [[FILE:Models/Product.cs]] block");
-        emitted.Should().Contain(p => p.EndsWith("Repositories/ProductRepository.cs", StringComparison.Ordinal));
+        // V1 path emits the LLM-supplied files directly via reconstruction — inside the
+        // project half they belong to, never at the archive root.
+        emitted.Should().Contain(p => p.EndsWith("dotnet/Models/Product.cs", StringComparison.Ordinal),
+            "stub LLM returned a [[FILE:dotnet/Models/Product.cs]] block");
+        emitted.Should().Contain(p => p.EndsWith("dotnet/Repositories/ProductRepository.cs", StringComparison.Ordinal));
 
         // Schema-wide template files (Program.cs, csproj) survive reconstruction unchanged.
         emitted.Should().Contain(p => p.EndsWith("Program.cs", StringComparison.Ordinal));
@@ -404,7 +405,9 @@ public class GenerationPipelineTests
 
     /// <summary>
     /// Returns a deterministic V1 one-shot LLM response with two <c>[[FILE:…]]</c>
-    /// blocks — a Models/Product.cs record and a Repositories/ProductRepository.cs class.
+    /// blocks — a dotnet/Models/Product.cs record and a dotnet/Repositories/ProductRepository.cs
+    /// class. The <c>dotnet/</c> prefix is load-bearing: reconstruction rejects paths that fall
+    /// outside the rendered tree instead of dropping them at the archive root.
     /// Independent of <c>userPrompt</c> contents so the orchestrator's prompt construction
     /// is not asserted (covered separately by <c>PromptBuilderTests</c>).
     /// </summary>
@@ -421,11 +424,11 @@ public class GenerationPipelineTests
         {
             Interlocked.Increment(ref _callCount);
             const string body = """
-                [[FILE:Models/Product.cs]]
+                [[FILE:dotnet/Models/Product.cs]]
                 namespace GeneratedApp.Models;
                 public record Product(Guid Id, string Name, decimal Price);
                 [[END_FILE]]
-                [[FILE:Repositories/ProductRepository.cs]]
+                [[FILE:dotnet/Repositories/ProductRepository.cs]]
                 namespace GeneratedApp.Repositories;
                 public sealed class ProductRepository
                 {

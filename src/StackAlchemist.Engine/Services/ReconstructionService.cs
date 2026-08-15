@@ -65,6 +65,14 @@ public sealed partial class ReconstructionService : IReconstructionService
         return blocks;
     }
 
+    /// <summary>
+    /// Pseudo-path prefix an LLM block uses to address an injection zone that owns no file of
+    /// its own — a fragment spliced into an existing template file (the Program.cs registration
+    /// blocks, a JSX island inside page.tsx, …). Blocks addressed this way are NEVER written to
+    /// disk as files; the zone they name is the only place their content can go.
+    /// </summary>
+    public const string ZonePathPrefix = "__zone__/";
+
     public Dictionary<string, string> Reconstruct(
         Dictionary<string, string> renderedTemplates,
         Dictionary<string, string> llmBlocks,
@@ -101,47 +109,53 @@ public sealed partial class ReconstructionService : IReconstructionService
             result[path] = templateProvider.StripInjectionMarkers(updated);
         }
 
-        // Add any LLM blocks that don't map to injection zones as standalone files
+        // Every remaining block is a real file. It has to land somewhere the generated
+        // project actually reads from — which means inside one of the top-level directories
+        // the rendered template produced (dotnet/, nextjs/, …) or, for a bare file name,
+        // beside the template's own root files.
+        //
+        // Anything else used to be written verbatim at the archive root, where nothing
+        // compiles it and nothing serves it. That is how a prompt asking for
+        // `src/types/index.ts` shipped paying customers a frontend with no types, no API
+        // helpers and an empty stub page: the files were in the zip, just not in the app.
+        // Silent misplacement is the one outcome this must never produce again.
+        var treeRoots = TopLevelDirectories(renderedTemplates);
+        var unmapped = new List<string>();
+
         foreach (var (path, content) in llmBlocks)
         {
-            if (!IsInjectionZoneContent(path))
-            {
+            if (IsInjectionZoneContent(path))
+                continue;
+
+            if (BelongsToRenderedTree(path, treeRoots))
                 result[path] = content;
-            }
+            else
+                unmapped.Add(path);
         }
+
+        if (unmapped.Count > 0)
+            throw new UnmappedLlmFileException(unmapped, treeRoots);
 
         return result;
     }
 
     /// <summary>
-    /// Maps zone names to LLM output blocks.
-    /// Zone "Controllers" matches blocks under src/Controllers/ etc.
+    /// Resolves the LLM block that fills <paramref name="zoneName"/>.
+    ///
+    /// One rule, no heuristics: zone <c>X</c> is filled by the block at
+    /// <c>__zone__/X</c> and by nothing else. The previous directory-substring
+    /// matching ("any path containing <c>Models/</c> fills the Models zone") silently
+    /// routed real files into fragment zones AND left a duplicate copy at the archive
+    /// root, so the same code could end up in two places, one of which compiled.
     /// </summary>
     private static string? FindContentForZone(string zoneName, Dictionary<string, string> llmBlocks)
     {
-        // Direct zone-to-directory mapping
-        var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Controllers"] = "Controllers/",
-            ["Repositories"] = "Repositories/",
-            ["Models"] = "Models/",
-            ["SqlSchema"] = "Migrations/",
-            ["RepositoryRegistrations"] = "__zone__/RepositoryRegistrations",
-            ["RouteRegistrations"] = "__zone__/RouteRegistrations",
-            ["HomePageContent"] = "__zone__/HomePageContent",
-            ["ApiRouteHandlers"] = "__zone__/ApiRouteHandlers",
-            ["TypeDefinitions"] = "__zone__/TypeDefinitions",
-        };
+        var zonePath = ZonePathPrefix + zoneName;
 
-        // Collect all blocks that match this zone's directory
-        if (mapping.TryGetValue(zoneName, out var prefix))
+        foreach (var (path, content) in llmBlocks)
         {
-            var matchingBlocks = llmBlocks
-                .Where(b => b.Key.Contains(prefix, StringComparison.OrdinalIgnoreCase))
-                .Select(b => b.Value)
-                .ToList();
-
-            return matchingBlocks.Count > 0 ? string.Join("\n\n", matchingBlocks) : null;
+            if (path.Equals(zonePath, StringComparison.OrdinalIgnoreCase))
+                return content;
         }
 
         return null;
@@ -149,7 +163,48 @@ public sealed partial class ReconstructionService : IReconstructionService
 
     private static bool IsInjectionZoneContent(string path)
     {
-        return path.StartsWith("__zone__/", StringComparison.OrdinalIgnoreCase);
+        return path.StartsWith(ZonePathPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The top-level directory names the rendered template set produced — the only roots an
+    /// emitted file path is allowed to start with.
+    /// </summary>
+    private static HashSet<string> TopLevelDirectories(Dictionary<string, string> renderedTemplates)
+    {
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in renderedTemplates.Keys)
+        {
+            var normalized = path.Replace('\\', '/');
+            var slash = normalized.IndexOf('/', StringComparison.Ordinal);
+            if (slash > 0)
+                roots.Add(normalized[..slash]);
+        }
+
+        return roots;
+    }
+
+    /// <summary>
+    /// True when <paramref name="path"/> would land somewhere the generated project reads
+    /// from. A bare file name is fine (it sits beside the template's own root files, e.g. a
+    /// README); anything deeper must start with a directory the template actually rendered.
+    ///
+    /// A <c>..</c> segment anywhere is rejected outright: these paths come from model output
+    /// and are combined with the output directory before being written, so a traversal would
+    /// escape the archive entirely.
+    /// </summary>
+    private static bool BelongsToRenderedTree(string path, HashSet<string> treeRoots)
+    {
+        var normalized = path.Replace('\\', '/').TrimStart('/');
+        if (normalized.Length == 0)
+            return false;
+
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(s => s.Equals("..", StringComparison.Ordinal)))
+            return false;
+
+        return segments.Length < 2 || treeRoots.Contains(segments[0]);
     }
 
     [GeneratedRegex(@"\[\[FILE:\s*(.+?)\s*\]\]\n(.*?)\[\[END_FILE\]\]", RegexOptions.Singleline)]

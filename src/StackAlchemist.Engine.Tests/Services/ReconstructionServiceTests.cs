@@ -346,4 +346,129 @@ public class ReconstructionServiceTests
     }
 
     #endregion
+
+    #region Path Routing
+
+    private static TemplateProvider RealZoneProvider() => new(
+        new System.IO.Abstractions.TestingHelpers.MockFileSystem(), "/templates");
+
+    private static Dictionary<string, string> V1TreeShape() => new()
+    {
+        ["dotnet/Program.cs"] = "// program\n",
+        ["nextjs/src/types/index.ts"] = "export {};\n",
+        ["Dockerfile"] = "FROM scratch\n",
+    };
+
+    [Fact]
+    public void Reconstruct_WithPathOutsideTheRenderedTree_ThrowsInsteadOfOrphaningTheFile()
+    {
+        // The shipped bug: the prompt asked for src/types/index.ts while the tree keeps its
+        // frontend at nextjs/src/. The path matched no zone, so the file was written at the
+        // archive root — present in the zip, invisible to the app — and the build stayed green.
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["src/types/index.ts"] = "export interface Customer { id: string }",
+            ["src/lib/api.ts"] = "export const getCustomers = () => {};",
+        };
+
+        var act = () => _sut.Reconstruct(V1TreeShape(), llmBlocks, RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>()
+           .Which.UnmappedPaths.Should().BeEquivalentTo(["src/types/index.ts", "src/lib/api.ts"]);
+    }
+
+    [Fact]
+    public void Reconstruct_UnmappedPathMessage_NamesThePathsAndTheValidRoots()
+    {
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { ["src/app/page.tsx"] = "export default function P() {}" },
+            RealZoneProvider());
+
+        // The message is what reaches the customer's error_message and the retry prompt.
+        act.Should().Throw<UnmappedLlmFileException>()
+           .WithMessage("*src/app/page.tsx*")
+           .And.Message.Should().Contain("dotnet").And.Contain("nextjs");
+    }
+
+    [Fact]
+    public void Reconstruct_WithPathInsideTheRenderedTree_OverwritesOrAddsTheFile()
+    {
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["nextjs/src/types/index.ts"] = "export interface Customer { id: string }",
+            ["dotnet/Models/Customer.cs"] = "namespace App.Models;\npublic record Customer;",
+            ["README.md"] = "# InvoiceHub",
+        };
+
+        var result = _sut.Reconstruct(V1TreeShape(), llmBlocks, RealZoneProvider());
+
+        result["nextjs/src/types/index.ts"].Should().Contain("interface Customer",
+            "a real file at a real path replaces the template stub — that is how the customer gets types");
+        result.Should().ContainKey("dotnet/Models/Customer.cs");
+        result.Should().ContainKey("README.md", "a bare file name sits beside the template's own root files");
+    }
+
+    [Theory]
+    [InlineData("../../etc/passwd")]
+    [InlineData("dotnet/../../../evil.cs")]
+    [InlineData("C:/Windows/System32/evil.cs")]
+    public void Reconstruct_TraversalPath_IsRejected(string path)
+    {
+        // These paths are model output and get Path.Combine'd with the output directory
+        // before being written, so a traversal segment escapes the archive entirely.
+        var act = () => _sut.Reconstruct(
+            V1TreeShape(),
+            new Dictionary<string, string> { [path] = "pwned" },
+            RealZoneProvider());
+
+        act.Should().Throw<UnmappedLlmFileException>();
+    }
+
+    [Fact]
+    public void Reconstruct_ZoneBlock_FillsTheZoneAndIsNeverWrittenAsAFile()
+    {
+        var rendered = new Dictionary<string, string>
+        {
+            ["dotnet/Program.cs"] =
+                "var app = builder.Build();\n" +
+                "[[LLM_INJECTION_START: RouteRegistrations]]\n" +
+                "[[LLM_INJECTION_END: RouteRegistrations]]\n",
+        };
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["__zone__/RouteRegistrations"] = "app.MapCustomerEndpoints();",
+        };
+
+        var result = _sut.Reconstruct(rendered, llmBlocks, RealZoneProvider());
+
+        result["dotnet/Program.cs"].Should().Contain("app.MapCustomerEndpoints();");
+        result.Keys.Should().NotContain(k => k.StartsWith("__zone__", StringComparison.Ordinal),
+            "a zone pseudo-path is an address, not a file");
+    }
+
+    [Fact]
+    public void Reconstruct_FilePathNamingAZoneDirectory_IsNotSwallowedByTheZone()
+    {
+        // Zones used to be matched by directory substring: any path containing "Models/"
+        // filled the Models zone AND was written as a file, so the same records could exist
+        // twice (CS0101) or land somewhere unreadable. Routing is now by zone name only.
+        var rendered = new Dictionary<string, string>
+        {
+            ["dotnet/Models/_placeholder.cs"] =
+                "[[LLM_INJECTION_START: Models]]\n[[LLM_INJECTION_END: Models]]\n",
+        };
+        var llmBlocks = new Dictionary<string, string>
+        {
+            ["dotnet/Models/Customer.cs"] = "namespace App.Models;\npublic record Customer;",
+        };
+
+        var result = _sut.Reconstruct(rendered, llmBlocks, RealZoneProvider());
+
+        result["dotnet/Models/Customer.cs"].Should().Contain("public record Customer;");
+        result["dotnet/Models/_placeholder.cs"].Should().NotContain("public record Customer;",
+            "the entity is a real file; duplicating it into the placeholder is a duplicate definition");
+    }
+
+    #endregion
 }
