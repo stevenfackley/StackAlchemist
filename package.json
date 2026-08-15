@@ -5,7 +5,8 @@
     "postinstall": "npm install --prefix src/StackAlchemist.Web",
     "dev": "npm run dev --prefix src/StackAlchemist.Web",
     "build": "npm run build --prefix src/StackAlchemist.Web",
-    "start": "npm run start --prefix src/StackAlchemist.Web"
+    "start": "npm run start --prefix src/StackAlchemist.Web",
+    "supabase:smtp": "node scripts/supabase-auth-smtp.mjs"
   },
   "version": "1.0.0",
   "description": "<div align=\"center\">   <img src=\"src/StackAlchemist.Web/public/logo_nebula.png\" alt=\"StackAlchemist\" width=\"480\"/>",
