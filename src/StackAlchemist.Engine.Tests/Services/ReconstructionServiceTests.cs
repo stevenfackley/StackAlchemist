@@ -543,6 +543,10 @@ public class ReconstructionServiceTests
     [InlineData("__zone__/RouteRegistrations", "the zones are resolved by now — this lands in the zip as a literal file")]
     [InlineData("dotnet/../../../evil.cs", "a traversal segment escapes the output directory")]
     [InlineData("C:evil.cs", "a drive-relative path escapes the output directory")]
+    [InlineData("C:/Windows/System32/evil.cs", "a drive-absolute path escapes the output directory")]
+    [InlineData(@"\\server\share\evil.cs", "a UNC path escapes the output directory")]
+    [InlineData("/nextjs/src/lib/api.ts", "Path.Combine discards the output directory for a rooted path")]
+    [InlineData("nextjs/src/lib/api.ts:evil", "an alternate data stream is not a file the archive can carry")]
     public void ResolveRepairWrites_PathOutsideTheTree_IsRefusedNotWritten(string path, string because)
     {
         var root = MakeTreeOnDisk();

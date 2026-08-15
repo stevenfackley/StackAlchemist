@@ -253,19 +253,33 @@ public sealed partial class ReconstructionService : IReconstructionService
     /// on the trimmed <c>nextjs/src/x.ts</c> and then be written to the root of the current
     /// drive. The drive-relative form <c>C:evil.cs</c> is the same hole with no separator at
     /// all: it has one segment, so the bare-file-name allowance would wave it through.
-    /// <see cref="Path.IsPathRooted(string)"/> covers all three shapes (rooted, drive-relative,
-    /// UNC), so the path that is validated is always the path that gets written.
+    ///
+    /// The shapes are recognised by string form, NOT by <see cref="Path.IsPathRooted(string)"/>,
+    /// because that API answers for the host OS and this predicate has to answer for the
+    /// customer's machine. On Linux — where the worker runs and where CI runs — only a leading
+    /// <c>/</c> is rooted, so <c>C:evil.cs</c> is "relative", single-segment, and waved through
+    /// by the bare-file-name allowance; the same input is rejected on Windows. A guard whose
+    /// verdict depends on the build agent is not a guard. Rejecting the leading separator (rooted
+    /// and UNC), any <c>\</c>- or <c>/</c>-rooted form, and any path containing <c>:</c> at all
+    /// (drive-absolute <c>C:/x</c>, drive-relative <c>C:x</c>, and NTFS alternate-data-stream
+    /// <c>x.cs:bad</c> — none of which is a legal file name on a Windows machine unzipping the
+    /// archive) makes the answer identical on every platform.
     /// </summary>
     private static bool BelongsToRenderedTree(string path, HashSet<string> treeRoots)
     {
-        if (Path.IsPathRooted(path))
+        if (string.IsNullOrWhiteSpace(path))
             return false;
 
-        var normalized = path.Replace('\\', '/').TrimStart('/');
-        if (normalized.Length == 0)
+        if (path[0] is '/' or '\\')
             return false;
 
-        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (path.Contains(':', StringComparison.Ordinal))
+            return false;
+
+        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+            return false;
+
         if (segments.Any(s => s.Equals("..", StringComparison.Ordinal)))
             return false;
 
