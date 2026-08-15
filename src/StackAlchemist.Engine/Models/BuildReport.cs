@@ -27,9 +27,16 @@ public sealed record BuildReport
     public required DateTimeOffset GeneratedAt { get; init; }
 
     /// <summary>
-    /// <c>verified</c> when the final attempt compiled, <c>failed</c> otherwise. A "failed"
-    /// report only reaches a customer alongside the automatic refund; it is written for the
-    /// same reason the refund is automatic — the build logs are the objective evidence.
+    /// <c>verified</c> when the final attempt compiled, <c>failed</c> otherwise.
+    ///
+    /// In practice every DELIVERED report reads <c>verified</c>: the report is written on the
+    /// pack-and-upload path, and CompileWorkerService's retries-exhausted branch refunds and
+    /// returns without packing anything — so a failed generation produces no archive and
+    /// therefore no report. <c>failed</c> is kept as the honest value for a report built off
+    /// that path (tests, and any future failure-path delivery) rather than hardcoding a
+    /// verdict, but nothing may describe it to a customer as a file they will receive.
+    /// compile-guarantee.md says so explicitly; the record of a failed build is the streamed
+    /// build log, which the refund path does write.
     /// </summary>
     public required string Status { get; init; }
 

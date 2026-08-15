@@ -210,6 +210,17 @@ Your download archive includes a **`build-report.json`** at its root: the pipeli
 record of every compiler invocation it ran against your code, written immediately before the
 archive is zipped, so it describes exactly the code you received.
 
+### When the build never passes
+
+There is no archive, and therefore no `build-report.json`. The report is written on the
+delivery path only — a build that exhausted its corrections is refunded, not packaged, so
+there is no zip to put a report in and nothing to download. Every report that reaches you
+describes code that compiled, which is why `status` is always `verified`.
+
+The record of a failed generation is your **live build log**: every attempt, every command
+and every compiler error is streamed to it as it happens, and it stays on the generation page
+after the refund. That is the objective evidence referred to under Refund Conditions.
+
 Field names are camelCase and stable within a `schemaVersion`.
 
 ### Top level
@@ -221,7 +232,7 @@ Field names are camelCase and stable within a `schemaVersion`.
 | `projectType` | string | Template family, e.g. `DotNetNextJs`. |
 | `tier` | number | 1 Blueprint, 2 Boilerplate, 3 Infrastructure. |
 | `generatedAt` | string | ISO-8601 UTC timestamp of delivery. |
-| `status` | string | `verified` (final attempt compiled) or `failed` (refund issued). |
+| `status` | string | `verified`. See "when the build never passes" below — a report only exists in an archive, and a failed build produces no archive. |
 | `attemptsUsed` | number | Build attempts that ran, including the successful one. |
 | `maxAttempts` | number | The retry ceiling — `3`. |
 | `halves` | array | Final verdict per half. See below. |

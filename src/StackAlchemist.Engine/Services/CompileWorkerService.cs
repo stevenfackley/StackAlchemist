@@ -343,6 +343,12 @@ public sealed partial class CompileWorkerService(
     /// stop. Best-effort: a generation that compiled and uploaded must not be failed over an
     /// unwritable metadata file, so the customer still gets the archive and the log says the
     /// report is missing.
+    ///
+    /// Called only from <see cref="PackUploadAndNotifyAsync"/>, which is deliberate and is
+    /// the whole reason compile-guarantee.md tells customers a failed build ships no report:
+    /// the retries-exhausted branch above sets Failed, refunds, and returns without packing,
+    /// so there is no archive to write into. Moving this call to that branch without also
+    /// producing an archive would write a report nobody can ever read.
     /// </summary>
     private async Task TryWriteBuildReportAsync(GenerationContext job, CancellationToken ct)
     {

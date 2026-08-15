@@ -13,8 +13,12 @@ namespace StackAlchemist.Engine.Services;
 /// instead of asserting "Compile Verified" from a hardcoded string.
 ///
 /// Written at the archive root, right before pack+upload, so it describes the code that is
-/// actually in the zip — including a failed final attempt, which reaches the customer
-/// alongside the automatic refund.
+/// actually in the zip.
+///
+/// That placement is also the limit of its reach: pack+upload is the delivery path, and a
+/// generation that exhausted its corrections is refunded and returned from without packing
+/// anything. A failed build therefore ships no archive and no report, and the record the
+/// customer keeps is the streamed build log. Say that, not "the report explains the refund".
 /// </summary>
 public static class BuildReportWriter
 {
