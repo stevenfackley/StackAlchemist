@@ -6,7 +6,7 @@ using StackAlchemist.Engine.Models;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// Compile Guarantee verification for the V1 .NET 10 + Next.js 15 deliverable.
+/// Compile Guarantee verification for the V1 .NET 10 + Next.js 16 deliverable.
 ///
 /// Both halves of the archive are built, because both halves are what the customer
 /// paid for: docs/advanced-docs/compile-guarantee.md and docs/user/tiers-and-pricing.md
