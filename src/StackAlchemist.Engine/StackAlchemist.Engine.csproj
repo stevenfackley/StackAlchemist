@@ -39,7 +39,7 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
     <PackageReference Include="DotNetEnv" Version="3.*" />
     <PackageReference Include="Handlebars.Net" Version="2.1.6" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <!-- Explicit pin: AspNetCore.OpenApi 10.0.9 pulls Microsoft.OpenApi 2.0.0
          (NU1903 / GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). Keep on latest 2.x.
          Do NOT move to 3.x: the AspNetCore.OpenApi 10.0.9 XML-comment source
