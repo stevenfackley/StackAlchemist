@@ -79,6 +79,7 @@ export default function SimpleModePage() {
         setGenerationId(result.generationId);
         // Demo / no-Realtime: nothing will push us forward, so navigate now.
         if (isDemoMode || !supabase) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
           window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
         }
       } else {
@@ -106,6 +107,7 @@ export default function SimpleModePage() {
         // window.crossOriginIsolated is true — required by the StackBlitz
         // WebContainers preview. A soft nav reuses the current (non-isolated)
         // document and StackBlitz errors "without isolation headers".
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: /generate needs fresh COOP/COEP-isolated document (StackBlitz)
         window.location.href = `/generate/${generationId}`;
       } else if (row.status === "failed") {
         doneRef.current = true;

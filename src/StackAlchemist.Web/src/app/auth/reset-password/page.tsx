@@ -52,6 +52,7 @@ export default function ResetPasswordPage() {
       if (error) {
         setErrorMsg(error.message);
       } else {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full reload so the refreshed Supabase session is picked up everywhere
         window.location.assign("/");
       }
     });
