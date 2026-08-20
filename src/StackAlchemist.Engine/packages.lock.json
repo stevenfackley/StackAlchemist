@@ -5,10 +5,10 @@
       "AWSSDK.S3": {
         "type": "Direct",
         "requested": "[4.0.*, )",
-        "resolved": "4.0.102.1",
-        "contentHash": "zGP3FW4D0wfbmYxoOWgNoPcwoA8E+kWH6KezOBPiLpAOi3l4cygFF15jiWdma6R7D+M9qu3DzdpWq/VlyIJX+Q==",
+        "resolved": "4.0.102.2",
+        "contentHash": "KktYdgjSgC+lSSVf/kawvSsuRS83ovq33gKCJm/mTP5pIS/cdltJCGFQIpNiWqFhHdFfChLP6LxiFhrFHBDxIA==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.101, 5.0.0)"
+          "AWSSDK.Core": "[4.0.101.1, 5.0.0)"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -43,9 +43,9 @@
       },
       "Microsoft.OpenApi": {
         "type": "Direct",
-        "requested": "[2.11.0, )",
-        "resolved": "2.11.0",
-        "contentHash": "/ignjfdeKT2SGLIR7QEv19KnI0rvoxRG/TYDOZdK9EsWLjKK9IK8i1Mo5NRm9PRV3i64DzlTqnIflWvoyfljLg=="
+        "requested": "[2.12.0, )",
+        "resolved": "2.12.0",
+        "contentHash": "0xB/be+f6qYOhvQPUrVsLrau+fkowYv6gt9RIkajMhwT7sZnqtcA797yW3bS5kgSje+AQW4xZgyLnW641YFioQ=="
       },
       "OpenTelemetry.Exporter.Console": {
         "type": "Direct",
@@ -156,8 +156,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.101",
-        "contentHash": "7Q0z0fLpy+w6h4G5z/qZ6PYGzZ0DgYjYkVdGMnhtjkgQaKX+Sjm0YxfFxFILRewxC4o6wwnrbvwaSj41LgRRfg=="
+        "resolved": "4.0.101.1",
+        "contentHash": "NtMRfAGDrdb5PVnTL4vIrnPuPSXbBw0j9+voVMYmgsH5Ep5H4tuNMkPJZCOO9q99mh0L9ClOwVkQHCliR5uOLA=="
       },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
