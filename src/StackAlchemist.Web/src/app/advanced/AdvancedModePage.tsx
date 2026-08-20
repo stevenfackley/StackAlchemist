@@ -169,6 +169,7 @@ export default function AdvancedModePage() {
         // document so its COOP/COEP headers apply and window.crossOriginIsolated is
         // true — required by StackBlitz WebContainers. A soft nav reuses the current
         // (non-isolated) document → StackBlitz errors "without isolation headers".
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: /generate needs fresh COOP/COEP-isolated document (StackBlitz)
         window.location.href = `/generate/${generationId}`;
       } else if (row.status === "failed") {
         doneRef.current = true;
@@ -201,6 +202,7 @@ export default function AdvancedModePage() {
             // Build submitted — clear the draft BEFORE the hard nav.
             clearDraft();
             // Hard nav (see realtime handler above) so the preview page is isolated.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
             window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
             return;
           }

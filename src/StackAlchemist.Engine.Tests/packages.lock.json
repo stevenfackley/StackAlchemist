@@ -72,15 +72,15 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.101",
-        "contentHash": "7Q0z0fLpy+w6h4G5z/qZ6PYGzZ0DgYjYkVdGMnhtjkgQaKX+Sjm0YxfFxFILRewxC4o6wwnrbvwaSj41LgRRfg=="
+        "resolved": "4.0.101.1",
+        "contentHash": "NtMRfAGDrdb5PVnTL4vIrnPuPSXbBw0j9+voVMYmgsH5Ep5H4tuNMkPJZCOO9q99mh0L9ClOwVkQHCliR5uOLA=="
       },
       "AWSSDK.S3": {
         "type": "Transitive",
-        "resolved": "4.0.102.1",
-        "contentHash": "zGP3FW4D0wfbmYxoOWgNoPcwoA8E+kWH6KezOBPiLpAOi3l4cygFF15jiWdma6R7D+M9qu3DzdpWq/VlyIJX+Q==",
+        "resolved": "4.0.102.2",
+        "contentHash": "KktYdgjSgC+lSSVf/kawvSsuRS83ovq33gKCJm/mTP5pIS/cdltJCGFQIpNiWqFhHdFfChLP6LxiFhrFHBDxIA==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.101, 5.0.0)"
+          "AWSSDK.Core": "[4.0.101.1, 5.0.0)"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -108,15 +108,15 @@
       },
       "Handlebars.Net": {
         "type": "Transitive",
-        "resolved": "2.1.6",
-        "contentHash": "WsYWCEXsIM6hEOSOSRHtIYLjC8BnbT5MVmqhNKRqUI7qiv0t8x3nJiBTEv0ZZfvUAMAFnadGIzSsS/U2anVG1Q=="
+        "resolved": "2.4.3",
+        "contentHash": "arsZCVYV/2f39W7KBRD3jnsluHAI8cNFGGbcfmY92GRnpyXZoJHleevuS6BTXJgNE44vtSeB3FbK6udZPa7K6w=="
       },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "d4Atx9IHq7JgX0F/h7Db+m9zAUzC+cKdI9k+OWnnyQIOUQtfvjIEuhvbjPigVMkAmPUgCbJ8Yp6M9ghUqHtJSQ==",
+        "resolved": "10.0.11",
+        "contentHash": "R/1EATnPLU+gRfB6lwVkMcymmyAY5ppBBdRN/5lhNEiT3xP1sWccuSFkU/f1lQvN/WgRq5Vn8AhCdE3fqgsL/w==",
         "dependencies": {
-          "Microsoft.OpenApi": "2.0.0"
+          "Microsoft.OpenApi": "[2.7.5, 3.0.0)"
         }
       },
       "Microsoft.AspNetCore.TestHost": {
@@ -415,8 +415,8 @@
       },
       "Microsoft.OpenApi": {
         "type": "Transitive",
-        "resolved": "2.11.0",
-        "contentHash": "/ignjfdeKT2SGLIR7QEv19KnI0rvoxRG/TYDOZdK9EsWLjKK9IK8i1Mo5NRm9PRV3i64DzlTqnIflWvoyfljLg=="
+        "resolved": "2.12.0",
+        "contentHash": "0xB/be+f6qYOhvQPUrVsLrau+fkowYv6gt9RIkajMhwT7sZnqtcA797yW3bS5kgSje+AQW4xZgyLnW641YFioQ=="
       },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
@@ -604,8 +604,8 @@
       },
       "Stripe.net": {
         "type": "Transitive",
-        "resolved": "52.2.0",
-        "contentHash": "kStsQTsxalKPyLXVP5ep+t5NL49NNOKmKh+X+I6Fexb2LJUQ2ZUvtj52bkJFJJDaCJJrbeM47y0qvOXqKFwExA==",
+        "resolved": "52.3.0",
+        "contentHash": "zqaHgeEITTvRGLk9QlxG4GoJ8aQlM17pJeqea6z4uge4cddTgJ5HyTd3znKqfJARxu1rR2pcHFjFbSBlQbYsnQ==",
         "dependencies": {
           "Newtonsoft.Json": "13.0.3",
           "System.Configuration.ConfigurationManager": "9.0.0"
@@ -720,9 +720,9 @@
           "AWSSDK.S3": "[4.0.*, )",
           "BouncyCastle.Cryptography": "[2.7.0, )",
           "DotNetEnv": "[3.*, )",
-          "Handlebars.Net": "[2.1.6, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.0.10, )",
-          "Microsoft.OpenApi": "[2.11.0, )",
+          "Handlebars.Net": "[2.4.3, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.11, )",
+          "Microsoft.OpenApi": "[2.12.0, )",
           "OpenTelemetry.Exporter.Console": "[1.*, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.*, )",
           "OpenTelemetry.Extensions.Hosting": "[1.*, )",
@@ -732,7 +732,7 @@
           "Serilog.Enrichers.Environment": "[3.*, )",
           "Serilog.Enrichers.Thread": "[4.*, )",
           "Serilog.Sinks.Console": "[6.*, )",
-          "Stripe.net": "[52.2.0, )",
+          "Stripe.net": "[52.3.0, )",
           "System.IO.Abstractions": "[22.*, )"
         }
       }
