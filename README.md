@@ -189,7 +189,7 @@ StackAlchemist/
 │   │   │   └── infra/
 │   │   └── V1-DotNet-NextJs/
 │   │       ├── dotnet/            # .NET Web API scaffold (Dapper, Minimal API)
-│   │       ├── nextjs/            # Next.js 15 scaffold
+│   │       ├── nextjs/            # Next.js 16 scaffold
 │   │       └── infra/             # Docker Compose, Dockerfile
 │   ├── StackAlchemist.Engine.Tests/
 │   └── StackAlchemist.Worker.Tests/
