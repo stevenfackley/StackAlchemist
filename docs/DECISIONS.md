@@ -742,3 +742,14 @@ Guarded by `V1TemplateCompileTests.GoldenLlmResponse_*`, which reconstructs a
 recorded response through the real services and builds both halves in CI.
 
 ---
+
+## 2026-08-19 — Dependabot sweep: template-stack majors merged in bulk
+
+**Status:** accepted (awareness-only stub per saved sweep policy)
+**Decision:** merged the long-parked template-directory majors on green CI, plus Tier3 terraform.
+- **terraform hashicorp/aws ~>5.84 → ~>6.60** (Tier3-Infrastructure, #301): template-only; consumers pick it up at scaffold time. Same provider-v6 plan-diff caution as any live infra.
+- **typescript 5.x → 7.0.2** across V0-Spark, V1/V2 DotNet-NextJs, V1/V2 Python-React frontends and the Tier3 CDK dir; **next 15.5.x → 16.3.0** across the NextJs templates; **@types/node 22 → 26**; **docker node 24 → 26-alpine** and **python 3.12 → 3.14-slim** in the Python-React infra templates.
+- **Known gap this exposes:** repo CI runs the app suite (lint/typecheck/vitest/playwright/docker) but nothing scaffolds and builds the templates themselves, so these merges are semver-trust only. Follow-up: add a template smoke job (scaffold each template → install → build) so template bumps get a real gate. Until that exists, a user scaffolding a template is the first build test.
+- App-level next-react group (#283) intentionally NOT merged — superseded by the coordinated Next 16 upgrade in #297.
+
+**Why no review:** sweep policy — CI gates, deploy watch, revert cheap.
