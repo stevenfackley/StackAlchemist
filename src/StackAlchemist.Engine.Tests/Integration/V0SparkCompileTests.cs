@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Text;
 using FluentAssertions;
 using StackAlchemist.Engine.Services;
 
@@ -22,7 +20,7 @@ namespace StackAlchemist.Engine.Tests.Integration;
 /// manifest/lock desync class here — this gate is what stands between a bad version pin
 /// and a Spark demo that no longer boots.
 ///
-/// Toolchain-guarded like <see cref="V1TemplateCompileTests"/>: skips locally when npm is
+/// Toolchain-guarded via <see cref="IntegrationToolchain"/>: skips locally when npm is
 /// missing, hard-fails on CI so the gate cannot go quiet.
 /// </summary>
 public sealed class V0SparkCompileTests : IDisposable
@@ -98,28 +96,30 @@ public sealed class V0SparkCompileTests : IDisposable
     [Fact]
     public async Task RenderedSparkTemplate_InstallsAndBuilds()
     {
-        if (!TemplateGateToolchain.Available(ProcessCommandResolver.Npm, "--version", "npm"))
+        if (!IntegrationToolchain.Available(ProcessCommandResolver.Npm, "--version", "npm", requiredOnCi: true))
             return;
 
         RenderTo(_outputDir);
 
-        var (installExit, installLog) = await TemplateGateToolchain.RunAsync(
+        var (installExit, installLog) = await IntegrationToolchain.RunAsync(
             ProcessCommandResolver.Npm,
             "install --no-audit --no-fund",
-            _outputDir);
+            _outputDir,
+            TimeSpan.FromMinutes(10));
 
         installExit.Should().Be(0,
             $"the Spark demo's dependency pins must be installable — WebContainers runs this "
-            + $"same install in the visitor's browser.\n\n{TemplateGateToolchain.Tail(installLog)}");
+            + $"same install in the visitor's browser.\n\n{IntegrationToolchain.Tail(installLog)}");
 
-        var (buildExit, buildLog) = await TemplateGateToolchain.RunAsync(
+        var (buildExit, buildLog) = await IntegrationToolchain.RunAsync(
             ProcessCommandResolver.Npm,
             "run build",
-            _outputDir);
+            _outputDir,
+            TimeSpan.FromMinutes(10));
 
         buildExit.Should().Be(0,
             $"`next build` over the rendered Spark tree is the cheapest proof the free-tier "
-            + $"app still compiles with the pinned versions.\n\n{TemplateGateToolchain.Tail(buildLog)}");
+            + $"app still compiles with the pinned versions.\n\n{IntegrationToolchain.Tail(buildLog)}");
 
         Directory.Exists(Path.Combine(_outputDir, ".next"))
             .Should().BeTrue("`next build` must have produced output, not been skipped");
