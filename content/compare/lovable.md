@@ -9,7 +9,7 @@ Lovable is the closest comparison to StackAlchemist by *promise* — "describe a
 | | **Lovable** | **StackAlchemist** |
 |---|---|---|
 | Runtime | Hosted by Lovable | Your own infra |
-| Frontend stack | React / Vite | Next.js 15 (App Router) |
+| Frontend stack | React / Vite | Next.js 16 (App Router) |
 | Backend stack | Supabase functions | .NET 10 Web API + Supabase |
 | Database schema + migrations | Generated, hosted | Generated, checked into your repo |
 | Compile-verified output | No | **Yes** |

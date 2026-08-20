@@ -1,6 +1,6 @@
 # Generate a full AI Appointment Booking SaaS from a prompt
 
-You describe the kind of booking system you want. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase, verifies the build, and hands you the zip. Booking is your storefront — owning it means a branded experience, no per-seat tax as the team grows, and the customer database stays yours. You own the code. Deploy wherever you want.
+You describe the kind of booking system you want. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. Booking is your storefront — owning it means a branded experience, no per-seat tax as the team grows, and the customer database stays yours. You own the code. Deploy wherever you want.
 
 ## What you get
 

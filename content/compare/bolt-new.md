@@ -55,7 +55,7 @@ Say the prompt is: "Build a subscription management dashboard for gyms."
 
 **On Bolt:** you'll have a working Node-based app running in the browser in about 2 minutes. UI, some in-memory data, a rough flow you can click through. Good for a demo to a gym owner. To actually deploy it, you export, wire a real database, set up auth, configure Stripe, and migrate off WebContainers — several days of work.
 
-**On StackAlchemist:** 12 minutes and you have a downloadable repo. .NET 10 API, Next.js 15 frontend, Postgres migrations, Supabase auth, Stripe billing — all wired. `docker compose up` and it's running. Deploy to your cloud of choice. Hours of work, not days.
+**On StackAlchemist:** 12 minutes and you have a downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, Supabase auth, Stripe billing — all wired. `docker compose up` and it's running. Deploy to your cloud of choice. Hours of work, not days.
 
 For validation: Bolt wins on speed.
 For shipping: StackAlchemist wins on depth.

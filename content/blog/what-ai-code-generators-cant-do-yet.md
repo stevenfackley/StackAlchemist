@@ -48,7 +48,7 @@ I use Cursor daily for editing. It is a different category of product entirely f
 
 ### StackAlchemist (us)
 
-Putting ourselves on the map honestly: we generate an opinionated, production-shaped full-stack SaaS (.NET 10 + Next.js 15 + PostgreSQL) with auth, CI/CD, and Docker already wired. We verify the output compiles before you download it. You own the code outright — one-time price, deploy wherever you want. We are slower than Bolt (minutes, not seconds) and more opinionated than v0 (you get a whole stack, not a component). That is the trade.
+Putting ourselves on the map honestly: we generate an opinionated, production-shaped full-stack SaaS (.NET 10 + Next.js 16 + PostgreSQL) with auth, CI/CD, and Docker already wired. We verify the output compiles before you download it. You own the code outright — one-time price, deploy wherever you want. We are slower than Bolt (minutes, not seconds) and more opinionated than v0 (you get a whole stack, not a component). That is the trade.
 
 ## Where each tool stops
 

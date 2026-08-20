@@ -226,7 +226,7 @@ function LoginPageContent() {
   );
 }
 
-// Suspense boundary required by Next.js 16 whenever useSearchParams() is used
+// Suspense boundary required by Next.js whenever useSearchParams() is used
 // in a component that could be statically prerendered.
 export default function LoginPage() {
   return (

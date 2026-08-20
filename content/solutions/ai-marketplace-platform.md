@@ -1,6 +1,6 @@
 # Generate a full AI Marketplace Platform from a prompt
 
-You describe the marketplace you want to run. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase — listings, vendors, buyers, payouts, the works — verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the marketplace you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase — listings, vendors, buyers, payouts, the works — verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 

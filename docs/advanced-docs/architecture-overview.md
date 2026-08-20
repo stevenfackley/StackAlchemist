@@ -108,7 +108,7 @@ Once generation is enqueued (free or paid):
 StackAlchemist supports multiple technology stacks via template selection and build strategy pluggability:
 
 **Template Sets:**
-- **V1-DotNet-NextJs**: Generated projects use .NET 10 backend (Dapper data layer, Controllers) and Next.js 15 frontend
+- **V1-DotNet-NextJs**: Generated projects use .NET 10 backend (Dapper data layer, Controllers) and Next.js 16 frontend
 - **V1-Python-React**: Generated projects use Python backend (FastAPI, SQLAlchemy) and React frontend
 
 **Platform Selection:**

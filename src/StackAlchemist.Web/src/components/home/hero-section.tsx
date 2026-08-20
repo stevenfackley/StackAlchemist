@@ -1,4 +1,4 @@
-export function HeroSection() {
+﻿export function HeroSection() {
   return (
     <section className="relative z-10 min-h-[calc(100vh-72px)] px-6 py-12 sm:px-8 sm:py-16 lg:px-16 lg:py-0">
       <div className="mx-auto flex min-h-[calc(100vh-120px)] max-w-7xl items-center justify-center">

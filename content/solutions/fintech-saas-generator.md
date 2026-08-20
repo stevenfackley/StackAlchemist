@@ -1,6 +1,6 @@
 # Generate a full Fintech SaaS from a prompt
 
-Ledgers, transactions, KYC hooks, audit trails. StackAlchemist generates the compliance-aware scaffolding for a fintech SaaS as a .NET 10 + Next.js 15 codebase. Compile-verified. Owned. Deployed in your own compliance perimeter.
+Ledgers, transactions, KYC hooks, audit trails. StackAlchemist generates the compliance-aware scaffolding for a fintech SaaS as a .NET 10 + Next.js 16 codebase. Compile-verified. Owned. Deployed in your own compliance perimeter.
 
 ## What you get
 

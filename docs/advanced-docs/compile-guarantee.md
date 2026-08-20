@@ -9,7 +9,7 @@ The Compile Guarantee is the technical promise at the center of StackAlchemist: 
 For Tier 2 (Boilerplate) and Tier 3 (Infrastructure), before your archive is assembled and made available for download, the generated source code is physically run through the compiler:
 
 - `dotnet build` for the .NET 10 Web API
-- `npm run build` for the Next.js 15 frontend
+- `npm run build` for the Next.js 16 frontend
 
 If either build fails, the Compile Guarantee triggers an automatic correction loop. If the code still fails after the maximum number of retries, a full refund is initiated automatically against your original payment method — no dispute, no questions asked, no email to send.
 

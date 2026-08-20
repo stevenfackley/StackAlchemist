@@ -35,7 +35,7 @@ on the generated repo. If any of those fail, you never see a broken download. Th
 
 This sounds obvious. It is obvious. But zero of our named competitors do it.
 
-Why? Because verification is expensive. Compiling a real .NET 10 + Next.js 15 repo takes cycles. When your pricing model is $20/month for unlimited generations, you cannot afford to burn compute verifying every output. So you don't. You ship the output and hope.
+Why? Because verification is expensive. Compiling a real .NET 10 + Next.js 16 repo takes cycles. When your pricing model is $20/month for unlimited generations, you cannot afford to burn compute verifying every output. So you don't. You ship the output and hope.
 
 We can afford to verify because we charge per build, not per seat — and because we do not try to be everything to everyone. We do one thing: hand you a compiled, owned, production-shaped SaaS repo. Verified.
 

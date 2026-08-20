@@ -9,7 +9,7 @@ Bubble and StackAlchemist do not really overlap, even though both promise "build
 | | **Bubble** | **StackAlchemist** |
 |---|---|---|
 | Category | Hosted no-code platform | Full-stack SaaS generator |
-| Output | A Bubble app on Bubble | A real repo (.NET 10 + Next.js 15 + Postgres) |
+| Output | A Bubble app on Bubble | A real repo (.NET 10 + Next.js 16 + Postgres) |
 | Code ownership | None — your "code" is Bubble config | Full repo, your LICENSE, deploy anywhere |
 | Backend | Bubble runtime | Your .NET 10 Web API |
 | Database | Bubble's hosted DB | Postgres (Supabase by default, swap if you want) |

@@ -1,6 +1,6 @@
 # Generate a full AI Learning Management System from a prompt
 
-Teach, train, certify. StackAlchemist generates a production-shaped LMS as a .NET 10 + Next.js 15 codebase with courses, lessons, quizzes, and enrollments already wired. Compile-verified. Owned. Deployed wherever you want.
+Teach, train, certify. StackAlchemist generates a production-shaped LMS as a .NET 10 + Next.js 16 codebase with courses, lessons, quizzes, and enrollments already wired. Compile-verified. Owned. Deployed wherever you want.
 
 ## What you get
 

@@ -31,7 +31,7 @@ Blueprint.
 
 ### What's included
 
-- A working Next.js 15 app running in your browser via StackBlitz WebContainers (Chromium-based browsers only)
+- A working Next.js 16 app running in your browser via StackBlitz WebContainers (Chromium-based browsers only)
 - Every file open in the embedded editor — read it, edit it, re-run it
 - The same delivery page and flow that a paid run uses
 - In Advanced Mode: the entity wizard and live ER canvas, with your schema saved on the build
@@ -79,7 +79,7 @@ The Boilerplate tier delivers a complete, compilable source repository. This is 
   an interface plus Dapper implementation per entity, and a CRUD endpoint group per entity,
   all wired into `Program.cs`. Not a multi-project clean-architecture solution — one project,
   organized by folder.
-- **Next.js 15 frontend** — App Router, TypeScript strict mode, Tailwind CSS, a typed API
+- **Next.js 16 frontend** — App Router, TypeScript strict mode, Tailwind CSS, a typed API
   client and generated interfaces. A home page linking your entities; the screens are yours
   to build.
 - **PostgreSQL migration** — `001_initial_schema.sql` with UUID primary keys, foreign keys,

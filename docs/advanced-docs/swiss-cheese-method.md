@@ -196,7 +196,7 @@ When a build fails, the compiler output is precise: file, line, error type. The 
 
 ## Template Library
 
-The template library (`StackAlchemist.Templates`) is the accumulated knowledge of what a correct .NET 10 / Next.js 15 codebase looks like. It evolves with the framework — when .NET 11 ships, the templates update and every future generation uses the new patterns automatically.
+The template library (`StackAlchemist.Templates`) is the accumulated knowledge of what a correct .NET 10 / Next.js 16 codebase looks like. It evolves with the framework — when .NET 11 ships, the templates update and every future generation uses the new patterns automatically.
 
 ---
 

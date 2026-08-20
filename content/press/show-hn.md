@@ -40,7 +40,7 @@ against the generated repo. If any of those fail, you never see a broken output 
 
 The output is a full-stack SaaS:
 - .NET 10 Web API with EF Core, DI, logging, test scaffolding
-- Next.js 15 App Router frontend with shadcn/ui
+- Next.js 16 App Router frontend with shadcn/ui
 - PostgreSQL schema + migrations
 - Supabase auth wired
 - Stripe billing wired
@@ -96,7 +96,7 @@ Happy to answer anything — I'll be here all day.
 > Bolt runs everything in-browser WebContainers — no real backend runtime. We compile a .NET 10 API on our servers and deliver a downloadable zip. Bolt is for prototyping; we're for shipping. https://stackalchemist.app/compare/bolt-new
 
 **"Why .NET and not Node?"**
-> Because real SaaS with typed APIs, EF Core, and background workers is still better in .NET than it's given credit for. Also: nobody else in the AI-codegen space does .NET, which is exactly why there's room for it. The frontend is Next.js 15.
+> Because real SaaS with typed APIs, EF Core, and background workers is still better in .NET than it's given credit for. Also: nobody else in the AI-codegen space does .NET, which is exactly why there's room for it. The frontend is Next.js 16.
 
 **"Isn't one-time pricing leaving money on the table?"**
 > The alternative is subscription, which only works if the average user underuses. That's a bundling model. Ownership is the thing customers actually want; we priced for it.

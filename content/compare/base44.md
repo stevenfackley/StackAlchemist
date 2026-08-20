@@ -55,7 +55,7 @@ Say the prompt is: "Build an inventory tracking SaaS for warehouses to sell to l
 
 **On base44:** you have a working app in their cloud in about 5 minutes. UI, auth, database, deploy URL. You can show it to a warehouse manager today. If they sign up as a customer, their data goes into base44's database, their users log in through base44's auth, and your business is now operationally a base44 customer with end-customers attached. Migrating off is a re-platforming project that you have to do before you can pass a SOC 2 audit, raise a Series A, or sell the business.
 
-**On StackAlchemist:** 12 minutes, downloadable repo. .NET 10 API, Next.js 15 frontend, Postgres migrations, Supabase auth, Stripe billing, Docker compose — all wired. `docker compose up` and it's running. Deploy to AWS, deploy to Fly, deploy to a customer's on-prem cluster. The warehouse manager's data goes into your Postgres on your infra. You can pass SOC 2 because you control the stack.
+**On StackAlchemist:** 12 minutes, downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, Supabase auth, Stripe billing, Docker compose — all wired. `docker compose up` and it's running. Deploy to AWS, deploy to Fly, deploy to a customer's on-prem cluster. The warehouse manager's data goes into your Postgres on your infra. You can pass SOC 2 because you control the stack.
 
 For internal MVP: base44 ships sooner.
 For customer-facing SaaS: StackAlchemist ships once, and it ships for keeps.
