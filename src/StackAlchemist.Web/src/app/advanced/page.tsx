@@ -15,7 +15,7 @@ const STEP_TITLES: Record<string, string> = {
 const STEP_DESCRIPTIONS: Record<string, string> = {
   "1": "Define your domain entities in StackAlchemist's visual wizard — typed fields, PKs, nullability.",
   "2": "Model one-to-many and many-to-many relationships between entities before code generation.",
-  "3": "Design the REST endpoints that will be compiled into your .NET 10 + Next.js 15 repository.",
+  "3": "Design the REST endpoints that will be compiled into your .NET 10 + Next.js 16 repository.",
   "4": "Pick the handoff depth: Blueprint, Boilerplate, or full Infrastructure runbook.",
 };
 

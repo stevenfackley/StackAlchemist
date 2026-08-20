@@ -23,7 +23,7 @@ const FEATURES = [
     icon: Database,
     title: "Full Stack Output",
     description:
-      "Receive a complete PostgreSQL schema, .NET 10 backend with Dapper ORM, and Next.js 15 frontend — all production-ready and pre-wired together.",
+      "Receive a complete PostgreSQL schema, .NET 10 backend with Dapper ORM, and Next.js 16 frontend — all production-ready and pre-wired together.",
   },
   {
     icon: Layers,

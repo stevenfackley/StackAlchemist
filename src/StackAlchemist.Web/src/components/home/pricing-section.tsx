@@ -31,7 +31,7 @@ const PRICING_TIERS = [
     description: "A download-ready source repository shaped around your schema. Both halves go through their real compilers before it ships — or we correct and rebuild, up to three times.",
     features: [
       ".NET 10 minimal API (records, Dapper repos, endpoints)",
-      "Next.js 15 frontend (App Router, TS) + typed client",
+      "Next.js 16 frontend (App Router, TS) + typed client",
       "PostgreSQL migration — UUID keys, FKs, RLS enabled",
       "Docker Compose + multi-stage Dockerfile",
       "Compile Guarantee — .NET and Next.js both built",

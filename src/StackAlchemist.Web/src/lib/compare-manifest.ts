@@ -107,7 +107,7 @@ export const COMPARE_ENTRIES = [
     ],
     winsForUs: [
       "Real repo on your GitHub, under your license",
-      "Specific production stack: Next.js 15 + .NET 10 + Postgres",
+      "Specific production stack: Next.js 16 + .NET 10 + Postgres",
       "Compile-gated output — every build passes before download",
       "One-time price, not hosted subscription",
     ],
@@ -128,7 +128,7 @@ export const COMPARE_ENTRIES = [
     ],
     winsForUs: [
       "Real owned code in a real repo — not platform-locked",
-      "Production .NET 10 + Next.js 15 stack you can hire any full-stack dev to extend",
+      "Production .NET 10 + Next.js 16 stack you can hire any full-stack dev to extend",
       "No per-user runtime tax; deploy to your infra at your costs",
       "Compile-gated output and predictable performance at scale",
     ],

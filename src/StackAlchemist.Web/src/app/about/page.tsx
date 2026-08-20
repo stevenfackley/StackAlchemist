@@ -227,7 +227,7 @@ export default function AboutPage() {
                   desc: "Minimal-API endpoint groups with a Dapper repository per entity over Npgsql. One real file each for the model, the repository and the CRUD endpoints.",
                 },
                 {
-                  tech: "Next.js 15",
+                  tech: "Next.js 16",
                   role: "Frontend",
                   desc: "App Router, TypeScript strict mode, Tailwind CSS. Type-safe API client generated from your schema. Copy .env.example and it runs.",
                 },

@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: "What stack does V1 generate?",
-    a: ".NET 10 Web API + Next.js 15 (App Router, TypeScript, Tailwind CSS) + PostgreSQL + Supabase. Additional stacks are planned for V2.",
+    a: ".NET 10 Web API + Next.js 16 (App Router, TypeScript, Tailwind CSS) + PostgreSQL + Supabase. Additional stacks are planned for V2.",
   },
   {
     q: "Can I use the generated code commercially?",

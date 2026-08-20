@@ -20,10 +20,10 @@ export function StepPlatformSelection({
   }> = [
     {
       id: "DotNetNextJs",
-      title: ".NET 10 + Next.js 15",
+      title: ".NET 10 + Next.js 16",
       badge: "Default",
       description: "C# minimal API backend with a Next.js App Router frontend.",
-      details: ["Backend: .NET 10", "Frontend: Next.js 15", "Data access: Dapper + PostgreSQL"],
+      details: ["Backend: .NET 10", "Frontend: Next.js 16", "Data access: Dapper + PostgreSQL"],
     },
     {
       id: "PythonReact",
