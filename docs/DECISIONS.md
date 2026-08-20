@@ -742,3 +742,15 @@ Guarded by `V1TemplateCompileTests.GoldenLlmResponse_*`, which reconstructs a
 recorded response through the real services and builds both halves in CI.
 
 ---
+
+## 2026-08-19 — Dependabot sweep: template-stack majors merged in bulk
+
+**Status:** accepted (awareness-only stub per saved sweep policy)
+**Decision:** merged the long-parked template-directory majors on green CI, plus Tier3 terraform.
+- **terraform hashicorp/aws ~>5.84 → ~>6.60** (Tier3-Infrastructure, #301): template-only; consumers pick it up at scaffold time. Same provider-v6 plan-diff caution as live infra.
+- **typescript 5.x → 7.0.2** across the template frontends and the Tier3 CDK dir; **next 15.5.x → 16.3.x** across the NextJs templates; **@types/node 22 → 26**; **docker node 24 → 26-alpine** and **python 3.12 → 3.14-slim** in the Python-React infra templates.
+- **Post-merge incident (fixed same night):** V1-DotNet-NextJs is the only template carrying a package-lock.json (added by #294). The crossing squash-merges left that lock desynced from its package.json (lock said typescript ^5.8.3, manifest ^7.0.2), so `npm ci` inside Engine''s `V1TemplateCompileTests.RenderedTemplate_DockerTargetBuilds` failed — CI red on every push AFTER the wave while each PR''s own run was green. Fixed by regenerating the lock (fix/template-lockfile-desync). Lesson: dep PRs sharing one manifest+lock pair must land strictly sequentially with rebases between, or regenerate the lock after the wave.
+- **Coverage note:** Engine compile-tests gate V1 (render → docker build). V0/V2 templates carry no lockfile and no compile test — bumps there are semver-trust. Follow-up: extend TemplateCompileTests (+ lockfiles) to V0/V2 so every template bump gets the same gate.
+- App-level next-react group (#283) intentionally NOT merged — src/StackAlchemist.Web is still on Next 15. Templates moved to 16 via #298 (issue #297); the app migration is its own coordinated task.
+
+**Why no review:** sweep policy — CI gates, deploy watch, revert cheap.
