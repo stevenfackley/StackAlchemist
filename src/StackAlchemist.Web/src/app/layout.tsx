@@ -25,7 +25,7 @@ const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
 
 const defaultDescription =
-  "AI SaaS generator with a 100% compile guarantee. Turn plain English into a .NET 10 + Next.js 15 + Postgres repo you own — one-time price, no lock-in.";
+  "AI SaaS generator with a 100% compile guarantee. Turn plain English into a .NET 10 + Next.js 16 + Postgres repo you own — one-time price, no lock-in.";
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     "Lovable alternative",
     "full-stack AI codegen",
     ".NET 10",
-    "Next.js 15",
+    "Next.js 16",
     "Supabase",
     "Swiss Cheese Method",
     "compile guarantee",

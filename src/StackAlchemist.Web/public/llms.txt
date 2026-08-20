@@ -1,6 +1,6 @@
 # StackAlchemist
 
-> StackAlchemist is an AI SaaS generator with a 100% compile guarantee. It turns plain-English specifications into fully compiled, downloadable full-stack code repositories — .NET 10 Web API, Next.js 15 frontend, PostgreSQL schema, Supabase auth, Docker Compose, and AWS CDK infrastructure — that the buyer owns outright for a one-time price (no subscription).
+> StackAlchemist is an AI SaaS generator with a 100% compile guarantee. It turns plain-English specifications into fully compiled, downloadable full-stack code repositories — .NET 10 Web API, Next.js 16 frontend, PostgreSQL schema, Supabase auth, Docker Compose, and AWS CDK infrastructure — that the buyer owns outright for a one-time price (no subscription).
 
 The platform uses the **Swiss Cheese Method**: deterministic Handlebars templates define the skeleton of the codebase, an LLM fills in the business logic holes, and the .NET compiler validates every generation. A 3-retry auto-correction loop re-prompts the LLM with compiler errors until the project builds, guaranteeing shippable output.
 
@@ -42,6 +42,6 @@ The platform uses the **Swiss Cheese Method**: deterministic Handlebars template
 - Category: AI code generator / AI SaaS builder / AI scaffolder
 - Target user: solo founders, indie hackers, product teams, and agencies who want AI speed with compile-guaranteed output and full source ownership
 - Pricing model: one-time payment (not subscription)
-- Output stack: .NET 10, Next.js 15, PostgreSQL, Supabase, Docker, AWS CDK
+- Output stack: .NET 10, Next.js 16, PostgreSQL, Supabase, Docker, AWS CDK
 - Guarantees: 100% compile guarantee via auto-correction loop
 - Open Source: GitHub — https://github.com/stevenfackley/StackAlchemist

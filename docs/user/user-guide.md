@@ -20,7 +20,7 @@
 
 ## Overview
 
-StackAlchemist generates a complete, compilable source repository from a description of your SaaS idea. You describe what you're building — your entities, relationships, and API surface — and receive a full project archive with a .NET 10 Web API backend, Next.js 15 frontend, PostgreSQL migrations, the Supabase client preinstalled and env-wired, and a Docker Compose dev environment.
+StackAlchemist generates a complete, compilable source repository from a description of your SaaS idea. You describe what you're building — your entities, relationships, and API surface — and receive a full project archive with a .NET 10 Web API backend, Next.js 16 frontend, PostgreSQL migrations, the Supabase client preinstalled and env-wired, and a Docker Compose dev environment.
 
 There are two ways to describe your project:
 
@@ -179,7 +179,7 @@ your-project/
 │   ├── Migrations/                 # SQL migration files
 │   └── appsettings.json
 ├── nextjs/
-│   ├── package.json                # Next.js 15 + TypeScript
+│   ├── package.json                # Next.js 16 + TypeScript
 │   ├── src/app/                    # App Router pages
 │   ├── src/lib/api.ts              # Type-safe API client
 │   └── src/types/index.ts          # Generated TypeScript types
@@ -367,7 +367,7 @@ Yes. Generated code is yours. StackAlchemist retains no rights to the code you g
 
 ### What is the V1 stack? Can I request different technologies?
 
-V1 generates a specific opinionated stack: .NET 10 API + Next.js 15 + PostgreSQL + Supabase + Docker. Additional stacks (Python/FastAPI, Node/Express, Laravel, etc.) are planned for future versions.
+V1 generates a specific opinionated stack: .NET 10 API + Next.js 16 + PostgreSQL + Supabase + Docker. Additional stacks (Python/FastAPI, Node/Express, Laravel, etc.) are planned for future versions.
 
 ### How are relationships handled in the generated database?
 

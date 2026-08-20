@@ -18,7 +18,7 @@
           </h1>
 
           <p className="mb-8 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            Synthesize a deployable .NET 10 + Next.js 15 + PostgreSQL repository from natural
+            Synthesize a deployable .NET 10 + Next.js 16 + PostgreSQL repository from natural
             language. Every generation passes a real compiler before delivery — no hallucinated
             imports, no half-finished scaffolds.
           </p>
@@ -35,7 +35,7 @@
                 </p>
               </div>
               <div className="flex flex-wrap content-start gap-2 lg:justify-end">
-                {[".NET 10", "Next.js 15", "PostgreSQL", "Supabase", "Dapper", "Compile Guarantee"].map((tech) => (
+                {[".NET 10", "Next.js 16", "PostgreSQL", "Supabase", "Dapper", "Compile Guarantee"].map((tech) => (
                   <span
                     key={tech}
                     className="rounded-full border border-slate-600/40 bg-slate-800/50 px-3 py-1 text-[11px] text-slate-400 font-mono"

@@ -9,7 +9,7 @@ import { SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Solutions — StackAlchemist Generators by Vertical",
   description:
-    "Generate a production-shaped SaaS for your vertical. AI e-commerce, LMS, fintech, and more — all .NET 10 + Next.js 15, compile-verified, owned outright.",
+    "Generate a production-shaped SaaS for your vertical. AI e-commerce, LMS, fintech, and more — all .NET 10 + Next.js 16, compile-verified, owned outright.",
   alternates: { canonical: "/solutions" },
   openGraph: {
     title: "StackAlchemist Solutions",

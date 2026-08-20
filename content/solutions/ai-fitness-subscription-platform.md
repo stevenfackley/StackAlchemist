@@ -1,6 +1,6 @@
 # Generate a full AI Fitness Subscription Platform from a prompt
 
-You describe the kind of studio or fitness business you want to run. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase, wires up Stripe Subscriptions, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the kind of studio or fitness business you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, wires up Stripe Subscriptions, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 

@@ -35,7 +35,7 @@ your-project-name/
 │   ├── appsettings.json
 │   └── appsettings.Development.json
 │
-├── nextjs/                      ← Next.js 15 frontend
+├── nextjs/                      ← Next.js 16 frontend
 │   ├── src/
 │   │   ├── app/                 ← layout.tsx, page.tsx, globals.css
 │   │   ├── lib/api.ts           ← Typed API client
@@ -105,7 +105,7 @@ on your behalf.
 
 ---
 
-## The Frontend (Next.js 15)
+## The Frontend (Next.js 16)
 
 ### App Router Structure
 

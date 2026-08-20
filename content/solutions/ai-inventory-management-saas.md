@@ -1,6 +1,6 @@
 # Generate a full AI Inventory Management SaaS from a prompt
 
-You describe the warehouse operation you run. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase, wires up SKU tracking, multi-location stock, and supplier workflows, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the warehouse operation you run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, wires up SKU tracking, multi-location stock, and supplier workflows, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 

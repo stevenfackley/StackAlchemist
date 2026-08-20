@@ -61,7 +61,7 @@ Use the entity wizard to define your schema step by step:
 |------|------|-------|-----------------|
 | **Tier 0** | Spark | Free | A fixed demo app that boots in your browser. Not built from your description, and not downloadable. |
 | **Tier 1** | Blueprint | $299 | Architecture documents: `schema.json` and `api-docs.md` (the CRUD contract per entity) |
-| **Tier 2** | Boilerplate | $599 | The generated source: .NET 10 minimal API, Next.js 15 frontend, PostgreSQL migration, Docker Compose — both halves compiled before delivery |
+| **Tier 2** | Boilerplate | $599 | The generated source: .NET 10 minimal API, Next.js 16 frontend, PostgreSQL migration, Docker Compose — both halves compiled before delivery |
 | **Tier 3** | Infrastructure | $999 | Everything in Boilerplate + AWS CDK stack, Terraform baseline, Helm chart, deployment runbook |
 
 > **All prices are one-time.** No subscriptions, no recurring fees. The generated code is entirely yours.
@@ -79,7 +79,7 @@ What Spark is genuinely good for:
 - Proving the end-to-end flow works in your browser before you pay (the in-browser runtime
   needs a Chromium-based browser — Chrome, Edge, Arc)
 - Seeing the delivery page and the embedded editor exactly as a paid run presents them
-- Reading a real Next.js 15 App Router project file by file, and editing it live
+- Reading a real Next.js 16 App Router project file by file, and editing it live
 - Modelling your entities on the Advanced Mode ER canvas — that schema is saved with the
   build, so you can come back and buy a paid run against it
 

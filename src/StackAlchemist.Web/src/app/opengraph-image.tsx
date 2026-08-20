@@ -84,7 +84,7 @@ export default function OgImage() {
             Synthesize your platform from natural language.
           </div>
           <div style={{ fontSize: 28, color: SLATE, maxWidth: 900, lineHeight: 1.35 }}>
-            100% compile guarantee. .NET 10 + Next.js 15 + PostgreSQL repositories you own.
+            100% compile guarantee. .NET 10 + Next.js 16 + PostgreSQL repositories you own.
           </div>
         </div>
 

@@ -17,7 +17,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI E-commerce Platform from a prompt",
     metaTitle: "AI E-commerce Platform Generator — Compile-Guaranteed SaaS",
     metaDescription:
-      "Generate a full .NET 10 + Next.js 15 AI-powered e-commerce platform with Stripe, auth, and inventory in 12 minutes. Verified build, owned code, one-time price.",
+      "Generate a full .NET 10 + Next.js 16 AI-powered e-commerce platform with Stripe, auth, and inventory in 12 minutes. Verified build, owned code, one-time price.",
     relativePath: "ai-ecommerce-platform.md",
     entityExamples: [
       "Product",
@@ -43,7 +43,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Learning Management System from a prompt",
     metaTitle: "AI LMS Builder — Generate a Full Learning Platform in Minutes",
     metaDescription:
-      "Generate a full .NET 10 + Next.js 15 AI-powered LMS with courses, lessons, quizzes, enrollments, and Stripe billing. Verified build, owned code, one-time price.",
+      "Generate a full .NET 10 + Next.js 16 AI-powered LMS with courses, lessons, quizzes, enrollments, and Stripe billing. Verified build, owned code, one-time price.",
     relativePath: "ai-lms-builder.md",
     entityExamples: [
       "Course",
@@ -69,7 +69,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full Fintech SaaS from a prompt",
     metaTitle: "Fintech SaaS Generator — Generate a Compliant Finance Platform",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 fintech SaaS with accounts, transactions, KYC hooks, audit trails, and Stripe. Verified build, owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 fintech SaaS with accounts, transactions, KYC hooks, audit trails, and Stripe. Verified build, owned code, one-time price.",
     relativePath: "fintech-saas-generator.md",
     entityExamples: [
       "Account",
@@ -94,7 +94,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI CRM from a prompt",
     metaTitle: "AI CRM Builder — Generate a Custom CRM SaaS in Minutes",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 CRM with contacts, deals, pipelines, tasks, and email integration. Verified build, owned code, one-time price — no Salesforce tax.",
+      "Generate a .NET 10 + Next.js 16 CRM with contacts, deals, pipelines, tasks, and email integration. Verified build, owned code, one-time price — no Salesforce tax.",
     relativePath: "ai-crm-builder.md",
     entityExamples: [
       "Contact",
@@ -120,7 +120,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Marketplace Platform from a prompt",
     metaTitle: "AI Marketplace Generator — Generate a Two-Sided Marketplace SaaS",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 two-sided marketplace with listings, vendors, buyers, payouts, and Stripe Connect. Verified build, owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 two-sided marketplace with listings, vendors, buyers, payouts, and Stripe Connect. Verified build, owned code, one-time price.",
     relativePath: "ai-marketplace-platform.md",
     entityExamples: [
       "Listing",
@@ -146,7 +146,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Job Board from a prompt",
     metaTitle: "AI Job Board Builder — Generate a Niche Job Board SaaS",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 niche job board with listings, employer accounts, applicants, billing, and an admin panel. Verified build, owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 niche job board with listings, employer accounts, applicants, billing, and an admin panel. Verified build, owned code, one-time price.",
     relativePath: "ai-jobboard-builder.md",
     entityExamples: [
       "JobListing",
@@ -172,7 +172,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Analytics SaaS from a prompt",
     metaTitle: "AI Analytics SaaS Generator — Owned Product Analytics",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 product-analytics SaaS with event ingestion, dashboards, custom reports, alerting, and usage billing. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 product-analytics SaaS with event ingestion, dashboards, custom reports, alerting, and usage billing. Owned code, one-time price.",
     relativePath: "ai-analytics-saas.md",
     entityExamples: [
       "Event",
@@ -198,7 +198,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Healthcare Patient Portal from a prompt",
     metaTitle: "AI Healthcare Patient Portal Generator — Owned, Audit-Logged",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 patient portal with records, scheduling, secure messaging, prescriptions, and audit logging. HIPAA-consistent foundation, owned outright.",
+      "Generate a .NET 10 + Next.js 16 patient portal with records, scheduling, secure messaging, prescriptions, and audit logging. HIPAA-consistent foundation, owned outright.",
     relativePath: "ai-healthcare-patient-portal.md",
     entityExamples: [
       "Patient",
@@ -224,7 +224,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Project Management SaaS from a prompt",
     metaTitle: "AI Project Management SaaS Generator — Owned Jira Alternative",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 project management SaaS with kanban, sprints, time tracking, dependencies, and reports. No per-seat tax. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 project management SaaS with kanban, sprints, time tracking, dependencies, and reports. No per-seat tax. Owned code, one-time price.",
     relativePath: "ai-project-management-saas.md",
     entityExamples: [
       "Workspace",
@@ -250,7 +250,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Real Estate Platform from a prompt",
     metaTitle: "AI Real Estate Platform Generator — Owned Brokerage SaaS",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 real estate platform with listings, agents, leads, MLS sync, geo search, and showing scheduling. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 real estate platform with listings, agents, leads, MLS sync, geo search, and showing scheduling. Owned code, one-time price.",
     relativePath: "ai-real-estate-platform.md",
     entityExamples: [
       "Listing",
@@ -276,7 +276,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Food Delivery Platform from a prompt",
     metaTitle: "AI Food Delivery Platform Generator — Zero Commission Stack",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 food delivery platform with menus, orders, driver dispatch, delivery zones, and Stripe payouts. Cut DoorDash commissions. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 food delivery platform with menus, orders, driver dispatch, delivery zones, and Stripe payouts. Cut DoorDash commissions. Owned code, one-time price.",
     relativePath: "ai-food-delivery-platform.md",
     entityExamples: [
       "Restaurant",
@@ -302,7 +302,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Event Ticketing Platform from a prompt",
     metaTitle: "AI Event Ticketing Platform Generator — Own Your Attendees",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 event ticketing platform with seat maps, QR tickets, check-in, and Stripe payouts. Beat Eventbrite fees. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 event ticketing platform with seat maps, QR tickets, check-in, and Stripe payouts. Beat Eventbrite fees. Owned code, one-time price.",
     relativePath: "ai-event-ticketing-platform.md",
     entityExamples: [
       "Event",
@@ -328,7 +328,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Inventory Management SaaS from a prompt",
     metaTitle: "AI Inventory Management SaaS Generator — Unlimited Seats",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 inventory SaaS with SKUs, multi-warehouse stock, purchase orders, suppliers, and reorder alerts. No per-seat tax. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 inventory SaaS with SKUs, multi-warehouse stock, purchase orders, suppliers, and reorder alerts. No per-seat tax. Owned code, one-time price.",
     relativePath: "ai-inventory-management-saas.md",
     entityExamples: [
       "SKU",
@@ -354,7 +354,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI HR Onboarding Platform from a prompt",
     metaTitle: "AI HR Onboarding Platform Generator — No Per-Seat Tax",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 HR onboarding platform with checklists, document signing, org charts, and equipment provisioning. Beat BambooHR seat pricing. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 HR onboarding platform with checklists, document signing, org charts, and equipment provisioning. Beat BambooHR seat pricing. Owned code, one-time price.",
     relativePath: "ai-hr-onboarding-platform.md",
     entityExamples: [
       "Employee",
@@ -380,7 +380,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Customer Support Platform from a prompt",
     metaTitle: "AI Customer Support Platform Generator — Own Your Support Data",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 customer support SaaS with tickets, multi-channel intake, SLA tracking, knowledge base, and CSAT. Beat Zendesk per-agent pricing. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 customer support SaaS with tickets, multi-channel intake, SLA tracking, knowledge base, and CSAT. Beat Zendesk per-agent pricing. Owned code, one-time price.",
     relativePath: "ai-customer-support-platform.md",
     entityExamples: [
       "Ticket",
@@ -406,7 +406,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Fitness Subscription Platform from a prompt",
     metaTitle: "AI Fitness Subscription Platform Generator — Keep Member Revenue",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 fitness subscription SaaS with members, classes, check-ins, waitlists, and Stripe recurring billing. Beat Mindbody fees. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 fitness subscription SaaS with members, classes, check-ins, waitlists, and Stripe recurring billing. Beat Mindbody fees. Owned code, one-time price.",
     relativePath: "ai-fitness-subscription-platform.md",
     entityExamples: [
       "Member",
@@ -432,7 +432,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Appointment Booking SaaS from a prompt",
     metaTitle: "AI Appointment Booking SaaS Generator — Branded, No Per-Seat",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 appointment booking SaaS with services, availability, deposits, reminders, and recurring appointments. Beat Calendly seat pricing. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 appointment booking SaaS with services, availability, deposits, reminders, and recurring appointments. Beat Calendly seat pricing. Owned code, one-time price.",
     relativePath: "ai-appointment-booking-saas.md",
     entityExamples: [
       "Service",
@@ -458,7 +458,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Logistics Tracking SaaS from a prompt",
     metaTitle: "AI Logistics Tracking SaaS Generator — Own Your Ops Data",
     metaDescription:
-      "Generate a .NET 10 + Next.js 15 logistics SaaS with shipments, routes, driver dispatch, POD capture, and billing. Beat Onfleet per-driver pricing. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 logistics SaaS with shipments, routes, driver dispatch, POD capture, and billing. Beat Onfleet per-driver pricing. Owned code, one-time price.",
     relativePath: "ai-logistics-tracking-saas.md",
     entityExamples: [
       "Shipment",

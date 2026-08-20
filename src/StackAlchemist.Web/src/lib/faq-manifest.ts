@@ -32,7 +32,7 @@ export const FAQS = [
     category: "general",
     question: "What is StackAlchemist?",
     answer:
-      "StackAlchemist is an AI SaaS generator that turns natural-language product descriptions into compiled, download-ready full-stack code repositories. The output includes a .NET 10 minimal API, a Next.js 15 frontend, a PostgreSQL migration, Docker Compose, and optional AWS CDK, Terraform and Helm infrastructure — with both halves built before delivery.",
+      "StackAlchemist is an AI SaaS generator that turns natural-language product descriptions into compiled, download-ready full-stack code repositories. The output includes a .NET 10 minimal API, a Next.js 16 frontend, a PostgreSQL migration, Docker Compose, and optional AWS CDK, Terraform and Helm infrastructure — with both halves built before delivery.",
   },
   {
     category: "general",
@@ -44,7 +44,7 @@ export const FAQS = [
     category: "general",
     question: "Is StackAlchemist a no-code tool?",
     answer:
-      "No. StackAlchemist is a code generator, not a no-code platform. The output is standard .NET 10 and Next.js 15 source code that you read, modify, commit to your own repo, and deploy anywhere. There is no StackAlchemist runtime or SDK you depend on at runtime.",
+      "No. StackAlchemist is a code generator, not a no-code platform. The output is standard .NET 10 and Next.js 16 source code that you read, modify, commit to your own repo, and deploy anywhere. There is no StackAlchemist runtime or SDK you depend on at runtime.",
   },
   {
     category: "general",
@@ -101,13 +101,13 @@ export const FAQS = [
     category: "output",
     question: "What stack does StackAlchemist generate?",
     answer:
-      "The V1 stack is a .NET 10 minimal API with Dapper and PostgreSQL on the backend, Next.js 15 with the App Router and Tailwind CSS on the frontend, and Docker Compose for local development. The Supabase client and its env slots ship preinstalled but no auth flow is generated. Infrastructure tier adds AWS CDK, Terraform and a Helm chart.",
+      "The V1 stack is a .NET 10 minimal API with Dapper and PostgreSQL on the backend, Next.js 16 with the App Router and Tailwind CSS on the frontend, and Docker Compose for local development. The Supabase client and its env slots ship preinstalled but no auth flow is generated. Infrastructure tier adds AWS CDK, Terraform and a Helm chart.",
   },
   {
     category: "output",
     question: "Does the generated code depend on any StackAlchemist libraries?",
     answer:
-      "No. The output uses only mainstream open-source dependencies: .NET 10 / ASP.NET Core (MIT), Dapper (Apache 2.0), Next.js 15 (MIT), Tailwind CSS (MIT), and Supabase JS (Apache 2.0). There is no StackAlchemist SDK or runtime dependency injected into your codebase.",
+      "No. The output uses only mainstream open-source dependencies: .NET 10 / ASP.NET Core (MIT), Dapper (Apache 2.0), Next.js 16 (MIT), Tailwind CSS (MIT), and Supabase JS (Apache 2.0). There is no StackAlchemist SDK or runtime dependency injected into your codebase.",
   },
 
   {

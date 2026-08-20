@@ -20,7 +20,7 @@ The Swiss Cheese Method is a deliberate middle. Most of the repo is deterministi
 
 If you generate an app with StackAlchemist, about 85% of the code that ends up in your zip is deterministic. Every app ships with the same:
 
-- Next.js 15 App Router project structure
+- Next.js 16 App Router project structure
 - .NET 10 Web API project structure with the same namespace convention
 - Supabase auth wiring (login/register/password reset routes are byte-for-byte identical across generations)
 - PostgreSQL migration tooling

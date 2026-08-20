@@ -9,7 +9,7 @@ Replit Agent is the AI generation layer on top of Replit's hosted IDE and deploy
 | | **Replit Agent** | **StackAlchemist** |
 |---|---|---|
 | Runtime | Replit's hosted infra | Your own infra |
-| Default stack | Node / Python / pick your template | Next.js 15 + .NET 10 + Postgres, fixed |
+| Default stack | Node / Python / pick your template | Next.js 16 + .NET 10 + Postgres, fixed |
 | Deployment | One-click on Replit | `docker compose up` on your machine or cloud |
 | Compile-verified output | No | **Yes** |
 | Ownership | Live on Replit, export available | Native repo, your GitHub, your license |
@@ -30,7 +30,7 @@ Replit Agent is the AI generation layer on top of Replit's hosted IDE and deploy
 
 **You need a real, owned repo — not a Replit workspace.** Replit Agent output lives on Replit. You can export, but the export is a tarball, not a clean repo with its own CI pipeline, its own Dockerfile, its own migration story. StackAlchemist hands you a GitHub-ready repo. Push it, clone it, deploy it anywhere. Your CI, your infra, your license.
 
-**You want a specific, production-grade stack — not "pick a template."** Replit Agent gives you breadth. StackAlchemist gives you depth in one stack: Next.js 15 (App Router), .NET 10 Web API, Postgres, Supabase, Stripe. If that stack is what you want, we generate it better because we are not trying to handle everything. The templates are tuned, the integrations are wired, the compile gate enforces that the output is real.
+**You want a specific, production-grade stack — not "pick a template."** Replit Agent gives you breadth. StackAlchemist gives you depth in one stack: Next.js 16 (App Router), .NET 10 Web API, Postgres, Supabase, Stripe. If that stack is what you want, we generate it better because we are not trying to handle everything. The templates are tuned, the integrations are wired, the compile gate enforces that the output is real.
 
 **You want the build to pass every single time.** Replit Agent will happily let you iterate into a broken state in the IDE and keep going. StackAlchemist refuses to hand you a repo that does not pass `dotnet build` and `pnpm build`. For a generator targeting "I want to sell this," that guarantee matters.
 
@@ -61,7 +61,7 @@ Be honest with yourself. You do not need StackAlchemist if:
 You should not use Replit Agent if:
 
 - You need a real repo you own, on your GitHub, under your license.
-- You want the specific production-grade stack we ship — Next.js 15 + .NET 10 + Postgres + Supabase + Stripe — wired correctly without file-by-file prompting.
+- You want the specific production-grade stack we ship — Next.js 16 + .NET 10 + Postgres + Supabase + Stripe — wired correctly without file-by-file prompting.
 - You want compile-gated output. Every generation builds before you see it, every time.
 - You plan to sell the company, and the diligence question "where does the code live?" needs to answer "in our GitHub, on our infra," not "on Replit."
 

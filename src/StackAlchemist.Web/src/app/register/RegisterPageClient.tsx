@@ -250,7 +250,7 @@ function RegisterPageContent() {
   );
 }
 
-// Suspense boundary required by Next.js 15 whenever useSearchParams() is used
+// Suspense boundary required by Next.js whenever useSearchParams() is used
 // in a component that could be statically prerendered.
 export default function RegisterPage() {
   return (

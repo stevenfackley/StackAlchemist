@@ -23,10 +23,10 @@ const freeTier = {
   tagline: "Take the Workflow for a Lap",
   price: "Free",
   description:
-    "Run the whole pipeline before you pay a cent: describe your product, watch the build, and land on a delivery page with a real Next.js 15 app already running in your browser. Spark hands everyone the same fixed demo app — a working task tracker, renamed to your project — so it is instant, costs nothing, and always boots.",
+    "Run the whole pipeline before you pay a cent: describe your product, watch the build, and land on a delivery page with a real Next.js 16 app already running in your browser. Spark hands everyone the same fixed demo app — a working task tracker, renamed to your project — so it is instant, costs nothing, and always boots.",
   items: [
     "5 free builds a month — no card, ever",
-    "A real Next.js 15 app running in-browser (StackBlitz WebContainers)",
+    "A real Next.js 16 app running in-browser (StackBlitz WebContainers)",
     "Every file open in the embedded editor — read it, edit it, re-run it",
     "Entity wizard with a live ER canvas (Advanced Mode)",
     "The same delivery flow the paid tiers use",
@@ -66,7 +66,7 @@ const tiers = [
       "A complete, download-ready source repository shaped around your schema. Both halves are put through their real compilers before it ships — or we correct and rebuild, up to three times.",
     items: [
       ".NET 10 minimal API — records, Dapper repositories, CRUD endpoints per entity",
-      "Next.js 15 frontend (App Router, TypeScript) with a typed API client",
+      "Next.js 16 frontend (App Router, TypeScript) with a typed API client",
       "PostgreSQL migration — UUID keys, foreign keys, row-level security enabled",
       "Docker Compose + multi-stage Dockerfile (web and engine targets)",
       "Supabase client and env wiring preinstalled (auth flows are yours to write)",
@@ -102,7 +102,7 @@ const tiers = [
 const faqs = [
   {
     q: "What does the free Spark tier include?",
-    a: "Spark runs the full workflow — describe your product, watch the build, land on a delivery page — and hands back a working Next.js 15 app that boots and runs inside your browser via StackBlitz WebContainers. You get five free builds a month, no card required.",
+    a: "Spark runs the full workflow — describe your product, watch the build, land on a delivery page — and hands back a working Next.js 16 app that boots and runs inside your browser via StackBlitz WebContainers. You get five free builds a month, no card required.",
   },
   {
     q: "Is the Spark app generated from my description?",
@@ -110,7 +110,7 @@ const faqs = [
   },
   {
     q: "Then what is Spark actually for?",
-    a: "Seeing the machine run before you pay for it. You confirm the flow works in your browser, see exactly what the delivery page looks like, read a real Next.js 15 App Router project file by file, and — in Advanced Mode — model your entities on the ER canvas and keep that schema for a paid run later.",
+    a: "Seeing the machine run before you pay for it. You confirm the flow works in your browser, see exactly what the delivery page looks like, read a real Next.js 16 App Router project file by file, and — in Advanced Mode — model your entities on the ER canvas and keep that schema for a paid run later.",
   },
   {
     q: "Is this a subscription?",
@@ -122,7 +122,7 @@ const faqs = [
   },
   {
     q: "What stack does V1 generate?",
-    a: ".NET 10 Web API + Next.js 15 (App Router, TypeScript, Tailwind CSS) + PostgreSQL + Supabase. Additional stacks are planned for V2.",
+    a: ".NET 10 Web API + Next.js 16 (App Router, TypeScript, Tailwind CSS) + PostgreSQL + Supabase. Additional stacks are planned for V2.",
   },
   {
     q: "Can I use the generated code commercially?",
@@ -151,7 +151,7 @@ const comparison = [
   { label: "Downloadable archive",                    spark: false, bp: true,  bb: true,  infra: true },
   { label: "Schema + API contract documents",         spark: false, bp: true,  bb: false, infra: false },
   { label: ".NET 10 minimal API source",              spark: false, bp: false, bb: true,  infra: true },
-  { label: "Next.js 15 frontend + typed API client",  spark: false, bp: false, bb: true,  infra: true },
+  { label: "Next.js 16 frontend + typed API client",  spark: false, bp: false, bb: true,  infra: true },
   { label: "PostgreSQL migration (UUID keys, RLS)",   spark: false, bp: false, bb: true,  infra: true },
   { label: "Docker Compose + Dockerfile",             spark: false, bp: false, bb: true,  infra: true },
   { label: "Compile Guarantee (both halves built)",   spark: false, bp: false, bb: true,  infra: true },

@@ -1,6 +1,6 @@
 # Generate a full AI Healthcare Patient Portal from a prompt
 
-You describe the kind of patient portal your clinic or telehealth practice needs. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the kind of patient portal your clinic or telehealth practice needs. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 

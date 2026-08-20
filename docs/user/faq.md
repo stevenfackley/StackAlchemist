@@ -10,13 +10,13 @@ StackAlchemist is an AI-powered architecture synthesis engine. You describe a Sa
 
 ### Is it a no-code tool?
 
-No. StackAlchemist generates real source code that you own and modify. It's a **code generation** tool, not a no-code platform. The output is standard .NET 10 and Next.js 15 — the same code an experienced developer would write by hand, just scaffolded automatically.
+No. StackAlchemist generates real source code that you own and modify. It's a **code generation** tool, not a no-code platform. The output is standard .NET 10 and Next.js 16 — the same code an experienced developer would write by hand, just scaffolded automatically.
 
 ### What stack does StackAlchemist generate?
 
 V1 generates:
 - **Backend:** .NET 10 minimal API with Dapper and PostgreSQL (one project, not a solution)
-- **Frontend:** Next.js 15 (App Router, TypeScript, Tailwind CSS) with a typed API client
+- **Frontend:** Next.js 16 (App Router, TypeScript, Tailwind CSS) with a typed API client
 - **Database:** PostgreSQL migration with UUID keys and row-level security enabled
 - **Dev Environment:** Docker Compose + a multi-stage Dockerfile
 
@@ -109,7 +109,7 @@ Yes. The generated code is standard .NET and Next.js. Modify it exactly as you w
 No. The generated code uses entirely open-source, mainstream dependencies:
 - `.NET 10 / ASP.NET Core` — MIT
 - `Dapper` — Apache 2.0
-- `Next.js 15` — MIT
+- `Next.js 16` — MIT
 - `Tailwind CSS` — MIT
 - `Supabase JS` — Apache 2.0
 

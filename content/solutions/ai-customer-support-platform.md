@@ -1,6 +1,6 @@
 # Generate a full AI Customer Support Platform from a prompt
 
-You describe the kind of support operation you run. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase, verifies the build, and hands you the zip. Your tickets contain your customer voice — the most valuable IP in your company — and you should not be renting access to it. You own the code. Deploy wherever you want.
+You describe the kind of support operation you run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. Your tickets contain your customer voice — the most valuable IP in your company — and you should not be renting access to it. You own the code. Deploy wherever you want.
 
 ## What you get
 

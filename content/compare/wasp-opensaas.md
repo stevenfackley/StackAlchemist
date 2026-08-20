@@ -2,7 +2,7 @@
 
 **Last updated: June 1, 2026 · by Steve Ackley**
 
-Wasp and OpenSaaS are the open-source corner of this comparison set, and the most philosophically interesting one. Wasp is a declarative framework that compiles a config file into a full-stack React + Node + Prisma app. OpenSaaS is a free, MIT-licensed SaaS boilerplate built on top of Wasp by the same team — auth, Stripe, an admin dashboard, a blog, all wired. StackAlchemist generates a .NET 10 + Next.js 15 app from a prompt and compile-checks it before you download.
+Wasp and OpenSaaS are the open-source corner of this comparison set, and the most philosophically interesting one. Wasp is a declarative framework that compiles a config file into a full-stack React + Node + Prisma app. OpenSaaS is a free, MIT-licensed SaaS boilerplate built on top of Wasp by the same team — auth, Stripe, an admin dashboard, a blog, all wired. StackAlchemist generates a .NET 10 + Next.js 16 app from a prompt and compile-checks it before you download.
 
 So this isn't "generator vs generator." It's **generate-my-domain vs fork-a-template**. Here is the honest breakdown — and Wasp/OpenSaaS gets real credit, because free and open-source is a genuinely strong hand.
 
@@ -13,7 +13,7 @@ So this isn't "generator vs generator." It's **generate-my-domain vs fork-a-temp
 | What you start from | A generic SaaS template you customize | Code modeled to your domain from a prompt |
 | Price | Free, MIT | One-time per generation |
 | Source | Fully open-source | Closed generator, owned output |
-| Stack | React + Node + Prisma | Next.js 15 + .NET 10 + Postgres |
+| Stack | React + Node + Prisma | Next.js 16 + .NET 10 + Postgres |
 | Framework layer | Wasp DSL/compiler in the middle | Plain idiomatic code, no DSL |
 | Compile-verified output | Static template (always builds) | **Compile gate on your generated domain code** |
 | Community | Mature, YC-backed, active Discord | Newer |

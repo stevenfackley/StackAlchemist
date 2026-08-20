@@ -1,6 +1,6 @@
 # Generate a full AI Job Board from a prompt
 
-You describe the niche you want to serve. StackAlchemist generates the full .NET 10 + Next.js 15 + PostgreSQL codebase for a niche job board, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the niche you want to serve. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase for a niche job board, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 
