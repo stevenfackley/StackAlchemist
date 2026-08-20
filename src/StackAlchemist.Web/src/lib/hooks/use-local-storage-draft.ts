@@ -86,7 +86,6 @@ export function useLocalStorageDraft<T>(
   // ── Restore on mount ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled || restoredOnceRef.current) return;
-    restoredOnceRef.current = true;
 
     let cancelled = false;
     try {
@@ -103,8 +102,15 @@ export function useLocalStorageDraft<T>(
       const data = transformOnRestore ? transformOnRestore(envelope.data) : envelope.data;
       // Microtask: applying the draft is a one-shot post-hydration update, not
       // part of this render pass (also keeps setState out of the sync effect body).
+      // The once-guard is claimed HERE, not at the top of the effect: an effect
+      // replay (cleanup → re-run, e.g. strict effects or the next 16.3 dev
+      // cadence) cancels the first microtask, and a guard claimed eagerly would
+      // block the re-run from ever restoring — draft intact in storage, never
+      // applied. Claiming on commit makes the effect replay-safe: a cancelled
+      // attempt leaves the guard free for the next run.
       queueMicrotask(() => {
-        if (cancelled) return;
+        if (cancelled || restoredOnceRef.current) return;
+        restoredOnceRef.current = true;
         setValue(data);
         setRestoredAt(new Date(envelope.savedAt));
         setNoticeVisible(true);
