@@ -89,6 +89,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Templates-content majors are a product decision — take the wave
+      # together; remove when #291 is decided.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directories:
