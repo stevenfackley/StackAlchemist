@@ -139,20 +139,11 @@ updates:
     commit-message:
       prefix: "deps(docker)"
 
-  - package-ecosystem: "helm"
-    directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/helm"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "helm"
-    commit-message:
-      prefix: "deps(helm)"
-
+  # NOTE: no `helm` ecosystem here on purpose. infra/helm/values.yaml is a
+  # Scriban template ({{ProjectNameKebab}}.example.com) — not valid YAML until
+  # rendered — so the Dependabot helm updater crashes every week with
+  # Psych::SyntaxError (run 32550414527, 2026-08-22). Chart.yaml dependencies
+  # in templates move with the templates wave (#291), not via Dependabot.
   - package-ecosystem: "terraform"
     directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/terraform"
     schedule:
