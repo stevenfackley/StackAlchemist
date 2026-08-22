@@ -16,7 +16,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.4",
-    "lucide-react": "^0.511.0"
+    "lucide-react": "^1.32.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
