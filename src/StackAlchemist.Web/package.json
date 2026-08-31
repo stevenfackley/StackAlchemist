@@ -19,7 +19,7 @@
     "@stackblitz/sdk": "^1.11.1",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
-    "@xyflow/react": "^12.11.3",
+    "@xyflow/react": "^12.11.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.12.0",
