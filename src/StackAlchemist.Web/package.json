@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@stackblitz/sdk": "^1.11.1",
-    "@supabase/ssr": "^0.12.4",
+    "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
     "@xyflow/react": "^12.11.3",
     "class-variance-authority": "^0.7.1",
