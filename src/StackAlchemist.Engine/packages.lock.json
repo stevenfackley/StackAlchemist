@@ -5,10 +5,10 @@
       "AWSSDK.S3": {
         "type": "Direct",
         "requested": "[4.0.*, )",
-        "resolved": "4.0.102.3",
-        "contentHash": "3UBPFahEW62lNqHutA94if/9YguOXswDkz+CMh8fo3qCl7PUdynwSEvE0rhHnRPok0rDkDEDpwddfk7h8Mg0gw==",
+        "resolved": "4.0.103",
+        "contentHash": "EdAz6+CfwELKXJF0KlUvLFORX5j0zTxadkSBfLMbTzYwhxvn3u7Fg6cZyQqixqqjMQE94H7gQP0kd1KXe9kfpw==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.102, 5.0.0)"
+          "AWSSDK.Core": "[4.0.102.3, 5.0.0)"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -136,9 +136,9 @@
       },
       "Stripe.net": {
         "type": "Direct",
-        "requested": "[52.3.0, )",
-        "resolved": "52.3.0",
-        "contentHash": "zqaHgeEITTvRGLk9QlxG4GoJ8aQlM17pJeqea6z4uge4cddTgJ5HyTd3znKqfJARxu1rR2pcHFjFbSBlQbYsnQ==",
+        "requested": "[52.4.1, )",
+        "resolved": "52.4.1",
+        "contentHash": "eJaJo3blztCJoSsf9GetvBGnqUyoBHfUkbSasJTQdmCjHK6NJGcneZV2cOA+XcnYC5ic26rr624ZCkFaYgBU1A==",
         "dependencies": {
           "Newtonsoft.Json": "13.0.3",
           "System.Configuration.ConfigurationManager": "9.0.0"
@@ -156,8 +156,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.102",
-        "contentHash": "sjkYreyNPlYTnAxdnqd3MBoeTNZHXOzV9lKULS5VAn+6MJIqu87aZLlm56KhDANOBXRxwDJIW668ZlsFhaB6Zw=="
+        "resolved": "4.0.102.3",
+        "contentHash": "hGysXQOtru5CQmROaDLQURs5HK3W385ClLodTKZcLnd6o64YDOwvBaQrjYlfU9BEVLv7sdDR/ZRaATjpdBJ5Xw=="
       },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
