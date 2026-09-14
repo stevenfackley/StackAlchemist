@@ -4,7 +4,7 @@ sqlalchemy==2.0.52
 alembic==1.19.2
 pydantic==2.13.5
 pydantic-settings==2.15.0
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
 python-dotenv==1.2.3
 httpx==0.28.1
 flake8==7.3.0
