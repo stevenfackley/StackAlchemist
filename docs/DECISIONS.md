@@ -754,3 +754,11 @@ recorded response through the real services and builds both halves in CI.
 - App-level next-react group (#283) held during the wave. **Correction (same night):** src/StackAlchemist.Web was already on Next 16 (^16.2.12) — the "still on Next 15" claim in the first version of this entry was stale memory. #283 is only 16.2.12 → 16.3.1; its pre-rebase red came from the (since-fixed) template lock desync, and it merges on a clean rebase. The follow-on truth fix: product copy still said "Next.js 15" in 49 places in the app source (src/StackAlchemist.Web) plus another 47 rendered lines under content/ and docs/, while every NextJs template (V0 #268, V1 #298, V2 #276) and the app itself run Next 16 — corrected in fix/nextjs-16-truth-strings. The one deliberate survivor: the dated 2026-04-25 walkthrough post describes a run performed on Next 15 and keeps saying so.
 
 **Why no review:** sweep policy — CI gates, deploy watch, revert cheap.
+---
+
+## 2026-09-22 — Dependabot sweep: vitest 4 → 5 (Web) merged; template framework majors deferred
+
+**Status:** accepted (awareness-only stub per saved sweep policy)
+- **vitest 4.1.11 → 5.0.1 + @vitest/coverage-v8 5.0.1** (src/StackAlchemist.Web, #390, which supersedes Dependabot #387/#388). The `testing` group split the major across two PRs, and neither half could install alone. vitest 5 also stopped bundling `vite`, which is now a peer, so `vite ^8` is an explicit devDependency. `vitest.config.ts` needed no changes. 308/308 tests pass and the coverage floors hold.
+- The `next-react` and `testing` groups (root + Web) now take only minor and patch updates, so majors arrive as single PRs (#391).
+- **Deferred to the #291 templates wave:** tailwindcss 3 → 4, tailwind-merge 2 → 3, eslint 9 → 10 and lucide-react 0.x → 1.x across V1/V2 templates (Dependabot #324-#335, closed). They are blocked with major-only ignores in the templates npm block (#391). Reason: templates still ship v3 `tailwind.config.ts` (tailwind 4 is a CSS-first migration), tailwind-merge 3 targets Tailwind 4, eslint 10 breaks eslint-plugin-react via eslint-config-next, and V2 has no compile gate (#313).
