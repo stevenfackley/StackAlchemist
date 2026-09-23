@@ -53,10 +53,6 @@ updates:
       - dependency-name: "typescript"
         versions: [">=7.0.0"]
 
-  - package-ecosystem: npm
-    directory: /src/StackAlchemist.Templates
-    schedule: { interval: weekly, day: monday }
-
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly, day: monday }
