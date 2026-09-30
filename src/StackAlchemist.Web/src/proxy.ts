@@ -1,4 +1,4 @@
-import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextMiddleware, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { isDemoMode, usesQavrenAuth } from "./lib/runtime-config";
 import { isProtectedRoute, timingSafeEqual } from "./lib/proxy-utils";
@@ -141,8 +141,11 @@ async function supabaseSessionRefresh(request: NextRequest): Promise<NextRespons
   return supabaseResponse;
 }
 
-type Gate = (req: NextRequest, event: NextFetchEvent) => Promise<Response> | Response;
-let qavrenGate: Gate | null = null;
+// The slice of Auth.js's NextAuthRequest the gate reads. Declared here rather than
+// imported so nothing outside auth.ts/auth.config.ts names next-auth, even as a type;
+// tsc still checks it, because Auth.js's request type must be assignable to it.
+type AuthedRequest = NextRequest & { auth: { user?: { id?: string } } | null };
+let qavrenGate: NextMiddleware | null = null;
 
 /**
  * Built on first use so a Supabase-mode process never loads next-auth (see the
@@ -150,17 +153,27 @@ let qavrenGate: Gate | null = null;
  * This is a redirect convenience, not the authorization boundary: every action
  * and page reads getSessionUser() itself and enforces ownership there.
  */
-async function getQavrenGate(): Promise<Gate> {
+async function getQavrenGate(): Promise<NextMiddleware> {
   if (qavrenGate) return qavrenGate;
   const { auth } = await import("@/auth");
-  qavrenGate = auth((req) => {
+  // The (req, event) signature selects Auth.js's middleware overload, which returns
+  // a NextMiddleware; no cast needed.
+  qavrenGate = auth((req: AuthedRequest, _event: NextFetchEvent) => {
     const { pathname, search } = req.nextUrl;
-    if (isDemoMode || !isProtectedRoute(pathname) || req.auth?.user?.id) return NextResponse.next();
+    // Next runs the proxy when the raw OR the decoded path matches the matcher, but
+    // hands over the raw pathname, and serves /%73imple as /simple. Guard the decoded form.
+    let path = pathname;
+    try {
+      path = decodeURIComponent(pathname);
+    } catch {
+      // Malformed escape (e.g. /%zz): keep the raw path.
+    }
+    if (!isProtectedRoute(path) || req.auth?.user?.id) return NextResponse.next();
     // Same shape as the Supabase branch: bounce to /login and come back afterwards.
     const login = new URL("/login", req.nextUrl.origin);
     login.searchParams.set("returnTo", pathname + search);
     return NextResponse.redirect(login);
-  }) as unknown as Gate;
+  });
   return qavrenGate;
 }
 
@@ -174,7 +187,11 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // future /api/author… route is not silently exempted.
   const { pathname } = request.nextUrl;
   if (pathname === "/api/auth" || pathname.startsWith("/api/auth/")) return NextResponse.next();
-  if (usesQavrenAuth()) return (await getQavrenGate())(request, event);
+  if (usesQavrenAuth()) {
+    // Demo mode never gates, so it never needs to load Auth.js or decrypt a cookie.
+    if (isDemoMode) return NextResponse.next();
+    return (await getQavrenGate())(request, event);
+  }
   return supabaseSessionRefresh(request);
 }
 
