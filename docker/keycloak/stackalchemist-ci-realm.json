@@ -1,0 +1,48 @@
+{
+  "realm": "stackalchemist-ci",
+  "enabled": true,
+  "displayName": "StackAlchemist (CI)",
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "clients": [
+    {
+      "clientId": "stackalchemist-ci-web",
+      "name": "StackAlchemist web (CI)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/api/auth/callback/keycloak"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "defaultClientScopes": ["profile", "email", "roles", "web-origins"],
+      "optionalClientScopes": ["offline_access"]
+    }
+  ],
+  "users": [
+    {
+      "username": "e2e@stackalchemist.test",
+      "email": "e2e@stackalchemist.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "E2E",
+      "lastName": "Fixture",
+      "credentials": [{ "type": "password", "value": "E2e-Fixture-2026!", "temporary": false }],
+      "requiredActions": []
+    }
+  ]
+}
