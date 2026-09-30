@@ -409,11 +409,19 @@ test.describe("Integration: registration through the realm", () => {
 - [ ] `workflow_dispatch` once to exercise the nightly path (`db-pooler-nightly` + the Spark nightly specs); record.
 - [ ] Vault + memory: the CI Supabase auto-pause note (`reference_stackalchemist_ci_supabase_autopause`) becomes "RESOLVED by phase D"; the StackAlchemist state note.
 
+## Execution record (2026-09-30)
+
+- **Amendments found in execution:** `openid` is not a Keycloak client scope (dropped); the explicit `defaultClientScopes` list left out `basic`/`acr` and the access token lost `sub` — the CI client now inherits the realm defaults; `directAccessGrantsEnabled: false` for platform parity; with `registrationEmailAsUsername` the Keycloak login field is labelled "Email"; `prompt=create` renders the registration form on the same `/protocol/openid-connect/auth` URL (no `/registration` path); the sign-out race is replayed deterministically with the pre-sign-out cookie through `page.request` (a `page.evaluate(fetch)` dies with the form navigation); exact realm session counts need `endUserSessions()` in `beforeEach` and `mode: "default"`; nightly specs sign in from `/dashboard`, not `/simple?q=` (that would start a real build); `playwright.config.ts` gained an opt-in `PLAYWRIGHT_CHANNEL` (system Chrome/Edge) because the bundled Chromium could not be downloaded from the dev network; `up -d --wait` is bounded with `--wait-timeout 180`; the pooler test's own postgres-js client needed `prepare: false`.
+- **Blocker caught by the final review:** `docker/docker-compose.test.yml` is shared with `deploy-test.yml`, whose bare `up -d` would have started Keycloak (`admin`/`admin`) and Postgres on the test mirror and repointed the mirror Engine at an unmigrated database. The CI-only services and the Engine override moved to `docker/docker-compose.ci.yml`, passed as a second `-f` in every `ci.yml` compose call; the base file is byte-identical to before.
+- **Runner-image regression fixed on the way:** GitHub's `ubuntu-24.04` image `20260927.320.1` dropped Helm, turning `Tier3InfrastructureCompileTests.HelmChart_Lints` red on every PR (the 18:41 main push on `20260920.314.1` still passed). The Backend job now installs Helm explicitly (`azure/setup-helm@v5`, `version: v4.3.0`).
+- **Task 5 results:** PR #437 (8 commits; spec + Opus reviews per task, final whole-branch Opus review APPROVED after the overlay fix) squash-merged as `58f0a299`. Main-push CI run 36766447873: **`E2E Integration (Playwright, Main/Nightly)` GREEN** — `migrations applied (2)`, Engine healthy after ~2 s in Postgres mode, Playwright `7 passed (39.9s)`, nightly step skipped (push trigger), Quality Gate success; `deploy-prod` 36766447657 success, `/api/healthz` 200 (prod unchanged, Supabase mode). First green integration run since the CI Supabase project began auto-pausing on 2026-09-23. Not yet exercised: `db-pooler-nightly` and the Spark nightly specs — a manual dispatch of `ci.yml` on `main` (Actions tab → CI → Run workflow) runs both.
+- **Owner follow-ups:** delete `CI_SUPABASE_DB_URL` from the Test environment (keep the other Supabase secrets; `deploy-test.yml` uses them); the CI Supabase project `cdlefpvsvyepofsboepc` may be paused (retired in phase F); sweep the fleet for other test gates that assume preinstalled Helm/kubectl/terraform.
+
 ## Exit criteria
 
-- [ ] `E2E Integration` runs on every main push with no Supabase secret, against Postgres + Keycloak containers, and passes.
-- [ ] The signed-in suite covers sign-in, session, sign-out (incl. the in-flight race), percent-encoded gate, registration.
-- [ ] `CI_SUPABASE_DB_URL` and the Supabase CLI are gone from CI; `deploy-prod.yml` unchanged.
+- [x] `E2E Integration` runs on every main push with no Supabase secret, against Postgres + Keycloak containers, and passes.
+- [x] The signed-in suite covers sign-in, session, sign-out (incl. the in-flight race), percent-encoded gate, registration.
+- [x] `CI_SUPABASE_DB_URL` and the Supabase CLI are gone from CI; `deploy-prod.yml` unchanged.
 - [ ] Nightly pooler smoke exists and passed once via dispatch.
 
 Phase E (cutover, owner-run) can start once the first line is true and phase A's owner tasks are done.
