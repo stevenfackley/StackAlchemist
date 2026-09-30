@@ -167,21 +167,28 @@ describe("SupabaseStore", () => {
       expect((err as DataStoreError).cause).toBe(boom);
     });
 
-    it("insertGeneration, including the no-row case", async () => {
+    const newGeneration = {
+      mode: "simple",
+      tier: 0,
+      prompt: "p",
+      project_type: "DotNetNextJs",
+      schema_json: null,
+      personalization_json: null,
+      user_id: UID,
+    } as const;
+
+    it("insertGeneration", async () => {
       stubClient({ data: null, error: boom });
-      const err = await rejection(
-        new SupabaseStore().insertGeneration({
-          mode: "simple",
-          tier: 0,
-          prompt: "p",
-          project_type: "DotNetNextJs",
-          schema_json: null,
-          personalization_json: null,
-          user_id: UID,
-        }),
-      );
+      const err = await rejection(new SupabaseStore().insertGeneration(newGeneration));
       expect(err).toBeInstanceOf(DataStoreError);
       expect((err as DataStoreError).cause).toBe(boom);
+    });
+
+    it("insertGeneration when no row comes back and there is no error", async () => {
+      stubClient({ data: null, error: null });
+      const err = await rejection(new SupabaseStore().insertGeneration(newGeneration));
+      expect(err).toBeInstanceOf(DataStoreError);
+      expect((err as DataStoreError).cause).toBeNull();
     });
   });
 });

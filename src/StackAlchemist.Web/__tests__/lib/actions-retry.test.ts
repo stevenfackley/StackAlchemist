@@ -9,7 +9,7 @@
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
 import { retryGeneration } from "@/lib/actions";
-import { makeDb, fakeResponse } from "./actions-test-helpers";
+import { makeDb, chainable, fakeResponse } from "./actions-test-helpers";
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
@@ -148,6 +148,24 @@ describe("actions.ts — retryGeneration (configured)", () => {
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: false, error: "Only failed generations can be retried." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not re-fire the engine when the reset query itself rejects", async () => {
+    const db = makeDb([{ data: baseGeneration(), error: null }]); // select
+    // The update's awaited result throws (a dropped connection), rather than resolving with an error.
+    const rejecting = chainable({});
+    rejecting.then = (resolve: (v: unknown) => unknown, reject?: (r: unknown) => unknown) =>
+      Promise.reject(new Error("connection reset")).then(resolve, reject);
+    db.from.mockReturnValueOnce(rejecting);
+    vi.mocked(createServerClient).mockReturnValue(db as never);
+
+    const result = await retryGeneration(GEN_ID);
+    expect(result).toEqual({ success: false, error: "Only failed generations can be retried." });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[retryGeneration] Status reset failed:",
+      expect.objectContaining({ message: "connection reset" })
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

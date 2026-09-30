@@ -1,10 +1,15 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/data/drizzle-store", () => ({ DrizzleStore: class { kind = "drizzle" as const; } }));
 vi.mock("@/lib/data/supabase-store", () => ({ SupabaseStore: class { kind = "supabase" as const; } }));
 
 describe("getDataStore", () => {
+  beforeEach(() => {
+    // The real runtime-config warns when demo mode is auto-enabled; opt in explicitly to keep the output clean.
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
