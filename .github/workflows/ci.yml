@@ -73,7 +73,8 @@ jobs:
         # TTY", writes nothing and exits 0, so a clean git status alone would
         # pass. Only the explicit no-op message proves there is no drift.
         run: |
-          out=$(npm run db:generate -- --name ci-drift-check 2>&1); echo "$out"
+          out=$(npm run db:generate -- --name ci-drift-check 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
           if ! grep -q "No schema changes" <<<"$out" || [ -n "$(git status --porcelain drizzle/)" ]; then
             git status --porcelain drizzle/
             echo "::error::src/db/schema.ts and drizzle/ disagree (or drizzle-kit needed an interactive answer). Run 'npm run db:generate -- --name <what-changed>' locally and commit drizzle/."

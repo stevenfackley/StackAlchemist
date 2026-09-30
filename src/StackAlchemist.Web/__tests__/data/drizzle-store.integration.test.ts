@@ -114,8 +114,13 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     await sql`update stackalchemist.generations set created_at = date_trunc('month', now(), 'UTC') - interval '1 second' where id = ${rows[1].id}`;
 
     expect(await store.countFreeGenerationsThisMonth(alice, monthStart())).toBe(3);
-    // The trigger counts the same three, so a new free build is still allowed.
+    // The trigger counts the same three, so two more free builds fit under the limit of 5.
+    // A trigger that ignored any one exclusion would see 4 and reject the second insert.
     await expect(gen(alice, 0)).resolves.toMatchObject({ status: "pending", tier: 0 });
+    await expect(gen(alice, 0)).resolves.toMatchObject({ status: "pending", tier: 0 });
+    expect(await store.countFreeGenerationsThisMonth(alice, monthStart())).toBe(5);
+    // Now the allowance is exactly used up, so the next counted build is refused.
+    await expect(gen(alice, 0)).rejects.toThrow(/Free generation limit reached/);
   });
 
   it("profile upsert: undefined leaves the key, null clears it", async () => {

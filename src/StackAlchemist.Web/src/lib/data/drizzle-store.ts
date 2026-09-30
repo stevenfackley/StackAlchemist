@@ -1,4 +1,5 @@
 import { DrizzleQueryError, and, count, desc, eq, gte, ne, sql } from "drizzle-orm";
+import postgres from "postgres";
 import { getDb, type Db } from "@/db";
 import { generations, profiles } from "@/db/schema";
 import type { Generation } from "@/lib/types";
@@ -79,9 +80,11 @@ export class DrizzleStore implements DataStore {
       // The quota trigger raises check_violation (23514) with its own message;
       // surface that text so callers (and the test) can see it. Only a Postgres
       // error's message is used, and only when it has one: a refused connection
-      // is an AggregateError with an empty message.
+      // is an AggregateError with an empty message. instanceof, not a name check:
+      // Next bundles postgres-js into the server build and a minifier may rename
+      // the class, which would silently drop this text from prod logs.
       const cause = driverError(e);
-      const fromPostgres = cause instanceof Error && cause.name === "PostgresError" && cause.message !== "";
+      const fromPostgres = cause instanceof postgres.PostgresError && cause.message !== "";
       throw new DataStoreError(fromPostgres ? cause.message : "generations insert failed", cause);
     }
     if (!row) throw new DataStoreError("generations insert returned no row");
