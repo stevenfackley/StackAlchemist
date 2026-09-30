@@ -89,6 +89,8 @@ Both: `loginTheme: stackalchemist`; `registrationAllowed: true` + `verifyEmail: 
 
 - [ ] **Step 6: CI green, then merge** (qavren-auth has no standing merge authorization; owner merges).
 
+> **Tasks 4–7 are superseded (2026-09-30) by `docs/runbooks/qavren-cutover-phase-e.md`**, which carries the measured state and guarded versions of these commands (Task 4's recipe below sets `DATABASE_URL` early and has no capture guard; the runbook sets only `DATABASE_URL_MIGRATE` here and `DATABASE_URL` at the flip). Task 5 was applied that day. Follow the runbook, not the recipes below.
+
 ### Task 4 (OWNER): prod schema + `Prod` secrets
 
 Needed before phase E, not before. From a shell in `C:\Users\steve\projects\qavren-db` with `.env` loaded (`mise exec -- ...` or the PowerShell loop from Task 1):

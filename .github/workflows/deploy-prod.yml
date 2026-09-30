@@ -67,43 +67,67 @@ jobs:
 
     steps:
       - name: Preflight — re-platform secrets are consistent
-        # Phase E flips four Prod secrets in ONE deploy: DATABASE_URL,
-        # DATABASE_URL_MIGRATE, QAVREN_AUTH_URL, AUTH_SECRET. A partial set
-        # either boots sa-web into assertAuthModeConsistent()'s throw (Qavren
-        # Auth without the Postgres store or without AUTH_SECRET) or runs the
-        # store against a schema this workflow never migrates. Both would
-        # surface only after the swap, as downtime. Fail here instead, while
-        # the old stack is still serving. Reads booleans only.
+        # Prod has exactly two legitimate shapes: neither DATABASE_URL nor
+        # QAVREN_AUTH_URL (Supabase mode), or both of them plus
+        # DATABASE_URL_MIGRATE and AUTH_SECRET (Qavren mode). Phase E sets
+        # DATABASE_URL and QAVREN_AUTH_URL together in one flip; the other two
+        # may exist earlier (AUTH_SECRET is inert alone, DATABASE_URL_MIGRATE
+        # alone just pre-applies migrations). Anything else boots sa-web into
+        # assertAuthModeConsistent()'s throw, runs the store against a schema
+        # this workflow never migrates, or writes prod rows under Supabase
+        # identities no Keycloak sub will ever own; all of it surfaces only
+        # after the swap. Fail here, while the old stack is still serving.
+        # Presence comes from the job-level booleans. The shape checks read the
+        # values from this step's env, print pass/fail per name and never echo
+        # a value (GitHub masks secret values in logs regardless).
         shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_MIGRATE: ${{ secrets.DATABASE_URL_MIGRATE }}
+          QAVREN_AUTH_URL: ${{ secrets.QAVREN_AUTH_URL }}
         run: |
           set -Eeuo pipefail
           fail=0
+          err() { echo "::error::$1"; fail=1; }
           if [ "$QAVREN_AUTH_ENABLED" = "true" ]; then
             if [ "$QAVREN_DB_ENABLED" != "true" ]; then
-              echo "::error::QAVREN_AUTH_URL is set but DATABASE_URL is not. Qavren Auth requires the qavren-db store: set both (with DATABASE_URL_MIGRATE) or neither."
-              fail=1
+              err "QAVREN_AUTH_URL is set but DATABASE_URL is not. Qavren Auth requires the qavren-db store: set DATABASE_URL and QAVREN_AUTH_URL together (docs/runbooks/qavren-cutover-phase-e.md §2) or neither."
             fi
             if [ "$AUTH_SECRET_PRESENT" != "true" ]; then
-              echo "::error::QAVREN_AUTH_URL is set but AUTH_SECRET is not. Auth.js cannot sign the session cookie; mint one (openssl rand -base64 32) into the Prod environment."
-              fail=1
+              err "QAVREN_AUTH_URL is set but AUTH_SECRET is not. Auth.js cannot sign the session cookie; mint one (openssl rand -base64 32) into the Prod environment."
             fi
           fi
-          if [ "$QAVREN_DB_ENABLED" = "true" ] && [ "$QAVREN_DB_MIGRATE_ENABLED" != "true" ]; then
-            echo "::error::DATABASE_URL is set but DATABASE_URL_MIGRATE is not. The store would run against a schema this workflow never migrates; set the session-mode URL too (docs/runbooks/qavren-db-migrations.md)."
-            fail=1
+          if [ "$QAVREN_DB_ENABLED" = "true" ]; then
+            if [ "$QAVREN_DB_MIGRATE_ENABLED" != "true" ]; then
+              err "DATABASE_URL is set but DATABASE_URL_MIGRATE is not. The store would run against a schema this workflow never migrates; set the session-mode URL (docs/runbooks/qavren-db-migrations.md)."
+            fi
+            if [ "$QAVREN_AUTH_ENABLED" != "true" ]; then
+              err "DATABASE_URL is set but QAVREN_AUTH_URL is not. Prod has no use for the Postgres store under Supabase identities: rows written now would belong to Supabase user ids no Keycloak sub will ever own. Set both or neither."
+            fi
           fi
+          # Shape checks. A wrong value (a bare '?sslmode=require' from an empty
+          # capture, a URL with a path) would otherwise fail inside sa-engine's
+          # URL parser or Auth.js after the swap. Loose about user and host.
+          shape() { # name value ERE description
+            if [ -z "$2" ]; then
+              echo "shape: $1 not set"
+            elif [[ "$2" =~ $3 ]]; then
+              echo "shape ok: $1"
+            else
+              err "$1 is set but does not look like $4 (value not shown). Fix the secret; see docs/runbooks/qavren-cutover-phase-e.md §1.1."
+            fi
+          }
+          shape DATABASE_URL         "${DATABASE_URL:-}"         '^postgres(ql)?://[^/@[:space:]]+@[^/[:space:]]+:6543/[^?[:space:]]+[?]sslmode=require$' 'a transaction-pooler URL (...:6543/<db>?sslmode=require)'
+          shape DATABASE_URL_MIGRATE "${DATABASE_URL_MIGRATE:-}" '^postgres(ql)?://[^/@[:space:]]+@[^/[:space:]]+:5432/[^?[:space:]]+[?]sslmode=require$' 'a session-mode URL (...:5432/<db>?sslmode=require)'
+          shape QAVREN_AUTH_URL      "${QAVREN_AUTH_URL:-}"      '^https://[^/[:space:]]+$'                                                              'an https origin with no path (https://auth.stackalchemist.app)'
           if [ "$fail" != "0" ]; then
-            echo "### ❌ Deploy blocked: re-platform secrets are inconsistent (docs/runbooks/qavren-cutover-phase-e.md)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ❌ Deploy blocked: re-platform secrets are inconsistent or malformed (docs/runbooks/qavren-cutover-phase-e.md)" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           if [ "$QAVREN_DB_MIGRATE_ENABLED" = "true" ] && [ "$QAVREN_DB_ENABLED" != "true" ]; then
-            echo "::warning::DATABASE_URL_MIGRATE is set but DATABASE_URL is not: migrations will be applied to a schema no container uses yet (pre-applying ahead of the flip is fine; forgetting DATABASE_URL is not)."
-          fi
-          if [ "$QAVREN_DB_ENABLED" = "true" ] && [ "$QAVREN_AUTH_ENABLED" != "true" ]; then
-            echo "::warning::DATABASE_URL is set without QAVREN_AUTH_URL: Postgres store under Supabase identities (the Test-environment shape). Rows written now belong to Supabase user ids and will not carry over to Keycloak subs when auth flips."
+            echo "::warning::DATABASE_URL_MIGRATE is set without DATABASE_URL: the migrate step pre-applies to a schema no container uses yet (fine ahead of the flip)."
           fi
           mode="Supabase (store + auth)"
-          if [ "$QAVREN_DB_ENABLED" = "true" ]; then mode="qavren-db store + Supabase Auth"; fi
           if [ "$QAVREN_AUTH_ENABLED" = "true" ]; then mode="qavren-db store + Qavren Auth"; fi
           echo "Deploy mode: $mode"
           echo "### ℹ️ Deploy mode: $mode" >> "$GITHUB_STEP_SUMMARY"
@@ -252,11 +276,14 @@ jobs:
 
       - name: Apply qavren-db migrations (prod)
         # Phase B of the re-platform. Gated on the session-mode secret the same
-        # way the Supabase step is gated: absent = skip with a warning, UNLESS
-        # this push changes the Drizzle migrations, in which case the deploy
-        # hard-fails (same drift guard as the Supabase step; phase E). Runs the
-        # web app's own migrator, never drizzle-kit migrate/push (42501 on
-        # qavren-db). See docs/runbooks/qavren-db-migrations.md.
+        # way the Supabase step is gated: absent = skip with a warning. Unlike
+        # the Supabase step there is no hard drift guard here: the preflight
+        # already refuses DATABASE_URL without DATABASE_URL_MIGRATE, so with the
+        # secret absent no container reads the Drizzle schema, and the flip's
+        # run applies every pending file. A Drizzle change in such a push is
+        # only named, so it is not forgotten. Runs the web app's own migrator,
+        # never drizzle-kit migrate/push (42501 on qavren-db).
+        # See docs/runbooks/qavren-db-migrations.md.
         shell: bash
         working-directory: src/StackAlchemist.Web
         env:
@@ -264,16 +291,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [ -z "${DATABASE_URL_MIGRATE:-}" ]; then
-            # Drift guard: shipping code whose migrations prod cannot receive
-            # is the June 2026 Supabase incident again (paid checkout silently
-            # broken for weeks). Pushes without migration changes still
-            # skip-with-warning, so Supabase mode and a rollback to it deploy.
             BEFORE="${{ github.event.before }}"
             if [ "${{ github.event_name }}" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-              if git -C "$GITHUB_WORKSPACE" diff --name-only "$BEFORE" "${{ github.sha }}" -- src/StackAlchemist.Web/drizzle 2>/dev/null | grep -q .; then
-                echo "::error::This push changes src/StackAlchemist.Web/drizzle but DATABASE_URL_MIGRATE is unset — deploying would run new code against a schema this workflow cannot migrate. Set DATABASE_URL_MIGRATE (Prod environment, session-mode URL) or revert the migration change, then re-run this workflow. See docs/runbooks/qavren-db-migrations.md."
-                echo "### ❌ Deploy blocked: Drizzle migration changes in this push cannot be applied (DATABASE_URL_MIGRATE unset)" >> "$GITHUB_STEP_SUMMARY"
-                exit 1
+              changed=$(git -C "$GITHUB_WORKSPACE" diff --name-only "$BEFORE" "${{ github.sha }}" -- src/StackAlchemist.Web/drizzle 2>/dev/null || true)
+              if [ -n "$changed" ]; then
+                echo "::warning::This push changes src/StackAlchemist.Web/drizzle while prod has no qavren-db target (DATABASE_URL_MIGRATE unset). Nothing in prod reads that schema until the flip, whose migrate step applies every pending file. See docs/runbooks/qavren-db-migrations.md."
+                echo "### ⚠️ Drizzle migrations changed in this push; prod has no qavren-db target yet" >> "$GITHUB_STEP_SUMMARY"
               fi
             fi
             echo "::warning::DATABASE_URL_MIGRATE is not set — skipping qavren-db migrations (prod is in Supabase mode). See docs/runbooks/qavren-db-migrations.md."
@@ -518,22 +541,30 @@ jobs:
           #                  /login carries the Keycloak hand-off copy.
           #   Supabase mode: /api/auth/session is 404 (route disabled) and
           #                  /login renders the Supabase client (an email field).
-          # Both pages are force-dynamic, so this reads the running container,
-          # not a cache. Same host as the health probe, so no new hop.
+          # Both responses are DYNAMIC at Cloudflare (force-dynamic page, route
+          # handler), so this reads the running container, not a cache. Three
+          # attempts, so one edge blip does not paint a healthy deploy red.
           if [ "$QAVREN_AUTH_ENABLED" = "true" ]; then
             want_session=200; marker="sign-in service at"; label="Qavren Auth"
           else
             want_session=404; marker='type="email"'; label="Supabase Auth"
           fi
-          session=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://stackalchemist.app/api/auth/session" || echo "000")
-          login_html=$(curl -sS --max-time 15 "https://stackalchemist.app/login" || true)
-          marker_state="missing"
-          if grep -qF -- "$marker" <<<"$login_html"; then marker_state="present"; fi
+          session="000"; marker_state="missing"
+          for attempt in 1 2 3; do
+            session=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://stackalchemist.app/api/auth/session" || true)
+            [ -n "$session" ] || session="000"
+            login_html=$(curl -sS --max-time 15 "https://stackalchemist.app/login" || true)
+            marker_state="missing"
+            if grep -qF -- "$marker" <<<"$login_html"; then marker_state="present"; fi
+            if [ "$session" = "$want_session" ] && [ "$marker_state" = "present" ]; then break; fi
+            echo "⏳ attempt ${attempt}: /api/auth/session → ${session} (want ${want_session}); /login marker ${marker_state}"
+            [ "$attempt" -lt 3 ] && sleep 10
+          done
           if [ "$session" != "$want_session" ] || [ "$marker_state" != "present" ]; then
             echo "❌ FATAL: prod is not in $label mode — /api/auth/session → ${session} (wanted ${want_session}); /login marker '${marker}' ${marker_state}"
             echo "--- sa-web logs (last 60) ---"
             docker compose -f docker-compose.prod.yml logs --tail 60 sa-web 2>&1 || true
-            echo "### ❌ Prod is NOT in $label mode (/api/auth/session → ${session}, /login marker ${marker_state}). See docs/runbooks/qavren-cutover-phase-e.md; rollback = remove the four secrets and re-run." >> "$GITHUB_STEP_SUMMARY"
+            echo "### ❌ Prod is NOT in $label mode (/api/auth/session → ${session}, /login marker ${marker_state}). Prod is serving in the other mode; see docs/runbooks/qavren-cutover-phase-e.md §5." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           echo "✅ prod is in $label mode (/api/auth/session → ${session}; /login marker present)"
