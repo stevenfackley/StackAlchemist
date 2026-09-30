@@ -3,7 +3,7 @@
 import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { getDataStore, type ProfileRow } from "./data";
+import { getDataStore, type ProfileSettingsRow } from "./data";
 import { getServerUser } from "./supabase-server";
 import { buildDemoGeneration } from "./demo-data";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
@@ -121,7 +121,7 @@ export async function getProfileSettings(): Promise<ProfileSettings> {
     };
   }
 
-  let profile: ProfileRow | null = null;
+  let profile: ProfileSettingsRow | null = null;
   try {
     profile = await getDataStore().getProfile(user.id);
   } catch (err) {
@@ -605,12 +605,17 @@ export async function retryGeneration(
     return { success: false, error: "Only failed generations can be retried." };
   }
 
-  // Reset status. Scoped to the owner's failed row in SQL as a second guard;
-  // the checks above already decided, so the result is not consulted.
+  // Reset status. The UPDATE is an atomic compare-and-set scoped to the owner's
+  // failed row, so it protects the write and the spend: the Engine enqueues
+  // unconditionally, and of two concurrent retries only one flips the row.
   try {
-    await getDataStore().resetForRetry(generationId, user.id);
+    const reset = await getDataStore().resetForRetry(generationId, user.id);
+    if (!reset) {
+      return { success: false, error: "Only failed generations can be retried." };
+    }
   } catch (err) {
     console.error("[retryGeneration] Status reset failed:", err);
+    return { success: false, error: "Only failed generations can be retried." };
   }
 
   // Re-fire the engine

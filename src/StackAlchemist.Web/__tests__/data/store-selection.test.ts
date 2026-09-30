@@ -16,6 +16,16 @@ describe("getDataStore", () => {
     expect(getDataStore().kind).toBe("drizzle");
   });
 
+  it("re-reads DATABASE_URL on every call, not at module load", async () => {
+    const { getDataStore } = await import("@/lib/data");
+
+    vi.stubEnv("DATABASE_URL", "postgres://u:p@localhost:5432/db");
+    expect(getDataStore().kind).toBe("drizzle");
+
+    vi.stubEnv("DATABASE_URL", "");
+    expect(getDataStore().kind).toBe("supabase");
+  });
+
   it("falls back to Supabase when DATABASE_URL is unset", async () => {
     vi.stubEnv("DATABASE_URL", "");
     const { getDataStore } = await import("@/lib/data");

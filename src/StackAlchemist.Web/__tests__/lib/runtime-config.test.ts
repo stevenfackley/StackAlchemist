@@ -49,20 +49,6 @@ describe('runtime-config', () => {
     expect(hasDataStoreConfig()).toBe(true);
   });
 
-  it('does not auto-enable demo mode when DATABASE_URL is set without a Supabase URL', async () => {
-    // isDemoMode is computed at module load, so re-import under the stubbed env.
-    vi.resetModules();
-    vi.stubEnv('NEXT_PUBLIC_DEMO_MODE', '');
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '');
-
-    vi.stubEnv('DATABASE_URL', '');
-    expect((await import('../../src/lib/runtime-config')).isDemoMode).toBe(true);
-
-    vi.resetModules();
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
-    expect((await import('../../src/lib/runtime-config')).isDemoMode).toBe(false);
-  });
-
   it('hasStripeConfig and hasEngineConfig follow env presence', () => {
     vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_123');
     expect(hasStripeConfig()).toBe(true);

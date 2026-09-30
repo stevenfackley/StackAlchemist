@@ -1,5 +1,5 @@
 import type { Generation } from "@/lib/types";
-import type { DataStore, NewGeneration, ProfileRow, ProfileUpsert } from "./store";
+import type { DataStore, NewGeneration, ProfileSettingsRow, ProfileUpsert } from "./store";
 
 const NOT_YET = "DrizzleStore lands in Task 3";
 
@@ -7,7 +7,7 @@ const NOT_YET = "DrizzleStore lands in Task 3";
 export class DrizzleStore implements DataStore {
   readonly kind = "drizzle" as const;
 
-  async getProfile(_userId: string): Promise<ProfileRow | null> {
+  async getProfile(_userId: string): Promise<ProfileSettingsRow | null> {
     throw new Error(NOT_YET);
   }
 

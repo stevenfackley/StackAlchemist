@@ -1,9 +1,10 @@
 import "server-only";
+import { usesPostgresStore } from "@/lib/runtime-config";
 import type { DataStore } from "./store";
 import { SupabaseStore } from "./supabase-store";
 import { DrizzleStore } from "./drizzle-store";
 
-export type { DataStore, NewGeneration, ProfileRow, ProfileUpsert } from "./store";
+export type { DataStore, NewGeneration, ProfileSettingsRow, ProfileUpsert } from "./store";
 export { DataStoreError } from "./store";
 
 /**
@@ -12,5 +13,5 @@ export { DataStoreError } from "./store";
  * Phase E sets DATABASE_URL in prod; phase F deletes SupabaseStore.
  */
 export function getDataStore(): DataStore {
-  return process.env.DATABASE_URL ? new DrizzleStore() : new SupabaseStore();
+  return usesPostgresStore() ? new DrizzleStore() : new SupabaseStore();
 }

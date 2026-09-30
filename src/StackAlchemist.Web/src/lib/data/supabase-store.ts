@@ -1,8 +1,10 @@
 import { createServerClient } from "@/lib/supabase";
 import type { Generation } from "@/lib/types";
-import { DataStoreError, type DataStore, type NewGeneration, type ProfileRow, type ProfileUpsert } from "./store";
+import { DataStoreError, type DataStore, type NewGeneration, type ProfileSettingsRow, type ProfileUpsert } from "./store";
 
 type Client = ReturnType<typeof createServerClient>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Supabase-JS over PostgREST with the service role. Retired in phase F. */
 export class SupabaseStore implements DataStore {
@@ -10,12 +12,13 @@ export class SupabaseStore implements DataStore {
   private db?: Client;
 
   private client(): Client {
-    // Lazy: createServerClient() throws when unconfigured, and actions.ts
-    // already turns that into its "configuration incomplete" messages.
+    // Lazy: createServerClient() throws when the service-role env is missing.
+    // That throw reaches the caller, and each action in actions.ts maps it to
+    // its generic failure message (or a count of 0 for the quota check).
     return (this.db ??= createServerClient());
   }
 
-  async getProfile(userId: string): Promise<ProfileRow | null> {
+  async getProfile(userId: string): Promise<ProfileSettingsRow | null> {
     const { data, error } = await this.client()
       .from("profiles").select("email, api_key_override, preferred_model").eq("id", userId).maybeSingle();
     if (error) throw new DataStoreError("profiles select failed", error);
@@ -48,9 +51,11 @@ export class SupabaseStore implements DataStore {
   }
 
   async getGenerationById(id: string): Promise<Generation | null> {
-    const { data, error } = await this.client().from("generations").select("*").eq("id", id).single();
+    // A malformed id would make Postgres raise 22P02; it is simply not found.
+    if (!UUID.test(id)) return null;
+    const { data, error } = await this.client().from("generations").select("*").eq("id", id).maybeSingle();
     if (error) throw new DataStoreError("generations select failed", error);
-    return (data as Generation) ?? null;
+    return (data as Generation | null) ?? null;
   }
 
   async resetForRetry(id: string, userId: string): Promise<boolean> {

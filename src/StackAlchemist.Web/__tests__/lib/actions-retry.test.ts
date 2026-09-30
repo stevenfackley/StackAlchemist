@@ -16,6 +16,7 @@ vi.mock("@/lib/runtime-config", () => ({
   hasEngineConfig: vi.fn(() => true),
   hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
+  usesPostgresStore: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => ""),
 }));
@@ -25,9 +26,13 @@ vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
+// The store rejects malformed ids before querying, so fixtures need real UUIDs.
+const GEN_ID = "0b5d3c1e-6f7a-4c2d-9e8f-1a2b3c4d5e6f";
+const MISSING_ID = "7a1c9d2e-3b4f-4a5c-8d6e-9f0a1b2c3d4e";
+
 function baseGeneration(overrides: Record<string, unknown> = {}) {
   return {
-    id: "gen-1",
+    id: GEN_ID,
     user_id: "owner-user",
     mode: "simple",
     tier: 1,
@@ -62,7 +67,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
   it("rejects unauthenticated callers before touching the database", async () => {
     vi.mocked(getServerUser).mockResolvedValue(null as never);
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: false, error: "Please sign in to retry a build." });
     expect(createServerClient).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -74,7 +79,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
       makeDb([{ data: baseGeneration(), error: null }]) as never
     );
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     // Identical message to the missing-row case — no existence oracle.
     expect(result).toEqual({ success: false, error: "Generation not found." });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -85,7 +90,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
       makeDb([{ data: null, error: { message: "not found" } }]) as never
     );
 
-    const result = await retryGeneration("missing-id");
+    const result = await retryGeneration(MISSING_ID);
     expect(result).toEqual({ success: false, error: "Generation not found." });
   });
 
@@ -94,7 +99,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
       makeDb([{ data: baseGeneration({ attempt_count: 3 }), error: null }]) as never
     );
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({
       success: false,
       error: "Maximum retry attempts (3) reached. Please start a new generation.",
@@ -107,7 +112,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
       makeDb([{ data: baseGeneration({ status: "success" }), error: null }]) as never
     );
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({
       success: false,
       error: "Only failed generations can be retried.",
@@ -119,12 +124,12 @@ describe("actions.ts — retryGeneration (configured)", () => {
     vi.mocked(createServerClient).mockReturnValue(
       makeDb([
         { data: baseGeneration(), error: null }, // select
-        { error: null }, // update
+        { data: [{ id: GEN_ID }], error: null }, // update
       ]) as never
     );
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
     expect(getServerUser).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -132,16 +137,30 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(url).toContain("/api/generate");
   });
 
+  it("does not re-fire the engine when another retry already claimed the failed row", async () => {
+    // The scoped UPDATE matched no row: a concurrent retry flipped it first.
+    vi.mocked(createServerClient).mockReturnValue(
+      makeDb([
+        { data: baseGeneration(), error: null }, // select
+        { data: [], error: null }, // update
+      ]) as never
+    );
+
+    const result = await retryGeneration(GEN_ID);
+    expect(result).toEqual({ success: false, error: "Only failed generations can be retried." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("still reports success even when the re-fire fetch throws", async () => {
     vi.mocked(createServerClient).mockReturnValue(
       makeDb([
         { data: baseGeneration(), error: null },
-        { error: null },
+        { data: [{ id: GEN_ID }], error: null },
       ]) as never
     );
     fetchMock.mockRejectedValue(new Error("engine unreachable"));
 
-    const result = await retryGeneration("gen-1");
+    const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
   });
 });
