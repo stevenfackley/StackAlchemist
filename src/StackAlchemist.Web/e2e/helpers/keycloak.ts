@@ -4,7 +4,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
  * Keycloak helpers for the integration and nightly suites. They drive the realm's stock
  * login theme (keycloak.v2), so the selectors are Keycloak's own labels, not our
  * data-testids. The fixture user and the admin/admin bootstrap account come from
- * docker/keycloak/stackalchemist-ci-realm.json and docker-compose.test.yml: public CI
+ * docker/keycloak/stackalchemist-ci-realm.json and docker-compose.ci.yml: public CI
  * constants for a throwaway realm, never real credentials.
  */
 export const KC_URL = (process.env.E2E_KEYCLOAK_URL ?? "http://localhost:8080").replace(/\/+$/, "");

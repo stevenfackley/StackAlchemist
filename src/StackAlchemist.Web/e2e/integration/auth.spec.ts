@@ -8,7 +8,7 @@ import {
   userSessionCount,
 } from "../helpers/keycloak";
 
-// Needs Postgres + Keycloak (docker/docker-compose.test.yml) and the app in Qavren mode;
+// Needs Postgres + Keycloak (docker/docker-compose.ci.yml) and the app in Qavren mode;
 // see "Integration suite (Postgres + Keycloak)" in e2e/README.md.
 
 const SESSION_COOKIE = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?$/;

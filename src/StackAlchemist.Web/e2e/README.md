@@ -19,7 +19,8 @@ resurrect the session), and registration through Keycloak's own form (`prompt=cr
 live in `e2e/helpers/keycloak.ts`.
 
 What it needs running:
-- `postgres` and `keycloak` from `docker/docker-compose.test.yml`; Keycloak imports
+- `postgres` and `keycloak` from `docker/docker-compose.ci.yml` (an overlay: always pass it after
+  `docker-compose.test.yml`, as below); Keycloak imports
   `docker/keycloak/stackalchemist-ci-realm.json` (realm `stackalchemist-ci`, client `stackalchemist-ci-web`).
 - The schema migrated (`npm run db:migrate`).
 - The app in Qavren mode. Playwright's `webServer` starts `npm run dev`, which inherits the shell's env.
@@ -27,7 +28,7 @@ What it needs running:
 Local recipe (PowerShell, from `src/StackAlchemist.Web`; ports 3000, 5432, 8080 and 9000 must be free):
 
 ```powershell
-docker compose -f ..\..\docker\docker-compose.test.yml up -d --wait postgres keycloak
+docker compose -f ..\..\docker\docker-compose.test.yml -f ..\..\docker\docker-compose.ci.yml up -d --wait postgres keycloak
 $env:DATABASE_URL_MIGRATE = 'postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable'
 npm run db:migrate
 
@@ -42,7 +43,7 @@ $env:ENGINE_API_URL = 'http://127.0.0.1:5000'
 $env:E2E_KEYCLOAK_URL = 'http://localhost:8080'
 npm run e2e:integration          # sets NEXT_PUBLIC_DEMO_MODE=false itself
 
-docker compose -f ..\..\docker\docker-compose.test.yml down -v
+docker compose -f ..\..\docker\docker-compose.test.yml -f ..\..\docker\docker-compose.ci.yml down -v
 ```
 
 If the bundled Chromium cannot be downloaded, set `$env:PLAYWRIGHT_CHANNEL = 'chrome'` (or `msedge`) to run

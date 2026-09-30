@@ -435,7 +435,7 @@ jobs:
         # Phase D: the CI database and the identity provider are containers this job
         # starts itself. The realm is imported from docker/keycloak/*.json on boot.
         # 180 s: Keycloak's import takes ~30 s; a stuck container must fail here, not at the job timeout.
-        run: docker compose -f docker/docker-compose.test.yml up -d --wait --wait-timeout 180 postgres keycloak
+        run: docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml up -d --wait --wait-timeout 180 postgres keycloak
 
       - name: Mint AUTH_SECRET for this run
         # No repository secret needed: Auth.js only has to agree with itself for the
@@ -458,7 +458,7 @@ jobs:
         run: cp .env src/StackAlchemist.Web/.env
 
       - name: Build and Start Engine (Postgres mode)
-        run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine
+        run: docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml up -d --build sa-engine
 
       - name: Wait for Backend Health
         run: |
@@ -471,7 +471,7 @@ jobs:
             sleep 2
           done
           echo "❌ Engine health check timed out after 60s."
-          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 30
+          docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs sa-engine --tail 30
           exit 1
 
       - name: Run Playwright Integration Tests
@@ -523,13 +523,13 @@ jobs:
           # a generic "Schema extraction failed" in the page snapshot — the
           # actual stack trace is locked inside the container.
           echo "::group::sa-engine logs"
-          docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 200 || true
+          docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs sa-engine --tail 200 || true
           echo "::endgroup::"
           echo "::group::keycloak logs"
-          docker compose -f docker/docker-compose.test.yml logs keycloak --tail 100 || true
+          docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs keycloak --tail 100 || true
           echo "::endgroup::"
           echo "::group::postgres logs"
-          docker compose -f docker/docker-compose.test.yml logs postgres --tail 100 || true
+          docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs postgres --tail 100 || true
           echo "::endgroup::"
 
       - name: Upload Integration Playwright Report
@@ -552,7 +552,7 @@ jobs:
 
       - name: Teardown Backend Services
         if: always()
-        run: docker compose -f docker/docker-compose.test.yml down -v
+        run: docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml down -v
         continue-on-error: true
 
   db-pooler-nightly:

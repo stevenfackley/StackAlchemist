@@ -2,8 +2,9 @@
 
 Since phase D the `E2E Integration` lane (`.github/workflows/ci.yml`, job
 `e2e-integration`) runs the web app in Qavren mode against a Postgres and a
-Keycloak that the job starts itself from `docker/docker-compose.test.yml`. No
-Supabase project and no Test-environment database secret is involved. This
+Keycloak that the job starts itself from the `docker/docker-compose.ci.yml`
+overlay. No Supabase project and no Test-environment database secret is
+involved. This
 document covers what the lane does, the CI realm, the Playwright suite, a local
 recipe, the nightly pooler smoke, the traps and what changed against the
 Supabase-era lane. The flag and env contract live in `qavren-auth.md`; the
@@ -29,8 +30,10 @@ The job runs on push to `main`, on the nightly schedule and on
    (below). A missing or placeholder secret warns and sets `skip_e2e=true`; it no
    longer stops the job. A value that is present but malformed (wrong prefix or
    length) still fails this step, and with it the job.
-5. **Start Postgres + Keycloak (test compose stack).** `docker compose ... up -d
-   --wait --wait-timeout 180 postgres keycloak`. Both services have healthchecks;
+5. **Start Postgres + Keycloak (test compose stack).** `docker compose -f
+   docker/docker-compose.test.yml -f docker/docker-compose.ci.yml up -d --wait
+   --wait-timeout 180 postgres keycloak`. Every compose call in the job names both
+   files (see "The compose overlay" below). Both services have healthchecks;
    Keycloak's realm import takes ~30 s, and 180 s makes a stuck container fail
    here instead of at the job timeout.
 6. **Mint AUTH_SECRET for this run.** `openssl rand -base64 32`, masked and
@@ -53,8 +56,25 @@ The job runs on push to `main`, on the nightly schedule and on
 12. **Dump backend container logs**, then **Upload Integration Playwright
     Report** and **Artifacts**, all `if: always()`. The log dump covers
     `sa-engine`, `keycloak` and `postgres`.
-13. **Teardown Backend Services.** `docker compose ... down -v` (`if: always()`),
+13. **Teardown Backend Services.** `docker compose -f ... -f ... down -v` (`if: always()`),
     which also drops Keycloak's H2 data and the Postgres volume.
+
+### The compose overlay
+
+`postgres`, `keycloak` and the Engine's `DATABASE_URL`/`depends_on: postgres` live
+in `docker/docker-compose.ci.yml`, not in `docker-compose.test.yml`. The base file
+is also what `deploy-test.yml` starts on the test mirror host, bare (`up -d
+--force-recreate --wait`, no service list); anything added to it would start
+there too, with `admin`/`admin` and `sslRequired: none`, and would
+repoint the mirror Engine at an unmigrated local Postgres. The overlay is never
+used by `deploy-test.yml`.
+
+Always pass both files, base first: `-f docker/docker-compose.test.yml -f
+docker/docker-compose.ci.yml`. The overlay does not declare the
+`stackalchemist-test` network; the base does. Relative paths (`./keycloak`)
+resolve against the FIRST `-f` file's directory, which is `docker/`. `config
+--services` on the base alone prints `sa-engine` and `sa-web`; with the overlay it
+also prints `postgres` and `keycloak`.
 
 ### The two `DATABASE_URL` views
 
@@ -62,7 +82,7 @@ The same database is reached by two names:
 
 | Who | Value | Where it is set |
 |---|---|---|
-| Engine, inside the compose network | `postgres://postgres:postgres@postgres:5432/stackalchemist?sslmode=disable` | `.env` (from the `setup-env` `database_url` input), and again as `sa-engine.environment` in `docker-compose.test.yml` so the Engine does not depend on the file |
+| Engine, inside the compose network | `postgres://postgres:postgres@postgres:5432/stackalchemist?sslmode=disable` | `.env` (from the `setup-env` `database_url` input), and again as `sa-engine.environment` in `docker-compose.ci.yml` so the Engine does not depend on the file |
 | Migrator and Playwright, on the runner | `postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable` | step `env` of the migrate step (as `DATABASE_URL_MIGRATE`) and of both Playwright steps (as `DATABASE_URL`) |
 
 The copied `src/StackAlchemist.Web/.env` carries the container name, which the
@@ -255,7 +275,7 @@ read the warnings. Both URLs must be percent-encoded as described in
 
 - **Keycloak never turns healthy (the compose step fails after 180 s).** Read the
   `keycloak logs` group of the log-dump step, or locally `docker compose -f
-  docker/docker-compose.test.yml logs keycloak`. Usual causes: a syntax error in
+  docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs keycloak`. Usual causes: a syntax error in
   the realm JSON (including a client scope Keycloak does not know, see `openid`
   above), or a port clash on 8080/9000 (locally). A merely slow Keycloak is fine:
   the healthcheck allows 20 s plus 36 tries 5 s apart, and the compose wait 180 s.
