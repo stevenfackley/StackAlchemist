@@ -1,27 +1,7 @@
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-import { isDemoMode } from "./lib/runtime-config";
-
-/**
- * Routes that require an authenticated user. The generation flow
- * (prompt → build → preview → download) is gated so every creation is tied to
- * an account — a prerequisite for the per-account free-tier quota.
- */
-function isProtectedRoute(pathname: string): boolean {
-  const prefixes = ["/simple", "/advanced", "/generate"];
-  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-/**
- * Constant-time string comparison — mitigates timing attacks on the
- * Basic-Auth credentials check below. Works on edge + node runtimes.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
-}
+import { isDemoMode, usesQavrenAuth } from "./lib/runtime-config";
+import { isProtectedRoute, timingSafeEqual } from "./lib/proxy-utils";
 
 /**
  * Gate the test mirror behind HTTP Basic Auth. Prevents casual discovery of
@@ -99,11 +79,7 @@ function checkTestSiteBasicAuth(request: NextRequest): NextResponse | null {
  * This keeps the server-side session in sync without any extra round-trips in
  * Server Components or Server Actions.
  */
-export async function middleware(request: NextRequest) {
-  // Run Basic Auth first so unauthenticated traffic never touches Supabase.
-  const authChallenge = checkTestSiteBasicAuth(request);
-  if (authChallenge) return authChallenge;
-
+async function supabaseSessionRefresh(request: NextRequest): Promise<NextResponse> {
   let supabaseResponse = NextResponse.next({ request });
 
   // Bail out early when Supabase public vars are not configured (demo / CI).
@@ -165,6 +141,38 @@ export async function middleware(request: NextRequest) {
   return supabaseResponse;
 }
 
+type Gate = (req: NextRequest, event: NextFetchEvent) => Promise<Response> | Response;
+let qavrenGate: Gate | null = null;
+
+/**
+ * Built on first use so a Supabase-mode process never loads next-auth (see the
+ * invariant in src/auth.config.ts). `auth()` resolves the session onto `req.auth`.
+ * This is a redirect convenience, not the authorization boundary: every action
+ * and page reads getSessionUser() itself and enforces ownership there.
+ */
+async function getQavrenGate(): Promise<Gate> {
+  if (qavrenGate) return qavrenGate;
+  const { auth } = await import("@/auth");
+  qavrenGate = auth((req) => {
+    const { pathname, search } = req.nextUrl;
+    if (isDemoMode || !isProtectedRoute(pathname) || req.auth?.user?.id) return NextResponse.next();
+    // Same shape as the Supabase branch: bounce to /login and come back afterwards.
+    const login = new URL("/login", req.nextUrl.origin);
+    login.searchParams.set("returnTo", pathname + search);
+    return NextResponse.redirect(login);
+  }) as unknown as Gate;
+  return qavrenGate;
+}
+
+/** Next 16 proxy (replaces middleware.ts). Basic Auth first, then the auth mode. */
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // Run Basic Auth first so unauthenticated traffic never touches Supabase or Auth.js.
+  const challenge = checkTestSiteBasicAuth(request);
+  if (challenge) return challenge;
+  if (usesQavrenAuth()) return (await getQavrenGate())(request, event);
+  return supabaseSessionRefresh(request);
+}
+
 export const config = {
   matcher: [
     /*
@@ -172,7 +180,8 @@ export const config = {
      *  - _next/static  (Next.js static assets)
      *  - _next/image   (Next.js image optimization)
      *  - favicon.ico and other public image assets
+     *  - api/auth      (Auth.js's own routes, which must never be gated)
      */
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
