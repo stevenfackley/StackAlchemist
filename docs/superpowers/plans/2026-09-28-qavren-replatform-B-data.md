@@ -1561,6 +1561,15 @@ git add .github docker-compose.prod.yml docs/runbooks/qavren-db-migrations.md
 git commit -m "ci(deploy): DATABASE_URL pass-through and a gated qavren-db migrate step"
 ```
 
+**Review amendments (2026-09-30, Task 7):**
+
+- Step 0 (c) wording corrected: after the count of 3, insert two more ORDINARY COUNTED tier-0 rows (both must succeed, count 5), then assert the next insert is rejected. Rows that do not count could never reach the limit; the proof is that a trigger ignoring one exclusion (e.g. dropping `status <> 'failed'`) reaches the limit early and fails the test (verified by loading such a trigger into the local container).
+- Engine lock-in test for the uncancelled compensation: a pre-cancelled token proves nothing because the fake transport ignores cancellation. The test cancels a `CancellationTokenSource` INSIDE the throwing `EnqueueAsync` mock (so the RPC ran on a live token) and asserts the compensating `DELETE` still goes out; `RecordingHttpHandler.SendAsync` gained `cancellationToken.ThrowIfCancellationRequested()` so the transport honours cancellation. Mutating `DeleteEventAsync(..., ct)` back makes it fail ("expected 2 requests, found 1").
+- `deploy-prod.yml`: step-level `if` cannot read `secrets`; the migrate step keeps the bash env-var gate (skip + warning + step summary in Supabase mode). Node is NOT set up in this workflow today, so a `actions/setup-node@v7` step was added for the migrator, gated by a JOB-level boolean `QAVREN_DB_MIGRATE_ENABLED: ${{ secrets.DATABASE_URL_MIGRATE != '' }}` (job `env` may read `secrets`; only the boolean is exposed) so a toolcache/download failure on the ARM64 runner cannot block a Supabase-mode deploy. `npm ci --omit=dev --ignore-scripts` is enough: `drizzle-orm` and `postgres` are runtime deps and the migrator imports nothing else (verified in a scratch copy). Until phase E the skip is advisory; at phase E mirror the Supabase step's hard-fail when the push changes `src/StackAlchemist.Web/drizzle/`.
+- Node version: `ci.yml` pins `NODE_VERSION: "24"` while `.nvmrc` says `26.3.0`; the deploy workflow mirrors CI (24). Someone should pick one (out of scope here).
+- Runbook: a raw `$` in a DSN is interpolated when Compose reads `.env`; percent-encode `$` `#` `@` (`%24` `%23` `%40`) in both URL secrets. The migrator prints "not a valid postgres URL (percent-encode the password)" when a raw one slips through.
+- The follow-up issue the plan asked for already existed as #419; the runbook references it. Phase B follow-ups filed 2026-09-30: #422 (Supabase 2xx body fails to map → paid generation lost), #423 (`stripe_charge_id` never written), #424 (ambiguous refund claim strands `refund_pending`), #425 (unparseable stale row never failed), #426 (Worker host lacks `IPendingWriteBuffer`).
+
 ### Task 8: Real-target smoke against `qavren-db-test` (Toby, not a subagent)
 
 The vault file from phase A holds the test URLs. Nothing here prints them.
