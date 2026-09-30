@@ -30,8 +30,8 @@ until the pre-flight table is all green.
 | Prod secret `AUTH_SECRET` | **set 2026-09-30** (minted `openssl rand -base64 32`; inert until `QAVREN_AUTH_URL` exists) | — |
 | Prod secret `QAVREN_AUTH_URL` | absent (set it in §2, not before) | §2 |
 | qavren-auth realms `stackalchemist` + `stackalchemist-dev`, hostname entry, login skin (qavren-auth #164) | merged 2026-09-30 (`f2f0ae8`) | — |
-| Terraform edge for `auth.stackalchemist.app` | **planned, not applied**: `terraform plan` on 2026-09-30 = 1 add (CNAME), 2 in-place (tunnel ingress, bridge ruleset), 0 destroy; the apply is classifier-blocked for the assistant | §1.2 |
-| `auth.stackalchemist.app` | no DNS (curl exit 6 / HTTP 000) | §1.2 |
+| Terraform edge for `auth.stackalchemist.app` | **applied 2026-09-30** (1 added, 2 changed, 0 destroyed, after the owner granted the apply) | — |
+| `auth.stackalchemist.app` | resolves; `/realms/master/.well-known/openid-configuration` 200, `/realms/stackalchemist/…` 404 until §1.4; shared host 308s `/realms/stackalchemist/*` to it | — |
 | Realm `stackalchemist` on the prod Keycloak | not applied (`auth.qavrensolutions.com/realms/stackalchemist-dev` → 404 too) | §1.4 |
 | Google redirect URIs for both realms | not registered | §1.3 |
 | `www.stackalchemist.app` | **serves the app (HTTP 200, no redirect)** — must 301 to the apex before the flip | §1.5 |
@@ -102,37 +102,25 @@ triggers a deploy before the flip.
 Afterwards, in qavren-db, update the `notes:` of `apps/stackalchemist.yaml`
 (prod provisioned date) on a branch + PR; CI's manifest tests read the file.
 
-### 1.2 Apply the edge for `auth.stackalchemist.app`
+### 1.2 Edge for `auth.stackalchemist.app` — DONE 2026-09-30
 
-The qavren-auth checkout at `C:\Users\steve\projects\qavren-auth` is on
-`main` at `f2f0ae8` (pulled 2026-09-30), providers are initialised, and a
-saved plan sits at `infra/tfplan-hostnames`. A saved plan is valid only while
-the state has not moved; if the apply below refuses it, re-plan.
+Applied from the qavren-auth checkout (`main` at `f2f0ae8`) with
+`terraform -chdir=infra apply tfplan-hostnames`: `1 added, 2 changed, 0
+destroyed`. The three changes: a proxied CNAME `auth` in zone
+`stackalchemist.app` to the shared tunnel; one tunnel ingress rule
+`auth.stackalchemist.app → http://keycloak:8080` (catch-all 404 still last);
+one 308 bridge rule for `/realms/stackalchemist/` on `auth.qavrensolutions.com`.
+Measured right after:
 
-```powershell
-Set-Location C:\Users\steve\projects\qavren-auth
-terraform -chdir=infra apply tfplan-hostnames
-# if refused as stale:
-terraform -chdir=infra plan -out=tfplan-hostnames   # expect: 1 to add, 2 to change, 0 to destroy
-terraform -chdir=infra apply tfplan-hostnames
+```text
+https://auth.stackalchemist.app/realms/master/.well-known/openid-configuration         -> 200
+https://auth.stackalchemist.app/realms/stackalchemist/.well-known/openid-configuration -> 404  (until §1.4)
+https://auth.qavrensolutions.com/realms/stackalchemist/protocol/openid-connect/auth?x=1 -> 308 -> https://auth.stackalchemist.app/realms/stackalchemist/protocol/openid-connect/auth?x=1
 ```
 
-What the three changes are (verified in the 2026-09-30 plan): a proxied CNAME
-`auth` in zone `stackalchemist.app` to the shared tunnel; the tunnel config
-gains one ingress rule `auth.stackalchemist.app → http://keycloak:8080` with
-the catch-all 404 still last; the bridge ruleset gains one 308 rule for
-`/realms/stackalchemist/` on `auth.qavrensolutions.com`. The many `~` lines on
-existing rules are Terraform re-rendering an ordered list after an insertion,
-not changes to those rules.
-
-Verify (a 404 body is right until §1.4 applies the realm):
-
-```bash
-curl -sI https://auth.stackalchemist.app/realms/stackalchemist/.well-known/openid-configuration | head -1
-# HTTP/2 404   (HTTP 000 means DNS has not been created)
-curl -sI https://auth.qavrensolutions.com/realms/stackalchemist/ | grep -iE '^HTTP|^location'
-# HTTP/2 308  location: https://auth.stackalchemist.app/realms/stackalchemist/
-```
+If the hostname ever needs re-creating: `terraform -chdir=infra plan` in
+qavren-auth must show `0 to add` for this entry; anything else means the
+Cloudflare side drifted, and `docs/hostname-cutover-runbook.md` there applies.
 
 ### 1.3 Google Cloud Console (no API for this)
 
@@ -226,7 +214,7 @@ row is host-only, nothing to do.
 Do not start §2 until each line is true:
 
 - [ ] §1.1 `gh secret list … --env Prod` shows `DATABASE_URL`, `DATABASE_URL_MIGRATE`, `AUTH_SECRET`
-- [ ] §1.2 `auth.stackalchemist.app` resolves (discovery 404 or 200, not 000)
+- [x] §1.2 `auth.stackalchemist.app` resolves (done 2026-09-30)
 - [ ] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain
 - [ ] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist`; login page shows the skin
 - [ ] §1.5 `www.` → 301 to the apex
@@ -332,7 +320,7 @@ preflight warns. Remove all three.
 
 ## Commands the assistant cannot run (hook or classifier), for the record
 
-- `terraform … apply` in qavren-auth (classifier: protected-scope IaC apply) — §1.2.
+- `terraform … apply` in qavren-auth (classifier: protected-scope IaC apply) — §1.2; the owner granted it the same day and it ran.
 - `pwsh tools/provision-app.ps1 -Env prod -Apply` in qavren-db (classifier: prod DB provisioning) — §1.1.
 - `infra/update-realms.ps1` (SSM `send-command` to the prod box) — §1.4.
 - `gh workflow run`, `gh secret delete`, `gh pr merge`, `gh api -X …` (guard-writes hook) — §2, §5, and:
