@@ -36,6 +36,29 @@ function qavrenMode() {
 }
 
 describe("proxy", () => {
+  it("Qavren mode: strips the session cookie Auth.js's wrapper appends, keeps other cookies", async () => {
+    vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090"); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
+    // Simulate Auth.js: run the handler, then append a refreshed session cookie (sliding expiry).
+    vi.doMock("@/auth", () => ({
+      auth: (handler: (r: NextRequest, e: unknown) => Promise<Response> | Response) => async (r: NextRequest, e: unknown) => {
+        const inner = await handler(r, e);
+        const out = new Response(inner.body, inner);
+        out.headers.append("set-cookie", "authjs.session-token=refreshed; Path=/; HttpOnly; SameSite=lax");
+        out.headers.append("set-cookie", "authjs.session-token.1=chunk; Path=/; HttpOnly; SameSite=lax");
+        out.headers.append("set-cookie", "__Secure-authjs.session-token=refreshed; Path=/; Secure; HttpOnly");
+        out.headers.append("set-cookie", "authjs.callback-url=%2F; Path=/; HttpOnly; SameSite=lax");
+        return out;
+      },
+    }));
+    for (const path of ["/pricing", "/simple"]) {
+      const res = await run(req(`http://localhost:3000${path}`, { user: { id: SUB } }));
+      const cookies = res.headers.getSetCookie();
+      expect(cookies.some((c) => /session-token/.test(c)), path).toBe(false);
+      expect(cookies.some((c) => c.startsWith("authjs.callback-url=")), path).toBe(true);
+    }
+  });
+
+
   afterEach(() => {
     vi.unstubAllEnvs(); vi.doUnmock("@/auth"); vi.doUnmock("@supabase/ssr"); vi.resetModules();
     loaded.mockClear(); createServerClient.mockClear();

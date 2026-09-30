@@ -234,6 +234,24 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
   for the assert message (`DATABASE_URL` missing, not an absolute http(s) URL,
   or `AUTH_SECRET` blank).
 
+## Session lifetime and sign-out
+
+- The Auth.js session is a JWT cookie with a FIXED 7-day life from sign-in. There is
+  no sliding refresh: the proxy strips the refreshed session cookie that Auth.js's
+  middleware wrapper appends to every gated response (`stripSessionRefresh` in
+  `src/proxy.ts`). Reason: with sliding refresh, any response still in flight when
+  the user signs out (a Server Action, a router refresh, a prefetch) re-issued the
+  cookie after the sign-out had deleted it and resurrected the session. Seen in the
+  local smoke on 2026-09-30; the fix removes the writer instead of racing it.
+- `POST /auth/signout` bypasses the gate for the same reason, and its 303 deletes
+  every `authjs.session-token*` / `__Secure-authjs.session-token*` cookie the request
+  carried with BOTH `Max-Age=0` and `Expires=Thu, 01 Jan 1970`: Next re-parses the
+  response's Set-Cookie headers when it merges `cookies()` mutations and that round
+  trip drops `Max-Age=0`, which would turn the deletion into an empty-value cookie.
+- Disabling a user in Keycloak therefore ends their app session only at the JWT's
+  expiry (up to 7 days), the same trade-off recharacter made. Shorten `maxAge` in
+  `src/auth.config.ts` if that window is ever unacceptable.
+
 ## Known gaps and phase F
 
 - The Qavren gate in `src/proxy.ts` decodes the path before the protected-prefix

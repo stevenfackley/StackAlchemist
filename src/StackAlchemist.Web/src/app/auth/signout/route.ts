@@ -85,10 +85,14 @@ async function qavrenSignOut(request: NextRequest) {
   const res = NextResponse.redirect(end, 303);
   // Belt and braces: Auth.js's own deletion rides on cookies(); a refreshed token appended by any
   // middleware would race it. Delete what the request actually carried (chunked cookies included).
+  // Both Max-Age=0 AND a past Expires: Next re-parses the response's Set-Cookie headers when it
+  // merges cookies() mutations (appendMutableCookies) and that round trip drops Max-Age=0, which
+  // would turn this deletion into an empty-value cookie and displace Auth.js's own deletion.
   for (const c of sessionCookies) {
     res.cookies.set(c.name, "", {
       path: "/",
       maxAge: 0,
+      expires: new Date(0),
       httpOnly: true,
       sameSite: "lax",
       secure: c.name.startsWith(SECURE_PREFIX),

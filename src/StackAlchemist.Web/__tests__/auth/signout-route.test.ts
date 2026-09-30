@@ -78,6 +78,7 @@ describe("POST /auth/signout (Qavren mode)", () => {
       const line = setCookie(res, name);
       expect(line, name).toMatch(/^[^=]+=;/);
       expect(line, name).toMatch(/Max-Age=0/i);
+      expect(line, name).toMatch(/Expires=Thu, 01 Jan 1970/);
       expect(line, name).toMatch(/Path=\//i);
       expect(line, name).toMatch(/HttpOnly/i);
       expect(line, name).not.toMatch(SECURE_ATTR);
@@ -94,6 +95,7 @@ describe("POST /auth/signout (Qavren mode)", () => {
     expect(getToken).toHaveBeenCalledWith({ req, secret: SECRET, secureCookie: true });
     const line = setCookie(res, "__Secure-authjs.session-token");
     expect(line).toMatch(/Max-Age=0/i);
+    expect(line).toMatch(/Expires=Thu, 01 Jan 1970/);
     expect(line).toMatch(SECURE_ATTR);
   });
 

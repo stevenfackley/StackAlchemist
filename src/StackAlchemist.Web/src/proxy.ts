@@ -177,6 +177,26 @@ async function getQavrenGate(): Promise<NextMiddleware> {
   return qavrenGate;
 }
 
+const SESSION_COOKIE_HEADER = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?=/;
+
+/**
+ * Auth.js's middleware wrapper re-encodes the JWT and appends a refreshed session
+ * cookie to EVERY gated response (sliding expiry). That makes any late response —
+ * a Server Action or a router refresh still in flight when the user signs out —
+ * resurrect the session the sign-out just deleted. The proxy therefore never
+ * re-issues session cookies: sign-in sets the cookie through Auth.js's own route,
+ * sign-out deletes it, and the session lives a fixed maxAge (7 days) in between.
+ * Other cookies the wrapper may set (callback-url, csrf) pass through untouched.
+ */
+function stripSessionRefresh<T>(res: T): T {
+  if (!(res instanceof Response)) return res;
+  const cookies = res.headers.getSetCookie();
+  if (!cookies.some((c) => SESSION_COOKIE_HEADER.test(c))) return res;
+  res.headers.delete("set-cookie");
+  for (const c of cookies) if (!SESSION_COOKIE_HEADER.test(c)) res.headers.append("set-cookie", c);
+  return res;
+}
+
 /** Next 16 proxy (replaces middleware.ts). Basic Auth first, then the auth mode. */
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // Run Basic Auth first so unauthenticated traffic never touches Supabase or Auth.js.
@@ -194,7 +214,7 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   if (usesQavrenAuth()) {
     // Demo mode never gates, so it never needs to load Auth.js or decrypt a cookie.
     if (isDemoMode) return NextResponse.next();
-    return (await getQavrenGate())(request, event);
+    return stripSessionRefresh(await (await getQavrenGate())(request, event));
   }
   return supabaseSessionRefresh(request);
 }
