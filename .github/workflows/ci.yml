@@ -295,18 +295,18 @@ jobs:
         working-directory: src/StackAlchemist.Web
         run: npx playwright install --with-deps chromium
 
+      # Postgres + Keycloak mode (phase D): no Supabase secret is needed for the
+      # integration suite; the remaining secrets gate only the nightly real-API specs.
       - name: Setup .env (test)
         uses: ./.github/actions/setup-env
         with:
           environment: test
-          app_url: https://test.stackalchemist.app
+          app_url: http://localhost:3000
           aspnetcore_environment: Staging
           api_port: "5000"
           engine_api_url: http://localhost:5000
-          is_test_site: "true"
-          supabase_url: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          is_test_site: "false"
+          database_url: postgres://postgres:postgres@postgres:5432/stackalchemist?sslmode=disable
           cf_account_id: ${{ secrets.CF_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
@@ -326,7 +326,7 @@ jobs:
           set -euo pipefail
           # GitHub auto-masks `${{ secrets.X }}` literals, but values round-tripped
           # through .env can leak via derived/substring forms. Re-register them.
-          for key in SUPABASE_SERVICE_ROLE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY BYOK_ENCRYPTION_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+          for key in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ANTHROPIC_API_KEY R2_SECRET_ACCESS_KEY ENGINE_SERVICE_KEY BYOK_ENCRYPTION_KEY CLOUDFLARE_TUNNEL_TOKEN; do
             value="$(grep -E "^${key}=" .env | head -n1 | cut -d'=' -f2-)"
             if [ -n "$value" ]; then
               echo "::add-mask::${value}"
@@ -351,7 +351,7 @@ jobs:
             local value
             value="$(get_env "$key")"
             if [ -z "$value" ]; then
-              echo "::warning::Missing required secret/env value for ${key} — E2E tests will be skipped."
+              echo "::warning::Missing required secret/env value for ${key} — the NIGHTLY real-API specs will be skipped (the integration suite runs regardless)."
               skip_e2e=true
               return 0
             fi
@@ -380,15 +380,12 @@ jobs:
               return 0
             fi
             if printf '%s' "$value" | grep -Eqi '(^your[-_]|placeholder|changeme|replace[-_]?me|dummy|example)'; then
-              echo "::warning::${key} appears to be a placeholder value — E2E tests will be skipped."
+              echo "::warning::${key} appears to be a placeholder value — the NIGHTLY real-API specs will be skipped (the integration suite runs regardless)."
               skip_e2e=true
             fi
           }
 
           required_keys=(
-            NEXT_PUBLIC_SUPABASE_URL
-            NEXT_PUBLIC_SUPABASE_ANON_KEY
-            SUPABASE_SERVICE_ROLE_KEY
             STRIPE_WEBHOOK_SECRET
             STRIPE_SECRET_KEY
             NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -411,9 +408,6 @@ jobs:
             exit 0
           fi
 
-          assert_pattern NEXT_PUBLIC_SUPABASE_URL '^https://.+\.supabase\.co/?$' 'expected a Supabase project URL.'
-          assert_pattern NEXT_PUBLIC_SUPABASE_ANON_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like anon key.'
-          assert_pattern SUPABASE_SERVICE_ROLE_KEY '^[^.]+\.[^.]+\.[^.]+$' 'expected a JWT-like service role key.'
           assert_pattern STRIPE_WEBHOOK_SECRET '^whsec_' 'expected a Stripe webhook signing secret.'
           assert_pattern STRIPE_SECRET_KEY '^sk_' 'expected a Stripe secret key.'
           assert_pattern NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY '^pk_' 'expected a Stripe publishable key.'
@@ -430,73 +424,35 @@ jobs:
 
           echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
 
-      - name: Apply Supabase migrations to CI project
-        if: steps.validate-secrets.outputs.skip_e2e != 'true'
-        env:
-          # Postgres connection string for the CI Supabase project
-          # (project ref cdlefpvsvyepofsboepc). Format:
-          # postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
-          # See docs/runbooks/ci-supabase-migrations.md.
-          SUPABASE_DB_URL: ${{ secrets.CI_SUPABASE_DB_URL }}
+      - name: Start Postgres + Keycloak (test compose stack)
+        # Phase D: the CI database and the identity provider are containers this job
+        # starts itself. The realm is imported from docker/keycloak/*.json on boot.
+        run: docker compose -f docker/docker-compose.test.yml up -d --wait postgres keycloak
+
+      - name: Mint AUTH_SECRET for this run
+        # No repository secret needed: Auth.js only has to agree with itself for the
+        # lifetime of this job.
         run: |
           set -euo pipefail
+          secret="$(openssl rand -base64 32)"
+          echo "::add-mask::${secret}"
+          echo "AUTH_SECRET=${secret}" >> "$GITHUB_ENV"
 
-          if [ -z "${SUPABASE_DB_URL:-}" ]; then
-            echo "::error::CI_SUPABASE_DB_URL secret is not set. See docs/runbooks/ci-supabase-migrations.md."
-            exit 1
-          fi
-
-          # Mask the value defensively (GitHub auto-masks secrets but a
-          # connection string contains a password we don't want leaking
-          # via any derived form).
-          echo "::add-mask::${SUPABASE_DB_URL}"
-
-          # Extract the password from the URL and export as SUPABASE_DB_PASSWORD.
-          # `supabase db push --db-url` does NOT read the password from the URL —
-          # it requires the password via env var (the CLI tells you this in the
-          # error: "Connect to your database by setting the env var correctly:
-          # SUPABASE_DB_PASSWORD"). Deriving it here keeps CI_SUPABASE_DB_URL
-          # as the single source of truth instead of needing two secrets.
-          # URL form: postgresql://<user>:<password>@<host>:<port>/<db>
-          url_no_scheme="${SUPABASE_DB_URL#*://}"
-          userpart="${url_no_scheme%@*}"
-          SUPABASE_DB_PASSWORD="${userpart#*:}"
-          export SUPABASE_DB_PASSWORD
-          echo "::add-mask::${SUPABASE_DB_PASSWORD}"
-          if [ -z "${SUPABASE_DB_PASSWORD}" ]; then
-            echo "::error::Failed to extract password from CI_SUPABASE_DB_URL. URL form must be postgresql://<user>:<password>@<host>:<port>/<db>."
-            exit 1
-          fi
-
-          # Install the Supabase CLI. Pinned for determinism — bump quarterly
-          # or when a needed CLI feature ships. See:
-          # https://github.com/supabase/cli/releases
-          SUPABASE_CLI_VERSION="v2.98.2"
-          curl -fsSL "https://github.com/supabase/cli/releases/download/${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
-            | tar -xz -C /tmp
-          sudo mv /tmp/supabase /usr/local/bin/supabase
-          installed_version="$(supabase --version)"
-          echo "Installed Supabase CLI: ${installed_version}"
-          if [ "${installed_version}" != "${SUPABASE_CLI_VERSION#v}" ]; then
-            echo "::warning::Installed CLI version (${installed_version}) does not match pinned ${SUPABASE_CLI_VERSION}. Continuing anyway."
-          fi
-
-          # Apply migrations. Idempotent: the CLI tracks applied migrations
-          # in supabase_migrations.schema_migrations.
-          supabase db push \
-            --db-url "$SUPABASE_DB_URL" \
-            --include-all
+      - name: Apply qavren-db migrations to the CI Postgres
+        # The web app's own migrator (never drizzle-kit migrate/push), against the
+        # host-published port. The Engine reaches the same database as postgres:5432.
+        working-directory: src/StackAlchemist.Web
+        env:
+          DATABASE_URL_MIGRATE: postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable
+        run: npm run db:migrate
 
       - name: Copy .env to Next.js project
-        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: cp .env src/StackAlchemist.Web/.env
 
-      - name: Build and Start Backend Services
-        if: steps.validate-secrets.outputs.skip_e2e != 'true'
+      - name: Build and Start Engine (Postgres mode)
         run: docker compose -f docker/docker-compose.test.yml up -d --build sa-engine
 
       - name: Wait for Backend Health
-        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         run: |
           echo "Waiting for Engine API at http://localhost:5000..."
           for i in $(seq 1 30); do
@@ -511,14 +467,24 @@ jobs:
           exit 1
 
       - name: Run Playwright Integration Tests
-        if: steps.validate-secrets.outputs.skip_e2e != 'true'
         working-directory: src/StackAlchemist.Web
         run: npm run e2e:integration
         env:
           CI: true
+          # Host view of the phase D stack. Process env beats the copied .env for `next dev`.
+          QAVREN_AUTH_URL: http://localhost:8080
+          QAVREN_REALM: stackalchemist-ci
+          AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+          SUPABASE_SERVICE_ROLE_KEY: ""
+          ENGINE_API_URL: http://127.0.0.1:5000
+          E2E_KEYCLOAK_URL: http://localhost:8080
 
       - name: Run Playwright Nightly Tests (real APIs, non-blocking)
-        # Nightly tests exercise the full external stack (Anthropic, Supabase,
+        # Nightly tests exercise the full external stack (Anthropic, Stripe,
         # R2, Engine). They are slow, cost real API calls, and are flake-prone
         # by design. Run only on schedule + manual dispatch, never block the
         # gate. See e2e/nightly/README or repo issues for known failures.
@@ -530,15 +496,32 @@ jobs:
         run: npm run e2e:nightly
         env:
           CI: true
+          # Host view of the phase D stack. Process env beats the copied .env for `next dev`.
+          QAVREN_AUTH_URL: http://localhost:8080
+          QAVREN_REALM: stackalchemist-ci
+          AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable
+          NEXT_PUBLIC_SUPABASE_URL: ""
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+          SUPABASE_SERVICE_ROLE_KEY: ""
+          ENGINE_API_URL: http://127.0.0.1:5000
+          E2E_KEYCLOAK_URL: http://localhost:8080
 
       - name: Dump backend container logs (always, on failure)
-        if: always() && steps.validate-secrets.outputs.skip_e2e != 'true'
+        if: always()
         run: |
           # Without these, an Engine error during Playwright surfaces only as
           # a generic "Schema extraction failed" in the page snapshot — the
           # actual stack trace is locked inside the container.
           echo "::group::sa-engine logs"
           docker compose -f docker/docker-compose.test.yml logs sa-engine --tail 200 || true
+          echo "::endgroup::"
+          echo "::group::keycloak logs"
+          docker compose -f docker/docker-compose.test.yml logs keycloak --tail 100 || true
+          echo "::endgroup::"
+          echo "::group::postgres logs"
+          docker compose -f docker/docker-compose.test.yml logs postgres --tail 100 || true
           echo "::endgroup::"
 
       - name: Upload Integration Playwright Report
@@ -563,6 +546,60 @@ jobs:
         if: always()
         run: docker compose -f docker/docker-compose.test.yml down -v
         continue-on-error: true
+
+  db-pooler-nightly:
+    name: qavren-db pooler smoke (nightly)
+    runs-on: ubuntu-latest
+    environment: test
+    permissions:
+      contents: read
+    needs: [frontend]
+    # Prod-shaped connectivity once a day: the web's migrator through the session
+    # port and the Drizzle isolation suite through the Supavisor transaction pooler
+    # (prepare: false). Uses the Test environment's qavren-db-test URLs (phase A).
+    # Never gates a PR.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: src/StackAlchemist.Web/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: src/StackAlchemist.Web
+        run: npm ci
+
+      - name: Migrate qavren-db-test (session URL)
+        working-directory: src/StackAlchemist.Web
+        env:
+          DATABASE_URL_MIGRATE: ${{ secrets.DATABASE_URL_MIGRATE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL_MIGRATE:-}" ]; then
+            echo "::warning::DATABASE_URL_MIGRATE is not set in the Test environment; skipping the pooler smoke."
+            exit 0
+          fi
+          echo "::add-mask::${DATABASE_URL_MIGRATE}"
+          npm run db:migrate
+
+      - name: Isolation suite through the transaction pooler
+        working-directory: src/StackAlchemist.Web
+        env:
+          TEST_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TEST_DATABASE_URL:-}" ]; then
+            echo "::warning::DATABASE_URL is not set in the Test environment; skipping the pooler smoke."
+            exit 0
+          fi
+          echo "::add-mask::${TEST_DATABASE_URL}"
+          npx vitest run __tests__/data/drizzle-store.integration.test.ts
 
   quality-gate:
     name: Quality Gate
@@ -604,9 +641,11 @@ jobs:
       - name: Fail if E2E Integration silently skipped on main
         # Catches secret regressions: if someone removes/breaks Test env
         # secrets, e2e-integration's validate step will set skip_e2e=true
-        # and exit 0. Without this assertion the gate stays green and the
-        # integration suite quietly stops protecting main.
+        # and exit 0. Since phase D the integration suite itself runs
+        # unconditionally (Postgres + Keycloak containers, no secrets); what
+        # skip_e2e now guards is the NIGHTLY real-API specs, which would
+        # otherwise quietly stop protecting main.
         if: github.ref == 'refs/heads/main' && needs.e2e-integration.outputs.skip_e2e == 'true'
         run: |
-          echo "::error::E2E Integration silently skipped on main — Test env secrets are misconfigured (placeholder values detected). See PR #88 / .github/workflows/ci.yml validate-secrets step."
+          echo "::error::NIGHTLY real-API specs skipped on main — a Test environment secret is missing or a placeholder (see the validate-secrets step in .github/workflows/ci.yml). The integration suite itself still ran."
           exit 1
