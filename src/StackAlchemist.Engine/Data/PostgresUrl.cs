@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Npgsql;
 
 namespace StackAlchemist.Engine.Data;
@@ -20,7 +21,7 @@ namespace StackAlchemist.Engine.Data;
 /// query parameter is rejected.
 /// </para>
 /// </summary>
-public static class PostgresUrl
+public static partial class PostgresUrl
 {
     /// <summary>
     /// Converts a <c>postgres://</c> / <c>postgresql://</c> URI to an Npgsql connection string.
@@ -28,8 +29,8 @@ public static class PostgresUrl
     /// </summary>
     /// <exception cref="FormatException">
     /// The value is not a valid postgres URI. This is the only exception type for bad input. The
-    /// message never echoes the URL, its userinfo or any query value other than <c>sslmode</c>,
-    /// because the URI carries the database password.
+    /// message never echoes the URL, its userinfo or any query value other than a short,
+    /// letters-only <c>sslmode</c>, because the URI carries the database password.
     /// </exception>
     public static string? ToNpgsqlConnectionString(string? url)
     {
@@ -63,7 +64,7 @@ public static class PostgresUrl
 
             foreach (var (key, values) in query)
             {
-                // sslmode is exempt so a repeated key reports its joined value as unrecognised.
+                // sslmode is exempt so a repeated key is reported as an unrecognised sslmode.
                 if (key != "sslmode" && values.Count > 1)
                     throw new FormatException($"DATABASE_URL repeats query parameter '{key}'.");
 
@@ -118,8 +119,15 @@ public static class PostgresUrl
         "require" => SslMode.Require,
         "verify-ca" => SslMode.VerifyCA,
         "verify-full" => SslMode.VerifyFull,
-        _ => throw new FormatException($"DATABASE_URL has an unrecognised sslmode '{value}'."),
+        // Quote the value only when it cannot be carrying anything else: a second '?' glues
+        // the rest of the URL (a password, say) onto the sslmode value.
+        _ => throw new FormatException(QuotableSslMode().IsMatch(value)
+            ? $"DATABASE_URL has an unrecognised sslmode '{value}'."
+            : "DATABASE_URL has an unrecognised sslmode."),
     };
+
+    [GeneratedRegex("^[A-Za-z_-]{0,16}$")]
+    private static partial Regex QuotableSslMode();
 
     private static int ParseConnectTimeout(string value) =>
         int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)

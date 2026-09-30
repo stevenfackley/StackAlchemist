@@ -43,6 +43,7 @@ public sealed class EngineDataSourceTests : IDisposable
         b.Database.Should().Be("x");
     }
 
+    // Assumes no .env up the tree sets DATABASE_URL: Program.cs loads the nearest one via DotNetEnv's TraversePath().
     [Fact]
     public void Without_DatabaseUrl_no_data_source_is_registered()
     {

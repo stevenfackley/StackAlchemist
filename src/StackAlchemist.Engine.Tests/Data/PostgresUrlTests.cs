@@ -56,8 +56,7 @@ public sealed class PostgresUrlTests
         Convert($"postgres://u:p@db.example.com:5432/app?sslmode={sslmode}").SslMode.Should().Be(expected);
 
     [Theory]
-    [InlineData("?sslmode=Require", "Require")]                         // wrong casing
-    [InlineData("?sslmode=require&sslmode=disable", "require,disable")] // repeated key
+    [InlineData("?sslmode=Require", "Require")] // wrong casing
     [InlineData("?sslmode=", "")]
     [InlineData("?sslmode=verify_full", "verify_full")]
     public void Rejects_an_unrecognised_sslmode_and_names_it(string query, string shown)
@@ -66,6 +65,19 @@ public sealed class PostgresUrlTests
             .Should().Throw<FormatException>().Which;
 
         ex.Message.Should().Be($"DATABASE_URL has an unrecognised sslmode '{shown}'.");
+    }
+
+    [Theory]
+    [InlineData("?sslmode=require&sslmode=disable")] // repeated key: joined with a comma
+    [InlineData("?sslmode=require?password=hunter2")] // a second '?' glues the rest onto the value
+    [InlineData("?sslmode=averyveryverylongmode")]    // past 16 characters
+    public void Rejects_an_unquotable_sslmode_without_echoing_it(string query)
+    {
+        var ex = FluentActions.Invoking(() => PostgresUrl.ToNpgsqlConnectionString($"postgres://u:p@h/db{query}"))
+            .Should().Throw<FormatException>().Which;
+
+        ex.Message.Should().Be("DATABASE_URL has an unrecognised sslmode.");
+        ex.Message.Should().NotContain("hunter2").And.NotContain("password");
     }
 
     [Fact]
@@ -190,7 +202,7 @@ public sealed class PostgresUrlTests
 
     [Fact]
     public void An_empty_path_leaves_the_database_unset_so_npgsql_defaults_it_to_the_username() =>
-        Convert("postgres://u:p@h:5432").Database.Should().BeNullOrEmpty();
+        Convert("postgres://u:p@h:5432").Database.Should().BeNull();
 
     [Fact]
     public void A_url_without_userinfo_leaves_credentials_unset()
@@ -198,7 +210,7 @@ public sealed class PostgresUrlTests
         var b = Convert("postgres://localhost:5432/db");
 
         b.Host.Should().Be("localhost");
-        b.Username.Should().BeNullOrEmpty();
+        b.Username.Should().BeNull();
         b.Password.Should().BeNull();
     }
 
