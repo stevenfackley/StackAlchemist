@@ -163,6 +163,13 @@ jobs:
       - name: Build Worker Tests
         run: dotnet build src/StackAlchemist.Worker.Tests/ --no-restore --configuration Release
 
+      - name: Install Helm (Tier-3 template lint gate)
+        # Tier3InfrastructureCompileTests.HelmChart_Lints shells out to `helm lint` and
+        # hard-fails on CI when the binary is missing. GitHub's ubuntu-24.04 runner image
+        # 20260927.320.1 (2026-09-30) stopped shipping Helm; the 20260920 image still had it.
+        # Never rely on the image's preinstalled tool set for a gate.
+        uses: azure/setup-helm@v4
+
       - name: Run Engine Tests
         run: dotnet test src/StackAlchemist.Engine.Tests/ --no-build --configuration Release --logger "trx;LogFileName=engine-test-results.trx" --collect:"XPlat Code Coverage"
         env:
