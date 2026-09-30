@@ -29,11 +29,13 @@ let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 // The store rejects malformed ids before querying, so fixtures need real UUIDs.
 const GEN_ID = "0b5d3c1e-6f7a-4c2d-9e8f-1a2b3c4d5e6f";
 const MISSING_ID = "7a1c9d2e-3b4f-4a5c-8d6e-9f0a1b2c3d4e";
+const OWNER_ID = "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c";
+const INTRUDER_ID = "9c8d7e6f-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
 
 function baseGeneration(overrides: Record<string, unknown> = {}) {
   return {
     id: GEN_ID,
-    user_id: "owner-user",
+    user_id: OWNER_ID,
     mode: "simple",
     tier: 1,
     project_type: "DotNetNextJs",
@@ -54,7 +56,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
     fetchMock.mockReset();
     vi.mocked(getServerUser).mockReset();
     // Default: the signed-in caller owns baseGeneration().
-    vi.mocked(getServerUser).mockResolvedValue({ id: "owner-user" } as never);
+    vi.mocked(getServerUser).mockResolvedValue({ id: OWNER_ID } as never);
     vi.mocked(createServerClient).mockReset();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -74,7 +76,7 @@ describe("actions.ts — retryGeneration (configured)", () => {
   });
 
   it("rejects a caller who does not own the generation, without leaking its existence", async () => {
-    vi.mocked(getServerUser).mockResolvedValue({ id: "intruder" } as never);
+    vi.mocked(getServerUser).mockResolvedValue({ id: INTRUDER_ID } as never);
     vi.mocked(createServerClient).mockReturnValue(
       makeDb([{ data: baseGeneration(), error: null }]) as never
     );

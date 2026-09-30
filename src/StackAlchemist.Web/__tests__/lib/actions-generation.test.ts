@@ -330,6 +330,24 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     expect(builder.range).toHaveBeenCalledWith(40, 59);
   });
 
+  it.each([
+    ["10000", 10000, [0, 99]],
+    ["NaN", Number.NaN, [0, 19]],
+    ["0", 0, [0, 0]],
+    ["a fraction", 2.7, [0, 1]],
+  ])("getMyGenerations clamps pageSize %s to an integer in [1, 100] (default 20 for NaN)", async (_name, pageSize, range) => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    const chain = makeDb([{ data: [], error: null, count: 0 }]) as never as {
+      from: ReturnType<typeof vi.fn>;
+    };
+    vi.mocked(createServerClient).mockReturnValue(chain as never);
+
+    await getMyGenerations(1, pageSize);
+
+    const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
+    expect(builder.range).toHaveBeenCalledWith(...range);
+  });
+
   it("getMyGenerations returns an empty page when the query errors", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
     vi.mocked(createServerClient).mockReturnValue(

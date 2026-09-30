@@ -8,13 +8,17 @@ import { DataStoreError, type DataStore, type NewGeneration, type ProfileSetting
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Drizzle 0.45 wraps every driver failure in a DrizzleQueryError whose message
- * is `Failed query: <sql>\nparams: <values>`. Unwrap to the Postgres error: its
- * message is what callers need (the quota trigger's text), and the wrapper's
- * bound params (prompts, the encrypted API key) should not end up in logs.
+ * Drizzle 0.45 wraps every driver failure in a DrizzleQueryError whose message is
+ * `Failed query: <sql>\nparams: <values>`. Unwrap to the driver's own error so
+ * callers get the Postgres message (the quota trigger's text) and the wrapper's
+ * `params:` text (prompts, the encrypted API key) never reaches a DataStoreError.
+ * What is NOT stripped: a PostgresError's `detail` for a check or not-null
+ * violation reads "Failing row contains (...)" with column values, the same as
+ * PostgREST's `details` does today. Fails closed: a wrapper with no cause becomes
+ * a bare Error rather than being passed through.
  */
 function driverError(e: unknown): unknown {
-  return e instanceof DrizzleQueryError && e.cause ? e.cause : e;
+  return e instanceof DrizzleQueryError ? (e.cause ?? new Error("query failed")) : e;
 }
 
 /** Drizzle over postgres-js against the qavren-db `stackalchemist` schema. */
@@ -52,27 +56,43 @@ export class DrizzleStore implements DataStore {
         eq(generations.user_id, userId), eq(generations.tier, 0), ne(generations.status, "failed"),
         gte(generations.created_at, monthStartUtc.toISOString()),
       ));
-      return Number(n);
+      return n;
     } catch (e) { throw new DataStoreError("generations count failed", driverError(e)); }
   }
 
   async insertGeneration(gen: NewGeneration): Promise<Generation> {
+    let row: Generation | undefined;
     try {
-      const [row] = await this.db.insert(generations).values(gen).returning();
-      return row as Generation;
+      // Explicit columns, not `.values(gen)`: a wider object must never be able
+      // to set status, attempt_count, transaction_id or preview_files_json here.
+      // SupabaseStore forces those; the column defaults give the same row.
+      [row] = await this.db.insert(generations).values({
+        mode: gen.mode,
+        tier: gen.tier,
+        prompt: gen.prompt,
+        project_type: gen.project_type,
+        schema_json: gen.schema_json,
+        personalization_json: gen.personalization_json,
+        user_id: gen.user_id,
+      }).returning();
     } catch (e) {
       // The quota trigger raises check_violation (23514) with its own message;
-      // surface that text so callers (and the test) can see it.
+      // surface that text so callers (and the test) can see it. Only a Postgres
+      // error's message is used, and only when it has one: a refused connection
+      // is an AggregateError with an empty message.
       const cause = driverError(e);
-      throw new DataStoreError(cause instanceof Error ? cause.message : "generations insert failed", cause);
+      const fromPostgres = cause instanceof Error && cause.name === "PostgresError" && cause.message !== "";
+      throw new DataStoreError(fromPostgres ? cause.message : "generations insert failed", cause);
     }
+    if (!row) throw new DataStoreError("generations insert returned no row");
+    return row;
   }
 
   async getGenerationById(id: string): Promise<Generation | null> {
     if (!UUID.test(id)) return null;
     try {
       const [row] = await this.db.select().from(generations).where(eq(generations.id, id)).limit(1);
-      return (row as Generation | undefined) ?? null;
+      return row ?? null;
     } catch (e) { throw new DataStoreError("generations select failed", driverError(e)); }
   }
 
@@ -90,11 +110,12 @@ export class DrizzleStore implements DataStore {
   async listMyGenerations(userId: string, offset: number, limit: number) {
     try {
       const [rows, [{ n }]] = await Promise.all([
+        // id breaks created_at ties so a page boundary never repeats or skips a row.
         this.db.select().from(generations).where(eq(generations.user_id, userId))
-          .orderBy(desc(generations.created_at)).limit(limit).offset(offset),
+          .orderBy(desc(generations.created_at), desc(generations.id)).limit(limit).offset(offset),
         this.db.select({ n: count() }).from(generations).where(eq(generations.user_id, userId)),
       ]);
-      return { generations: rows as Generation[], total: Number(n) };
+      return { generations: rows, total: n };
     } catch (e) { throw new DataStoreError("generations list failed", driverError(e)); }
   }
 
@@ -102,10 +123,10 @@ export class DrizzleStore implements DataStore {
     try {
       const [r] = await this.db.select({
         total: count(),
-        completed: sql<number>`count(*) filter (where ${generations.status} = 'success')`,
-        inProgress: sql<number>`count(*) filter (where ${generations.status} not in ('success', 'failed'))`,
+        completed: sql<number>`count(*) filter (where ${generations.status} = 'success')`.mapWith(Number),
+        inProgress: sql<number>`count(*) filter (where ${generations.status} not in ('success', 'failed'))`.mapWith(Number),
       }).from(generations).where(eq(generations.user_id, userId));
-      return { total: Number(r.total), completed: Number(r.completed), inProgress: Number(r.inProgress) };
+      return { total: r.total, completed: r.completed, inProgress: r.inProgress };
     } catch (e) { throw new DataStoreError("generations stats failed", driverError(e)); }
   }
 }

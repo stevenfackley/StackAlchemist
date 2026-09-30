@@ -69,6 +69,8 @@ describe("SupabaseStore", () => {
     expect(queries[0].table).toBe("generations");
     expect(queries[0].calls).toContainEqual(["eq", "user_id", UID]);
     expect(queries[0].calls).toContainEqual(["order", "created_at", { ascending: false }]);
+    // id breaks created_at ties so a page boundary never repeats or skips a row.
+    expect(queries[0].calls).toContainEqual(["order", "id", { ascending: false }]);
     expect(queries[0].calls).toContainEqual(["range", 0, 19]);
   });
 
@@ -101,7 +103,18 @@ describe("SupabaseStore", () => {
     expect(calls).toContainEqual(["gte", "created_at", monthStart.toISOString()]);
   });
 
+  it("getProfile returns null for a malformed id without calling the client", async () => {
+    await expect(new SupabaseStore().getProfile("not-a-uuid")).resolves.toBeNull();
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
   describe("resetForRetry", () => {
+    it("reports false for a malformed generation or owner id without calling the client", async () => {
+      await expect(new SupabaseStore().resetForRetry("not-a-uuid", UID)).resolves.toBe(false);
+      await expect(new SupabaseStore().resetForRetry(GEN_ID, "not-a-uuid")).resolves.toBe(false);
+      expect(createServerClient).not.toHaveBeenCalled();
+    });
+
     it("is scoped to the owner's failed row and reports true when exactly one row changed", async () => {
       const { queries } = stubClient({ data: [{ id: GEN_ID }], error: null });
 

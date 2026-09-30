@@ -37,7 +37,8 @@ vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const USER = { id: "user-1", email: "founder@example.com" };
+// The store rejects malformed ids before querying, so the user id must be a real UUID.
+const USER = { id: "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c", email: "founder@example.com" };
 const IDLE: SaveProfileSettingsState = { status: "idle", message: "" };
 
 /** Mirrors `encryptApiKeyOverride`'s decrypt side exactly (see actions.ts). */

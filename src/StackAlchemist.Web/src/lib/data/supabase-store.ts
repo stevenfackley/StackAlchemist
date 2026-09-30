@@ -19,6 +19,8 @@ export class SupabaseStore implements DataStore {
   }
 
   async getProfile(userId: string): Promise<ProfileSettingsRow | null> {
+    // Same guard as DrizzleStore: a malformed id is simply not found.
+    if (!UUID.test(userId)) return null;
     const { data, error } = await this.client()
       .from("profiles").select("email, api_key_override, preferred_model").eq("id", userId).maybeSingle();
     if (error) throw new DataStoreError("profiles select failed", error);
@@ -59,6 +61,7 @@ export class SupabaseStore implements DataStore {
   }
 
   async resetForRetry(id: string, userId: string): Promise<boolean> {
+    if (!UUID.test(id) || !UUID.test(userId)) return false;
     const { data, error } = await this.client()
       .from("generations").update({ status: "pending", error_message: null })
       .eq("id", id).eq("user_id", userId).eq("status", "failed").select("id");
@@ -69,7 +72,8 @@ export class SupabaseStore implements DataStore {
   async listMyGenerations(userId: string, offset: number, limit: number) {
     const { data, error, count } = await this.client()
       .from("generations").select("*", { count: "exact" })
-      .eq("user_id", userId).order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+      .eq("user_id", userId).order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range(offset, offset + limit - 1);
     if (error) throw new DataStoreError("generations list failed", error);
     return { generations: (data ?? []) as Generation[], total: count ?? 0 };
   }

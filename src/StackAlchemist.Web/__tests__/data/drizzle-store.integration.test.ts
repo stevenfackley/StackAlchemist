@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { DrizzleStore } from "@/lib/data/drizzle-store";
+import { DataStoreError } from "@/lib/data/store";
 import { closeDb } from "@/db";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -24,10 +25,16 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     await sql`delete from stackalchemist.generations where user_id in (${alice}, ${bob})`;
   });
   afterAll(async () => {
-    await sql`delete from stackalchemist.generations where user_id in (${alice}, ${bob})`;
-    await sql`delete from stackalchemist.profiles where id in (${alice}, ${bob})`;
-    await sql.end();
-    await closeDb();
+    try {
+      // sql is unassigned when beforeAll threw before connecting.
+      if (sql) {
+        await sql`delete from stackalchemist.generations where user_id in (${alice}, ${bob})`;
+        await sql`delete from stackalchemist.profiles where id in (${alice}, ${bob})`;
+      }
+    } finally {
+      await sql?.end();
+      await closeDb();
+    }
   });
 
   const gen = (user_id: string, tier: 0 | 1 = 1) => store.insertGeneration({
@@ -98,6 +105,19 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     expect(await store.countFreeGenerationsThisMonth(bob, monthStart())).toBe(0);
   });
 
+  it("free-tier quota: the count and the trigger agree on which rows use the allowance", async () => {
+    const rows = [];
+    for (let i = 0; i < 5; i++) rows.push(await gen(alice, 0));
+    await gen(alice, 1); // paid tier: never counted
+    await sql`update stackalchemist.generations set status = 'failed' where id = ${rows[0].id}`;
+    // One second before the UTC month start: last month's build, not counted.
+    await sql`update stackalchemist.generations set created_at = date_trunc('month', now(), 'UTC') - interval '1 second' where id = ${rows[1].id}`;
+
+    expect(await store.countFreeGenerationsThisMonth(alice, monthStart())).toBe(3);
+    // The trigger counts the same three, so a new free build is still allowed.
+    await expect(gen(alice, 0)).resolves.toMatchObject({ status: "pending", tier: 0 });
+  });
+
   it("profile upsert: undefined leaves the key, null clears it", async () => {
     await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-4-6", api_key_override: "v1:cipher" });
     await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-3-5-haiku-20241022" });
@@ -112,9 +132,36 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     expect(await store.getProfile("not-a-uuid")).toBeNull();
   });
 
+  it("profile upsert inserts an unseen id, storing an omitted key as null", async () => {
+    const carol = randomUUID();
+    try {
+      await store.upsertProfile({ id: carol, email: "carol@example.test", preferred_model: "claude-3-5-haiku-20241022", api_key_override: undefined });
+      expect(await store.getProfile(carol)).toEqual({ email: "carol@example.test", api_key_override: null, preferred_model: "claude-3-5-haiku-20241022" });
+    } finally {
+      await sql`delete from stackalchemist.profiles where id = ${carol}`;
+    }
+  });
+
   it("getGenerationById returns null for an unknown or malformed id", async () => {
     expect(await store.getGenerationById(randomUUID())).toBeNull();
     expect(await store.getGenerationById("demo-simple-123")).toBeNull();
+  });
+
+  it("getGenerationById is deliberately unscoped: anyone with the id gets the row", async () => {
+    const g = await gen(alice);
+    // Phase B decision 3: the by-id read stays unscoped (the result page is reachable by link);
+    // owner-only result pages are an open product question. Callers that need ownership check user_id.
+    expect((await store.getGenerationById(g.id))?.user_id).toBe(alice);
+  });
+
+  it("a failed query rejects with the Postgres error as cause, without the SQL params", async () => {
+    // A malformed uuid makes Postgres raise 22P02; Drizzle wraps it in a DrizzleQueryError whose text carries the bound params.
+    const err = await store.listMyGenerations("not-a-uuid", 0, 20).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DataStoreError);
+    const { message, cause } = err as DataStoreError;
+    expect((cause as { code?: string }).code).toBe("22P02");
+    expect(message).not.toMatch(/params:/);
+    expect(String((cause as Error).message)).not.toMatch(/params:/);
   });
 });
 

@@ -782,12 +782,15 @@ export async function getMyGenerations(
   if (!hasDataStoreConfig()) return empty;
 
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const offset = (safePage - 1) * pageSize;
+  // Same treatment for the size: an integer in [1, 100], default 20, so a caller
+  // can't hand NaN or 10_000 to the store's limit.
+  const safeSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.floor(pageSize))) : 20;
+  const offset = (safePage - 1) * safeSize;
 
   // The store returns the full match count alongside the page window, so the
   // caller can render pagination without a second query.
   try {
-    return await getDataStore().listMyGenerations(user.id, offset, pageSize);
+    return await getDataStore().listMyGenerations(user.id, offset, safeSize);
   } catch (err) {
     console.error("[getMyGenerations] Query error:", err);
     return empty;

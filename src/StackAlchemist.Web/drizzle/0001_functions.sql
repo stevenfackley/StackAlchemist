@@ -27,7 +27,8 @@ begin
    where user_id = new.user_id
      and tier = 0
      and status <> 'failed'
-     and created_at >= date_trunc('month', now());
+     -- UTC month start: the store compares created_at against a UTC boundary, and this pins the trigger to it whatever the session TimeZone.
+     and created_at >= date_trunc('month', now(), 'UTC');
   if used >= 5 then
     raise exception 'Free generation limit reached: 5 builds per month. Upgrade to download or wait until next month.'
       using errcode = 'check_violation';
