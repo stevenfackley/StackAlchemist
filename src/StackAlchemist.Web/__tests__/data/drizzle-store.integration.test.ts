@@ -18,7 +18,9 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
 
   beforeAll(async () => {
     store = new DrizzleStore(url);
-    sql = postgres(url!, { max: 1 });
+    // prepare: false: the nightly pooler smoke runs this file through Supavisor
+    // transaction mode, where prepared statements break.
+    sql = postgres(url!, { max: 1, prepare: false });
     await sql`insert into stackalchemist.profiles (id, email) values (${alice}, 'alice@example.test'), (${bob}, 'bob@example.test')`;
   });
   beforeEach(async () => {

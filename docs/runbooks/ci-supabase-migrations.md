@@ -1,5 +1,7 @@
 # CI Supabase Migrations Runbook
 
+> **CI section superseded (phase D, 2026-09-30):** the `E2E Integration` lane no longer uses a Supabase project; see `ci-e2e-keycloak-postgres.md`. The `CI_SUPABASE_DB_URL` secret is unused. The **prod deploy** section below still applies until phase E (deploy-prod.yml's `Apply Supabase migrations (prod)` step).
+
 The E2E Integration job (`.github/workflows/ci.yml`, job `e2e-integration`)
 applies `supabase/migrations/*.sql` to the CI-only Supabase project on every
 run before the engine starts. This document covers the secret it depends on
