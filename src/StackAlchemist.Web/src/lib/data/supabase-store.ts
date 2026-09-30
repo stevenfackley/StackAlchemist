@@ -34,6 +34,13 @@ export class SupabaseStore implements DataStore {
     if (error) throw new DataStoreError("profiles upsert failed", error);
   }
 
+  async ensureProfile({ id, email }: { id: string; email: string }): Promise<void> {
+    // ON CONFLICT (id) DO NOTHING: an existing row keeps its settings.
+    const { error } = await this.client()
+      .from("profiles").upsert({ id, email }, { onConflict: "id", ignoreDuplicates: true });
+    if (error) throw new DataStoreError("profiles insert failed", error);
+  }
+
   async countFreeGenerationsThisMonth(userId: string, monthStartUtc: Date): Promise<number> {
     const { count, error } = await this.client()
       .from("generations").select("id", { count: "exact", head: true })

@@ -147,6 +147,32 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     }
   });
 
+  it("ensureProfile inserts a first-seen user once and never overwrites settings", async () => {
+    const id = randomUUID();
+    try {
+      await store.ensureProfile({ id, email: "first@example.test" });
+      await store.ensureProfile({ id, email: "second@example.test" });
+      expect(await store.getProfile(id)).toMatchObject({ email: "first@example.test" });
+      await store.upsertProfile({ id, email: "first@example.test", preferred_model: "claude-opus-5-5" });
+      await store.ensureProfile({ id, email: "third@example.test" });
+      expect(await store.getProfile(id)).toMatchObject({ email: "first@example.test", preferred_model: "claude-opus-5-5" });
+    } finally {
+      await sql`delete from stackalchemist.profiles where id = ${id}`;
+    }
+  });
+
+  it("a first-seen user's generation insert needs ensureProfile first (generations.user_id references profiles.id)", async () => {
+    const id = randomUUID();
+    try {
+      await expect(gen(id)).rejects.toBeInstanceOf(DataStoreError);
+      await store.ensureProfile({ id, email: "" });
+      await expect(gen(id)).resolves.toMatchObject({ user_id: id, status: "pending" });
+    } finally {
+      await sql`delete from stackalchemist.generations where user_id = ${id}`;
+      await sql`delete from stackalchemist.profiles where id = ${id}`;
+    }
+  });
+
   it("getGenerationById returns null for an unknown or malformed id", async () => {
     expect(await store.getGenerationById(randomUUID())).toBeNull();
     expect(await store.getGenerationById("demo-simple-123")).toBeNull();

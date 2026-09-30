@@ -13,7 +13,7 @@ import {
   Zap,
   Sparkles,
 } from "lucide-react";
-import { getServerUser } from "@/lib/supabase-server";
+import { getSessionUser } from "@/lib/session";
 import { getMyGenerations, getGenerationStats, getProfileSettings, getFreeQuotaStatus } from "@/lib/actions";
 
 const DASHBOARD_PAGE_SIZE = 20;
@@ -186,7 +186,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const user = await getServerUser();
+  const user = await getSessionUser();
 
   // Auth gate — redirect to login with returnTo so they come back after auth.
   if (!user) {

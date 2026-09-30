@@ -96,6 +96,10 @@ jobs:
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # qavren-db transaction-pooler URL. An unset secret expands to empty = Supabase mode.
           database_url: ${{ secrets.DATABASE_URL }}
+          # Qavren Auth (phase C). Unset secrets expand to empty = Supabase Auth.
+          qavren_auth_url: ${{ secrets.QAVREN_AUTH_URL }}
+          qavren_realm: ${{ vars.QAVREN_REALM || '' }}
+          auth_secret: ${{ secrets.AUTH_SECRET }}
           cf_account_id: ${{ secrets.CF_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}

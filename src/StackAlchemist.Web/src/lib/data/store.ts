@@ -37,6 +37,12 @@ export interface DataStore {
   readonly kind: "drizzle" | "supabase";
   getProfile(userId: string): Promise<ProfileSettingsRow | null>;
   upsertProfile(profile: ProfileUpsert): Promise<void>;
+  /**
+   * Insert the profile row for a first-seen user; a no-op when it exists (settings
+   * live there and must not be overwritten). qavren-db has no auth.users trigger,
+   * and generations.user_id references profiles.id.
+   */
+  ensureProfile(profile: { id: string; email: string }): Promise<void>;
   /** Same predicate as the enforce_free_generation_quota trigger: tier 0, not failed, created this calendar month (UTC). */
   countFreeGenerationsThisMonth(userId: string, monthStartUtc: Date): Promise<number>;
   /** Returns the row as stored: status `pending`, `attempt_count` 0, column defaults applied. */

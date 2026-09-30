@@ -4,9 +4,9 @@ import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getDataStore, type ProfileSettingsRow } from "./data";
-import { getServerUser } from "./supabase-server";
+import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
+import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey, usesPostgresStore } from "./runtime-config";
 import type {
   Generation,
   Tier,
@@ -112,7 +112,7 @@ function parseOptionalApiKey(formData: FormData) {
    Dashboard BYOK persistence. API keys are AES-GCM encrypted before storage.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getProfileSettings(): Promise<ProfileSettings> {
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user || !hasDataStoreConfig()) {
     return {
       email: user?.email ?? "",
@@ -139,7 +139,7 @@ export async function saveProfileSettings(
   _previousState: SaveProfileSettingsState,
   formData: FormData
 ): Promise<SaveProfileSettingsState> {
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return { status: "error", message: "Sign in before saving API settings." };
   }
@@ -243,6 +243,15 @@ async function countFreeGenerationsThisMonth(userId: string): Promise<number> {
   }
 }
 
+/**
+ * qavren-db has no auth.users trigger creating profiles, and the generations FK
+ * needs the row first. Supabase-store mode is untouched: handle_new_user made it.
+ */
+async function ensureProfileRow(user: SessionUser): Promise<void> {
+  if (!usesPostgresStore()) return;
+  await getDataStore().ensureProfile({ id: user.id, email: user.email ?? "" });
+}
+
 export async function submitSimpleGeneration(
   prompt: string,
   tier: Tier,
@@ -266,9 +275,15 @@ export async function submitSimpleGeneration(
 
   // Require authentication: every creation is tied to an account so the
   // per-account free-tier quota can be enforced.
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return { success: false, error: "Please sign in to start a build." };
+  }
+  try {
+    await ensureProfileRow(user);
+  } catch (error) {
+    console.error("[submitSimpleGeneration] Profile insert error:", error);
+    return { success: false, error: "Failed to create generation record. Please try again." };
   }
 
   // Free-tier quota pre-check — a friendly message before the DB trigger's hard
@@ -425,9 +440,15 @@ export async function submitAdvancedGeneration(
 
   // Require authentication: every creation is tied to an account so the
   // per-account free-tier quota can be enforced.
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return { success: false, error: "Please sign in to start a build." };
+  }
+  try {
+    await ensureProfileRow(user);
+  } catch (error) {
+    console.error("[submitAdvancedGeneration] Profile insert error:", error);
+    return { success: false, error: "Failed to save your schema. Please try again." };
   }
 
   // Free-tier quota pre-check — see submitSimpleGeneration. The DB trigger
@@ -522,7 +543,7 @@ export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
     return full;
   }
 
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return full;
   }
@@ -574,7 +595,7 @@ export async function retryGeneration(
   // Require authentication + ownership: this action re-fires the Engine (real
   // LLM spend) through the service-role client, which bypasses RLS — without
   // this check anyone holding a generation UUID could retry another user's build.
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return { success: false, error: "Please sign in to retry a build." };
   }
@@ -669,9 +690,15 @@ export async function createPendingGeneration(
 
   // Require authentication: every creation is tied to an account so the
   // per-account free-tier quota can be enforced.
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) {
     return { success: false, error: "Please sign in to start a build." };
+  }
+  try {
+    await ensureProfileRow(user);
+  } catch (error) {
+    console.error("[createPendingGeneration] Profile insert error:", error);
+    return { success: false, error: "Failed to create generation record. Please try again." };
   }
 
   let data: Generation;
@@ -777,7 +804,7 @@ export async function getMyGenerations(
 ): Promise<{ generations: Generation[]; total: number }> {
   const empty = { generations: [] as Generation[], total: 0 };
 
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user) return empty;
   if (!hasDataStoreConfig()) return empty;
 
@@ -809,7 +836,7 @@ export async function getGenerationStats(): Promise<{
 }> {
   const empty = { total: 0, completed: 0, inProgress: 0 };
 
-  const user = await getServerUser();
+  const user = await getSessionUser();
   if (!user || !hasDataStoreConfig()) return empty;
 
   try {

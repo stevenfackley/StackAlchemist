@@ -24,6 +24,11 @@ export default defineConfig({
       // Raise these as new suites land — never lower them.
       thresholds: { lines: 30, branches: 26, functions: 23, statements: 30 },
     },
+    // `next` ships no "exports" map, so `next/server` only resolves by CJS
+    // extension guessing. Vite does that; Node's ESM resolver, which vite-node uses
+    // for externalized dependencies, does not, so `next-auth` importing
+    // `next/server` dies on load. Run these through Vite's resolver instead.
+    server: { deps: { inline: ['next-auth', '@auth/core', '@qavren/auth-next'] } },
     css: false,
     reporters: ['default', 'junit'],
     outputFile: { junit: './test-results/junit.xml' },

@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { usesQavrenAuth } from "@/lib/runtime-config";
 
 /**
  * Phase 6 — Auth Callback Route Handler
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
   // is only a fallback for local dev, where the two match.
   const publicOrigin =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") || origin;
+
+  // Supabase PKCE only. In Qavren mode the callback is /api/auth/callback/keycloak.
+  if (usesQavrenAuth()) return NextResponse.redirect(`${publicOrigin}/login`);
 
   // Open-redirect guard: `next` must be an app-internal absolute path.
   const rawNext = searchParams.get("next") ?? "/";

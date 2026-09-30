@@ -51,6 +51,12 @@ export class DrizzleStore implements DataStore {
     } catch (e) { throw new DataStoreError("profiles upsert failed", driverError(e)); }
   }
 
+  async ensureProfile({ id, email }: { id: string; email: string }): Promise<void> {
+    try {
+      await this.db.insert(profiles).values({ id, email }).onConflictDoNothing({ target: profiles.id });
+    } catch (e) { throw new DataStoreError("profiles insert failed", driverError(e)); }
+  }
+
   async countFreeGenerationsThisMonth(userId: string, monthStartUtc: Date): Promise<number> {
     try {
       const [{ n }] = await this.db.select({ n: count() }).from(generations).where(and(

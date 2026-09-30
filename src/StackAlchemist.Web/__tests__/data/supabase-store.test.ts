@@ -108,6 +108,18 @@ describe("SupabaseStore", () => {
     expect(createServerClient).not.toHaveBeenCalled();
   });
 
+  it("ensureProfile inserts only a new id, never overwriting an existing row's settings", async () => {
+    const { queries } = stubClient({ data: null, error: null });
+
+    await new SupabaseStore().ensureProfile({ id: UID, email: "a@example.test" });
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0].table).toBe("profiles");
+    expect(queries[0].calls).toEqual([
+      ["upsert", { id: UID, email: "a@example.test" }, { onConflict: "id", ignoreDuplicates: true }],
+    ]);
+  });
+
   describe("resetForRetry", () => {
     it("reports false for a malformed generation or owner id without calling the client", async () => {
       await expect(new SupabaseStore().resetForRetry("not-a-uuid", UID)).resolves.toBe(false);
@@ -166,6 +178,7 @@ describe("SupabaseStore", () => {
     it.each([
       ["getProfile", (s: SupabaseStore) => s.getProfile(UID)],
       ["upsertProfile", (s: SupabaseStore) => s.upsertProfile({ id: UID, email: "a@b.c", preferred_model: "m" })],
+      ["ensureProfile", (s: SupabaseStore) => s.ensureProfile({ id: UID, email: "a@b.c" })],
       ["countFreeGenerationsThisMonth", (s: SupabaseStore) => s.countFreeGenerationsThisMonth(UID, new Date())],
       ["getGenerationById", (s: SupabaseStore) => s.getGenerationById(GEN_ID)],
       ["resetForRetry", (s: SupabaseStore) => s.resetForRetry(GEN_ID, UID)],
