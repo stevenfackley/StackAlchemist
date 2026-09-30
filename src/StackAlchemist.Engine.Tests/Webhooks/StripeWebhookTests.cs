@@ -299,6 +299,42 @@ public sealed class StripeWebhookTests
     }
 
     [Fact]
+    public async Task CheckoutCompleted_EnqueueThrowsAfterRequestAborted_StillRunsCompensatingDelete()
+    {
+        // The enqueue can fail because the request was aborted. The compensation must not ride
+        // that token: a delete skipped on an already-cancelled token would leave the event
+        // recorded, and Stripe's redelivery would then report "duplicate" for a paid checkout.
+        // The abort happens inside the enqueue (the RPC ran on a live token), and the fake
+        // transport honours cancellation the way a real one does, so a compensation sent on the
+        // request token would never be recorded.
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.OK,
+             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
+             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"),
+            (HttpStatusCode.NoContent, ""));
+
+        using var requestAborted = new CancellationTokenSource();
+        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<GenerateResponse>>(_ =>
+            {
+                requestAborted.Cancel();
+                throw new OperationCanceledException(requestAborted.Token);
+            });
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_3"), requestAborted.Token);
+
+        requestAborted.IsCancellationRequested.Should().BeTrue();
+        result.Processed.Should().BeFalse();
+        result.Retry.Should().BeTrue();
+
+        http.Requests.Should().HaveCount(2);
+        http.Requests[0].Method.Should().Be(HttpMethod.Post);
+        http.Requests[0].Url.Should().Contain("/rest/v1/rpc/process_checkout_completed");
+        http.Requests[1].Method.Should().Be(HttpMethod.Delete);
+        http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_3");
+    }
+
+    [Fact]
     public async Task CheckoutCompleted_WithoutBillingStore_EnqueuesDirectly()
     {
         // No store registered (local dev): no idempotency log, so the paid generation is
@@ -333,6 +369,8 @@ public sealed class StripeWebhookTests
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var body = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
