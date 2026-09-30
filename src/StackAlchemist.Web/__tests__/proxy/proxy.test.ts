@@ -58,6 +58,18 @@ describe("proxy", () => {
     expect((await run(req("http://localhost:3000/advanced", { user: {} }))).status).toBe(307);
   });
 
+  it("Qavren mode: Auth.js routes pass through without the gate; /api/author is not one of them", async () => {
+    vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090"); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
+    mockAuth();
+    for (const p of ["/api/auth", "/api/auth/session", "/api/auth/callback/keycloak"]) {
+      expect((await run(req(`http://localhost:3000${p}`, null))).status, p).toBe(200);
+    }
+    expect(loaded).not.toHaveBeenCalled();
+    // Not protected, so it passes too, but through the gate: the prefix check is exact.
+    expect((await run(req("http://localhost:3000/api/author/x", null))).status).toBe(200);
+    expect(loaded).toHaveBeenCalledTimes(1);
+  });
+
   it("test-mirror Basic Auth runs before either mode", async () => {
     vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090"); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
     vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "true"); vi.stubEnv("NODE_ENV", "production");
@@ -66,6 +78,8 @@ describe("proxy", () => {
     const denied = await run(req("http://localhost:3000/", null));
     expect(denied.status).toBe(401);
     expect(denied.headers.get("www-authenticate")).toContain("Basic");
+    // Auth.js routes are exempt from the gate, not from the mirror's Basic Auth.
+    expect((await run(req("http://localhost:3000/api/auth/session", null))).status).toBe(401);
     expect(loaded).not.toHaveBeenCalled();
     const ok = req("http://localhost:3000/", null, { headers: { authorization: `Basic ${Buffer.from("u:p").toString("base64")}` } });
     expect((await run(ok)).status).toBe(200);
@@ -73,12 +87,14 @@ describe("proxy", () => {
     expect((await run(req("http://localhost:3000/api/csp-report", null))).status).toBe(200);
   });
 
-  it("the matcher skips Auth.js routes and static assets but still catches guarded paths", async () => {
+  it("the matcher is today's: it skips static assets and still catches guarded and Auth.js paths", async () => {
     const { config } = await import("@/proxy");
     const m = new RegExp(`^${config.matcher[0]}$`);
-    for (const skipped of ["/api/auth/callback/keycloak", "/api/auth/session", "/_next/static/c.js", "/_next/image", "/favicon.ico", "/logo.svg", "/x.png"]) {
+    for (const skipped of ["/_next/static/c.js", "/_next/image", "/favicon.ico", "/logo.svg", "/x.png"]) {
       expect(m.test(skipped), skipped).toBe(false);
     }
-    for (const kept of ["/generate/abc", "/simple", "/dashboard", "/api/healthz", "/api/csp-report", "/generate/a.b"]) expect(m.test(kept), kept).toBe(true);
+    for (const kept of ["/generate/abc", "/simple", "/dashboard", "/api/healthz", "/api/csp-report", "/generate/a.b", "/api/auth/session", "/api/auth/callback/keycloak", "/api/author"]) {
+      expect(m.test(kept), kept).toBe(true);
+    }
   });
 });

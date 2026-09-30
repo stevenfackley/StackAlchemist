@@ -169,6 +169,11 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // Run Basic Auth first so unauthenticated traffic never touches Supabase or Auth.js.
   const challenge = checkTestSiteBasicAuth(request);
   if (challenge) return challenge;
+  // Auth.js's own routes are never gated (they create the session the gate reads),
+  // but they stay behind the test mirror's Basic Auth above. Exact prefix so a
+  // future /api/author… route is not silently exempted.
+  const { pathname } = request.nextUrl;
+  if (pathname === "/api/auth" || pathname.startsWith("/api/auth/")) return NextResponse.next();
   if (usesQavrenAuth()) return (await getQavrenGate())(request, event);
   return supabaseSessionRefresh(request);
 }
@@ -180,8 +185,7 @@ export const config = {
      *  - _next/static  (Next.js static assets)
      *  - _next/image   (Next.js image optimization)
      *  - favicon.ico and other public image assets
-     *  - api/auth      (Auth.js's own routes, which must never be gated)
      */
-    "/((?!_next/static|_next/image|favicon\\.ico|api/auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
