@@ -177,7 +177,9 @@ async function getQavrenGate(): Promise<NextMiddleware> {
   return qavrenGate;
 }
 
-const SESSION_COOKIE_HEADER = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?=/;
+// Non-empty values only: a deletion (`name=; Max-Age=0`) can never resurrect a session and
+// must pass through, e.g. Auth.js clearing a cookie that no longer decrypts after a secret rotation.
+const SESSION_COOKIE_HEADER = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?=[^;]/;
 
 /**
  * Auth.js's middleware wrapper re-encodes the JWT and appends a refreshed session

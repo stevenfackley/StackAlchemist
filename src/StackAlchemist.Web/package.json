@@ -19,7 +19,7 @@
     "postinstall": "node ./scripts/setup-env-safe.mjs"
   },
   "dependencies": {
-    "@qavren/auth-next": "^0.1.2",
+    "@qavren/auth-next": "0.1.2",
     "@stackblitz/sdk": "^1.11.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",

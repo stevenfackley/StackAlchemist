@@ -249,7 +249,8 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
   response's Set-Cookie headers when it merges `cookies()` mutations and that round
   trip drops `Max-Age=0`, which would turn the deletion into an empty-value cookie.
 - Disabling a user in Keycloak therefore ends their app session only at the JWT's
-  expiry (up to 7 days), the same trade-off recharacter made. Shorten `maxAge` in
+  expiry (up to 7 days). recharacter keeps Auth.js's sliding refresh instead, so its
+  window is unbounded while the user stays active; ours is tighter. Shorten `maxAge` in
   `src/auth.config.ts` if that window is ever unacceptable.
 
 ## Known gaps and phase F

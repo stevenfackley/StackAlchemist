@@ -47,13 +47,16 @@ describe("proxy", () => {
         out.headers.append("set-cookie", "authjs.session-token.1=chunk; Path=/; HttpOnly; SameSite=lax");
         out.headers.append("set-cookie", "__Secure-authjs.session-token=refreshed; Path=/; Secure; HttpOnly");
         out.headers.append("set-cookie", "authjs.callback-url=%2F; Path=/; HttpOnly; SameSite=lax");
+        // A deletion must survive the strip (Auth.js clearing an undecryptable cookie).
+        out.headers.append("set-cookie", "__Secure-authjs.session-token.1=; Path=/; Max-Age=0; HttpOnly");
         return out;
       },
     }));
     for (const path of ["/pricing", "/simple"]) {
       const res = await run(req(`http://localhost:3000${path}`, { user: { id: SUB } }));
       const cookies = res.headers.getSetCookie();
-      expect(cookies.some((c) => /session-token/.test(c)), path).toBe(false);
+      expect(cookies.some((c) => /session-token(?:\.\d+)?=[^;]/.test(c)), path).toBe(false);
+      expect(cookies.some((c) => c.startsWith("__Secure-authjs.session-token.1=;")), path).toBe(true);
       expect(cookies.some((c) => c.startsWith("authjs.callback-url=")), path).toBe(true);
     }
   });
