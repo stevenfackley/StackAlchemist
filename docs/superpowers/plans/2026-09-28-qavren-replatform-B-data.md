@@ -1609,13 +1609,15 @@ Expected: 8 passed. This is the only place the pooler is exercised before prod.
 - [ ] **Step 4: Watch `deploy-prod`.** Expected: green, and prod still in Supabase mode. Verify: `curl -sf https://stackalchemist.app/api/healthz`; sign in on prod and run one Tier 0 generation end to end (submit → status ticks → preview renders). The Engine log should show `Supabase updated: generation ...` lines, not Postgres ones.
 - [ ] **Step 5: Vault + memory:** append the phase B section to `Projects/stack-alchemist/stack-alchemist.md`; update the StackAlchemist memory note.
 
+- 2026-09-30 — Task 9 done. PR #427 opened from `feat/qavren-db-data` (20 commits, 0 behind `origin/main`); CI green on `f505e6a3` and again on `459dc4a4` (final-review follow-ups: unread `ConnectionStrings:Db` entry dropped, whitespace `DATABASE_URL` trimmed, two runbook corrections). Final Opus review: Task 7 APPROVED, whole branch MERGE-READY — blocking classes B1–B5 all PASS, `--locked-mode` restore clean, 121 targeted Engine tests, 360 web tests incl. 14 against real Postgres; it also found the "only two Supabase-path changes" claim false — SEVEN deliberate ones are listed in the PR body (add: stale sweep survives a bad row, `retryGeneration` CAS, pageSize clamp + `id desc` tiebreak, UUID pre-guards, log wording). Squash-merged as `7cdaff6f`. `deploy-prod` run 36689811457: success; `Set up Node.js (qavren-db migrator)` SKIPPED via the job-level boolean, `Apply qavren-db migrations (prod)` took the skip-with-warning path, `/api/healthz` 200 — prod unchanged, Supabase mode (secrets verified absent on repo + `prod` environment). Follow-ups #422–#426 filed, #419 commented. Phase E notes from the review: once `DATABASE_URL_MIGRATE` exists a qavren-db outage blocks every deploy even in Supabase mode (deliberate; say so where the secret is added); check the prod runner's process environment for a stray `DATABASE_URL` (Compose prefers it over `.env`); consider a lean install instead of `npm ci --omit=dev`.
+
 ## Exit criteria
 
-- [ ] Web and Engine each have a Postgres implementation selected by `DATABASE_URL`, with the Supabase implementation still the default and byte-for-byte unchanged in behaviour
-- [ ] Two-user isolation suite (web) and the checkout replay + refund CAS suite (Engine) run on real Postgres in CI on every PR
-- [ ] Migrations applied to `qavren-db-test`; the isolation suite passed through the transaction pooler
-- [ ] `deploy-prod` after merge: green, prod unchanged (Supabase mode)
-- [ ] Open question filed for Steve: should `/generate/[id]` become owner-only (decision 3)?
+- [x] Web and Engine each have a Postgres implementation selected by `DATABASE_URL`, with the Supabase implementation still the default and byte-for-byte unchanged in behaviour
+- [x] Two-user isolation suite (web) and the checkout replay + refund CAS suite (Engine) run on real Postgres in CI on every PR
+- [x] Migrations applied to `qavren-db-test`; the isolation suite passed through the transaction pooler
+- [x] `deploy-prod` after merge: green, prod unchanged (Supabase mode)
+- [x] Open question filed for Steve: should `/generate/[id]` become owner-only (decision 3)?
 
 Phase C (auth) can start once the first two lines are true.
 
