@@ -101,10 +101,12 @@ Order: **A (platform) → B (data) → C (auth) → D (CI) → E (cutover) → F
 
 ### E. Cutover (owner-run, from a runbook this phase writes)
 
+> **Runbook written 2026-09-30:** `docs/runbooks/qavren-cutover-phase-e.md` (state table, owner steps §1.1–1.7, flip §2, verification §3, pause §4, rollback §5). Same PR: `deploy-prod.yml` gained the secrets preflight (two legitimate shapes, URL shape checks), a warning when a push changes Drizzle migrations while prod has no qavren-db target, and the end-of-run mode check. Done that day by the assistant: Prod `AUTH_SECRET` minted and set (inert until `QAVREN_AUTH_URL`); qavren-auth edge applied after the owner granted it (`auth.stackalchemist.app` resolves, bridge 308 live); the prod schema provision, the realm apply and the Google console remain owner steps (classifier / SSM / no API). Corrections to the list below as written on 2026-09-28: step 2 is GitHub Prod secrets, not the box `.env` (the deploy regenerates `.env`); the Engine reads `DATABASE_URL`, not `ConnectionStrings__Db` (phase B); the Supabase secrets STAY until phase F (nothing reads them in Qavren mode, `deploy-test.yml` still does); `www.stackalchemist.app` currently serves the app and must 301 to the apex first; the committed qavren-db manifest makes the nightly prod backup red from 2026-10-01 until the prod schema exists.
+
 1. Prod realm and hostname live (A); `stackalchemist` prod schema provisioned; `migrate` job applied.
-2. Box `.env`: remove `NEXT_PUBLIC_SUPABASE_*` and `SUPABASE_SERVICE_ROLE_KEY`; add `DATABASE_URL`, `AUTH_SECRET`, `QAVREN_AUTH_URL`, `QAVREN_REALM`. Engine gets `ConnectionStrings__Db`.
-3. Deploy; re-register the owner account; run one Tier 0 generation end to end (submit → status → build log → download) and one Stripe test-mode checkout against `process_checkout_completed`.
-4. Put the old project in read-only mode; start the 7-day clock.
+2. Prod environment secrets: `DATABASE_URL_MIGRATE` and `AUTH_SECRET` may go in early (inert / pre-apply only); `DATABASE_URL` and `QAVREN_AUTH_URL` go in **together at the flip**, one deploy (`QAVREN_REALM` defaults to `stackalchemist` in compose). The deploy's preflight refuses any other shape. Keep the Supabase secrets until F.
+3. Deploy; re-register the owner account; run one Tier 0 generation end to end (submit → status → build log → download) and one Stripe checkout against `process_checkout_completed` (test-mode only if the Prod keys are test keys; otherwise buy and refund).
+4. Pause the old project; start the 7-day clock.
 
 ### F. Retire
 

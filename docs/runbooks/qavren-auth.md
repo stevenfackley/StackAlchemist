@@ -183,28 +183,27 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
 
 ## Phase E flip order
 
-1. The realm is applied to the prod Keycloak and `auth.stackalchemist.app`
-   serves discovery
-   (`https://auth.stackalchemist.app/realms/stackalchemist/.well-known/openid-configuration`
-   answers 200). That is phase A tasks 5 to 7.
-2. Set `DATABASE_URL`, `DATABASE_URL_MIGRATE`, `QAVREN_AUTH_URL` and
-   `AUTH_SECRET` in the Prod environment, then deploy **once**. Auth without the
-   Postgres store fails the boot assert by design, so they go together.
-   `QAVREN_REALM` stays unset unless the realm is renamed.
-3. The nginx `/api/auth/` route and `AUTH_URL` are already live from the phase C
-   deploy; nothing else to ship. No rebuild is needed to flip: the web reads all
-   of it at runtime. The Cloudflare tunnel maps the hostname to
-   `http://sa-reverse-proxy:80` (per `prod-ec2-runner-and-oidc.md`), so it needs
-   no path rule; if someone added path-based ingress rules in the Zero Trust
-   dashboard, `/api/auth/*` must reach the same reverse proxy. Make sure no
-   `www.` alias serves the app (see the canonical-host note above).
-4. Existing Supabase users do **not** carry over: this is a fresh provision
-   (decision recorded in the re-platform plan). Everyone registers again.
-5. Verify: `https://stackalchemist.app/api/auth/session` answers 200 with `null`
-   (it was 404 in Supabase mode), a signed-out `/dashboard` bounces to `/login`,
-   and the full click-path above works against prod.
-6. Rolling back is one deploy with the four secrets removed (no rebuild). Data
-   written to qavren-db in the meantime does not flow back to Supabase.
+The owner-run checklist (measured state, exact commands, verification, the
+Supabase pause, rollback) is `docs/runbooks/qavren-cutover-phase-e.md`; this
+section keeps only the invariant the code enforces.
+
+- Prod has two legitimate shapes: **Supabase mode** (neither `DATABASE_URL`
+  nor `QAVREN_AUTH_URL`) and **Qavren mode** (both, plus `DATABASE_URL_MIGRATE`
+  and `AUTH_SECRET`). `DATABASE_URL` and `QAVREN_AUTH_URL` flip **together in
+  one deploy**; the other two may exist earlier (`AUTH_SECRET` is inert alone,
+  `DATABASE_URL_MIGRATE` alone pre-applies migrations). `QAVREN_REALM` stays
+  unset unless the realm is renamed; `AUTH_URL` derives from
+  `NEXT_PUBLIC_APP_URL` in compose; nginx already routes `/api/auth/`.
+- Since 2026-09-30 `deploy-prod.yml` enforces this in a first-step preflight
+  (auth without store or without `AUTH_SECRET`, store without the migrate URL
+  or without auth, or a malformed value, aborts the run before the build) and
+  checks the resulting mode after the health probe (`/api/auth/session` 200 +
+  the hand-off copy on `/login` in Qavren mode; 404 + the Supabase email field
+  otherwise).
+- Existing Supabase users do **not** carry over (fresh provision, parent plan
+  decision 3). Rollback is one deploy with `QAVREN_AUTH_URL`, `DATABASE_URL`
+  and `DATABASE_URL_MIGRATE` removed, or the box-side fast path in the runbook;
+  data written to qavren-db meanwhile does not flow back.
 
 ## Troubleshooting
 
