@@ -101,10 +101,16 @@ Supabase step is gated on `PROD_SUPABASE_DB_URL`:
   only `drizzle-orm` and `postgres`), then `npm run db:migrate`. Any failure
   fails the deploy.
 
-The skip is advisory for now. **At phase E**, make it hard-fail when the push
-changes `src/StackAlchemist.Web/drizzle/` and the secret is unset, mirroring the
-Supabase step's drift guard (`git diff --name-only $BEFORE $SHA`; the checkout
-already uses `fetch-depth: 0`).
+The skip has a drift guard since phase E (2026-09-30), mirroring the Supabase
+step's: with the secret unset, a `push` whose `git diff --name-only $BEFORE $SHA`
+touches `src/StackAlchemist.Web/drizzle/` fails the deploy (`::error` plus a
+"Deploy blocked" summary line) instead of shipping code against a schema the
+workflow cannot update. Pushes without migration changes still skip with the
+warning, so Supabase mode and a rollback to it keep deploying. The same PR added
+a first-step **preflight** over the four re-platform secrets (`DATABASE_URL`
+without `DATABASE_URL_MIGRATE` is an error; the reverse is a warning) and an
+end-of-run **mode check**; both are described in
+`docs/runbooks/qavren-cutover-phase-e.md`.
 
 `DATABASE_URL` (runtime) flows through the `setup-env` action's `database_url`
 input into `.env`, then into both containers. Nothing reads it until the secret

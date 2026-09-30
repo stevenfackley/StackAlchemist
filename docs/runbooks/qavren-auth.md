@@ -183,6 +183,14 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
 
 ## Phase E flip order
 
+The owner-run checklist with the measured state, exact commands, verification
+and rollback is `docs/runbooks/qavren-cutover-phase-e.md`; this section is the
+summary it expands. Since 2026-09-30 `deploy-prod.yml` enforces the "together"
+rule below in a first-step preflight (a partial set of the four secrets aborts
+the run before the build) and checks the resulting mode at the end
+(`/api/auth/session` 200 + the hand-off copy on `/login` in Qavren mode; 404 +
+the Supabase email field otherwise).
+
 1. The realm is applied to the prod Keycloak and `auth.stackalchemist.app`
    serves discovery
    (`https://auth.stackalchemist.app/realms/stackalchemist/.well-known/openid-configuration`
