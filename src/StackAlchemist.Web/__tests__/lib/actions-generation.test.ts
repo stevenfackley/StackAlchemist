@@ -311,7 +311,7 @@ describe("actions.ts — the caller's profile row exists before the first insert
     consoleErrorSpy.mockRestore();
   });
 
-  it.each(creators)("%s ensures the caller's profile (DATABASE_URL set) before the quota count and the insert", async (_name, create) => {
+  it.each(creators)("%s ensures the caller's profile (DATABASE_URL set) before the quota count and the insert", async (name, create) => {
     const result = await create();
 
     expect(result.success).toBe(true);
@@ -319,6 +319,9 @@ describe("actions.ts — the caller's profile row exists before the first insert
     expect(ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: USER.email });
     const ensuredAt = ensureProfile.mock.invocationCallOrder[0];
     expect(ensuredAt).toBeLessThan(insertGeneration.mock.invocationCallOrder[0]);
+    // Free tiers count the quota exactly once; the paid checkout path never does.
+    // Pinned so the ordering loop above cannot pass by iterating nothing.
+    expect(countFree).toHaveBeenCalledTimes(name === "createPendingGeneration" ? 0 : 1);
     for (const countedAt of countFree.mock.invocationCallOrder) expect(ensuredAt).toBeLessThan(countedAt);
   });
 

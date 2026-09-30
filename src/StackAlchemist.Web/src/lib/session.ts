@@ -1,3 +1,4 @@
+import "server-only";
 import { getServerUser } from "./supabase-server";
 import { usesQavrenAuth } from "./runtime-config";
 
@@ -19,7 +20,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   // Lazy: keeps next-auth out of Supabase-mode processes and unit tests.
   const { auth } = await import("@/auth");
   const session = await auth();
-  const id = session?.user?.id;
-  if (!id || !UUID.test(id)) return null;
-  return { id, email: session!.user!.email ?? null };
+  const u = session?.user;
+  if (!u?.id || !UUID.test(u.id)) return null;
+  return { id: u.id, email: u.email ?? null };
 }

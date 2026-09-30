@@ -22,6 +22,7 @@ describe("getSessionUser", () => {
     getServerUser.mockResolvedValue(null);
     await expect(getSessionUser()).resolves.toBeNull();
     expect(auth).not.toHaveBeenCalled();
+    expect(getServerUser).toHaveBeenCalledTimes(3);
   });
 
   it("Qavren mode returns the keycloak sub and email", async () => {
