@@ -1077,11 +1077,13 @@ Rulings from the per-task spec + Opus quality reviews, the final whole-branch re
 - **Plan-wording errors found:** Task 3 "15 call sites" (9+1) and "no test edits"; Task 4 matcher exclusion (see above); Task 5 "Supabase-mode signout test relies on cookies() throwing" is weak — mock `next/headers` + `@supabase/ssr` and assert the Supabase sign-out ran; Task 8 click-path used `%2Fdashboard`.
 - **Pre-existing gaps left alone (byte-for-byte), to file:** Supabase-mode `returnTo` unsanitised; the Supabase proxy branch keeps the `/%73imple` gap; Supabase sign-out redirects to `new URL("/", request.url)` (container origin behind nginx — works today only because proxy responses get their Location rewritten).
 
+- 2026-09-30 — **Tasks 8–9 done.** Task 8: local Keycloak 26.5.5 (qavren-auth `compose.yaml`, all realms applied), fixture user via the admin API; `/dashboard` → `/login?returnTo=/dashboard` → Keycloak (PKCE S256, `stackalchemist-dev-web`) → `/dashboard` with the Keycloak email and the Postgres quota; a Tier 0 submission created the `profiles` row for the `sub` and the `generations` row against the FK (Engine not running: status page fell back to polling); Sign Out ended the realm session (Keycloak: 0 sessions; next sign-in asked for a password) but the app session survived on the first attempt — the sliding-refresh resurrection race and Next's `Max-Age=0` drop, both fixed (see the amendments); after the fix, 4 + 2 consecutive click-flow sign-outs with a deliberately overlapping request all ended signed out. Task 9: PR #429 (19 commits; spec + Opus review per task, final whole-branch Opus review MERGE-READY after one nginx body-cap fix) squash-merged as `4367c7c2`; `deploy-prod` 36755688607 success — Node step skipped, qavren-db migrate step skip-with-warning, `/api/healthz` 200, `/api/auth/session` 404, `/login` renders the Supabase client (email input, no Qavren copy), `POST /api/csp-report` 204 (pre-existing 404 fixed). Prod unchanged, Supabase mode. Follow-ups: #431 (Supabase-mode gaps → phase F), #432 (log rotation, CSP-report logging).
+
 ## Exit criteria
 
-- [ ] With `QAVREN_AUTH_URL` set (and `DATABASE_URL`), sign-in, registration and sign-out run through the realm and every server identity read is the Keycloak `sub`; with it unset, every Supabase Auth path is unchanged and the five Supabase-mode auth test files pass untouched.
-- [ ] `assertAuthModeConsistent` refuses Keycloak auth without the qavren-db store at boot.
-- [ ] `deploy-prod` after merge: green, prod unchanged (Supabase mode; `/api/auth/*` 404).
-- [ ] Smoke against a real realm recorded (local dev realm now, or scheduled for phase E).
+- [x] With `QAVREN_AUTH_URL` set (and `DATABASE_URL`), sign-in, registration and sign-out run through the realm and every server identity read is the Keycloak `sub`; with it unset, every Supabase Auth path is unchanged and the five Supabase-mode auth test files pass untouched.
+- [x] `assertAuthModeConsistent` refuses Keycloak auth without the qavren-db store at boot.
+- [x] `deploy-prod` after merge: green, prod unchanged (Supabase mode; `/api/auth/*` 404).
+- [x] Smoke against a real realm recorded (local dev realm now, or scheduled for phase E).
 
 Phase D (CI: a live-Keycloak e2e lane and the Postgres-mode e2e) can start once the first line is true.
