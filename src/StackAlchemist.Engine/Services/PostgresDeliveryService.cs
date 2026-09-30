@@ -206,7 +206,8 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            LogOwnerEmailLookupFailed(logger, ex, generationId);
+            var (loggable, reason) = Redact(ex);
+            LogOwnerEmailLookupFailed(logger, loggable, generationId, reason);
             return null;
         }
     }
@@ -231,8 +232,9 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            // Never log the ciphertext — only the id and exception.
-            LogCredentialLookupFailed(logger, ex, generationId);
+            // Never log the ciphertext — only the id and the redacted failure.
+            var (loggable, reason) = Redact(ex);
+            LogCredentialLookupFailed(logger, loggable, generationId, reason);
             return null;
         }
     }
@@ -248,12 +250,26 @@ public sealed partial class PostgresDeliveryService(
 
             var rows = new List<GenerationSnapshot>();
             while (await reader.ReadAsync(ct))
-                rows.Add(ReadSnapshot(reader));
+            {
+                // Per row: schema_json can be client-supplied, so one row that does not fit the model
+                // must cost only that row, not blind the whole sweep for every other user.
+                var id = reader.GetGuid(0).ToString();
+                try
+                {
+                    rows.Add(ReadSnapshot(reader));
+                }
+                catch (JsonException ex)
+                {
+                    var (loggable, reason) = Redact(ex);
+                    LogSnapshotReadFailed(logger, loggable, id, reason);
+                }
+            }
             return rows;
         }
         catch (Exception ex)
         {
-            LogStaleReconcileFailed(logger, ex);
+            var (loggable, reason) = Redact(ex);
+            LogStaleReconcileFailed(logger, loggable, reason);
             return [];
         }
     }
@@ -366,7 +382,8 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            LogSnapshotReadFailed(logger, ex, generationId);
+            var (loggable, reason) = Redact(ex);
+            LogSnapshotReadFailed(logger, loggable, generationId, reason);
             return null;
         }
     }
@@ -399,8 +416,8 @@ public sealed partial class PostgresDeliveryService(
         CancellationToken ct,
         bool critical = false)
     {
-        // Validated before anything else: an unknown column is a programming error, not a
-        // condition that a retry (or the pending-write buffer) could ever fix.
+        // Validated before anything else: an unknown column is a programming error, so it throws
+        // here — never retried, never buffered.
         var (set, args) = BuildPatch(payload);
         if (!Guid.TryParse(generationId, out var id))
         {
@@ -421,9 +438,11 @@ public sealed partial class PostgresDeliveryService(
             ex => LogWriteFailure(ex, "patch", generationId),
             ct);
 
-        // Reached with !succeeded only when every attempt failed (or a non-transient error cut the
-        // budget short). Terminal writes are buffered for the periodic reconciler to re-flush once
-        // the database recovers, so an outage no longer strands the row in a non-terminal state.
+        // !succeeded: every attempt failed, or a non-transient error (a CHECK violation, say) cut the
+        // budget short. A terminal write is buffered either way, for the periodic reconciler to
+        // re-flush once per tick until its age cap, so an outage no longer strands the row in a
+        // non-terminal state. Buffering a write that can never succeed is the price of parity with
+        // SupabaseDeliveryService, which buffered after a 4xx too.
         if (!succeeded && critical)
         {
             pendingWrites.Enqueue(new PendingGenerationWrite(generationId, payload, DateTimeOffset.UtcNow));
@@ -579,22 +598,36 @@ public sealed partial class PostgresDeliveryService(
     private static string? NullableString(NpgsqlDataReader r, int ordinal) =>
         r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
 
-    // A PostgresException's message can quote the offending value, so only its SQLSTATE and
-    // constraint are logged; anything else (network, timeout) is logged with its exception.
+    /// <summary>
+    /// What of a failure may reach the logs. A <see cref="PostgresException"/>'s message can quote the
+    /// offending value (22P02 echoes its input), and a <see cref="JsonException"/> comes from a
+    /// jsonb column a client may have written, so for those only the SQLSTATE and constraint, or the
+    /// JSON path, are kept and the exception itself is dropped. Anything else (a refused connection,
+    /// a timeout, cancellation) carries no row data and is logged whole.
+    /// </summary>
+    private static (Exception? Loggable, string Reason) Redact(Exception ex) => ex switch
+    {
+        PostgresException pg => (null, $"SQLSTATE {pg.SqlState}, constraint {pg.ConstraintName ?? "-"}"),
+        JsonException json => (null, $"JSON that does not fit the model at {json.Path ?? "$"}"),
+        _ => (ex, ex.GetType().Name),
+    };
+
     private void LogWriteFailure(Exception ex, string operation, string generationId)
     {
-        if (ex is PostgresException pg)
-            LogWriteRejected(logger, operation, generationId, pg.SqlState, pg.ConstraintName ?? "-");
+        var (loggable, reason) = Redact(ex);
+        if (ex is PostgresException)
+            LogWriteRejected(logger, operation, generationId, reason);
         else
-            LogWriteFailed(logger, ex, operation, generationId);
+            LogWriteFailed(logger, loggable, operation, generationId, reason);
     }
 
     private void LogFunctionFailure(Exception ex, string functionName)
     {
-        if (ex is PostgresException pg)
-            LogFunctionRejected(logger, functionName, pg.SqlState);
+        var (loggable, reason) = Redact(ex);
+        if (ex is PostgresException)
+            LogFunctionRejected(logger, functionName, reason);
         else
-            LogFunctionFailed(logger, ex, functionName);
+            LogFunctionFailed(logger, loggable, functionName, reason);
     }
 
     // ── LoggerMessage source-gen (same EventIds as SupabaseDeliveryService) ─
@@ -602,26 +635,26 @@ public sealed partial class PostgresDeliveryService(
     [LoggerMessage(EventId = 500, Level = LogLevel.Information, Message = "Postgres updated: generation {Id} → {State}")]
     private static partial void LogUpdated(ILogger logger, string id, GenerationState state);
 
-    [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id}")]
-    private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception ex, string id);
+    [LoggerMessage(EventId = 501, Level = LogLevel.Warning, Message = "Failed to look up owner email for generation {Id} ({Reason})")]
+    private static partial void LogOwnerEmailLookupFailed(ILogger logger, Exception? ex, string id, string reason);
 
     [LoggerMessage(EventId = 502, Level = LogLevel.Debug, Message = "Generation id {Id} is not a uuid — skipping Postgres update")]
     private static partial void LogPatchSkippedNotUuid(ILogger logger, string id);
 
-    [LoggerMessage(EventId = 503, Level = LogLevel.Warning, Message = "Postgres rejected {Operation} for generation {Id}: SQLSTATE {SqlState}, constraint {Constraint}")]
-    private static partial void LogWriteRejected(ILogger logger, string operation, string id, string sqlState, string constraint);
+    [LoggerMessage(EventId = 503, Level = LogLevel.Warning, Message = "Postgres rejected {Operation} for generation {Id}: {Reason}")]
+    private static partial void LogWriteRejected(ILogger logger, string operation, string id, string reason);
 
-    [LoggerMessage(EventId = 504, Level = LogLevel.Error, Message = "Failed to run Postgres {Operation} for generation {Id}")]
-    private static partial void LogWriteFailed(ILogger logger, Exception ex, string operation, string id);
+    [LoggerMessage(EventId = 504, Level = LogLevel.Error, Message = "Failed to run Postgres {Operation} for generation {Id} ({Reason})")]
+    private static partial void LogWriteFailed(ILogger logger, Exception? ex, string operation, string id, string reason);
 
     [LoggerMessage(EventId = 505, Level = LogLevel.Debug, Message = "Generation id {Id} is not a uuid — skipping Postgres function {Function}")]
     private static partial void LogFunctionSkippedNotUuid(ILogger logger, string function, string id);
 
-    [LoggerMessage(EventId = 506, Level = LogLevel.Warning, Message = "Postgres function {Function} was rejected: SQLSTATE {SqlState}")]
-    private static partial void LogFunctionRejected(ILogger logger, string function, string sqlState);
+    [LoggerMessage(EventId = 506, Level = LogLevel.Warning, Message = "Postgres function {Function} was rejected: {Reason}")]
+    private static partial void LogFunctionRejected(ILogger logger, string function, string reason);
 
-    [LoggerMessage(EventId = 507, Level = LogLevel.Error, Message = "Failed to invoke Postgres function {Function}")]
-    private static partial void LogFunctionFailed(ILogger logger, Exception ex, string function);
+    [LoggerMessage(EventId = 507, Level = LogLevel.Error, Message = "Failed to invoke Postgres function {Function} ({Reason})")]
+    private static partial void LogFunctionFailed(ILogger logger, Exception? ex, string function, string reason);
 
     [LoggerMessage(EventId = 508, Level = LogLevel.Error, Message = "CRITICAL: terminal status update for generation {Id} failed after retries — row may be stranded in a non-terminal state")]
     private static partial void LogCriticalPatchFailed(ILogger logger, string id);
@@ -629,15 +662,15 @@ public sealed partial class PostgresDeliveryService(
     [LoggerMessage(EventId = 509, Level = LogLevel.Information, Message = "Reconciliation: marked {Count} stale generation(s) as failed")]
     private static partial void LogStaleReconciled(ILogger logger, int count);
 
-    [LoggerMessage(EventId = 510, Level = LogLevel.Error, Message = "Reconciliation sweep failed")]
-    private static partial void LogStaleReconcileFailed(ILogger logger, Exception ex);
+    [LoggerMessage(EventId = 510, Level = LogLevel.Error, Message = "Reconciliation sweep failed ({Reason})")]
+    private static partial void LogStaleReconcileFailed(ILogger logger, Exception? ex, string reason);
 
     [LoggerMessage(EventId = 511, Level = LogLevel.Information, Message = "Tier-0 preview written: generation {Id} → success with {Count} inline files")]
     private static partial void LogPreviewCompleted(ILogger logger, string id, int count);
 
-    [LoggerMessage(EventId = 512, Level = LogLevel.Warning, Message = "Failed to read generation snapshot for {Id}")]
-    private static partial void LogSnapshotReadFailed(ILogger logger, Exception ex, string id);
+    [LoggerMessage(EventId = 512, Level = LogLevel.Warning, Message = "Failed to read generation snapshot for {Id} ({Reason})")]
+    private static partial void LogSnapshotReadFailed(ILogger logger, Exception? ex, string id, string reason);
 
-    [LoggerMessage(EventId = 513, Level = LogLevel.Warning, Message = "Failed to look up BYOK credential for generation {Id}")]
-    private static partial void LogCredentialLookupFailed(ILogger logger, Exception ex, string id);
+    [LoggerMessage(EventId = 513, Level = LogLevel.Warning, Message = "Failed to look up BYOK credential for generation {Id} ({Reason})")]
+    private static partial void LogCredentialLookupFailed(ILogger logger, Exception? ex, string id, string reason);
 }

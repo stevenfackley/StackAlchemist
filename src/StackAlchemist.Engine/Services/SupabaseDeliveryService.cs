@@ -288,8 +288,20 @@ public sealed partial class SupabaseDeliveryService(
             var rows = new List<GenerationSnapshot>();
             foreach (var row in doc.RootElement.EnumerateArray())
             {
-                if (ParseSnapshot(row) is { } snapshot)
-                    rows.Add(snapshot);
+                // Per row: schema_json can be client-supplied, so one row that does not fit the model
+                // must cost only that row, not blind the whole sweep for every other user.
+                try
+                {
+                    if (ParseSnapshot(row) is { } snapshot)
+                        rows.Add(snapshot);
+                }
+                catch (JsonException ex)
+                {
+                    var id = row.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
+                        ? idEl.GetString()!
+                        : "(no id)";
+                    LogSnapshotReadFailed(logger, ex, id);
+                }
             }
             return rows;
         }

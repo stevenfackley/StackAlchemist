@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using StackAlchemist.Engine.Models;
@@ -24,6 +27,29 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
 
     private Task<T?> Column<T>(Guid id, string column) =>
         fx.ReadAsync<T>($"select {column} from stackalchemist.generations where id = $1", id);
+
+    // The container's clock, not the host's: WSL2's drifts after a sleep.
+    private async Task<DateTimeOffset> DatabaseNow() =>
+        new(await fx.ReadAsync<DateTime>("select now()"));
+
+    private static NpgsqlDataSource Unreachable() =>
+        new NpgsqlDataSourceBuilder("Host=127.0.0.1;Port=1;Username=x;Password=x;Database=x;Timeout=1").Build();
+
+    /// <summary>Records the EventId of every log call, so a test can count attempts and outcomes.</summary>
+    private sealed class EventRecorder : ILogger<PostgresDeliveryService>
+    {
+        private readonly ConcurrentQueue<int> _events = new();
+
+        public int Count(int eventId) => _events.Count(e => e == eventId);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            _events.Enqueue(eventId.Id);
+    }
 
     [Fact]
     public async Task UpdateStatusAsync_success_writes_status_download_url_and_completed_at()
@@ -177,7 +203,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         snapshot.Prompt.Should().Be("a CRM for dog groomers");
         snapshot.ProjectType.Should().Be(ProjectType.PythonReact);
         snapshot.AttemptCount.Should().Be(1);
-        snapshot.UpdatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
+        snapshot.UpdatedAt.Should().BeCloseTo(await DatabaseNow(), TimeSpan.FromMinutes(1));
         snapshot.Schema.Should().BeEquivalentTo(schema);
         snapshot.Personalization.Should().NotBeNull();
         snapshot.Personalization!.BusinessDescription.Should().Be("Dog grooming");
@@ -209,7 +235,32 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
             .And.NotContain(done.ToString());
         var row = rows.Single(r => r.Id == stale.ToString());
         row.Status.Should().Be("building");
-        row.UpdatedAt.Should().BeBefore(DateTimeOffset.UtcNow - StaleWindow);
+        row.UpdatedAt.Should().BeBefore(await DatabaseNow() - StaleWindow);
+    }
+
+    [Fact]
+    public async Task GetStaleNonTerminalAsync_skips_a_row_whose_schema_does_not_fit_and_keeps_the_rest()
+    {
+        if (!fx.Available) return;
+        // schema_json can come from the client; this one lacks SchemaField's required "type".
+        var bad = await fx.SeedGenerationAsync(status: "building");
+        await fx.ExecuteAsync(
+            "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
+            """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", bad);
+        await fx.SetUpdatedAtAsync(bad, OneHour);
+        var good = await fx.SeedGenerationAsync(status: "building");
+        await fx.SetUpdatedAtAsync(good, OneHour);
+        var log = new EventRecorder();
+        var sut = new PostgresDeliveryService(fx.DataSource, new PendingWriteBuffer(), log);
+
+        var ids = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Select(r => r.Id).ToList();
+
+        ids.Should().Contain(good.ToString()).And.NotContain(bad.ToString());
+        log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the skipped row is logged by id");
+        log.Count(510).Should().Be(0, "the sweep itself did not fail");
+
+        // Terminal, so the row stops showing up in the other tests' sweeps.
+        await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", bad);
     }
 
     [Fact]
@@ -260,6 +311,25 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
     }
 
     [Fact]
+    public async Task TryFailStaleRowAsync_loses_to_progress_that_only_moved_updated_at()
+    {
+        if (!fx.Available) return;
+        var id = await fx.SeedGenerationAsync(status: "building");
+        await fx.SetUpdatedAtAsync(id, OneHour);
+        var sut = Sut();
+        var snapshot = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Single(r => r.Id == id.ToString());
+
+        // Build output arriving: status and attempt_count stay put, only updated_at moves.
+        await sut.AppendBuildLogAsync(id.ToString(), "still compiling", Ct);
+        (await Column<string>(id, "status")).Should().Be(snapshot.Status);
+        (await Column<int>(id, "attempt_count")).Should().Be(snapshot.AttemptCount);
+
+        (await sut.TryFailStaleRowAsync(snapshot, StaleWindow, "stalled", "internal", Ct))
+            .Should().BeFalse("the updated_at guard alone must reject a row that made progress");
+        (await Column<string>(id, "status")).Should().Be("building");
+    }
+
+    [Fact]
     public async Task TryPatchOnceAsync_reports_whether_a_row_was_written()
     {
         if (!fx.Available) return;
@@ -282,8 +352,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
     public async Task Critical_write_to_an_unreachable_database_is_buffered_and_a_progress_ping_is_not()
     {
         // No container needed: this data source points at a port nothing listens on.
-        await using var unreachable = new NpgsqlDataSourceBuilder(
-            "Host=127.0.0.1;Port=1;Username=x;Password=x;Database=x;Timeout=1").Build();
+        await using var unreachable = Unreachable();
         var buffer = new PendingWriteBuffer();
         var sut = new PostgresDeliveryService(
             unreachable, buffer, NullLogger<PostgresDeliveryService>.Instance,
@@ -302,5 +371,41 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         buffer.TryDequeue(out var write).Should().BeTrue();
         write!.GenerationId.Should().Be(id);
         write.Payload.Should().Contain("status", "failed").And.Contain("error_message", "boom");
+    }
+
+    [Fact]
+    public async Task Critical_write_retries_a_transient_failure_for_its_whole_budget()
+    {
+        await using var unreachable = Unreachable();
+        var log = new EventRecorder();
+        var buffer = new PendingWriteBuffer();
+        var sut = new PostgresDeliveryService(
+            unreachable, buffer, log, criticalMaxAttempts: 2, criticalBaseDelay: TimeSpan.FromMilliseconds(10));
+
+        await sut.UpdateStatusAsync(Guid.NewGuid().ToString(), GenerationState.Success, downloadUrl: "https://r2.example/x.zip");
+
+        log.Count(504).Should().Be(2, "a refused connection is transient, so every attempt is spent");
+        log.Count(503).Should().Be(0);
+        log.Count(508).Should().Be(1);
+        buffer.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Critical_write_rejected_by_a_check_constraint_fails_fast_and_is_buffered()
+    {
+        if (!fx.Available) return;
+        var id = await fx.SeedGenerationAsync(status: "building");
+        var log = new EventRecorder();
+        var buffer = new PendingWriteBuffer();
+        var sut = new PostgresDeliveryService(fx.DataSource, buffer, log, criticalBaseDelay: TimeSpan.FromSeconds(5));
+        var clock = Stopwatch.StartNew();
+
+        await sut.UpdateStatusAsync(id.ToString(), GenerationState.Failed, errorCategory: "bogus");
+
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1), "a CHECK violation cannot succeed on retry, so there is no backoff sleep");
+        log.Count(503).Should().Be(1);
+        log.Count(504).Should().Be(0);
+        buffer.Count.Should().Be(1, "parity with the Supabase 4xx path: terminal writes are buffered whatever the failure");
+        (await Column<string>(id, "status")).Should().Be("building");
     }
 }

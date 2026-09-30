@@ -146,6 +146,21 @@ public class SupabaseDeliveryServiceTests
     }
 
     [Fact]
+    public async Task GetStaleNonTerminalAsync_SkipsARowWhoseSchemaDoesNotFit()
+    {
+        // The first row's field lacks SchemaField's required "type"; it must not hide the second.
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK,
+            "[{\"id\":\"gen-bad\",\"status\":\"building\"," +
+            "\"schema_json\":{\"entities\":[{\"name\":\"x\",\"fields\":[{\"name\":\"id\"}]}]}}," +
+            "{\"id\":\"gen-good\",\"status\":\"building\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var rows = await sut.GetStaleNonTerminalAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
+
+        rows.Select(r => r.Id).Should().Equal("gen-good");
+    }
+
+    [Fact]
     public async Task GetGenerationSnapshotAsync_ReturnsNullWhenRowMissing()
     {
         var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");

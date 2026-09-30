@@ -90,8 +90,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>
     /// Moves a row's <c>updated_at</c> back by <paramref name="ago"/>. The <c>generations_updated_at</c>
     /// trigger rewrites <c>updated_at</c> on every UPDATE, so it is disabled around this one statement.
-    /// All three statements share a transaction: ALTER TABLE is transactional in Postgres and holds an
-    /// ACCESS EXCLUSIVE lock until commit, so no other session ever sees the trigger switched off.
+    /// All three statements share a transaction: <c>ALTER TABLE ... DISABLE TRIGGER</c> is transactional
+    /// in Postgres and takes a SHARE ROW EXCLUSIVE lock, held until commit, which conflicts with the
+    /// ROW EXCLUSIVE lock every UPDATE takes, so no other session writes the table while it is off.
     /// Backdate LAST: any later UPDATE to the row (by a test or the service) bumps it back to now().
     /// </summary>
     public async Task SetUpdatedAtAsync(Guid id, TimeSpan ago)
