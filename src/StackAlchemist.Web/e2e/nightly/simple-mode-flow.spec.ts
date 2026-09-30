@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { signInViaKeycloak } from "../helpers/keycloak";
 
 test.describe("Integration: Simple Mode Runtime Path", () => {
+  // /simple and /generate are gated: sign in through the realm first (lands on /dashboard).
+  test.beforeEach(async ({ page }) => {
+    await signInViaKeycloak(page);
+  });
+
   test("non-demo run builds a Spark generation from the home prompt handoff", async ({ page }) => {
     await page.goto("/");
 

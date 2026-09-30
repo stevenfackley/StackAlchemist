@@ -19,7 +19,15 @@ export default defineConfig({
     colorScheme: 'dark',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        // Local fallback when the bundled Chromium cannot be downloaded (e.g. `PLAYWRIGHT_CHANNEL=chrome`); CI leaves it unset.
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+      },
+    },
     { name: 'firefox', use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } } },
     { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } } },
     { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
