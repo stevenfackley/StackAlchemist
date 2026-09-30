@@ -7,7 +7,11 @@
  */
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
-import { hasDataStoreConfig, hasServerSupabaseConfig } from "@/lib/runtime-config";
+import type { MockInstance } from "vitest";
+import { hasDataStoreConfig, hasServerSupabaseConfig, usesPostgresStore } from "@/lib/runtime-config";
+import { DataStoreError } from "@/lib/data/store";
+import { DrizzleStore } from "@/lib/data/drizzle-store";
+import { SupabaseStore } from "@/lib/data/supabase-store";
 import {
   createPendingGeneration,
   extractSchema,
@@ -26,6 +30,7 @@ vi.mock("@/lib/runtime-config", () => ({
   hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
   usesPostgresStore: vi.fn(() => false),
+  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => "engine-service-key-test"),
 }));
@@ -261,6 +266,94 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
 
     const result = await createPendingGeneration("simple", 2, "a prompt");
     expect(result).toEqual({ success: true, generationId: "gen-pending-1" });
+  });
+});
+
+describe("actions.ts — the caller's profile row exists before the first insert", () => {
+  const fetchMock = vi.fn();
+  let ensureProfile: MockInstance<DrizzleStore["ensureProfile"]>;
+  let countFree: MockInstance<DrizzleStore["countFreeGenerationsThisMonth"]>;
+  let insertGeneration: MockInstance<DrizzleStore["insertGeneration"]>;
+
+  // Each creating action, arranged to reach its insert, with the message its insert failure shows today.
+  const creators = [
+    ["submitSimpleGeneration", () => submitSimpleGeneration("Build a recipe sharing app for home cooks", 0), "Failed to create generation record. Please try again."],
+    ["submitAdvancedGeneration", () => submitAdvancedGeneration(VALID_SCHEMA, 0), "Failed to save your schema. Please try again."],
+    ["createPendingGeneration", () => createPendingGeneration("simple", 2, "a prompt"), "Failed to create generation record. Please try again."],
+  ] as const;
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+    vi.mocked(getServerUser).mockReset();
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(createServerClient).mockReset();
+    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
+    // DATABASE_URL set: getDataStore() builds a DrizzleStore. Its postgres-js
+    // client is lazy and every query method used here is stubbed, so nothing connects.
+    vi.mocked(usesPostgresStore).mockReturnValue(true);
+    vi.stubEnv("DATABASE_URL", "postgres://u:p@localhost:5432/db");
+    ensureProfile = vi.spyOn(DrizzleStore.prototype, "ensureProfile").mockResolvedValue(undefined);
+    countFree = vi.spyOn(DrizzleStore.prototype, "countFreeGenerationsThisMonth").mockResolvedValue(0);
+    insertGeneration = vi.spyOn(DrizzleStore.prototype, "insertGeneration").mockResolvedValue({ id: "gen-pg" } as never);
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    ensureProfile.mockRestore();
+    countFree.mockRestore();
+    insertGeneration.mockRestore();
+    vi.mocked(usesPostgresStore).mockReturnValue(false);
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it.each(creators)("%s ensures the caller's profile (DATABASE_URL set) before the quota count and the insert", async (_name, create) => {
+    const result = await create();
+
+    expect(result.success).toBe(true);
+    expect(ensureProfile).toHaveBeenCalledTimes(1);
+    expect(ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: USER.email });
+    const ensuredAt = ensureProfile.mock.invocationCallOrder[0];
+    expect(ensuredAt).toBeLessThan(insertGeneration.mock.invocationCallOrder[0]);
+    for (const countedAt of countFree.mock.invocationCallOrder) expect(ensuredAt).toBeLessThan(countedAt);
+  });
+
+  it("stores an empty email for a caller the session has no email for, as saveProfileSettings does", async () => {
+    vi.mocked(getServerUser).mockResolvedValue({ id: USER.id } as never);
+
+    await createPendingGeneration("simple", 2, "a prompt");
+
+    expect(ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: "" });
+  });
+
+  it.each(creators)("%s surfaces a failed ensureProfile exactly like a failed insert, and inserts nothing", async (_name, create, message) => {
+    ensureProfile.mockRejectedValue(new DataStoreError("profiles insert failed"));
+
+    await expect(create()).resolves.toEqual({ success: false, error: message });
+    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(creators)("%s never calls ensureProfile with DATABASE_URL unset (Supabase store)", async (_name, create) => {
+    vi.mocked(usesPostgresStore).mockReturnValue(false);
+    vi.stubEnv("DATABASE_URL", "");
+    const supabaseEnsure = vi.spyOn(SupabaseStore.prototype, "ensureProfile");
+    // One result shape serves both the quota count and the insert.
+    const row = { data: { id: "gen-sb" }, count: 0, error: null };
+    vi.mocked(createServerClient).mockReturnValue(makeDb([row, row]) as never);
+    try {
+      const result = await create();
+
+      expect(result.success).toBe(true);
+      expect(supabaseEnsure).not.toHaveBeenCalled();
+      expect(ensureProfile).not.toHaveBeenCalled();
+    } finally {
+      supabaseEnsure.mockRestore();
+    }
   });
 });
 
