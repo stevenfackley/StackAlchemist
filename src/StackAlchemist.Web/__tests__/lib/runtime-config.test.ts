@@ -83,6 +83,7 @@ describe('runtime-config', () => {
   });
 
   it('assertAuthModeConsistent refuses Qavren Auth without the qavren-db store', () => {
+    vi.stubEnv('AUTH_SECRET', 'x'.repeat(44));
     vi.stubEnv('QAVREN_AUTH_URL', 'http://localhost:8090');
     vi.stubEnv('DATABASE_URL', '');
     expect(() => assertAuthModeConsistent()).toThrow(/DATABASE_URL/);
@@ -94,12 +95,29 @@ describe('runtime-config', () => {
   });
 
   it('assertAuthModeConsistent rejects a QAVREN_AUTH_URL that is not an absolute http(s) URL', () => {
+    vi.stubEnv('AUTH_SECRET', 'x'.repeat(44));
     vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
     for (const bad of ['/', 'auth.stackalchemist.app', 'http://a b']) {
       vi.stubEnv('QAVREN_AUTH_URL', bad);
       expect(() => assertAuthModeConsistent()).toThrow(/http\(s\)/);
     }
     vi.stubEnv('QAVREN_AUTH_URL', 'http://localhost:8090');
+    expect(() => assertAuthModeConsistent()).not.toThrow();
+  });
+
+  it('assertAuthModeConsistent requires AUTH_SECRET in Qavren mode, and only there', () => {
+    vi.stubEnv('QAVREN_AUTH_URL', 'http://localhost:8090');
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
+    vi.stubEnv('AUTH_SECRET', '');
+    expect(() => assertAuthModeConsistent()).toThrow(/AUTH_SECRET/);
+    vi.stubEnv('AUTH_SECRET', '   ');
+    expect(() => assertAuthModeConsistent()).toThrow(/AUTH_SECRET/);
+    vi.stubEnv('AUTH_SECRET', 'x'.repeat(44));
+    expect(() => assertAuthModeConsistent()).not.toThrow();
+
+    // Supabase mode never needs it.
+    vi.stubEnv('QAVREN_AUTH_URL', '');
+    vi.stubEnv('AUTH_SECRET', '');
     expect(() => assertAuthModeConsistent()).not.toThrow();
   });
 });

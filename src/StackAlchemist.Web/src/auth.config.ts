@@ -2,8 +2,9 @@ import type { NextAuthConfig, Session } from "next-auth";
 import { buildAuthConfig } from "@qavren/auth-next";
 import { getQavrenAuthUrl, getQavrenRealm } from "@/lib/runtime-config";
 
-// proxy.ts pulls this module in: its import graph must stay free of the DB
-// client and of anything else a request-path module has no business loading.
+// NOT runtime-free: @qavren/auth-next ships one bundle whose entry imports next-auth
+// (-> next/server), so loading this module loads Auth.js. Import it only via src/auth.ts,
+// which is itself imported lazily behind usesQavrenAuth(). Keep the DB client out of its graph.
 const realm = getQavrenRealm();
 const baseUrl = getQavrenAuthUrl();
 
@@ -18,7 +19,7 @@ const base = buildAuthConfig({
   pages: { signIn: "/login" },
 });
 
-/** Kept apart from auth.ts so it can be imported and unit-tested without NextAuth's runtime. */
+/** Kept apart from auth.ts so the composed callbacks are unit-testable without calling NextAuth(). */
 export const authConfig: NextAuthConfig = {
   ...base,
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },

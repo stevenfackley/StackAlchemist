@@ -101,6 +101,14 @@ export function assertAuthModeConsistent() {
       "QAVREN_AUTH_URL must be an absolute http(s) URL (the configured value is not); unset it for Supabase mode."
     );
   }
+  // Auth.js reads AUTH_SECRET itself; without it the first /api/auth request 500s
+  // with MissingSecret. Fail at boot instead.
+  if (usesQavrenAuth() && !process.env.AUTH_SECRET?.trim()) {
+    throw new Error(
+      "AUTH_SECRET is not set: Auth.js needs it to encrypt the session cookie (openssl rand -base64 32). " +
+        "Set it with QAVREN_AUTH_URL, or unset both for Supabase mode."
+    );
+  }
 }
 
 export function hasEngineConfig() {

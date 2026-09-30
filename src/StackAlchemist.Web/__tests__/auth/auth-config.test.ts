@@ -8,7 +8,8 @@ const SUB = "11111111-2222-4333-8444-555555555555";
 let authConfig: typeof import("@/auth.config").authConfig;
 
 beforeAll(async () => {
-  vi.stubEnv("QAVREN_AUTH_URL", "https://auth.stackalchemist.app");
+  // Not the default, and with a trailing slash: proves getQavrenAuthUrl() is wired in and strips it.
+  vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090/");
   vi.stubEnv("QAVREN_REALM", "");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
   ({ authConfig } = await import("@/auth.config"));
@@ -49,7 +50,7 @@ test("our config points at the stackalchemist realm with a week-long jwt session
     id: "keycloak",
     options: {
       clientId: "stackalchemist-web",
-      issuer: "https://auth.stackalchemist.app/realms/stackalchemist",
+      issuer: "http://localhost:8090/realms/stackalchemist",
     },
   });
   expect(authConfig.session).toEqual({ strategy: "jwt", maxAge: 60 * 60 * 24 * 7 });
@@ -121,4 +122,17 @@ test("session.user.id is the keycloak sub and the id token never reaches the ses
   expect(session.user!.id).toBe(SUB);
   expect(JSON.stringify(session)).not.toContain("idt");
   expect("idToken" in session).toBe(false);
+});
+
+test("a token with no sub yields no session.user.id, never the email", async () => {
+  // session.user.id becomes user_id on every owned row. Without a Keycloak sub
+  // there is no identity to offer: it must stay undefined, not fall back to
+  // the email or anything else the token happens to carry.
+  const session = (await authConfig.callbacks!.session!(
+    sessionParams(
+      { user: { email: "a@example.test", roles: [] }, expires: "" },
+      { email: "a@example.test", roles: ["user"] },
+    ),
+  )) as Session;
+  expect(session.user!.id).toBeUndefined();
 });
