@@ -36,4 +36,10 @@ describe("getDataStore", () => {
     const { getDataStore } = await import("@/lib/data");
     expect(getDataStore().kind).toBe("supabase");
   });
+
+  it("treats a whitespace-only DATABASE_URL as unset, like the Engine does", async () => {
+    vi.stubEnv("DATABASE_URL", "   ");
+    const { getDataStore } = await import("@/lib/data");
+    expect(getDataStore().kind).toBe("supabase");
+  });
 });

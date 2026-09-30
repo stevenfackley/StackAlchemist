@@ -86,8 +86,6 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // Supabase
     ["Supabase:Url"]                  = Ev("NEXT_PUBLIC_SUPABASE_URL"),
     ["Supabase:ServiceRoleKey"]       = Ev("SUPABASE_SERVICE_ROLE_KEY"),
-    // qavren-db
-    ["ConnectionStrings:Db"]          = dbConnectionString,
     // Stripe
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),

@@ -50,7 +50,7 @@ Run from `src/StackAlchemist.Web`:
 | Command | What it does |
 |---|---|
 | `npm run db:generate -- --name <what-changed>` | Diffs `schema.ts` against `drizzle/` and writes the next migration. Needs no database. |
-| `npm run db:migrate` | Applies pending migrations (`scripts/migrate.mjs`). Reads `DATABASE_URL_MIGRATE`, else `DATABASE_URL`. |
+| `npm run db:migrate` | Applies pending migrations (`scripts/migrate.mjs`). Uses `DATABASE_URL_MIGRATE` whenever that variable is defined (even as an empty string, which then fails the run); only an undefined variable falls back to `DATABASE_URL`. |
 | `npm run db:check` | `drizzle-kit check`: verifies the migration folder is internally consistent (no colliding snapshots). |
 
 Workflow for a schema change: edit `schema.ts`, run `db:generate`, read the SQL
@@ -130,10 +130,11 @@ migrations"). The credentials are throwaway local ones.
 - **Never log a postgres-js error object whole.** The DSN, password included,
   rides on `err.input`. Log named fields (`code`, `message`, `detail`, `hint`)
   as `migrate.mjs` does.
-- **The whole migrator run is ONE transaction** (under an advisory lock). A
-  migration therefore cannot use `CREATE INDEX CONCURRENTLY`, and cannot add an
-  enum value and use it in the same file. Split such a change across two
-  migrations.
+- **The whole migrator run is ONE transaction** (under an advisory lock), and
+  every pending migration in a run shares it. `CREATE INDEX CONCURRENTLY` can
+  therefore never run through this migrator, and an enum `ADD VALUE` and its
+  first use must ship in separate deploys (separate migrator runs), not merely
+  in separate files.
 - **Never edit an applied migration.** The migrator compares the stored hash of
   every applied file and fails the run on a mismatch. Write a new migration
   instead. A new migration whose timestamp is older than the newest applied one
