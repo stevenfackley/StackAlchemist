@@ -44,7 +44,8 @@ const nextConfig: NextConfig = {
       "frame-ancestors 'self'",
       // stackblitz.com: the Spark preview SDK POSTs project files to
       // stackblitz.com/run via a form, and frames the result.
-      "form-action 'self' https://stackblitz.com",
+      // Qavren Auth: the sign-in Server Action answers with a redirect to the realm, and form-action is enforced on redirects.
+      "form-action 'self' https://stackblitz.com https://auth.stackalchemist.app",
       // Next.js inlines runtime chunks; unsafe-inline needed until we adopt nonces.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://plausible.io https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline'",
