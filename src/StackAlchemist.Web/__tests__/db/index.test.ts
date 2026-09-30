@@ -51,6 +51,12 @@ describe("getDb", () => {
     expect(db.$client.options.ssl).toBe("require");
   });
 
+  it("forces ssl: require in production even when the URL has no sslmode", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const db = getDb(URL_A);
+    expect(db.$client.options.ssl).toBe("require");
+  });
+
   it("closeDb clears the cache so the next call builds a fresh client", async () => {
     const first = getDb(URL_A);
     await closeDb();

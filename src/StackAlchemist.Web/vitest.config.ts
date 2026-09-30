@@ -17,7 +17,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov', 'html'],
       reportsDirectory: './coverage',
-      include: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/lib/**/*.{ts,tsx}'],
+      include: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/lib/**/*.{ts,tsx}', 'src/db/**/*.ts'],
       exclude: ['**/*.d.ts', '**/*.config.*', '**/types/**', '**/__tests__/**', '**/mocks/**'],
       // Ratchet floors: set just under measured coverage (2026-07-04 baseline:
       // 32.68 L / 28.41 B / 25.55 F / 32.3 S) so CI blocks regressions today.
