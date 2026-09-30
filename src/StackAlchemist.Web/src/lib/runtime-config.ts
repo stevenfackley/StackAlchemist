@@ -96,9 +96,9 @@ export function assertAuthModeConsistent() {
   }
   // A malformed value (e.g. "/" or a bare hostname) must fail loudly here, not
   // silently flip the mode. The message never echoes the value.
-  if (usesQavrenAuth() && !/^https?:\/\/[^/\s]+/i.test(getQavrenAuthUrl())) {
+  if (usesQavrenAuth() && !/^https?:\/\/[^/\s]+\S*$/i.test(getQavrenAuthUrl())) {
     throw new Error(
-      "QAVREN_AUTH_URL must be an absolute http(s) URL (got a value that is not); unset it for Supabase mode."
+      "QAVREN_AUTH_URL must be an absolute http(s) URL (the configured value is not); unset it for Supabase mode."
     );
   }
 }
