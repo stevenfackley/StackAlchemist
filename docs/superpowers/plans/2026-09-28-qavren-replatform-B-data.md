@@ -1590,6 +1590,7 @@ Expected: 8 passed. This is the only place the pooler is exercised before prod.
 - [ ] **Step 4: Record results in this file** (a dated line under this task) and `unset` the URLs.
 
 - 2026-09-30 — Steps 1–2 done against `qavren-db-test`: `migrations applied (2)`, re-run `no pending migrations (ledger up to date)`; isolation suite through the transaction pooler (:6543, `sslmode=require`): 14 passed in 5.6 s (the "8 passed" above predates Task 3's final suite); schema check via catalog join (the role's `search_path` is `stackalchemist, extensions`, so `regclass::text` drops the schema prefix — join `pg_namespace` instead): 4 tables empty, 5 functions, 2 triggers, 13 indexes. Step 3 pending: `/health` has NO database check registered (`AddHealthChecks()` bare), so the proof is the reconciler's immediate startup sweep in the Npgsql debug log, not the health endpoint.
+- 2026-09-30 — Step 3 done: Engine built from `d78389a2` (Development, `DATABASE_URL` = pooler URL with `sslmode=require`, no Supabase vars) boots in Postgres mode; `GET /health` → 200 Healthy, `GET /healthz` → 200. Npgsql logged the reconciler's startup sweep completing against the pooler (`Command execution completed (duration=38ms): select ... from stackalchemist.generations where status in (...) and updated_at < now() - $1`, zero rows), which is the proof the converter's output connects through Supavisor with `Max Auto Prepare=0`. No errors in 60 log lines. URLs unset afterwards. Task 8 complete.
 
 ### Task 9: PR, review, merge, verify the deploy was a no-op
 
