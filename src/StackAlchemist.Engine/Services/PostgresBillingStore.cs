@@ -78,30 +78,50 @@ public sealed partial class PostgresBillingStore(
 
         try
         {
-            await using var cmd = CreateCommand(
-                "select is_new, mode, prompt, project_type, schema_json, personalization_json " +
-                "from stackalchemist.process_checkout_completed($1, $2, $3, $4, $5, $6, $7)",
+            // An explicit transaction, not an autocommit statement: the server would commit the event,
+            // tier and transaction rows at Sync whether or not the row below maps. A mapping failure
+            // after that commit turns every Stripe redelivery into "duplicate" and the paid generation
+            // is never enqueued. Here the rows commit only once the outcome is in hand; any throw
+            // before the commit leaves the transaction to roll back when it is disposed.
+            await using var conn = await dataSource.OpenConnectionAsync(ct);
+            await using var tx = await conn.BeginTransactionAsync(ct);
+
+            CheckoutOutcome outcome;
+            await using (var cmd = AddParameters(
+                new NpgsqlCommand(
+                    "select is_new, mode, prompt, project_type, schema_json, personalization_json " +
+                    "from stackalchemist.process_checkout_completed($1, $2, $3, $4, $5, $6, $7)",
+                    conn,
+                    tx),
                 (eventId, NpgsqlDbType.Text),
                 (eventType, NpgsqlDbType.Text),
                 (sessionId, NpgsqlDbType.Text),
                 (paymentIntentId, NpgsqlDbType.Text),
                 (id, NpgsqlDbType.Uuid),
                 (tier, NpgsqlDbType.Integer),
-                (amount, NpgsqlDbType.Bigint));
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
-                throw new InvalidOperationException("process_checkout_completed returned no rows.");
+                (amount, NpgsqlDbType.Bigint)))
+            {
+                // Scoped so the reader is closed before the commit: the connection cannot run the
+                // COMMIT while a reader is still open on it.
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                if (!await reader.ReadAsync(ct))
+                    throw new InvalidOperationException("process_checkout_completed returned no rows.");
 
-            if (reader.IsDBNull(0) || !reader.GetBoolean(0))
-                return new CheckoutOutcome(false, null, null, null, null, null);
+                outcome = reader.IsDBNull(0) || !reader.GetBoolean(0)
+                    ? new CheckoutOutcome(false, null, null, null, null, null)
+                    : new CheckoutOutcome(
+                        true,
+                        NullableString(reader, 1),
+                        NullableString(reader, 2),
+                        Enum.TryParse<ProjectType>(NullableString(reader, 3), ignoreCase: true, out var projectType) ? projectType : null,
+                        Deserialize<GenerationSchema>(NullableString(reader, 4)),
+                        Deserialize<GenerationPersonalization>(NullableString(reader, 5)));
+            }
 
-            return new CheckoutOutcome(
-                true,
-                NullableString(reader, 1),
-                NullableString(reader, 2),
-                Enum.TryParse<ProjectType>(NullableString(reader, 3), ignoreCase: true, out var projectType) ? projectType : null,
-                Deserialize<GenerationSchema>(NullableString(reader, 4)),
-                Deserialize<GenerationPersonalization>(NullableString(reader, 5)));
+            // Not cancellable: a COMMIT cancelled in flight may still land, and then the caller's
+            // Retry would meet a recorded event, report "duplicate", and the payment's effect is lost.
+            await tx.CommitAsync(CancellationToken.None);
+            return outcome;
         }
         catch (Exception ex) when (ex is PostgresException or JsonException)
         {
@@ -244,10 +264,16 @@ public sealed partial class PostgresBillingStore(
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    /// <summary>A fresh command with positional (<c>$1..$n</c>) parameters, each bound as its given type.</summary>
-    private NpgsqlCommand CreateCommand(string sql, params (object? Value, NpgsqlDbType Type)[] args)
+    /// <summary>
+    /// A fresh autocommit command on its own pooled connection, with positional (<c>$1..$n</c>)
+    /// parameters each bound as its given type.
+    /// </summary>
+    private NpgsqlCommand CreateCommand(string sql, params (object? Value, NpgsqlDbType Type)[] args) =>
+        AddParameters(dataSource.CreateCommand(sql), args);
+
+    /// <summary>Binds positional (<c>$1..$n</c>) parameters, each as its given type; null binds as SQL NULL.</summary>
+    private static NpgsqlCommand AddParameters(NpgsqlCommand cmd, params (object? Value, NpgsqlDbType Type)[] args)
     {
-        var cmd = dataSource.CreateCommand(sql);
         foreach (var (value, type) in args)
             cmd.Parameters.Add(new NpgsqlParameter { Value = value ?? DBNull.Value, NpgsqlDbType = type });
         return cmd;

@@ -298,6 +298,26 @@ public sealed class StripeWebhookTests
         http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_2");
     }
 
+    [Fact]
+    public async Task CheckoutCompleted_WithoutBillingStore_EnqueuesDirectly()
+    {
+        // No store registered (local dev): no idempotency log, so the paid generation is
+        // enqueued straight from the session metadata.
+        var orchestrator = Substitute.For<IGenerationOrchestrator>();
+        var email = Substitute.For<IEmailService>();
+        var sut = new StripeWebhookHandler(orchestrator, billing: null, email, NullLogger<StripeWebhookHandler>.Instance);
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
+
+        result.Processed.Should().BeTrue();
+        result.Retry.Should().BeFalse();
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r =>
+                r.GenerationId == "gen-77" && r.Tier == 2 && r.Mode == "advanced" &&
+                r.ProjectType == ProjectType.DotNetNextJs),
+            Arg.Any<CancellationToken>());
+    }
+
     public sealed record CapturedRequest(HttpMethod Method, string Url, string Body);
 
     private sealed class RecordingHttpHandler : HttpMessageHandler

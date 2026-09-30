@@ -124,8 +124,10 @@ public sealed partial class StripeWebhookHandler(
             {
                 // Compensate: un-record the event so Stripe's redelivery gets a fresh
                 // is_new=true from the RPC instead of short-circuiting as a duplicate.
+                // Not on ct: the enqueue may have failed because the request was aborted,
+                // and a compensation that skips on an already-cancelled token loses the checkout.
                 LogCheckoutEnqueueFailed(logger, ex, stripeEvent.Id, generationId);
-                await billing.DeleteEventAsync(stripeEvent.Id, ct);
+                await billing.DeleteEventAsync(stripeEvent.Id, CancellationToken.None);
                 return new StripeWebhookResult(false, "enqueue_failed", Retry: true);
             }
         }

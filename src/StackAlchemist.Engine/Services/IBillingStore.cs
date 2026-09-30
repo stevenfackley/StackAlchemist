@@ -62,7 +62,13 @@ public interface IBillingStore
     /// <summary>Compensation for a failed enqueue after a successful checkout RPC. Swallows and logs failures.</summary>
     Task DeleteEventAsync(string eventId, CancellationToken ct);
 
-    /// <summary>process_checkout_completed: one atomic call. Throws on transport failure so the caller can ask Stripe to retry.</summary>
+    /// <summary>
+    /// process_checkout_completed: one atomic call. Throws on transport failure so the caller can ask Stripe to retry.
+    /// On Postgres the atomicity includes reading the row back: the event, tier and transaction writes commit only
+    /// once the outcome has been mapped, so a throw of any kind leaves nothing recorded. On Supabase (legacy path)
+    /// the RPC commits server-side before the client maps the response, so a mapping failure there leaves the event
+    /// recorded and Stripe's redelivery reports a duplicate.
+    /// </summary>
     Task<CheckoutOutcome> ProcessCheckoutCompletedAsync(
         string eventId, string eventType, string sessionId, string? paymentIntentId,
         string generationId, int tier, long amount, CancellationToken ct);

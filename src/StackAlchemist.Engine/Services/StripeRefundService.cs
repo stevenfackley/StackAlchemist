@@ -124,8 +124,9 @@ public sealed partial class StripeRefundService(
             LogStripeRefundFailed(logger, ex, generationId, transaction.PaymentIntentId);
             // Don't strand the row in refund_pending forever with no Stripe refund
             // behind it — revert so a future manual retry (or re-run) can still
-            // find it eligible.
-            await billing.RevertRefundClaimAsync(transaction.Id, ct);
+            // find it eligible. Not on ct: the Stripe call may have failed because
+            // the host is stopping, and an already-cancelled token would skip the revert.
+            await billing.RevertRefundClaimAsync(transaction.Id, CancellationToken.None);
             return RefundOutcome.Failed;
         }
     }

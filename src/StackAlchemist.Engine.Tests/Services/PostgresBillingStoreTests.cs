@@ -87,9 +87,12 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
         // Move the row on, as a later event would: a replay that re-ran the upsert would put it back.
         await fx.ExecuteAsync("update stackalchemist.transactions set status = 'refunded' where stripe_session_id = $1", cs);
 
-        var replay = await Sut().ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, pi, gen.ToString(), 2, 59900, Ct);
+        // Different tier, amount and payment intent, so a replay that re-ran either write would show.
+        var replay = await Sut().ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, Unique("pi"), gen.ToString(), 3, 1, Ct);
 
         replay.Should().Be(new CheckoutOutcome(false, null, null, null, null, null));
+        (await fx.ReadAsync<int>("select tier from stackalchemist.generations where id = $1", gen))
+            .Should().Be(2, "the replay does not re-run the tier update");
         (await TransactionCount(cs)).Should().Be(1, "the replay is recognised by its event id and inserts nothing");
         (await fx.ReadAsync<string>(
                 "select status || '|' || tier || '|' || amount || '|' || generation_id || '|' || last_stripe_event_id || '|' || stripe_payment_intent " +
@@ -166,6 +169,42 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
         thrown.Which.InnerException.Should().BeNull("the server's message can quote values, so it is not carried");
         thrown.Which.Message.Should().Contain("SQLSTATE 23514").And.Contain("generations_tier_check");
         (await EventCount(evt)).Should().Be(0, "the event insert rolled back with the rest");
+    }
+
+    [Fact]
+    public async Task ProcessCheckoutCompletedAsync_rolls_everything_back_when_the_row_does_not_map()
+    {
+        if (!fx.Available) return;
+        var gen = await SeedTryBeforeBuyAsync();
+        try
+        {
+            // SchemaField.Type is required, so this schema_json cannot be mapped after the function ran.
+            await fx.ExecuteAsync(
+                "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
+                """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", gen);
+            var (evt, cs, pi) = (Unique("evt_c"), Unique("cs"), Unique("pi"));
+
+            var thrown = await Sut().Invoking(s => s.ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, pi, gen.ToString(), 2, 59900, Ct))
+                .Should().ThrowAsync<InvalidOperationException>();
+
+            thrown.Which.InnerException.Should().BeNull("the JSON may be client-written, so it is not carried");
+            thrown.Which.Message.Should().Contain("JSON");
+            (await EventCount(evt)).Should().Be(0, "the event is not recorded, so Stripe's redelivery is not a duplicate");
+            (await TransactionCount(cs)).Should().Be(0);
+            (await fx.ReadAsync<int>("select tier from stackalchemist.generations where id = $1", gen)).Should().Be(0);
+
+            // Once the row maps, the same event goes through as new.
+            await fx.ExecuteAsync("update stackalchemist.generations set schema_json = null where id = $1", gen);
+
+            (await Sut().ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, pi, gen.ToString(), 2, 59900, Ct))
+                .IsNew.Should().BeTrue();
+            (await TransactionCount(cs)).Should().Be(1);
+        }
+        finally
+        {
+            // Terminal even when an assertion above fails, so the row never leaks into other tests' sweeps.
+            await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", gen);
+        }
     }
 
     [Fact]
@@ -281,6 +320,20 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
         (await TransactionStatus(tx)).Should().Be("completed");
         (await sut.TryClaimForRefundAsync(tx.ToString(), Ct)).Should().BeTrue();
         (await sut.TryClaimForRefundAsync("tx-not-a-uuid", Ct)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TryClaimForRefundAsync_lets_exactly_one_of_several_concurrent_claims_win()
+    {
+        if (!fx.Available) return;
+        var gen = await fx.SeedGenerationAsync();
+        var tx = (await SeedTransactionAsync(gen, "completed", TimeSpan.Zero)).ToString();
+        var sut = Sut();
+
+        var claims = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => sut.TryClaimForRefundAsync(tx, Ct)));
+
+        claims.Count(won => won).Should().Be(1);
+        (await TransactionStatus(Guid.Parse(tx))).Should().Be("refund_pending");
     }
 
     [Fact]

@@ -84,6 +84,7 @@ public sealed class EngineDataSourceTests : IDisposable
     [Theory]
     [InlineData(Blank, Blank)]
     [InlineData(Blank, "service-role-key")]
+    [InlineData("http://127.0.0.1:1", Blank)]
     public void Without_DatabaseUrl_or_the_whole_Supabase_pair_no_billing_store_is_registered(string url, string key)
     {
         Environment.SetEnvironmentVariable(EnvVar, null);
