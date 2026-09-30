@@ -6,7 +6,7 @@ const _autoDemo =
 if (_autoDemo && typeof window === "undefined") {
   console.warn(
     "[runtime-config] Demo mode auto-enabled: NEXT_PUBLIC_SUPABASE_URL is not set. " +
-    "Set it or add NEXT_PUBLIC_DEMO_MODE=true to silence this warning."
+    "Set it, add NEXT_PUBLIC_DEMO_MODE=true to silence this warning, or set NEXT_PUBLIC_DEMO_MODE=false when running against Qavren Auth (QAVREN_AUTH_URL)."
   );
 }
 
@@ -59,6 +59,41 @@ export function usesPostgresStore() {
 /** A server-side store is reachable: qavren-db (DATABASE_URL) or the Supabase service role pair. */
 export function hasDataStoreConfig() {
   return usesPostgresStore() || hasServerSupabaseConfig();
+}
+
+export const QAVREN_AUTH_URL_DEFAULT = "https://auth.stackalchemist.app";
+export const QAVREN_REALM_DEFAULT = "stackalchemist";
+
+/**
+ * Sign-in goes through the Qavren Auth realm (Keycloak, Auth.js) instead of
+ * Supabase Auth. Server-only: the mode never reaches a client bundle, so every
+ * page that branches on it must be dynamic (see docs/runbooks/qavren-auth.md).
+ */
+export function usesQavrenAuth() {
+  return Boolean(process.env.QAVREN_AUTH_URL?.trim());
+}
+
+/** Auth server base URL without a trailing slash (falls back to prod's hostname). */
+export function getQavrenAuthUrl() {
+  return (process.env.QAVREN_AUTH_URL?.trim() || QAVREN_AUTH_URL_DEFAULT).replace(/\/+$/, "");
+}
+
+export function getQavrenRealm() {
+  return process.env.QAVREN_REALM?.trim() || QAVREN_REALM_DEFAULT;
+}
+
+/**
+ * Qavren Auth identities are Keycloak `sub`s. On Supabase, `profiles.id`
+ * references `auth.users`, so such an identity could never own a row; refuse
+ * the combination at boot rather than on the first insert.
+ */
+export function assertAuthModeConsistent() {
+  if (usesQavrenAuth() && !usesPostgresStore()) {
+    throw new Error(
+      "QAVREN_AUTH_URL is set but DATABASE_URL is not: Qavren Auth requires the qavren-db store. " +
+        "Set both (phase E) or neither (Supabase mode)."
+    );
+  }
 }
 
 export function hasEngineConfig() {
