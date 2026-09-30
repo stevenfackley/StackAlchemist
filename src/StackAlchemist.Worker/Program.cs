@@ -10,7 +10,6 @@
 //   • Register ICompileService, IR2UploadService, IDeliveryService here
 
 using System.Threading.Channels;
-using Npgsql;
 using StackAlchemist.Engine.Data;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
@@ -31,7 +30,7 @@ builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Environment.GetEnvironmentVariable("DATABASE_URL"));
 if (dbConnectionString is not null)
 {
-    builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(dbConnectionString).Build());
+    builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
     builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>(); // Task 5 flips this to PostgresDeliveryService
 }
 else

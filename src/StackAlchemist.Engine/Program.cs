@@ -4,7 +4,6 @@ using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
-using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -68,6 +67,12 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
     }
 });
 
+// qavren-db (phase B of the re-platform). Presence of DATABASE_URL selects the Postgres
+// implementations below; absence keeps every Supabase path exactly as-is. Computed once and used
+// directly (not read back from IConfiguration) so a stray ConnectionStrings__Db env var or
+// appsettings entry cannot select the Postgres path while bypassing the pooler options.
+var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Ev("DATABASE_URL"));
+
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     // LLM
@@ -81,9 +86,8 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // Supabase
     ["Supabase:Url"]                  = Ev("NEXT_PUBLIC_SUPABASE_URL"),
     ["Supabase:ServiceRoleKey"]       = Ev("SUPABASE_SERVICE_ROLE_KEY"),
-    // qavren-db (phase B of the re-platform). Presence of DATABASE_URL selects the
-    // Postgres implementations below; absence keeps every Supabase path exactly as-is.
-    ["ConnectionStrings:Db"]          = PostgresUrl.ToNpgsqlConnectionString(Ev("DATABASE_URL")),
+    // qavren-db
+    ["ConnectionStrings:Db"]          = dbConnectionString,
     // Stripe
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
@@ -119,7 +123,7 @@ if (builder.Environment.IsProduction())
                 "Set it via user-secrets or environment before starting in Production.");
     }
 
-    if (string.IsNullOrWhiteSpace(builder.Configuration["ConnectionStrings:Db"]) &&
+    if (dbConnectionString is null &&
         string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]))
         throw new InvalidOperationException(
             "Set DATABASE_URL (qavren-db) or SUPABASE_SERVICE_ROLE_KEY before starting in Production; the Engine has no store otherwise.");
@@ -285,10 +289,9 @@ if (string.IsNullOrWhiteSpace(anthropicApiKey))
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 // qavren-db when DATABASE_URL is set (PostgresDeliveryService and PostgresBillingStore
 // arrive in Tasks 5 and 6 and slot into this branch); Supabase otherwise.
-var dbConnectionString = builder.Configuration["ConnectionStrings:Db"];
 if (dbConnectionString is not null)
 {
-    builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(dbConnectionString).Build());
+    builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
     builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>(); // Task 5 flips this to PostgresDeliveryService
 }
 else

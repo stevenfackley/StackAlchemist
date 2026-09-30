@@ -53,6 +53,15 @@
         "resolved": "9.0.5",
         "contentHash": "NRZkUlTUh06f7f14wriEoO+BrJcyw/agh3xozXLM3ii7C/08SyXqcI89EMfZJuHkOcfDU8W0enGcZ8RGNVOw0w=="
       },
+      "Npgsql.DependencyInjection": {
+        "type": "Direct",
+        "requested": "[9.*, )",
+        "resolved": "9.0.5",
+        "contentHash": "moQVzsk8iISRfKMyEnRKe/qgYmMGvIcSN2nbwN96pU+an0wqWJCeDF3ST9MhcFe/S0Ikn7IqzxDfVw2SDUypxg==",
+        "dependencies": {
+          "Npgsql": "9.0.5"
+        }
+      },
       "OpenTelemetry.Exporter.Console": {
         "type": "Direct",
         "requested": "[1.*, )",
