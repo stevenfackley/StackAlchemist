@@ -38,6 +38,8 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # Same major as ci.yml's NODE_VERSION (.nvmrc pins 26.x and is not used here).
+  NODE_VERSION: "24"
 
 jobs:
   deploy:
@@ -52,6 +54,8 @@ jobs:
     env:
       COMPOSE_PROJECT_NAME: stackalchemist-prod
       DEPLOY_DIR: /opt/stackalchemist-prod
+      # Boolean only: the secret's value never leaves the migrate step's env.
+      QAVREN_DB_MIGRATE_ENABLED: ${{ secrets.DATABASE_URL_MIGRATE != '' }}
 
     steps:
       - name: Checkout
@@ -90,6 +94,8 @@ jobs:
           supabase_url: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
           supabase_anon_key: ${{ secrets.SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # qavren-db transaction-pooler URL. An unset secret expands to empty = Supabase mode.
+          database_url: ${{ secrets.DATABASE_URL }}
           cf_account_id: ${{ secrets.CF_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
@@ -179,6 +185,40 @@ jobs:
           supabase db push \
             --db-url "$SUPABASE_DB_URL" \
             --include-all
+
+      - name: Set up Node.js (qavren-db migrator)
+        # Node is only needed by the qavren-db migrator; skipped while prod is in
+        # Supabase mode so a toolcache/download failure cannot block a deploy.
+        # (This workflow otherwise runs no Node: the Supabase step uses the
+        # supabase CLI binary.)
+        if: ${{ env.QAVREN_DB_MIGRATE_ENABLED == 'true' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Apply qavren-db migrations (prod)
+        # Phase B of the re-platform. Gated on the session-mode secret the same
+        # way the Supabase step is gated: absent = skip with a warning. Runs the
+        # web app's own migrator, never drizzle-kit migrate/push (42501 on
+        # qavren-db). Until phase E flips prod to DATABASE_URL, the skip is
+        # advisory only; at phase E make it hard-fail when this push changes
+        # src/StackAlchemist.Web/drizzle/ (mirror the Supabase step's drift guard).
+        # See docs/runbooks/qavren-db-migrations.md.
+        shell: bash
+        working-directory: src/StackAlchemist.Web
+        env:
+          DATABASE_URL_MIGRATE: ${{ secrets.DATABASE_URL_MIGRATE }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${DATABASE_URL_MIGRATE:-}" ]; then
+            echo "::warning::DATABASE_URL_MIGRATE is not set — skipping qavren-db migrations (prod is in Supabase mode). See docs/runbooks/qavren-db-migrations.md."
+            echo "### ⚠️ qavren-db migrations NOT applied (DATABASE_URL_MIGRATE unset — Supabase mode)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::add-mask::${DATABASE_URL_MIGRATE}"
+          npm ci --omit=dev --ignore-scripts
+          npm run db:migrate
+          echo "### ✅ qavren-db migrations applied" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Docker pre-flight cleanup
         shell: bash
