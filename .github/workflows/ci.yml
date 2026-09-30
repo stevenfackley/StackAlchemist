@@ -427,7 +427,8 @@ jobs:
       - name: Start Postgres + Keycloak (test compose stack)
         # Phase D: the CI database and the identity provider are containers this job
         # starts itself. The realm is imported from docker/keycloak/*.json on boot.
-        run: docker compose -f docker/docker-compose.test.yml up -d --wait postgres keycloak
+        # 180 s: Keycloak's import takes ~30 s; a stuck container must fail here, not at the job timeout.
+        run: docker compose -f docker/docker-compose.test.yml up -d --wait --wait-timeout 180 postgres keycloak
 
       - name: Mint AUTH_SECRET for this run
         # No repository secret needed: Auth.js only has to agree with itself for the
