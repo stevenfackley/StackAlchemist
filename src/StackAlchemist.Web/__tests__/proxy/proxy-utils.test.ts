@@ -87,11 +87,32 @@ describe("safeReturnTo", () => {
   it("keeps same-origin absolute paths", () => {
     expect(safeReturnTo("/dashboard")).toBe("/dashboard");
     expect(safeReturnTo("/generate/abc?tier=0")).toBe("/generate/abc?tier=0");
+    // Percent-encoding stays same-origin and must keep working.
+    expect(safeReturnTo("/generate/a%2Fb")).toBe("/generate/a%2Fb");
   });
   it("rejects everything that could leave the origin", () => {
-    for (const bad of ["//evil.example", "https://evil.example", "/\\evil.example", "dashboard", "", null, undefined, 42]) {
+    for (const bad of [
+      "//evil.example",
+      "https://evil.example",
+      "/\\evil.example",
+      "dashboard",
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
       expect(safeReturnTo(bad)).toBe("/");
     }
     expect(safeReturnTo("//evil", "/dashboard")).toBe("/dashboard");
+  });
+  it("rejects control characters that URL parsers strip (tab/newline/CR smuggle `//`)", () => {
+    for (const bad of [
+      "/\t/evil.example",
+      "/\n/evil.example",
+      "/\r/evil.example",
+      "/\u007f/evil.example",
+    ]) {
+      expect(safeReturnTo(bad)).toBe("/");
+    }
   });
 });

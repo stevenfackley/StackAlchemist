@@ -92,4 +92,14 @@ describe('runtime-config', () => {
     vi.stubEnv('DATABASE_URL', '');
     expect(() => assertAuthModeConsistent()).not.toThrow();
   });
+
+  it('assertAuthModeConsistent rejects a QAVREN_AUTH_URL that is not an absolute http(s) URL', () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
+    for (const bad of ['/', 'auth.stackalchemist.app']) {
+      vi.stubEnv('QAVREN_AUTH_URL', bad);
+      expect(() => assertAuthModeConsistent()).toThrow(/http\(s\)/);
+    }
+    vi.stubEnv('QAVREN_AUTH_URL', 'http://localhost:8090');
+    expect(() => assertAuthModeConsistent()).not.toThrow();
+  });
 });
