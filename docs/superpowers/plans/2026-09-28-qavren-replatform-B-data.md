@@ -666,7 +666,7 @@ export class SupabaseStore implements DataStore {
 }
 ```
 
-Note the one deliberate change inside `resetForRetry`: the update is scoped by `user_id` and `status = 'failed'` in the query. `retryGeneration` still does its read-then-check first (same messages, same ordering), so the scoped update is a second guard, not a behaviour change.
+Note the one deliberate change inside `resetForRetry`: the update is scoped by `user_id` and `status = 'failed'` in the query, and `retryGeneration` honours its boolean (decision 11a). The retry happy-path test's update mock must therefore resolve `{ data: [{ id }], error: null }`, and ids in that suite must be real UUIDs because `getGenerationById` returns null for anything else.
 
 - [ ] **Step 4: `src/lib/data/index.ts`**
 
@@ -726,7 +726,7 @@ Delete the now-unused `createServerClient` import. Grep the file: `grep -n "supa
 
 - [ ] **Step 7: Tests**
 
-In each of the seven test files that mock `@/lib/runtime-config`, add `hasDataStoreConfig: vi.fn(() => true),` next to `hasServerSupabaseConfig`, and where a test does `vi.mocked(hasServerSupabaseConfig).mockReturnValue(false)` to exercise the unconfigured path, do the same for `hasDataStoreConfig`. Nothing else should need to change: `makeDb` still feeds `createServerClient`.
+In each test file that mocks `@/lib/runtime-config` wholesale and reaches `@/lib/data` (the five `actions-*.test.ts`; `use-free-quota.test.ts` and `ByokSettingsForm.test.tsx` mock `@/lib/actions` instead and need nothing), add `hasDataStoreConfig: vi.fn(() => true),` and `usesPostgresStore: vi.fn(() => false),` next to `hasServerSupabaseConfig`, and where a test does `vi.mocked(hasServerSupabaseConfig).mockReturnValue(false)` to exercise the unconfigured path, do the same for `hasDataStoreConfig`. Nothing else should need to change: `makeDb` still feeds `createServerClient`.
 
 ```bash
 npx vitest run
@@ -857,8 +857,9 @@ import { and, count, desc, eq, gte, ne, sql } from "drizzle-orm";
 import { getDb, type Db } from "@/db";
 import { generations, profiles } from "@/db/schema";
 import type { Generation } from "@/lib/types";
-import { DataStoreError, type DataStore, type NewGeneration, type ProfileRow, type ProfileUpsert } from "./store";
+import { DataStoreError, type DataStore, type NewGeneration, type ProfileSettingsRow, type ProfileUpsert } from "./store";
 
+// Same guard SupabaseStore applies: both stores return null for a malformed id.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Drizzle over postgres-js against the qavren-db `stackalchemist` schema. */
@@ -870,7 +871,7 @@ export class DrizzleStore implements DataStore {
     this.db = getDb(url);
   }
 
-  async getProfile(userId: string): Promise<ProfileRow | null> {
+  async getProfile(userId: string): Promise<ProfileSettingsRow | null> {
     if (!UUID.test(userId)) return null;
     try {
       const [row] = await this.db
