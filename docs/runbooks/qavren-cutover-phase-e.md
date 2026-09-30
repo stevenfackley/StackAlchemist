@@ -99,8 +99,7 @@ From a pwsh prompt in `C:\Users\steve\projects\qavren-db` on `main` with
 ```powershell
 git switch main; git pull --ff-only
 $f = "$env:USERPROFILE\stackalchemist-credentials-vault-20260929\provision-prod.txt"
-if (Test-Path $f) { throw "refusing to overwrite $f (a re-run prints no password; use -RotatePassword if it is lost)" }
-pwsh tools/provision-app.ps1 -App stackalchemist -Env prod -Apply *> $f
+if (Test-Path $f) { Write-Error "refusing to overwrite $f (a re-run prints no password; use -RotatePassword if it is lost)" } else { pwsh tools/provision-app.ps1 -App stackalchemist -Env prod -Apply *> $f }
 Select-String -Path $f -Pattern '^(app|env|status)='
 (Select-String -Path $f -Pattern '^(session_url|pooler_url)=').Count   # must print 2; names only, values stay in the file
 ```
@@ -115,14 +114,27 @@ V="$USERPROFILE/stackalchemist-credentials-vault-20260929/provision-prod.txt"
 S=$(sed -n 's/^session_url=//p' "$V" | tr -d '\r')
 case "$S" in postgres://*:5432/postgres|postgresql://*:5432/postgres) ;; *) echo "session_url missing or not a :5432 URL — stop"; false;; esac \
   && printf '%s?sslmode=require' "$S" | gh secret set DATABASE_URL_MIGRATE --repo stevenfackley/StackAlchemist --env Prod \
-  && gh secret list --repo stevenfackley/StackAlchemist --env Prod | awk '{print $1}' | grep -E '^(DATABASE_URL_MIGRATE|AUTH_SECRET)$'
+  && gh secret list --repo stevenfackley/StackAlchemist --env Prod | awk '{print $1}' | grep -E '^(DATABASE_URL|DATABASE_URL_MIGRATE|QAVREN_AUTH_URL|AUTH_SECRET)$'
 ```
 
-Expect the two names and **no** `DATABASE_URL`. From now on every prod deploy
-prints `Deploy mode: Supabase (store + auth)` with a warning that the migrate
-URL is set without a store, and the migrate step applies `0000_init` and
-`0001_functions` to the empty schema on the first such run. That is the
-intended pre-application; the flip's run then no-ops it.
+Expect exactly two names, `DATABASE_URL_MIGRATE` and `AUTH_SECRET`. Then
+deploy once, now, so the first use of the new secret happens on a run you are
+watching rather than on whatever push lands next:
+
+```bash
+gh workflow run deploy-prod.yml --repo stevenfackley/StackAlchemist --ref main
+```
+
+Expect `Deploy mode: Supabase (store + auth)` with the warning that the migrate
+URL is set without a store, `qavren-db migrations applied` (the migrate step
+applies `0000_init` and `0001_functions` to the empty schema), and
+`Prod verified in Supabase Auth mode`. Every later deploy repeats the warning
+and no-ops the migrations; the flip's run does too. If the migrate step cannot
+connect (one known way: the session URL's host is the IPv6-only
+`db.<ref>.supabase.co` form and the ARM runner has no IPv6), every deploy is
+blocked at that step until it is fixed: delete `DATABASE_URL_MIGRATE` to
+unblock, and see qavren-db `docs/runbook.md` for the session-pooler form of
+the URL before setting it again.
 
 Afterwards, in qavren-db, update the `notes:` of `apps/stackalchemist.yaml`
 (prod provisioned date) on a branch + PR; CI's manifest tests read the file.
@@ -238,6 +250,7 @@ If every row is host-only, nothing to do.
 Do not start §2 until each line is true:
 
 - [ ] §1.1 `gh secret list … --env Prod` shows `DATABASE_URL_MIGRATE` and `AUTH_SECRET`, and NOT `DATABASE_URL`; `provision-prod.txt` has 2 URL lines
+- [ ] §1.1 the deploy dispatched right after is green with `qavren-db migrations applied` and `Prod verified in Supabase Auth mode`
 - [x] §1.2 `auth.stackalchemist.app` resolves (done 2026-09-30)
 - [ ] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain
 - [ ] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist`; login page shows the skin
@@ -257,14 +270,21 @@ lines; they take seconds.
 ```bash
 V="$USERPROFILE/stackalchemist-credentials-vault-20260929/provision-prod.txt"
 P=$(sed -n 's/^pooler_url=//p' "$V" | tr -d '\r')
-case "$P" in postgres://*:6543/postgres|postgresql://*:6543/postgres) ;; *) echo "pooler_url missing or not a :6543 URL — stop"; false;; esac \
-  && printf '%s?sslmode=require' "$P" | gh secret set DATABASE_URL --repo stevenfackley/StackAlchemist --env Prod \
+case "$P" in postgres://*:6543/postgres|postgresql://*:6543/postgres) ;; *) echo "pooler_url missing or not a :6543 URL — stop"; P=;; esac
+if [ -n "$P" ]; then
+  printf '%s?sslmode=require' "$P" | gh secret set DATABASE_URL --repo stevenfackley/StackAlchemist --env Prod \
   && printf 'https://auth.stackalchemist.app' | gh secret set QAVREN_AUTH_URL --repo stevenfackley/StackAlchemist --env Prod \
-  && gh workflow run deploy-prod.yml --repo stevenfackley/StackAlchemist --ref main
-sleep 20
-RUN=$(gh run list --repo stevenfackley/StackAlchemist --workflow deploy-prod.yml -L 1 --json databaseId --jq '.[0].databaseId')
-gh run watch --repo stevenfackley/StackAlchemist "$RUN" --exit-status
+  && gh workflow run deploy-prod.yml --repo stevenfackley/StackAlchemist --ref main \
+  && sleep 20 \
+  && RUN=$(gh run list --repo stevenfackley/StackAlchemist --workflow deploy-prod.yml -L 1 --json databaseId --jq '.[0].databaseId') \
+  && echo "watching run $RUN" \
+  && gh run watch --repo stevenfackley/StackAlchemist "$RUN" --exit-status
+fi
 ```
+
+Everything after the guard is one `&&` chain on purpose: if the guard prints
+"stop", nothing is set and nothing is watched (an unchained `gh run watch`
+would happily report the previous, green, Supabase-mode run).
 
 What the run does, in order, and what to expect (whole run: 2–4 minutes, like
 every recent deploy, plus under a minute for the migrator):
@@ -306,8 +326,10 @@ Do these in order; each proves one seam.
 3. **Tier 0 generation end to end:** Simple mode → submit → status page
    (polling, no Realtime) → build log streams → download the ZIP from R2. The
    Engine logs nothing special when it selects the Postgres store, so prove
-   the store from the data, from a shell with the session URL:
-   `psql "$DATABASE_URL_MIGRATE" -c "select count(*) from stackalchemist.generations"`
+   the store from the data. From Git Bash, with the session URL taken from
+   the §1.1 vault file (no owner shell has `DATABASE_URL_MIGRATE` set; do this
+   before §6 deletes the file):
+   `V="$USERPROFILE/stackalchemist-credentials-vault-20260929/provision-prod.txt"; DBM="$(sed -n 's/^session_url=//p' "$V" | tr -d '\r')?sslmode=require"; psql "$DBM" -c "select count(*) from stackalchemist.generations"`
    → the generation you just ran (and the `profiles` row from step 2 via
    `select count(*) from stackalchemist.profiles`).
 4. **Money path:** buy the cheapest paid tier. If the Prod Stripe keys are live
@@ -370,11 +392,18 @@ variables blanked takes well under a minute. On the box (SSM session or SSH):
 
 ```bash
 cd /opt/stackalchemist-prod
-sed -i -E 's/^(DATABASE_URL|DATABASE_URL_MIGRATE|QAVREN_AUTH_URL)=.*/\1=/' .env
+sudo sed -i -E 's/^(DATABASE_URL|DATABASE_URL_MIGRATE|QAVREN_AUTH_URL)=.*/\1=/' .env   # .env is root-owned (the deploy sudo-cp's it)
 docker compose -p stackalchemist-prod -f docker-compose.prod.yml up -d --force-recreate sa-web sa-engine
+docker rm -f sa-reverse-proxy 2>/dev/null || true    # the maintenance page is a plain `docker run` container holding that name
 docker compose -p stackalchemist-prod -f docker-compose.prod.yml up -d reverse-proxy
+docker network connect stackalchemist-prod sa-tunnel 2>/dev/null || true   # re-attach the tunnel, as the deploy does
 curl -s https://stackalchemist.app/api/auth/session -o /dev/null -w '%{http_code}\n'   # 404 = Supabase mode is back
 ```
+
+Prefix the `docker` lines with `sudo` if the session user (`ssm-user`, say)
+is not in the `docker` group. The images are the ones the flip built; the
+mode is chosen at runtime, so recreating with blanked variables is enough,
+and nginx resolves its upstreams per request and needs no restart.
 
 Then make the secrets match, or the next `main` push flips it again:
 
