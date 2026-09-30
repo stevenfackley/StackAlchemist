@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  check, index, integer, jsonb, pgSchema, text, timestamp, uuid, type AnyPgColumn,
+  check, customType, index, integer, jsonb, pgSchema, text, uuid, type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type {
   GenerationErrorCategory, GenerationSchema, GenerationStatus, PersonalizationData, ProjectType, Tier,
@@ -8,7 +8,22 @@ import type {
 
 export const sa = pgSchema("stackalchemist");
 
-const tz = { withTimezone: true, mode: "string" } as const;
+/**
+ * `timestamp with time zone` as an ISO-8601 string. Drizzle's postgres-js driver
+ * hands timestamptz back as Postgres text (`2026-09-29 12:34:56.123456+00`), which
+ * is not the ISO form PostgREST rows carried; Safari's Date parser rejects the
+ * space form and the client does `new Date(generation.completed_at)`. Normalising
+ * here keeps rows shaped like `Generation` in `@/lib/types`. Writes pass through
+ * as strings unchanged.
+ */
+const timestamptz = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "timestamp with time zone";
+  },
+  fromDriver(value: string) {
+    return new Date(value).toISOString();
+  },
+});
 
 export const profiles = sa.table("profiles", {
   // Supabase user id until phase C, then the Keycloak `sub`. Plain uuid, no FK.
@@ -16,7 +31,7 @@ export const profiles = sa.table("profiles", {
   email: text("email").notNull(),
   api_key_override: text("api_key_override"),
   preferred_model: text("preferred_model").notNull().default("claude-sonnet-4-6"),
-  created_at: timestamp("created_at", tz).notNull().defaultNow(),
+  created_at: timestamptz("created_at").notNull().default(sql`now()`),
 });
 
 export const generations = sa.table(
@@ -35,9 +50,9 @@ export const generations = sa.table(
     build_log: text("build_log"),
     error_message: text("error_message"),
     attempt_count: integer("attempt_count").notNull().default(0),
-    created_at: timestamp("created_at", tz).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", tz).notNull().defaultNow(),
-    completed_at: timestamp("completed_at", tz),
+    created_at: timestamptz("created_at").notNull().default(sql`now()`),
+    updated_at: timestamptz("updated_at").notNull().default(sql`now()`),
+    completed_at: timestamptz("completed_at"),
     project_type: text("project_type").$type<ProjectType>().notNull().default("DotNetNextJs"),
     personalization_json: jsonb("personalization_json").$type<PersonalizationData>(),
     input_tokens: integer("input_tokens").notNull().default(0),
@@ -66,12 +81,12 @@ export const transactions = sa.table(
     tier: integer("tier").notNull(),
     amount: integer("amount").notNull().default(0),
     status: text("status").notNull().default("pending"),
-    created_at: timestamp("created_at", tz).notNull().defaultNow(),
+    created_at: timestamptz("created_at").notNull().default(sql`now()`),
     generation_id: uuid("generation_id").references((): AnyPgColumn => generations.id, { onDelete: "set null" }),
     stripe_payment_intent: text("stripe_payment_intent"),
     stripe_charge_id: text("stripe_charge_id"),
     last_stripe_event_id: text("last_stripe_event_id"),
-    updated_at: timestamp("updated_at", tz).notNull().defaultNow(),
+    updated_at: timestamptz("updated_at").notNull().default(sql`now()`),
   },
   (t) => [
     check("transactions_status_check", sql`${t.status} in ('pending', 'completed', 'failed', 'refund_pending', 'refunded', 'disputed')`),
@@ -86,7 +101,7 @@ export const transactions = sa.table(
 export const stripe_events = sa.table("stripe_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
-  processed_at: timestamp("processed_at", tz).notNull().defaultNow(),
+  processed_at: timestamptz("processed_at").notNull().default(sql`now()`),
 });
 
 export type GenerationRow = typeof generations.$inferSelect;

@@ -29,7 +29,11 @@ export default defineConfig({
     outputFile: { junit: './test-results/junit.xml' },
   },
   resolve: {
-    // Mirror Next.js tsconfig paths: "@/*" -> "./src/*"
-    alias: { '@': path.resolve(__dirname, 'src') },
+    // "@" mirrors the Next.js tsconfig path "@/*" -> "./src/*". "server-only" is not an
+    // installed package (Next aliases it internally), so tests stub it.
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+      'server-only': path.resolve(__dirname, '__tests__/mocks/server-only.ts'),
+    },
   },
 });
