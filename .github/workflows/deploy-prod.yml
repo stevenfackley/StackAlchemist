@@ -103,8 +103,8 @@ jobs:
             echo "::warning::DATABASE_URL is set without QAVREN_AUTH_URL: Postgres store under Supabase identities (the Test-environment shape). Rows written now belong to Supabase user ids and will not carry over to Keycloak subs when auth flips."
           fi
           mode="Supabase (store + auth)"
-          [ "$QAVREN_DB_ENABLED" = "true" ] && mode="qavren-db store + Supabase Auth"
-          [ "$QAVREN_AUTH_ENABLED" = "true" ] && mode="qavren-db store + Qavren Auth"
+          if [ "$QAVREN_DB_ENABLED" = "true" ]; then mode="qavren-db store + Supabase Auth"; fi
+          if [ "$QAVREN_AUTH_ENABLED" = "true" ]; then mode="qavren-db store + Qavren Auth"; fi
           echo "Deploy mode: $mode"
           echo "### ℹ️ Deploy mode: $mode" >> "$GITHUB_STEP_SUMMARY"
 
