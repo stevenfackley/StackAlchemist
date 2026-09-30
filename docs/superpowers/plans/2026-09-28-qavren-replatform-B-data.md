@@ -22,7 +22,8 @@
 8. **TLS.** URLs carry `?sslmode=require` (phase A). postgres-js honours it from the URL. Npgsql does not parse libpq URIs, so `PostgresUrl.ToNpgsqlConnectionString()` converts, mapping `sslmode=require` → `SSL Mode=Require` (Npgsql ≥ 6 validates the chain under Require). If the real-pooler smoke (Task 8) fails on certificate validation, the fix is `Root Certificate=<supabase CA>`, not `Trust Server Certificate=true`. Follow-up, not this phase: `sslmode=require` is encrypt-without-verify on the Node side; `verify-full` + CA is the stricter setting fleet-wide.
 9. **JSON parity.** The Engine serializes `schema_json` / `personalization_json` with `JsonNamingPolicy.SnakeCaseLower` today (PostgREST payloads). `PostgresDeliveryService` must use the same options when writing jsonb, and the same case-insensitive options when reading, or the web reads a differently-shaped schema.
 10. **Task 1 review amendments (2026-09-29).** The Opus review of Task 1 changed four details every later task relies on: (a) `getDb(url)` keys its pool cache on the URL (a `Map` on `globalThis`), so tests may pass `TEST_DATABASE_URL` while `DATABASE_URL` is also set; (b) `vitest.config.ts` aliases `server-only` to an empty module (`__tests__/mocks/server-only.ts`), otherwise nothing importing `@/db` or `@/lib/data` can run under vitest; (c) timestamps come back as ISO strings (`customType` over `timestamp with time zone` that returns `new Date(v).toISOString()`), because Drizzle's postgres-js driver otherwise returns Postgres text (`2026-09-29 12:34:56+00`), which Safari's `new Date()` rejects while today's PostgREST rows are ISO; (d) the migrator verifies the ledger (an applied migration whose hash changed, or an unapplied one older than the newest applied, fails the run) and never lets a malformed DSN reach a log line. Task 3's suite constructs the store inside `beforeAll` (vitest evaluates a skipped `describe` body) and asserts the ISO shape of `created_at`.
-11. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
+11. **Task 2 review amendments (2026-09-30).** (a) `retryGeneration` HONOURS `resetForRetry`'s boolean: the Engine's `/api/generate` enqueues unconditionally, so two concurrent retries that both pass the read checks would both fire the Engine (double LLM spend); a `false` from the atomic scoped UPDATE returns the existing "Only failed generations can be retried." (b) `runtime-config.ts` does NOT read `DATABASE_URL` for demo auto-detection: that module also runs in the browser, where Next never exposes non-`NEXT_PUBLIC_` vars, so the server and client would disagree about demo mode in dev. Phase C keys auto-demo on a `NEXT_PUBLIC_` value. `hasDataStoreConfig()` and a `usesPostgresStore()` helper (used by `getDataStore()` too) live in runtime-config. (c) `SupabaseStore.getGenerationById` uses `maybeSingle()` plus a UUID guard so both stores return null for unknown/malformed ids. (d) The interface type is `ProfileSettingsRow` (not `ProfileRow`, which `src/db/schema.ts` already exports). (e) A recording-stub unit test covers `SupabaseStore`'s `user_id` filters: the service-role client bypasses RLS, so those filters are the only tenant isolation on the prod path until phase E.
+12. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
 
 ## Coupling this phase removes (from `origin/main`, 2026-09-29)
 
@@ -671,11 +672,12 @@ Note the one deliberate change inside `resetForRetry`: the update is scoped by `
 
 ```ts
 import "server-only";
+import { usesPostgresStore } from "@/lib/runtime-config";
 import type { DataStore } from "./store";
 import { SupabaseStore } from "./supabase-store";
 import { DrizzleStore } from "./drizzle-store";
 
-export type { DataStore, NewGeneration, ProfileRow, ProfileUpsert } from "./store";
+export type { DataStore, NewGeneration, ProfileSettingsRow, ProfileUpsert } from "./store";
 export { DataStoreError } from "./store";
 
 /**
@@ -684,7 +686,7 @@ export { DataStoreError } from "./store";
  * Phase E sets DATABASE_URL in prod; phase F deletes SupabaseStore.
  */
 export function getDataStore(): DataStore {
-  return process.env.DATABASE_URL ? new DrizzleStore() : new SupabaseStore();
+  return usesPostgresStore() ? new DrizzleStore() : new SupabaseStore();
 }
 ```
 
@@ -692,26 +694,21 @@ Until Task 3 lands, create `drizzle-store.ts` as a stub that throws `new Error("
 
 - [ ] **Step 5: `runtime-config.ts`**
 
-Replace the demo auto-enable and add the new gate:
+Leave `_autoDemo` alone (decision 11b: this module runs in the browser too). Add:
 
 ```ts
-const _autoDemo =
-  !process.env.NEXT_PUBLIC_DEMO_MODE &&
-  !process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  !process.env.DATABASE_URL &&
-  process.env.NODE_ENV !== "production";
-```
+/** The qavren-db path is configured. Server-only: DATABASE_URL never reaches the browser bundle. */
+export function usesPostgresStore() {
+  return Boolean(process.env.DATABASE_URL);
+}
 
-and
-
-```ts
 /** A server-side store is reachable: qavren-db (DATABASE_URL) or the Supabase service role pair. */
 export function hasDataStoreConfig() {
-  return Boolean(process.env.DATABASE_URL) || hasServerSupabaseConfig();
+  return usesPostgresStore() || hasServerSupabaseConfig();
 }
 ```
 
-Keep `hasServerSupabaseConfig()` exported (auth code and phase C still read it). Update the warning text to name both variables. Add two cases to `__tests__/lib/runtime-config.test.ts`: `DATABASE_URL` alone → `hasDataStoreConfig() === true` and demo not auto-enabled.
+Keep `hasServerSupabaseConfig()` exported (auth code and phase C still read it). Add a case to `__tests__/lib/runtime-config.test.ts`: `DATABASE_URL` alone → `hasDataStoreConfig() === true`.
 
 - [ ] **Step 6: `actions.ts` on the seam**
 
@@ -722,7 +719,7 @@ Mechanical: `import { getDataStore, DataStoreError } from "./data";` replaces `i
 - `countFreeGenerationsThisMonth(userId)`: drop the `db` parameter; `try { return await getDataStore().countFreeGenerationsThisMonth(userId, currentMonthStartUtc()) } catch (e) { console.error("[countFreeGenerationsThisMonth] count failed:", e); return 0; }` — fail-open stays.
 - `submitSimpleGeneration` / `submitAdvancedGeneration` / `createPendingGeneration`: replace the `createServerClient()` try/catch + `.from("generations").insert(...)` with `let data: Generation; try { data = await getDataStore().insertGeneration({...}) } catch (e) { console.error("[submitSimpleGeneration] Supabase insert error:", e); return { success: false, error: "Failed to create generation record. Please try again." }; }`. Keep each function's existing log prefix and message string exactly.
 - `getGeneration`: `try { return await getDataStore().getGenerationById(generationId) } catch (e) { console.error("[getGeneration] Error:", e); return null; }`.
-- `retryGeneration`: read via `getGenerationById`, keep the three checks and their messages verbatim, then `await getDataStore().resetForRetry(generationId, user.id)` (ignore the boolean here: the checks above already decided), then the Engine call as today.
+- `retryGeneration`: read via `getGenerationById`, keep the three checks and their messages verbatim, then `const reset = await getDataStore().resetForRetry(generationId, user.id); if (!reset) return { success: false, error: "Only failed generations can be retried." };` (decision 11a: the atomic scoped UPDATE is what stops a concurrent retry from firing the Engine twice), then the Engine call as today.
 - `getMyGenerations` / `getGenerationStats` / `getFreeQuotaStatus`: straight delegation with the existing `empty` / `full` fallbacks on catch.
 
 Delete the now-unused `createServerClient` import. Grep the file: `grep -n "supabase\|Supabase" src/lib/actions.ts` should show only log-prefix strings and comments.
@@ -1530,7 +1527,7 @@ Under `sa-web.environment` and `sa-engine.environment`:
           npm run db:migrate
 ```
 
-`if:` cannot read `secrets` directly on a step in every runner version; if the linter (`actionlint` in the `Analyze (actions)` CodeQL job) rejects it, use the env-var pattern the Supabase step uses (`if [ -z "$DATABASE_URL_MIGRATE" ]; then echo "::warning::..."; exit 0; fi`). Needs `actions/setup-node` before it (the deploy runner is the EC2 self-hosted box; check Node is present there, else add the setup step with `node-version: 24`).
+An unset GitHub secret expands to the empty string, so the migrator's `DATABASE_URL_MIGRATE ?? DATABASE_URL` fallback never triggers in CI; that is fine here because the step is gated on the secret being non-empty. `if:` cannot read `secrets` directly on a step in every runner version; if the linter (`actionlint` in the `Analyze (actions)` CodeQL job) rejects it, use the env-var pattern the Supabase step uses (`if [ -z "$DATABASE_URL_MIGRATE" ]; then echo "::warning::..."; exit 0; fi`). Needs `actions/setup-node` before it (the deploy runner is the EC2 self-hosted box; check Node is present there, else add the setup step with `node-version: 24`).
 
 - [ ] **Step 4: Runbook** `docs/runbooks/qavren-db-migrations.md`: where the schema lives (qavren-db, schema `stackalchemist`, role of the same name), the two URLs and which is for what, `npm run db:generate` / `db:migrate` / `db:check`, the CI drift guard, the prod step and its gate, the local container recipe, and the traps: never `drizzle-kit migrate`/`push`; never log a postgres-js error object whole (the DSN rides on `err.input`); the whole migrator run is ONE transaction, so a migration can't use `CREATE INDEX CONCURRENTLY` or add an enum value and use it in the same file; never edit an applied migration (the ledger hash check fails the run). Also file a follow-up issue: `process_checkout_completed` has a dead "generation row missing" branch inherited from the legacy function; the FK on `transactions.generation_id` raises 23503 first, rolling back the `stripe_events` insert so Stripe retries forever. Faithful port, out of scope here.
 
