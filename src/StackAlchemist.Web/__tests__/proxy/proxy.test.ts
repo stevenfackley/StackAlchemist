@@ -22,7 +22,7 @@ function mockSupabase() {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_stub");
   vi.doMock("@supabase/ssr", () => ({ createServerClient }));
 }
-const req = (url: string, session: { user?: { id?: string } } | null | undefined = undefined, init?: RequestInit) => {
+const req = (url: string, session: { user?: { id?: string } } | null | undefined = undefined, init?: ConstructorParameters<typeof NextRequest>[1]) => {
   const r = new NextRequest(url, init) as Authed;
   if (session !== undefined) r.auth = session;
   return r;
