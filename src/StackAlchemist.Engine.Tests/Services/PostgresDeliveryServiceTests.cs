@@ -244,23 +244,29 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         if (!fx.Available) return;
         // schema_json can come from the client; this one lacks SchemaField's required "type".
         var bad = await fx.SeedGenerationAsync(status: "building");
-        await fx.ExecuteAsync(
-            "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
-            """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", bad);
-        await fx.SetUpdatedAtAsync(bad, OneHour);
-        var good = await fx.SeedGenerationAsync(status: "building");
-        await fx.SetUpdatedAtAsync(good, OneHour);
-        var log = new EventRecorder();
-        var sut = new PostgresDeliveryService(fx.DataSource, new PendingWriteBuffer(), log);
+        try
+        {
+            await fx.ExecuteAsync(
+                "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
+                """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", bad);
+            await fx.SetUpdatedAtAsync(bad, OneHour);
+            var good = await fx.SeedGenerationAsync(status: "building");
+            await fx.SetUpdatedAtAsync(good, OneHour);
+            var log = new EventRecorder();
+            var sut = new PostgresDeliveryService(fx.DataSource, new PendingWriteBuffer(), log);
 
-        var ids = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Select(r => r.Id).ToList();
+            var ids = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Select(r => r.Id).ToList();
 
-        ids.Should().Contain(good.ToString()).And.NotContain(bad.ToString());
-        log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the skipped row is logged by id");
-        log.Count(510).Should().Be(0, "the sweep itself did not fail");
-
-        // Terminal, so the row stops showing up in the other tests' sweeps.
-        await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", bad);
+            ids.Should().Contain(good.ToString()).And.NotContain(bad.ToString());
+            log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the skipped row is logged by id");
+            log.Count(510).Should().Be(0, "the sweep itself did not fail");
+        }
+        finally
+        {
+            // Terminal even when an assertion above fails, so the unreadable row never leaks into
+            // the other tests' sweeps on the shared container.
+            await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", bad);
+        }
     }
 
     [Fact]
