@@ -23,7 +23,8 @@
 9. **JSON parity.** The Engine serializes `schema_json` / `personalization_json` with `JsonNamingPolicy.SnakeCaseLower` today (PostgREST payloads). `PostgresDeliveryService` must use the same options when writing jsonb, and the same case-insensitive options when reading, or the web reads a differently-shaped schema.
 10. **Task 1 review amendments (2026-09-29).** The Opus review of Task 1 changed four details every later task relies on: (a) `getDb(url)` keys its pool cache on the URL (a `Map` on `globalThis`), so tests may pass `TEST_DATABASE_URL` while `DATABASE_URL` is also set; (b) `vitest.config.ts` aliases `server-only` to an empty module (`__tests__/mocks/server-only.ts`), otherwise nothing importing `@/db` or `@/lib/data` can run under vitest; (c) timestamps come back as ISO strings (`customType` over `timestamp with time zone` that returns `new Date(v).toISOString()`), because Drizzle's postgres-js driver otherwise returns Postgres text (`2026-09-29 12:34:56+00`), which Safari's `new Date()` rejects while today's PostgREST rows are ISO; (d) the migrator verifies the ledger (an applied migration whose hash changed, or an unapplied one older than the newest applied, fails the run) and never lets a malformed DSN reach a log line. Task 3's suite constructs the store inside `beforeAll` (vitest evaluates a skipped `describe` body) and asserts the ISO shape of `created_at`.
 11. **Task 2 review amendments (2026-09-30).** (a) `retryGeneration` HONOURS `resetForRetry`'s boolean: the Engine's `/api/generate` enqueues unconditionally, so two concurrent retries that both pass the read checks would both fire the Engine (double LLM spend); a `false` from the atomic scoped UPDATE returns the existing "Only failed generations can be retried." (b) `runtime-config.ts` does NOT read `DATABASE_URL` for demo auto-detection: that module also runs in the browser, where Next never exposes non-`NEXT_PUBLIC_` vars, so the server and client would disagree about demo mode in dev. Phase C keys auto-demo on a `NEXT_PUBLIC_` value. `hasDataStoreConfig()` and a `usesPostgresStore()` helper (used by `getDataStore()` too) live in runtime-config. (c) `SupabaseStore.getGenerationById` uses `maybeSingle()` plus a UUID guard so both stores return null for unknown/malformed ids. (d) The interface type is `ProfileSettingsRow` (not `ProfileRow`, which `src/db/schema.ts` already exports). (e) A recording-stub unit test covers `SupabaseStore`'s `user_id` filters: the service-role client bypasses RLS, so those filters are the only tenant isolation on the prod path until phase E.
-12. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
+12. **Task 3 review amendments (2026-09-30).** (a) drizzle-orm 0.45 wraps driver failures in `DrizzleQueryError` whose message embeds the bound parameters; `DrizzleStore` unwraps to the Postgres error (`driverError()`), fails closed when there is no cause, and takes the quota trigger's text only from a real `PostgresError`. `PostgresError.detail` can still carry "Failing row contains (...)", same as PostgREST's `details` today. (b) The CI drift guard must also require drizzle-kit's literal "No schema changes" output: on a non-TTY its rename-or-create prompt exits 0 having written nothing, so a rename would otherwise pass. (c) `enforce_free_generation_quota` uses `date_trunc('month', now(), 'UTC')` so the trigger and the store's UTC month start agree whatever the session TimeZone; changed while no ledger-tracked database had applied `0001` (the migrator's hash check freezes it after Task 8). (d) `listMyGenerations` orders by `created_at desc, id desc` in both stores (paging over equal timestamps). (e) `insertGeneration` names its seven columns explicitly. (f) UUID guards match across both stores. (g) `getMyGenerations` clamps `pageSize` to 1..100.
+13. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
 
 ## Coupling this phase removes (from `origin/main`, 2026-09-29)
 
@@ -274,12 +275,15 @@ begin
     raise exception 'Free-tier generations require an authenticated account'
       using errcode = 'check_violation';
   end if;
+  -- UTC on purpose: the web app's pre-check compares created_at against a UTC
+  -- month start, and this keeps the trigger on the same boundary whatever the
+  -- session TimeZone is.
   select count(*) into used
     from stackalchemist.generations
    where user_id = new.user_id
      and tier = 0
      and status <> 'failed'
-     and created_at >= date_trunc('month', now());
+     and created_at >= date_trunc('month', now(), 'UTC');
   if used >= 5 then
     raise exception 'Free generation limit reached: 5 builds per month. Upgrade to download or wait until next month.'
       using errcode = 'check_violation';
@@ -979,10 +983,10 @@ In `.github/workflows/ci.yml`, under `frontend:` add (before `steps:`):
           POSTGRES_DB: stackalchemist_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U postgres -d stackalchemist_test"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d stackalchemist_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/stackalchemist_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/stackalchemist_test
 ```
 
 and two steps after `Install Dependencies`:
@@ -990,12 +994,14 @@ and two steps after `Install Dependencies`:
 ```yaml
       - name: Migration drift guard
         # schema.ts and drizzle/ must agree: a schema edit without a generated
-        # migration would only surface when prod's migrate step ran it.
+        # migration would only surface when prod's migrate step ran it. Both
+        # checks are needed: on a non-TTY drizzle-kit's rename prompt exits 0
+        # and writes nothing, so a rename leaves `git status` clean.
         run: |
-          npm run db:generate -- --name ci-drift-check
-          if [ -n "$(git status --porcelain drizzle/)" ]; then
+          out=$(npm run db:generate -- --name ci-drift-check 2>&1); echo "$out"
+          if ! grep -q "No schema changes" <<<"$out" || [ -n "$(git status --porcelain drizzle/)" ]; then
             git status --porcelain drizzle/
-            echo "::error::src/db/schema.ts has changes with no committed migration. Run 'npm run db:generate -- --name <what-changed>' and commit drizzle/."
+            echo "::error::src/db/schema.ts and drizzle/ disagree (or drizzle-kit needed an interactive answer). Run 'npm run db:generate -- --name <what-changed>' locally and commit drizzle/."
             exit 1
           fi
           npm run db:check
