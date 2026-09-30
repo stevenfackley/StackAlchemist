@@ -36,12 +36,16 @@ public sealed class StripeRefundServiceTests
         var http = new RecordingHttpHandler(responses);
         var httpClient = new HttpClient(http);
         var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(StripeRefundService.HttpClientName).Returns(httpClient);
+        factory.CreateClient(SupabaseBillingStore.HttpClientName).Returns(httpClient);
 
         var stripeRefunds = Substitute.For<RefundService>();
 
-        var sut = new StripeRefundService(
-            factory, config ?? Config(), stripeRefunds, NullLogger<StripeRefundService>.Instance);
+        // As Program.cs registers it: no billing store unless the Supabase URL and key are both set.
+        var cfg = config ?? Config();
+        var billing = string.IsNullOrWhiteSpace(cfg["Supabase:Url"]) || string.IsNullOrWhiteSpace(cfg["Supabase:ServiceRoleKey"])
+            ? null
+            : new SupabaseBillingStore(factory, cfg, NullLogger<SupabaseBillingStore>.Instance);
+        var sut = new StripeRefundService(billing, cfg, stripeRefunds, NullLogger<StripeRefundService>.Instance);
 
         return (sut, http, stripeRefunds);
     }

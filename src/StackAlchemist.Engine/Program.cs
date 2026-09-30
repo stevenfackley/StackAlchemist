@@ -238,9 +238,8 @@ builder.Services.AddHttpClient(OpenAiCompatibleLlmClient.OpenRouterHttpClientNam
 });
 
 builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
-builder.Services.AddHttpClient(StripeWebhookHandler.HttpClientName);
+builder.Services.AddHttpClient(SupabaseBillingStore.HttpClientName);
 builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
-builder.Services.AddHttpClient(StripeRefundService.HttpClientName);
 
 // ── File system abstraction ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IFileSystem>(new FileSystem());
@@ -287,16 +286,23 @@ if (string.IsNullOrWhiteSpace(anthropicApiKey))
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-// qavren-db when DATABASE_URL is set (PostgresBillingStore arrives in Task 6 and slots into
-// this branch too); Supabase otherwise.
+// qavren-db when DATABASE_URL is set; Supabase otherwise. The billing store (Stripe webhook +
+// compile-guarantee refund) is left unregistered when neither is configured: its callers then run
+// without an idempotency log, as they did before the store existed.
 if (dbConnectionString is not null)
 {
     builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
     builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
+    builder.Services.AddSingleton<IBillingStore, PostgresBillingStore>();
 }
 else
 {
     builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+    // Both halves, as SupabaseBillingStore itself requires: a key without a URL would register a
+    // store that cannot run the checkout RPC, turning every paid checkout into a Stripe retry.
+    if (!string.IsNullOrWhiteSpace(builder.Configuration["Supabase:Url"]) &&
+        !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]))
+        builder.Services.AddSingleton<IBillingStore, SupabaseBillingStore>();
 }
 
 // ── Compile service ───────────────────────────────────────────────────────────
@@ -343,14 +349,19 @@ builder.Services.AddSingleton<IInjectionEngine, InjectionEngine>();
 builder.Services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
 
 // ── Stripe webhook handler ────────────────────────────────────────────────────
-builder.Services.AddSingleton<IStripeWebhookHandler, StripeWebhookHandler>();
+// Factories, because the billing store is optional and DI does not inject a missing service as null.
+builder.Services.AddSingleton<IStripeWebhookHandler>(sp => new StripeWebhookHandler(
+    sp.GetRequiredService<IGenerationOrchestrator>(), sp.GetService<IBillingStore>(),
+    sp.GetRequiredService<IEmailService>(), sp.GetRequiredService<ILogger<StripeWebhookHandler>>()));
 
 // ── Compile Guarantee automatic refund ────────────────────────────────────────
 // Stripe.net's RefundService reads the API key from the ambient StripeConfiguration
 // static at call time (same pattern the /api/stripe/create-session handler uses),
 // so the parameterless constructor is all the DI registration needs.
 builder.Services.AddSingleton<RefundService>();
-builder.Services.AddSingleton<IRefundService, StripeRefundService>();
+builder.Services.AddSingleton<IRefundService>(sp => new StripeRefundService(
+    sp.GetService<IBillingStore>(), sp.GetRequiredService<IConfiguration>(),
+    sp.GetRequiredService<RefundService>(), sp.GetRequiredService<ILogger<StripeRefundService>>()));
 
 // ── Transactional email — Resend when configured, NoOp otherwise ─────────────
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))

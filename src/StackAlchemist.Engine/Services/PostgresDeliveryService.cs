@@ -206,7 +206,7 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            var (loggable, reason) = Redact(ex);
+            var (loggable, reason) = PostgresErrors.Redact(ex);
             LogOwnerEmailLookupFailed(logger, loggable, generationId, reason);
             return null;
         }
@@ -233,7 +233,7 @@ public sealed partial class PostgresDeliveryService(
         catch (Exception ex)
         {
             // Never log the ciphertext — only the id and the redacted failure.
-            var (loggable, reason) = Redact(ex);
+            var (loggable, reason) = PostgresErrors.Redact(ex);
             LogCredentialLookupFailed(logger, loggable, generationId, reason);
             return null;
         }
@@ -260,7 +260,7 @@ public sealed partial class PostgresDeliveryService(
                 }
                 catch (JsonException ex)
                 {
-                    var (loggable, reason) = Redact(ex);
+                    var (loggable, reason) = PostgresErrors.Redact(ex);
                     LogSnapshotReadFailed(logger, loggable, id, reason);
                 }
             }
@@ -268,7 +268,7 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            var (loggable, reason) = Redact(ex);
+            var (loggable, reason) = PostgresErrors.Redact(ex);
             LogStaleReconcileFailed(logger, loggable, reason);
             return [];
         }
@@ -382,7 +382,7 @@ public sealed partial class PostgresDeliveryService(
         }
         catch (Exception ex)
         {
-            var (loggable, reason) = Redact(ex);
+            var (loggable, reason) = PostgresErrors.Redact(ex);
             LogSnapshotReadFailed(logger, loggable, generationId, reason);
             return null;
         }
@@ -598,23 +598,9 @@ public sealed partial class PostgresDeliveryService(
     private static string? NullableString(NpgsqlDataReader r, int ordinal) =>
         r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
 
-    /// <summary>
-    /// What of a failure may reach the logs. A <see cref="PostgresException"/>'s message can quote the
-    /// offending value (22P02 echoes its input), and a <see cref="JsonException"/> comes from a
-    /// jsonb column a client may have written, so for those only the SQLSTATE and constraint, or the
-    /// JSON path, are kept and the exception itself is dropped. Anything else (a refused connection,
-    /// a timeout, cancellation) carries no row data and is logged whole.
-    /// </summary>
-    private static (Exception? Loggable, string Reason) Redact(Exception ex) => ex switch
-    {
-        PostgresException pg => (null, $"SQLSTATE {pg.SqlState}, constraint {pg.ConstraintName ?? "-"}"),
-        JsonException json => (null, $"JSON that does not fit the model at {json.Path ?? "$"}"),
-        _ => (ex, ex.GetType().Name),
-    };
-
     private void LogWriteFailure(Exception ex, string operation, string generationId)
     {
-        var (loggable, reason) = Redact(ex);
+        var (loggable, reason) = PostgresErrors.Redact(ex);
         if (ex is PostgresException)
             LogWriteRejected(logger, operation, generationId, reason);
         else
@@ -623,7 +609,7 @@ public sealed partial class PostgresDeliveryService(
 
     private void LogFunctionFailure(Exception ex, string functionName)
     {
-        var (loggable, reason) = Redact(ex);
+        var (loggable, reason) = PostgresErrors.Redact(ex);
         if (ex is PostgresException)
             LogFunctionRejected(logger, functionName, reason);
         else

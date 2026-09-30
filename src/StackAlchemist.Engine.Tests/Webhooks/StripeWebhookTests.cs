@@ -32,12 +32,12 @@ public sealed class StripeWebhookTests
         var http = new RecordingHttpHandler(responses);
         var httpClient = new HttpClient(http);
         var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(StripeWebhookHandler.HttpClientName).Returns(httpClient);
+        factory.CreateClient(SupabaseBillingStore.HttpClientName).Returns(httpClient);
 
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
         var email = Substitute.For<IEmailService>();
-        var sut = new StripeWebhookHandler(
-            orchestrator, Config(), factory, email, NullLogger<StripeWebhookHandler>.Instance);
+        var billing = new SupabaseBillingStore(factory, Config(), NullLogger<SupabaseBillingStore>.Instance);
+        var sut = new StripeWebhookHandler(orchestrator, billing, email, NullLogger<StripeWebhookHandler>.Instance);
         return (sut, http, orchestrator, email);
     }
 
