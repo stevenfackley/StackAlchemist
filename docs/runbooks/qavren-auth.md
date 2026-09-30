@@ -76,14 +76,17 @@ Notes:
   `NEXT_PUBLIC_APP_URL`, so the two cannot drift. It is harmless in Supabase
   mode (Auth.js is never loaded). Locally leave it unset: `http://localhost:3000`
   is what the browser and the server both see.
-- **Cookie name and the sign-out route are coupled.** `/auth/signout` calls
-  `getToken({ secureCookie: NEXT_PUBLIC_APP_URL startsWith "https:" })` to read
-  the session cookie (it needs the ID token for `id_token_hint`), while Auth.js
-  chose the cookie name from the request protocol. They agree because
-  `AUTH_URL` and `NEXT_PUBLIC_APP_URL` are the same https origin in prod. If
-  they ever disagree the cookie is not found, `id_token_hint` is dropped and
-  sign-out degrades to `client_id`-only logout: Keycloak asks the user to
-  confirm before it honours the redirect.
+- **Sign-out follows the session cookie the browser sent.** Auth.js names the
+  cookie from `AUTH_URL` / `X-Forwarded-Proto` (`__Secure-authjs.session-token`
+  over https, `authjs.session-token` otherwise). `/auth/signout` needs the ID
+  token on it for `id_token_hint`, so it calls `getToken` with `secureCookie`
+  set by which of the two names the request carries, never by
+  `NEXT_PUBLIC_APP_URL`. It then deletes every session cookie the request
+  carried (chunks included) on its own 303, and the proxy skips
+  `/auth/signout`, so no refreshed token rides on the same response and wins
+  on header order. If the token cannot be read, sign-out degrades to
+  `client_id`-only logout: Keycloak shows its own logout confirmation before
+  it honours the redirect.
 - **`NEXT_PUBLIC_APP_URL` is baked at build time and gates sign-out.**
   `/auth/signout` only accepts a POST whose `Origin` (or `Sec-Fetch-Site`) matches
   it, and sends `post_logout_redirect_uri = ${NEXT_PUBLIC_APP_URL}/`. An image

@@ -64,12 +64,12 @@ async function qavrenSignOut(request: NextRequest) {
   ]);
 
   // The ID token lives only on the JWT cookie (never on the session object) and must be read
-  // BEFORE signOut clears it. getToken derives the cookie name from secureCookie and reassembles chunks.
-  const jwt = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET ?? "",
-    secureCookie: appBaseUrl.startsWith("https:"),
-  });
+  // BEFORE signOut clears it. getToken derives the cookie name from secureCookie and reassembles
+  // chunks. Auth.js picks the `__Secure-` name from AUTH_URL / x-forwarded-proto, not from
+  // NEXT_PUBLIC_APP_URL, so follow the cookie the browser actually sent.
+  const sessionCookies = request.cookies.getAll().filter((c) => isSessionCookie(c.name));
+  const secureCookie = sessionCookies.some((c) => c.name.startsWith(SECURE_PREFIX));
+  const jwt = await getToken({ req: request, secret: process.env.AUTH_SECRET ?? "", secureCookie });
   const idToken = typeof jwt?.idToken === "string" ? jwt.idToken : undefined;
 
   await signOut({ redirect: false });
@@ -78,8 +78,30 @@ async function qavrenSignOut(request: NextRequest) {
   const end = new URL(`${issuerFor(realm, getQavrenAuthUrl())}/protocol/openid-connect/logout`);
   end.searchParams.set("post_logout_redirect_uri", `${appBaseUrl}/`);
   if (idToken) end.searchParams.set("id_token_hint", idToken);
-  // Keycloak needs one of the two to honour the redirect; without either it asks the user to confirm.
+  // Without id_token_hint Keycloak rejects post_logout_redirect_uri unless client_id names the
+  // client; with client_id alone it still shows its own logout confirmation first.
   else end.searchParams.set("client_id", `${realm}-web`);
 
-  return NextResponse.redirect(end, 303);
+  const res = NextResponse.redirect(end, 303);
+  // Belt and braces: Auth.js's own deletion rides on cookies(); a refreshed token appended by any
+  // middleware would race it. Delete what the request actually carried (chunked cookies included).
+  for (const c of sessionCookies) {
+    res.cookies.set(c.name, "", {
+      path: "/",
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: c.name.startsWith(SECURE_PREFIX),
+    });
+  }
+  return res;
+}
+
+const SESSION_COOKIE = "authjs.session-token";
+const SECURE_PREFIX = "__Secure-";
+
+/** Auth.js's session cookie, either name, whole or as one of its `.0`, `.1`, … chunks. */
+function isSessionCookie(name: string) {
+  const bare = name.startsWith(SECURE_PREFIX) ? name.slice(SECURE_PREFIX.length) : name;
+  return bare === SESSION_COOKIE || bare.startsWith(`${SESSION_COOKIE}.`);
 }

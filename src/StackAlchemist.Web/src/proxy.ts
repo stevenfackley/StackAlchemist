@@ -184,9 +184,13 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   if (challenge) return challenge;
   // Auth.js's own routes are never gated (they create the session the gate reads),
   // but they stay behind the test mirror's Basic Auth above. Exact prefix so a
-  // future /api/author… route is not silently exempted.
+  // future /api/author… route is not silently exempted. The sign-out route deletes the
+  // session cookie; the gate would otherwise append a refreshed one to the same response
+  // and the browser's header order decides who wins.
   const { pathname } = request.nextUrl;
-  if (pathname === "/api/auth" || pathname.startsWith("/api/auth/")) return NextResponse.next();
+  if (pathname === "/api/auth" || pathname.startsWith("/api/auth/") || pathname === "/auth/signout") {
+    return NextResponse.next();
+  }
   if (usesQavrenAuth()) {
     // Demo mode never gates, so it never needs to load Auth.js or decrypt a cookie.
     if (isDemoMode) return NextResponse.next();

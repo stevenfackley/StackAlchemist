@@ -16,7 +16,10 @@ const base = buildAuthConfig({
   // The reverse proxy + Cloudflare terminate in front of the app; the Host
   // header is the public one and Auth.js has to be told to believe it.
   trustHost: true,
-  pages: { signIn: "/login" },
+  // Auth.js sends only SignInError subclasses (e.g. OAuthCallbackError) to pages.signIn;
+  // AccessDenied, Configuration (incl. PKCE/state cookie mismatches) and callback-route
+  // errors go to pages.error. Both land on /login, which renders the closed auth-errors set.
+  pages: { signIn: "/login", error: "/login" },
 });
 
 /** Kept apart from auth.ts so the composed callbacks are unit-testable without calling NextAuth(). */

@@ -113,6 +113,23 @@ describe("proxy", () => {
     expect(loaded).toHaveBeenCalledTimes(1);
   });
 
+  it("Qavren mode: POST /auth/signout passes through without the gate, so no refreshed session cookie races the deletion", async () => {
+    qavrenMode();
+    mockAuth();
+    const res = await run(req("http://localhost:3000/auth/signout", null, { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(res.headers.getSetCookie()).toEqual([]);
+    expect(loaded).not.toHaveBeenCalled();
+  });
+
+  it("Supabase mode: POST /auth/signout passes through without the Supabase refresh", async () => {
+    vi.stubEnv("QAVREN_AUTH_URL", ""); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
+    mockAuth(); mockSupabase();
+    expect((await run(req("http://localhost:3000/auth/signout", null, { method: "POST" }))).status).toBe(200);
+    expect(createServerClient).not.toHaveBeenCalled();
+    expect(loaded).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["Supabase", ""],
     ["Qavren", "http://localhost:8090"],

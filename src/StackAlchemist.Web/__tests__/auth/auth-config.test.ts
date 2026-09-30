@@ -58,7 +58,7 @@ test("our config points at the stackalchemist realm with a week-long jwt session
   });
   expect(authConfig.session).toEqual({ strategy: "jwt", maxAge: 60 * 60 * 24 * 7 });
   expect(authConfig.trustHost).toBe(true);
-  expect(authConfig.pages).toEqual({ signIn: "/login" });
+  expect(authConfig.pages).toEqual({ signIn: "/login", error: "/login" });
 });
 
 test("jwt keeps the sdk behaviour and stashes the id token", async () => {
