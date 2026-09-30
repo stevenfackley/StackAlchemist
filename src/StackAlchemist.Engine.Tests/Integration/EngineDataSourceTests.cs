@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Integration;
 
@@ -41,6 +42,8 @@ public sealed class EngineDataSourceTests : IDisposable
         b.SslMode.Should().Be(SslMode.Require);
         b.Host.Should().Be("localhost");
         b.Database.Should().Be("x");
+
+        factory.Services.GetRequiredService<IDeliveryService>().Should().BeOfType<PostgresDeliveryService>();
     }
 
     // Assumes no .env up the tree sets DATABASE_URL: Program.cs loads the nearest one via DotNetEnv's TraversePath().
@@ -51,5 +54,6 @@ public sealed class EngineDataSourceTests : IDisposable
         using var factory = new EngineWebApplicationFactory();
 
         factory.Services.GetService<NpgsqlDataSource>().Should().BeNull();
+        factory.Services.GetRequiredService<IDeliveryService>().Should().BeOfType<SupabaseDeliveryService>();
     }
 }

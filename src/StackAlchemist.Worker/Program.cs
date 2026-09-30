@@ -31,7 +31,7 @@ var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Environment.GetEnv
 if (dbConnectionString is not null)
 {
     builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
-    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>(); // Task 5 flips this to PostgresDeliveryService
+    builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
 }
 else
 {

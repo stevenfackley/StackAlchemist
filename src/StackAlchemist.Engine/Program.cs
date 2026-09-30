@@ -287,12 +287,12 @@ if (string.IsNullOrWhiteSpace(anthropicApiKey))
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-// qavren-db when DATABASE_URL is set (PostgresDeliveryService and PostgresBillingStore
-// arrive in Tasks 5 and 6 and slot into this branch); Supabase otherwise.
+// qavren-db when DATABASE_URL is set (PostgresBillingStore arrives in Task 6 and slots into
+// this branch too); Supabase otherwise.
 if (dbConnectionString is not null)
 {
     builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
-    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>(); // Task 5 flips this to PostgresDeliveryService
+    builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
 }
 else
 {
