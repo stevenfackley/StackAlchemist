@@ -8,8 +8,11 @@ const SUB = "11111111-2222-4333-8444-555555555555";
 let authConfig: typeof import("@/auth.config").authConfig;
 
 beforeAll(async () => {
-  // Not the default, and with a trailing slash: proves getQavrenAuthUrl() is wired in and strips it.
-  vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090/");
+  // Not the default, and padded: getQavrenAuthUrl() trims the spaces and strips the slash, while the
+  // SDK's own QAVREN_AUTH_URL fallback does neither (it never trims, and the trailing space hides the
+  // slash from its regex). The issuer assertion below therefore holds only if auth.config.ts passes
+  // getQavrenAuthUrl() through as baseUrl.
+  vi.stubEnv("QAVREN_AUTH_URL", " http://localhost:8090/ ");
   vi.stubEnv("QAVREN_REALM", "");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
   ({ authConfig } = await import("@/auth.config"));
