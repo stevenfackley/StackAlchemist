@@ -21,7 +21,8 @@
 7. **Pooler rules.** Runtime uses the Supavisor transaction pooler (`:6543`): postgres-js `prepare: false`, Npgsql `Max Auto Prepare=0; No Reset On Close=true` (gavel-suite ADR-0017). Migrations use the session URL (`:5432`). No `SET`, no session state, no advisory locks across statements at runtime (the migrator's advisory lock lives inside one transaction, which is fine).
 8. **TLS.** URLs carry `?sslmode=require` (phase A). postgres-js honours it from the URL. Npgsql does not parse libpq URIs, so `PostgresUrl.ToNpgsqlConnectionString()` converts, mapping `sslmode=require` → `SSL Mode=Require` (Npgsql ≥ 6 validates the chain under Require). If the real-pooler smoke (Task 8) fails on certificate validation, the fix is `Root Certificate=<supabase CA>`, not `Trust Server Certificate=true`. Follow-up, not this phase: `sslmode=require` is encrypt-without-verify on the Node side; `verify-full` + CA is the stricter setting fleet-wide.
 9. **JSON parity.** The Engine serializes `schema_json` / `personalization_json` with `JsonNamingPolicy.SnakeCaseLower` today (PostgREST payloads). `PostgresDeliveryService` must use the same options when writing jsonb, and the same case-insensitive options when reading, or the web reads a differently-shaped schema.
-10. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
+10. **Task 1 review amendments (2026-09-29).** The Opus review of Task 1 changed four details every later task relies on: (a) `getDb(url)` keys its pool cache on the URL (a `Map` on `globalThis`), so tests may pass `TEST_DATABASE_URL` while `DATABASE_URL` is also set; (b) `vitest.config.ts` aliases `server-only` to an empty module (`__tests__/mocks/server-only.ts`), otherwise nothing importing `@/db` or `@/lib/data` can run under vitest; (c) timestamps come back as ISO strings (`customType` over `timestamp with time zone` that returns `new Date(v).toISOString()`), because Drizzle's postgres-js driver otherwise returns Postgres text (`2026-09-29 12:34:56+00`), which Safari's `new Date()` rejects while today's PostgREST rows are ISO; (d) the migrator verifies the ledger (an applied migration whose hash changed, or an unapplied one older than the newest applied, fails the run) and never lets a malformed DSN reach a log line. Task 3's suite constructs the store inside `beforeAll` (vitest evaluates a skipped `describe` body) and asserts the ISO shape of `created_at`.
+11. **One branch, one PR.** `feat/qavren-db-data`. Tasks land as commits; the PR is reviewed as a whole (opus review + green CI is the standing merge condition). The deploy this merge triggers should be a no-op behaviourally; Task 9 verifies that on prod.
 
 ## Coupling this phase removes (from `origin/main`, 2026-09-29)
 
@@ -766,12 +767,16 @@ import { closeDb } from "@/db";
 const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
-  const store = new DrizzleStore(url);
-  const sql = postgres(url!, { max: 1 });
+  // Built in beforeAll, not in the describe body: vitest evaluates a skipped
+  // describe's body, and getDb() throws when the URL is missing.
+  let store: DrizzleStore;
+  let sql: ReturnType<typeof postgres>;
   const alice = randomUUID();
   const bob = randomUUID();
 
   beforeAll(async () => {
+    store = new DrizzleStore(url);
+    sql = postgres(url!, { max: 1 });
     await sql`insert into stackalchemist.profiles (id, email) values (${alice}, 'alice@example.test'), (${bob}, 'bob@example.test')`;
   });
   beforeEach(async () => {
@@ -792,7 +797,8 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     const g = await gen(alice);
     expect(g.status).toBe("pending");
     expect(g.attempt_count).toBe(0);
-    expect(typeof g.created_at).toBe("string");
+    // ISO with a Z, the shape PostgREST rows had; Postgres text form breaks Safari's Date parser.
+    expect(g.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
   });
 
   it("list and stats are scoped to the caller", async () => {
@@ -1291,7 +1297,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 }
 ```
 
-Tests guard with `if (!fx.Available) return;` at the top (mirrors the toolchain-skip convention in this test project).
+Tests guard with `if (!fx.Available) return;` at the top (mirrors the toolchain-skip convention in this test project). The fixture applies the migration files exactly once per container (it is a collection fixture, so that is once per test run); `CREATE TRIGGER` in `0001` is not idempotent and a second application would fail.
 
 - [ ] **Step 2: Failing tests** — `Services/PostgresDeliveryServiceTests.cs`, `[Collection(PostgresCollection.Name)]`
 
@@ -1526,7 +1532,7 @@ Under `sa-web.environment` and `sa-engine.environment`:
 
 `if:` cannot read `secrets` directly on a step in every runner version; if the linter (`actionlint` in the `Analyze (actions)` CodeQL job) rejects it, use the env-var pattern the Supabase step uses (`if [ -z "$DATABASE_URL_MIGRATE" ]; then echo "::warning::..."; exit 0; fi`). Needs `actions/setup-node` before it (the deploy runner is the EC2 self-hosted box; check Node is present there, else add the setup step with `node-version: 24`).
 
-- [ ] **Step 4: Runbook** `docs/runbooks/qavren-db-migrations.md`: where the schema lives (qavren-db, schema `stackalchemist`, role of the same name), the two URLs and which is for what, `npm run db:generate` / `db:migrate` / `db:check`, the CI drift guard, the prod step and its gate, the local container recipe, and the two traps (never `drizzle-kit migrate`/`push`; never log a postgres-js error object whole).
+- [ ] **Step 4: Runbook** `docs/runbooks/qavren-db-migrations.md`: where the schema lives (qavren-db, schema `stackalchemist`, role of the same name), the two URLs and which is for what, `npm run db:generate` / `db:migrate` / `db:check`, the CI drift guard, the prod step and its gate, the local container recipe, and the traps: never `drizzle-kit migrate`/`push`; never log a postgres-js error object whole (the DSN rides on `err.input`); the whole migrator run is ONE transaction, so a migration can't use `CREATE INDEX CONCURRENTLY` or add an enum value and use it in the same file; never edit an applied migration (the ledger hash check fails the run). Also file a follow-up issue: `process_checkout_completed` has a dead "generation row missing" branch inherited from the legacy function; the FK on `transactions.generation_id` raises 23503 first, rolling back the `stripe_events` insert so Stripe retries forever. Faithful port, out of scope here.
 
 - [ ] **Step 5: Commit**
 
