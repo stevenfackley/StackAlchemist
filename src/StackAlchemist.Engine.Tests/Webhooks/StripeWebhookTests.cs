@@ -32,12 +32,12 @@ public sealed class StripeWebhookTests
         var http = new RecordingHttpHandler(responses);
         var httpClient = new HttpClient(http);
         var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(StripeWebhookHandler.HttpClientName).Returns(httpClient);
+        factory.CreateClient(SupabaseBillingStore.HttpClientName).Returns(httpClient);
 
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
         var email = Substitute.For<IEmailService>();
-        var sut = new StripeWebhookHandler(
-            orchestrator, Config(), factory, email, NullLogger<StripeWebhookHandler>.Instance);
+        var billing = new SupabaseBillingStore(factory, Config(), NullLogger<SupabaseBillingStore>.Instance);
+        var sut = new StripeWebhookHandler(orchestrator, billing, email, NullLogger<StripeWebhookHandler>.Instance);
         return (sut, http, orchestrator, email);
     }
 
@@ -298,6 +298,62 @@ public sealed class StripeWebhookTests
         http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_2");
     }
 
+    [Fact]
+    public async Task CheckoutCompleted_EnqueueThrowsAfterRequestAborted_StillRunsCompensatingDelete()
+    {
+        // The enqueue can fail because the request was aborted. The compensation must not ride
+        // that token: a delete skipped on an already-cancelled token would leave the event
+        // recorded, and Stripe's redelivery would then report "duplicate" for a paid checkout.
+        // The abort happens inside the enqueue (the RPC ran on a live token), and the fake
+        // transport honours cancellation the way a real one does, so a compensation sent on the
+        // request token would never be recorded.
+        var (sut, http, orchestrator, _) = BuildSut(
+            (HttpStatusCode.OK,
+             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
+             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"),
+            (HttpStatusCode.NoContent, ""));
+
+        using var requestAborted = new CancellationTokenSource();
+        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<GenerateResponse>>(_ =>
+            {
+                requestAborted.Cancel();
+                throw new OperationCanceledException(requestAborted.Token);
+            });
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_3"), requestAborted.Token);
+
+        requestAborted.IsCancellationRequested.Should().BeTrue();
+        result.Processed.Should().BeFalse();
+        result.Retry.Should().BeTrue();
+
+        http.Requests.Should().HaveCount(2);
+        http.Requests[0].Method.Should().Be(HttpMethod.Post);
+        http.Requests[0].Url.Should().Contain("/rest/v1/rpc/process_checkout_completed");
+        http.Requests[1].Method.Should().Be(HttpMethod.Delete);
+        http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_3");
+    }
+
+    [Fact]
+    public async Task CheckoutCompleted_WithoutBillingStore_EnqueuesDirectly()
+    {
+        // No store registered (local dev): no idempotency log, so the paid generation is
+        // enqueued straight from the session metadata.
+        var orchestrator = Substitute.For<IGenerationOrchestrator>();
+        var email = Substitute.For<IEmailService>();
+        var sut = new StripeWebhookHandler(orchestrator, billing: null, email, NullLogger<StripeWebhookHandler>.Instance);
+
+        var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
+
+        result.Processed.Should().BeTrue();
+        result.Retry.Should().BeFalse();
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r =>
+                r.GenerationId == "gen-77" && r.Tier == 2 && r.Mode == "advanced" &&
+                r.ProjectType == ProjectType.DotNetNextJs),
+            Arg.Any<CancellationToken>());
+    }
+
     public sealed record CapturedRequest(HttpMethod Method, string Url, string Body);
 
     private sealed class RecordingHttpHandler : HttpMessageHandler
@@ -313,6 +369,8 @@ public sealed class StripeWebhookTests
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var body = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);

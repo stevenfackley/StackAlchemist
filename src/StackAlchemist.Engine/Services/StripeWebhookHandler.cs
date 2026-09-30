@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
 using StackAlchemist.Engine.Models;
 using Stripe;
 using Stripe.Checkout;
@@ -23,20 +21,15 @@ public sealed record StripeWebhookResult(bool Processed, string? Reason = null, 
 /// checkout.session.completed runs through the process_checkout_completed RPC, which
 /// makes the idempotency-event insert, tier update, and transaction upsert one atomic
 /// Postgres transaction; the other event types use the stripe_events table directly.
+/// All of that data access goes through <see cref="IBillingStore"/>; a null store (none
+/// configured) means no idempotency log, and every event proceeds without one.
 /// </summary>
 public sealed partial class StripeWebhookHandler(
     IGenerationOrchestrator orchestrator,
-    IConfiguration config,
-    IHttpClientFactory httpClientFactory,
+    IBillingStore? billing,
     IEmailService emailService,
     ILogger<StripeWebhookHandler> logger) : IStripeWebhookHandler
 {
-    public const string HttpClientName = "SupabaseAdmin";
-
-    private static readonly JsonSerializerOptions CaseInsensitiveJson = new() { PropertyNameCaseInsensitive = true };
-
-    private enum EventRecord { New, Duplicate, Unavailable }
-
     public async Task<StripeWebhookResult> HandleAsync(Event stripeEvent, CancellationToken ct)
     {
         // checkout.session.completed owns its idempotency inside the RPC — recording the
@@ -45,14 +38,14 @@ public sealed partial class StripeWebhookHandler(
         if (stripeEvent.Type == "checkout.session.completed")
             return await HandleCheckoutCompletedAsync(stripeEvent, ct);
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
-            switch (await TryRecordEventAsync(sb, stripeEvent, ct))
+            switch (await billing.TryRecordEventAsync(stripeEvent.Id, stripeEvent.Type, ct))
             {
                 case EventRecord.Duplicate:
                     return new StripeWebhookResult(false, "duplicate");
                 case EventRecord.Unavailable:
-                    // The remaining handlers' PATCHes are status overwrites, safe under
+                    // The remaining handlers' writes are status overwrites, safe under
                     // redelivery — ask Stripe to retry rather than process unlogged.
                     return new StripeWebhookResult(false, "idempotency_unavailable", Retry: true);
             }
@@ -86,16 +79,18 @@ public sealed partial class StripeWebhookHandler(
         GenerationSchema? schema = null;
         GenerationPersonalization? personalization = null;
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
             // One atomic Postgres transaction: idempotency-event insert + tier update
             // (payment is the authoritative moment a try-before-buy row leaves tier 0)
             // + transaction upsert. All-or-nothing, so a failure here leaves the event
             // unrecorded and Stripe's redelivery re-processes cleanly.
-            CheckoutRpcOutcome outcome;
+            CheckoutOutcome outcome;
             try
             {
-                outcome = await ProcessCheckoutCompletedRpcAsync(sb, stripeEvent, session, generationId, tier, ct);
+                outcome = await billing.ProcessCheckoutCompletedAsync(
+                    stripeEvent.Id, stripeEvent.Type, session.Id, session.PaymentIntentId,
+                    generationId, tier, session.AmountTotal ?? 0, ct);
             }
             catch (Exception ex)
             {
@@ -129,14 +124,16 @@ public sealed partial class StripeWebhookHandler(
             {
                 // Compensate: un-record the event so Stripe's redelivery gets a fresh
                 // is_new=true from the RPC instead of short-circuiting as a duplicate.
+                // Not on ct: the enqueue may have failed because the request was aborted,
+                // and a compensation that skips on an already-cancelled token loses the checkout.
                 LogCheckoutEnqueueFailed(logger, ex, stripeEvent.Id, generationId);
-                await DeleteStripeEventAsync(sb, stripeEvent.Id, ct);
+                await billing.DeleteEventAsync(stripeEvent.Id, CancellationToken.None);
                 return new StripeWebhookResult(false, "enqueue_failed", Retry: true);
             }
         }
         else
         {
-            // Supabase unconfigured (local dev): no idempotency log, enqueue directly.
+            // No billing store (local dev): no idempotency log, enqueue directly.
             await orchestrator.EnqueueAsync(new GenerateRequest
             {
                 GenerationId    = generationId,
@@ -165,12 +162,13 @@ public sealed partial class StripeWebhookHandler(
         if (stripeEvent.Data.Object is not Session session)
             return new StripeWebhookResult(false, "not_a_session");
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
-            await UpdateTransactionByFilterAsync(sb,
-                filter: $"stripe_session_id=eq.{session.Id}",
+            await billing.UpdateTransactionsAsync(
+                TransactionKey.StripeSessionId, session.Id,
                 status: "failed",
                 eventId: stripeEvent.Id,
+                returnGenerationId: false,
                 ct);
         }
 
@@ -184,12 +182,13 @@ public sealed partial class StripeWebhookHandler(
         if (stripeEvent.Data.Object is not PaymentIntent intent)
             return new StripeWebhookResult(false, "not_a_payment_intent");
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
-            await UpdateTransactionByFilterAsync(sb,
-                filter: $"stripe_payment_intent=eq.{intent.Id}",
+            await billing.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, intent.Id,
                 status: "failed",
                 eventId: stripeEvent.Id,
+                returnGenerationId: false,
                 ct);
         }
 
@@ -207,20 +206,20 @@ public sealed partial class StripeWebhookHandler(
         if (string.IsNullOrWhiteSpace(paymentIntentId))
             return new StripeWebhookResult(false, "missing_payment_intent");
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
             // Mark the transaction refunded and look up the linked generation_id
             // so we can cancel the generation if it hasn't yet been delivered.
-            var generationId = await UpdateTransactionByFilterAsync(sb,
-                filter: $"stripe_payment_intent=eq.{paymentIntentId}",
+            var generationId = await billing.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, paymentIntentId,
                 status: "refunded",
                 eventId: stripeEvent.Id,
-                ct,
-                returnGenerationId: true);
+                returnGenerationId: true,
+                ct);
 
             if (!string.IsNullOrWhiteSpace(generationId))
             {
-                await CancelUndeliveredGenerationAsync(sb, generationId!, "Refunded by Stripe", ct);
+                await billing.CancelUndeliveredGenerationAsync(generationId, "Refunded by Stripe", ct);
             }
         }
 
@@ -234,234 +233,18 @@ public sealed partial class StripeWebhookHandler(
         if (stripeEvent.Data.Object is not Dispute dispute)
             return new StripeWebhookResult(false, "not_a_dispute");
 
-        if (ResolveSupabase() is { } sb)
+        if (billing is not null)
         {
-            await UpdateTransactionByFilterAsync(sb,
-                filter: $"stripe_charge_id=eq.{dispute.ChargeId}",
+            await billing.UpdateTransactionsAsync(
+                TransactionKey.StripeChargeId, dispute.ChargeId,
                 status: "disputed",
                 eventId: stripeEvent.Id,
+                returnGenerationId: false,
                 ct);
         }
 
         LogStripeDisputeOpened(logger, dispute.ChargeId, dispute.Reason);
         return new StripeWebhookResult(true);
-    }
-
-    // ── Idempotency: stripe_events table (non-checkout event types) ─────────────
-    private async Task<EventRecord> TryRecordEventAsync(SupabaseAdmin sb, Event stripeEvent, CancellationToken ct)
-    {
-        try
-        {
-            var endpoint = $"{sb.Url}/rest/v1/stripe_events";
-            var payload = new { id = stripeEvent.Id, type = stripeEvent.Type };
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            using var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
-            {
-                Content = JsonContent.Create(payload),
-            };
-            req.Headers.Add("apikey", sb.ServiceRoleKey);
-            req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
-            req.Headers.Add("Prefer", "return=minimal");
-
-            using var res = await client.SendAsync(req, ct);
-            if ((int)res.StatusCode == 409)
-                return EventRecord.Duplicate; // already processed
-
-            res.EnsureSuccessStatusCode();
-            return EventRecord.New;
-        }
-        catch (Exception ex)
-        {
-            // Idempotency log unavailable: the caller returns Retry so Stripe redelivers
-            // once the log is reachable, instead of processing unlogged (the old fail-open
-            // allowed concurrent duplicate deliveries to double-process).
-            LogStripeEventRecordFailed(logger, ex, stripeEvent.Id);
-            return EventRecord.Unavailable;
-        }
-    }
-
-    // ── checkout.session.completed: atomic RPC + compensation ──────────────────
-
-    private sealed record CheckoutRpcOutcome(
-        bool IsNew,
-        string? Mode,
-        string? Prompt,
-        ProjectType? ProjectType,
-        GenerationSchema? Schema,
-        GenerationPersonalization? Personalization);
-
-    private async Task<CheckoutRpcOutcome> ProcessCheckoutCompletedRpcAsync(
-        SupabaseAdmin sb, Event stripeEvent, Session session, string generationId, int tier, CancellationToken ct)
-    {
-        var endpoint = $"{sb.Url}/rest/v1/rpc/process_checkout_completed";
-        var client = httpClientFactory.CreateClient(HttpClientName);
-        using var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = JsonContent.Create(new
-            {
-                p_event_id       = stripeEvent.Id,
-                p_event_type     = stripeEvent.Type,
-                p_session_id     = session.Id,
-                p_payment_intent = session.PaymentIntentId,
-                p_generation_id  = generationId,
-                p_tier           = tier,
-                p_amount         = session.AmountTotal ?? 0,
-            }),
-        };
-        req.Headers.Add("apikey", sb.ServiceRoleKey);
-        req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
-
-        using var res = await client.SendAsync(req, ct);
-        res.EnsureSuccessStatusCode();
-
-        var body = await res.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(body);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-            throw new InvalidOperationException("process_checkout_completed returned no rows.");
-
-        var row = doc.RootElement[0];
-        var isNew = row.TryGetProperty("is_new", out var n) && n.ValueKind == JsonValueKind.True;
-        if (!isNew)
-            return new CheckoutRpcOutcome(false, null, null, null, null, null);
-
-        string? mode = row.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
-        string? prompt = row.TryGetProperty("prompt", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-        ProjectType? projectType =
-            row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String &&
-            Enum.TryParse<ProjectType>(pt.GetString(), ignoreCase: true, out var parsed)
-                ? parsed
-                : null;
-
-        GenerationSchema? schema = null;
-        if (row.TryGetProperty("schema_json", out var s) &&
-            s.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
-        {
-            schema = JsonSerializer.Deserialize<GenerationSchema>(s.GetRawText());
-        }
-
-        GenerationPersonalization? personalization = null;
-        if (row.TryGetProperty("personalization_json", out var pj) &&
-            pj.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
-        {
-            personalization = JsonSerializer.Deserialize<GenerationPersonalization>(pj.GetRawText(), CaseInsensitiveJson);
-        }
-
-        return new CheckoutRpcOutcome(true, mode, prompt, projectType, schema, personalization);
-    }
-
-    private async Task DeleteStripeEventAsync(SupabaseAdmin sb, string eventId, CancellationToken ct)
-    {
-        try
-        {
-            var endpoint = $"{sb.Url}/rest/v1/stripe_events?id=eq.{eventId}";
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            using var req = new HttpRequestMessage(HttpMethod.Delete, endpoint);
-            req.Headers.Add("apikey", sb.ServiceRoleKey);
-            req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
-            req.Headers.Add("Prefer", "return=minimal");
-
-            using var res = await client.SendAsync(req, ct);
-            res.EnsureSuccessStatusCode();
-        }
-        catch (Exception ex)
-        {
-            // Manual-recovery breadcrumb: the event stays recorded, so the redelivery will
-            // report "duplicate" — the generation row is the place to look (the orchestrator
-            // usually marks it failed itself before EnqueueAsync ever throws).
-            LogCompensationDeleteFailed(logger, ex, eventId);
-        }
-    }
-
-    // ── Supabase helpers ───────────────────────────────────────────────────────
-    private SupabaseAdmin? ResolveSupabase()
-    {
-        var url = config["Supabase:Url"];
-        var key = config["Supabase:ServiceRoleKey"];
-        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key)) return null;
-        return new SupabaseAdmin(url.TrimEnd('/'), key);
-    }
-
-    private sealed record SupabaseAdmin(string Url, string ServiceRoleKey);
-
-    /// <summary>
-    /// Patches all transactions matching the given PostgREST filter to a new status.
-    /// Returns the linked generation_id from the first matching row when
-    /// <paramref name="returnGenerationId"/> is true; otherwise null.
-    /// </summary>
-    private async Task<string?> UpdateTransactionByFilterAsync(
-        SupabaseAdmin sb,
-        string filter,
-        string status,
-        string eventId,
-        CancellationToken ct,
-        bool returnGenerationId = false)
-    {
-        try
-        {
-            var endpoint = $"{sb.Url}/rest/v1/transactions?{filter}";
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            using var req = new HttpRequestMessage(HttpMethod.Patch, endpoint)
-            {
-                Content = JsonContent.Create(new
-                {
-                    status               = status,
-                    last_stripe_event_id = eventId,
-                    updated_at           = DateTimeOffset.UtcNow,
-                }),
-            };
-            req.Headers.Add("apikey", sb.ServiceRoleKey);
-            req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
-            req.Headers.Add("Prefer", returnGenerationId ? "return=representation" : "return=minimal");
-
-            using var res = await client.SendAsync(req, ct);
-            res.EnsureSuccessStatusCode();
-
-            if (!returnGenerationId) return null;
-
-            var body = await res.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                return null;
-
-            return doc.RootElement[0].TryGetProperty("generation_id", out var g) &&
-                   g.ValueKind == JsonValueKind.String
-                ? g.GetString()
-                : null;
-        }
-        catch (Exception ex)
-        {
-            LogTxUpdateFailed(logger, ex, filter, status);
-            return null;
-        }
-    }
-
-    private async Task CancelUndeliveredGenerationAsync(
-        SupabaseAdmin sb, string generationId, string reason, CancellationToken ct)
-    {
-        try
-        {
-            // Only flip generations that haven't already been delivered to the user.
-            var endpoint = $"{sb.Url}/rest/v1/generations?id=eq.{generationId}&status=neq.success";
-            var client = httpClientFactory.CreateClient(HttpClientName);
-            using var req = new HttpRequestMessage(HttpMethod.Patch, endpoint)
-            {
-                Content = JsonContent.Create(new
-                {
-                    status        = "failed",
-                    error_message = reason,
-                }),
-            };
-            req.Headers.Add("apikey", sb.ServiceRoleKey);
-            req.Headers.Add("Authorization", $"Bearer {sb.ServiceRoleKey}");
-            req.Headers.Add("Prefer", "return=minimal");
-
-            using var res = await client.SendAsync(req, ct);
-            res.EnsureSuccessStatusCode();
-        }
-        catch (Exception ex)
-        {
-            LogGenerationCancelFailed(logger, ex, generationId);
-        }
     }
 
     // ── LoggerMessage source-gen ──────────────────────────────────────────────
@@ -478,21 +261,9 @@ public sealed partial class StripeWebhookHandler(
     [LoggerMessage(EventId = 303, Level = LogLevel.Error, Message = "Stripe dispute opened on charge {ChargeId}: reason={Reason}")]
     private static partial void LogStripeDisputeOpened(ILogger logger, string chargeId, string? reason);
 
-    [LoggerMessage(EventId = 304, Level = LogLevel.Warning, Message = "Failed to record Stripe event {Id} for idempotency")]
-    private static partial void LogStripeEventRecordFailed(ILogger logger, Exception ex, string id);
-
-    [LoggerMessage(EventId = 306, Level = LogLevel.Error, Message = "Failed to update transaction (filter={Filter}, status={Status})")]
-    private static partial void LogTxUpdateFailed(ILogger logger, Exception ex, string filter, string status);
-
-    [LoggerMessage(EventId = 307, Level = LogLevel.Error, Message = "Failed to cancel undelivered generation {Id}")]
-    private static partial void LogGenerationCancelFailed(ILogger logger, Exception ex, string id);
-
     [LoggerMessage(EventId = 310, Level = LogLevel.Error, Message = "process_checkout_completed RPC failed for event {EventId} (generation {GenerationId}) — returning retry to Stripe")]
     private static partial void LogCheckoutRpcFailed(ILogger logger, Exception ex, string eventId, string generationId);
 
     [LoggerMessage(EventId = 311, Level = LogLevel.Error, Message = "Enqueue failed after checkout for event {EventId} (generation {GenerationId}) — compensating stripe_events delete + retry")]
     private static partial void LogCheckoutEnqueueFailed(ILogger logger, Exception ex, string eventId, string generationId);
-
-    [LoggerMessage(EventId = 312, Level = LogLevel.Error, Message = "MANUAL RECOVERY: compensating delete of stripe_event {EventId} failed — redelivery will report duplicate; check the generation row")]
-    private static partial void LogCompensationDeleteFailed(ILogger logger, Exception ex, string eventId);
 }

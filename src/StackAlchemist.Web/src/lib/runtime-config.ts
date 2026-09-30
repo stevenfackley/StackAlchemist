@@ -51,6 +51,16 @@ export function hasServerSupabaseConfig() {
   );
 }
 
+/** Server data goes to qavren-db (Postgres) rather than Supabase. */
+export function usesPostgresStore() {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
+/** A server-side store is reachable: qavren-db (DATABASE_URL) or the Supabase service role pair. */
+export function hasDataStoreConfig() {
+  return usesPostgresStore() || hasServerSupabaseConfig();
+}
+
 export function hasEngineConfig() {
   return Boolean(process.env.ENGINE_API_URL) || process.env.NODE_ENV !== "production";
 }

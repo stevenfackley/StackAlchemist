@@ -43,6 +43,11 @@ inputs:
     description: 'Supabase service role key (secret)'
     required: true
 
+  database_url:
+    description: 'qavren-db pooler URL (postgres://...?sslmode=require). Empty = Supabase mode.'
+    required: false
+    default: ''
+
   # ─── Cloudflare R2 ───────────────────────────────────────────────────────────
   cf_account_id:
     description: 'Cloudflare account ID'
@@ -152,6 +157,7 @@ runs:
         SUPABASE_URL: ${{ inputs.supabase_url }}
         SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.supabase_service_role_key }}
+        DATABASE_URL: ${{ inputs.database_url }}
         CF_ACCOUNT_ID: ${{ inputs.cf_account_id }}
         R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
         R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
@@ -189,6 +195,8 @@ runs:
         NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
         SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+        # qavren-db (phase B). Empty keeps every Supabase path.
+        DATABASE_URL=${DATABASE_URL}
 
         # Cloudflare R2
         R2_ACCOUNT_ID=${CF_ACCOUNT_ID}

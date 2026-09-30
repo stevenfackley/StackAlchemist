@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using StackAlchemist.Engine.Data;
 using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
@@ -15,11 +16,6 @@ public sealed partial class SupabaseDeliveryService(
     ILogger<SupabaseDeliveryService> logger) : IDeliveryService
 {
     public const string HttpClientName = "Supabase";
-
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-    };
 
     public async Task UpdateStatusAsync(
         string generationId,
@@ -292,8 +288,20 @@ public sealed partial class SupabaseDeliveryService(
             var rows = new List<GenerationSnapshot>();
             foreach (var row in doc.RootElement.EnumerateArray())
             {
-                if (ParseSnapshot(row) is { } snapshot)
-                    rows.Add(snapshot);
+                // Per row: schema_json can be client-supplied, so one row that does not fit the model
+                // must cost only that row, not blind the whole sweep for every other user.
+                try
+                {
+                    if (ParseSnapshot(row) is { } snapshot)
+                        rows.Add(snapshot);
+                }
+                catch (JsonException ex)
+                {
+                    var id = row.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
+                        ? idEl.GetString()!
+                        : "(no id)";
+                    LogSnapshotReadFailed(logger, ex, id);
+                }
             }
             return rows;
         }
@@ -370,7 +378,7 @@ public sealed partial class SupabaseDeliveryService(
         {
             using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
             {
-                Content = JsonContent.Create(payload, options: JsonOpts),
+                Content = JsonContent.Create(payload, options: DeliveryJson.Write),
             };
             request.Headers.Add("apikey", serviceRoleKey);
             request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
@@ -423,7 +431,7 @@ public sealed partial class SupabaseDeliveryService(
         {
             using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
             {
-                Content = JsonContent.Create(payload, options: JsonOpts),
+                Content = JsonContent.Create(payload, options: DeliveryJson.Write),
             };
             request.Headers.Add("apikey", serviceRoleKey);
             request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
@@ -486,53 +494,34 @@ public sealed partial class SupabaseDeliveryService(
 
     private static GenerationSnapshot? ParseSnapshot(JsonElement row)
     {
-        var id = row.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
-            ? idEl.GetString()
-            : null;
+        var id = Text(row, "id");
         if (id is null) return null;
 
-        var status = row.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
-            ? st.GetString()!
-            : "pending";
-        var tier = row.TryGetProperty("tier", out var ti) && ti.ValueKind == JsonValueKind.Number
-            ? ti.GetInt32()
-            : 0;
-        var mode = row.TryGetProperty("mode", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
-        var prompt = row.TryGetProperty("prompt", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-        ProjectType? projectType =
-            row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String &&
-            Enum.TryParse<ProjectType>(pt.GetString(), ignoreCase: true, out var parsedPt)
-                ? parsedPt
+        return SnapshotMapper.Map(
+            id,
+            status: Text(row, "status"),
+            tier: Int(row, "tier"),
+            mode: Text(row, "mode"),
+            prompt: Text(row, "prompt"),
+            projectType: Text(row, "project_type"),
+            schemaJson: RawJson(row, "schema_json"),
+            personalizationJson: RawJson(row, "personalization_json"),
+            attemptCount: Int(row, "attempt_count"),
+            updatedAt: Text(row, "updated_at") is { } ua && DateTimeOffset.TryParse(ua, out var parsedUa)
+                ? parsedUa
+                : null);
+
+        static string? Text(JsonElement row, string name) =>
+            row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+
+        static int? Int(JsonElement row, string name) =>
+            row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number ? el.GetInt32() : null;
+
+        static string? RawJson(JsonElement row, string name) =>
+            row.TryGetProperty(name, out var el) && el.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined
+                ? el.GetRawText()
                 : null;
-
-        GenerationSchema? schema = null;
-        if (row.TryGetProperty("schema_json", out var s) &&
-            s.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
-        {
-            schema = JsonSerializer.Deserialize<GenerationSchema>(s.GetRawText());
-        }
-
-        GenerationPersonalization? personalization = null;
-        if (row.TryGetProperty("personalization_json", out var pj) &&
-            pj.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
-        {
-            personalization = JsonSerializer.Deserialize<GenerationPersonalization>(
-                pj.GetRawText(), SnapshotJson);
-        }
-
-        var attemptCount = row.TryGetProperty("attempt_count", out var ac) && ac.ValueKind == JsonValueKind.Number
-            ? ac.GetInt32()
-            : 0;
-        var updatedAt = row.TryGetProperty("updated_at", out var ua) && ua.ValueKind == JsonValueKind.String &&
-                        DateTimeOffset.TryParse(ua.GetString(), out var parsedUa)
-            ? parsedUa
-            : DateTimeOffset.MinValue;
-
-        return new GenerationSnapshot(
-            id, status, tier, mode, prompt, projectType, schema, personalization, attemptCount, updatedAt);
     }
-
-    private static readonly JsonSerializerOptions SnapshotJson = new() { PropertyNameCaseInsensitive = true };
 
     // ── Shared PATCH helper ─────────────────────────────────────────────────
 
@@ -567,7 +556,7 @@ public sealed partial class SupabaseDeliveryService(
                 // Fresh request per attempt: HttpRequestMessage cannot be resent.
                 using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
                 {
-                    Content = JsonContent.Create(payload, options: JsonOpts),
+                    Content = JsonContent.Create(payload, options: DeliveryJson.Write),
                 };
                 request.Headers.Add("apikey", serviceRoleKey);
                 request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
@@ -632,7 +621,7 @@ public sealed partial class SupabaseDeliveryService(
             var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/generations?id=eq.{generationId}";
             using var request = new HttpRequestMessage(HttpMethod.Patch, endpoint)
             {
-                Content = JsonContent.Create(payload, options: JsonOpts),
+                Content = JsonContent.Create(payload, options: DeliveryJson.Write),
             };
             request.Headers.Add("apikey", serviceRoleKey);
             request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");
@@ -674,7 +663,7 @@ public sealed partial class SupabaseDeliveryService(
             {
                 using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
                 {
-                    Content = JsonContent.Create(payload, options: JsonOpts),
+                    Content = JsonContent.Create(payload, options: DeliveryJson.Write),
                 };
                 request.Headers.Add("apikey", serviceRoleKey);
                 request.Headers.Add("Authorization", $"Bearer {serviceRoleKey}");

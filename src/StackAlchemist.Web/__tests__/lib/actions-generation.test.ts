@@ -7,7 +7,7 @@
  */
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
-import { hasServerSupabaseConfig } from "@/lib/runtime-config";
+import { hasDataStoreConfig, hasServerSupabaseConfig } from "@/lib/runtime-config";
 import {
   createPendingGeneration,
   extractSchema,
@@ -24,6 +24,8 @@ vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
   hasServerSupabaseConfig: vi.fn(() => true),
+  hasDataStoreConfig: vi.fn(() => true),
+  usesPostgresStore: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => "engine-service-key-test"),
 }));
@@ -54,6 +56,7 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -172,6 +175,7 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -235,6 +239,7 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -264,6 +269,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -273,6 +279,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
 
   it("getFreeQuotaStatus falls back to a full quota when Supabase config is missing, even though isDemoMode is false", async () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
 
     const status = await getFreeQuotaStatus();
     expect(status.remaining).toBe(status.limit);
@@ -290,6 +297,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
 
   it("getMyGenerations returns an empty page when Supabase config is missing", async () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
 
     const result = await getMyGenerations();
@@ -320,6 +328,24 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     // Page 3 @ pageSize 20 → rows 40..59 (0-indexed range).
     const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
     expect(builder.range).toHaveBeenCalledWith(40, 59);
+  });
+
+  it.each([
+    ["10000", 10000, [0, 99]],
+    ["NaN", Number.NaN, [0, 19]],
+    ["0", 0, [0, 0]],
+    ["a fraction", 2.7, [0, 1]],
+  ])("getMyGenerations clamps pageSize %s to an integer in [1, 100] (default 20 for NaN)", async (_name, pageSize, range) => {
+    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    const chain = makeDb([{ data: [], error: null, count: 0 }]) as never as {
+      from: ReturnType<typeof vi.fn>;
+    };
+    vi.mocked(createServerClient).mockReturnValue(chain as never);
+
+    await getMyGenerations(1, pageSize);
+
+    const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
+    expect(builder.range).toHaveBeenCalledWith(...range);
   });
 
   it("getMyGenerations returns an empty page when the query errors", async () => {

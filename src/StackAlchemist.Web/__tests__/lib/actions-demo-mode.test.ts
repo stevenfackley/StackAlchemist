@@ -25,6 +25,8 @@ vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: true,
   hasEngineConfig: () => false,
   hasServerSupabaseConfig: () => false,
+  hasDataStoreConfig: () => false,
+  usesPostgresStore: () => false,
   hasStripeConfig: () => false,
   getEngineServiceKey: () => "",
 }));

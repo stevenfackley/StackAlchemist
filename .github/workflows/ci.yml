@@ -38,6 +38,18 @@ jobs:
     defaults:
       run:
         working-directory: src/StackAlchemist.Web
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: stackalchemist_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d stackalchemist_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/stackalchemist_test
 
     steps:
       - name: Checkout
@@ -52,6 +64,26 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Migration drift guard
+        # schema.ts and drizzle/ must agree: a schema edit without a generated
+        # migration would only surface when prod's migrate step ran it. Both
+        # signals are required: a rename makes drizzle-kit ask an interactive
+        # question, which on a non-TTY prints "Interactive prompts require a
+        # TTY", writes nothing and exits 0, so a clean git status alone would
+        # pass. Only the explicit no-op message proves there is no drift.
+        run: |
+          out=$(npm run db:generate -- --name ci-drift-check 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          if ! grep -q "No schema changes" <<<"$out" || [ -n "$(git status --porcelain drizzle/)" ]; then
+            git status --porcelain drizzle/
+            echo "::error::src/db/schema.ts and drizzle/ disagree (or drizzle-kit needed an interactive answer). Run 'npm run db:generate -- --name <what-changed>' locally and commit drizzle/."
+            exit 1
+          fi
+          npm run db:check
+
+      - name: Apply migrations to the test database
+        run: DATABASE_URL_MIGRATE="$TEST_DATABASE_URL" npm run db:migrate
 
       - name: Lint
         run: npm run lint

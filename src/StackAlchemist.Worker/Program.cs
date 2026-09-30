@@ -10,6 +10,7 @@
 //   • Register ICompileService, IR2UploadService, IDeliveryService here
 
 using System.Threading.Channels;
+using StackAlchemist.Engine.Data;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
@@ -24,7 +25,18 @@ builder.Services.AddSingleton<ICompileService, CompileService>();
 builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
 builder.Services.AddSingleton<IReconstructionService, ReconstructionService>();
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+
+// Same selection as the Engine host: qavren-db when DATABASE_URL is set.
+var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Environment.GetEnvironmentVariable("DATABASE_URL"));
+if (dbConnectionString is not null)
+{
+    builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
+    builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
+}
+else
+{
+    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+}
 
 builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
 {
