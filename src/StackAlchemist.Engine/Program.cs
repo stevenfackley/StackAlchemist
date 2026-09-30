@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using System.Threading.Channels;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -12,6 +13,7 @@ using Serilog.Formatting.Compact;
 using Stripe;
 using Stripe.Checkout;
 using StackAlchemist.Engine;
+using StackAlchemist.Engine.Data;
 using StackAlchemist.Engine.Middleware;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
@@ -79,6 +81,9 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // Supabase
     ["Supabase:Url"]                  = Ev("NEXT_PUBLIC_SUPABASE_URL"),
     ["Supabase:ServiceRoleKey"]       = Ev("SUPABASE_SERVICE_ROLE_KEY"),
+    // qavren-db (phase B of the re-platform). Presence of DATABASE_URL selects the
+    // Postgres implementations below; absence keeps every Supabase path exactly as-is.
+    ["ConnectionStrings:Db"]          = PostgresUrl.ToNpgsqlConnectionString(Ev("DATABASE_URL")),
     // Stripe
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
@@ -102,7 +107,6 @@ if (builder.Environment.IsProduction())
     var required = new[]
     {
         ("ANTHROPIC_API_KEY",          builder.Configuration["Anthropic:ApiKey"]),
-        ("SUPABASE_SERVICE_ROLE_KEY",  builder.Configuration["Supabase:ServiceRoleKey"]),
         ("R2_ACCESS_KEY_ID",           builder.Configuration["CloudflareR2:AccessKeyId"]),
         ("STRIPE_WEBHOOK_SECRET", builder.Configuration["Stripe:WebhookSecret"]),
         ("ENGINE_SERVICE_KEY",    builder.Configuration["Engine:ServiceKey"]),
@@ -114,6 +118,11 @@ if (builder.Environment.IsProduction())
                 $"Required environment variable '{name}' is not set. " +
                 "Set it via user-secrets or environment before starting in Production.");
     }
+
+    if (string.IsNullOrWhiteSpace(builder.Configuration["ConnectionStrings:Db"]) &&
+        string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]))
+        throw new InvalidOperationException(
+            "Set DATABASE_URL (qavren-db) or SUPABASE_SERVICE_ROLE_KEY before starting in Production; the Engine has no store otherwise.");
 }
 
 builder.Services.AddProblemDetails();
@@ -274,7 +283,18 @@ if (string.IsNullOrWhiteSpace(anthropicApiKey))
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+// qavren-db when DATABASE_URL is set (PostgresDeliveryService and PostgresBillingStore
+// arrive in Tasks 5 and 6 and slot into this branch); Supabase otherwise.
+var dbConnectionString = builder.Configuration["ConnectionStrings:Db"];
+if (dbConnectionString is not null)
+{
+    builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(dbConnectionString).Build());
+    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>(); // Task 5 flips this to PostgresDeliveryService
+}
+else
+{
+    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
+}
 
 // ── Compile service ───────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IBuildStrategy, DotNetBuildStrategy>();
