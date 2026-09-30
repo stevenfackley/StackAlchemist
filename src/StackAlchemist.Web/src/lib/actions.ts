@@ -3,10 +3,10 @@
 import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { createServerClient } from "./supabase";
+import { getDataStore, type ProfileRow } from "./data";
 import { getServerUser } from "./supabase-server";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasServerSupabaseConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
+import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
   Tier,
@@ -113,7 +113,7 @@ function parseOptionalApiKey(formData: FormData) {
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getProfileSettings(): Promise<ProfileSettings> {
   const user = await getServerUser();
-  if (!user || !hasServerSupabaseConfig()) {
+  if (!user || !hasDataStoreConfig()) {
     return {
       email: user?.email ?? "",
       hasApiKeyOverride: false,
@@ -121,32 +121,17 @@ export async function getProfileSettings(): Promise<ProfileSettings> {
     };
   }
 
-  let db;
+  let profile: ProfileRow | null = null;
   try {
-    db = createServerClient();
+    profile = await getDataStore().getProfile(user.id);
   } catch (err) {
-    console.error("[getProfileSettings] Supabase config error:", err);
-    return {
-      email: user.email ?? "",
-      hasApiKeyOverride: false,
-      preferredModel: DEFAULT_MODEL,
-    };
-  }
-
-  const { data, error } = await db
-    .from("profiles")
-    .select("email, api_key_override, preferred_model")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[getProfileSettings] Query error:", error);
+    console.error("[getProfileSettings] Query error:", err);
   }
 
   return {
-    email: data?.email ?? user.email ?? "",
-    hasApiKeyOverride: Boolean(data?.api_key_override),
-    preferredModel: normalizePreferredModel(data?.preferred_model),
+    email: profile?.email ?? user.email ?? "",
+    hasApiKeyOverride: Boolean(profile?.api_key_override),
+    preferredModel: normalizePreferredModel(profile?.preferred_model),
   };
 }
 
@@ -159,7 +144,7 @@ export async function saveProfileSettings(
     return { status: "error", message: "Sign in before saving API settings." };
   }
 
-  if (!hasServerSupabaseConfig()) {
+  if (!hasDataStoreConfig()) {
     return { status: "error", message: "Supabase server configuration is incomplete." };
   }
 
@@ -190,27 +175,15 @@ export async function saveProfileSettings(
     };
   }
 
-  let db;
   try {
-    db = createServerClient();
+    await getDataStore().upsertProfile({
+      id: user.id,
+      email: user.email ?? "",
+      preferred_model: preferredModel,
+      api_key_override: apiKeyOverride,
+    });
   } catch (err) {
-    console.error("[saveProfileSettings] Supabase config error:", err);
-    return { status: "error", message: "Supabase server configuration is incomplete." };
-  }
-
-  const profile = {
-    id: user.id,
-    email: user.email ?? "",
-    preferred_model: preferredModel,
-    ...(apiKeyOverride !== undefined ? { api_key_override: apiKeyOverride } : {}),
-  };
-
-  const { error } = await db
-    .from("profiles")
-    .upsert(profile, { onConflict: "id" });
-
-  if (error) {
-    console.error("[saveProfileSettings] Upsert error:", error);
+    console.error("[saveProfileSettings] Upsert error:", err);
     return { status: "error", message: "Failed to save API settings." };
   }
 
@@ -259,24 +232,15 @@ function nextResetLabel(): string {
 
 /** Count a user's Spark (tier 0) generations this month, excluding failed runs —
  *  the same predicate as the enforce_free_generation_quota DB trigger. */
-async function countFreeGenerationsThisMonth(
-  db: ReturnType<typeof createServerClient>,
-  userId: string
-): Promise<number> {
-  const { count, error } = await db
-    .from("generations")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("tier", 0)
-    .neq("status", "failed")
-    .gte("created_at", currentMonthStartUtc().toISOString());
-  if (error) {
+async function countFreeGenerationsThisMonth(userId: string): Promise<number> {
+  try {
+    return await getDataStore().countFreeGenerationsThisMonth(userId, currentMonthStartUtc());
+  } catch (error) {
     // Fail open: the DB trigger is the authoritative gate, so a transient count
     // error must not block a legitimate build (the trigger still rejects abuse).
     console.error("[countFreeGenerationsThisMonth] count failed:", error);
     return 0;
   }
-  return count ?? 0;
 }
 
 export async function submitSimpleGeneration(
@@ -291,22 +255,13 @@ export async function submitSimpleGeneration(
   }
   prompt = sanitized;
 
-  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+  if (isDemoMode || !hasDataStoreConfig() || !hasEngineConfig()) {
     const generationId = `demo-simple-${Date.now()}`;
     return {
       success: true,
       generationId,
       redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
     };
-  }
-
-  let db;
-
-  try {
-    db = createServerClient();
-  } catch (error) {
-    console.error("[submitSimpleGeneration] Supabase configuration error:", error);
-    return { success: false, error: "Server configuration is incomplete. Please contact support." };
   }
 
   // Require authentication: every creation is tied to an account so the
@@ -319,7 +274,7 @@ export async function submitSimpleGeneration(
   // Free-tier quota pre-check — a friendly message before the DB trigger's hard
   // rejection. The trigger (migration 20260530000008) is the authoritative gate.
   if (tier === 0) {
-    const used = await countFreeGenerationsThisMonth(db, user.id);
+    const used = await countFreeGenerationsThisMonth(user.id);
     if (used >= FREE_TIER_MONTHLY_LIMIT) {
       return {
         success: false,
@@ -329,26 +284,18 @@ export async function submitSimpleGeneration(
   }
 
   // 1. Insert generation record
-  const { data, error } = await db
-    .from("generations")
-    .insert({
+  let data: Generation;
+  try {
+    data = await getDataStore().insertGeneration({
       mode: "simple",
       tier,
       prompt: prompt.trim(),
       project_type: projectType,
-      status: "pending",
       schema_json: null,
       personalization_json: personalization ?? null,
-      download_url: null,
-      error_message: null,
-      attempt_count: 0,
       user_id: user.id,
-      completed_at: null,
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
+    });
+  } catch (error) {
     console.error("[submitSimpleGeneration] Supabase insert error:", error);
     return { success: false, error: "Failed to create generation record. Please try again." };
   }
@@ -462,22 +409,13 @@ export async function submitAdvancedGeneration(
     }
   }
 
-  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+  if (isDemoMode || !hasDataStoreConfig() || !hasEngineConfig()) {
     const generationId = `demo-advanced-${Date.now()}`;
     return {
       success: true,
       generationId,
       redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
     };
-  }
-
-  let db;
-
-  try {
-    db = createServerClient();
-  } catch (error) {
-    console.error("[submitAdvancedGeneration] Supabase configuration error:", error);
-    return { success: false, error: "Server configuration is incomplete. Please contact support." };
   }
 
   // Build a human-readable prompt summary from the schema
@@ -495,7 +433,7 @@ export async function submitAdvancedGeneration(
   // Free-tier quota pre-check — see submitSimpleGeneration. The DB trigger
   // (migration 20260530000008) is the authoritative gate; this is UX-only.
   if (tier === 0) {
-    const used = await countFreeGenerationsThisMonth(db, user.id);
+    const used = await countFreeGenerationsThisMonth(user.id);
     if (used >= FREE_TIER_MONTHLY_LIMIT) {
       return {
         success: false,
@@ -505,26 +443,18 @@ export async function submitAdvancedGeneration(
   }
 
   // 1. Insert generation record with the full schema
-  const { data, error } = await db
-    .from("generations")
-    .insert({
+  let data: Generation;
+  try {
+    data = await getDataStore().insertGeneration({
       mode: "advanced",
       tier,
       prompt: promptSummary,
       project_type: projectType,
-      status: "pending",
       schema_json: schema,
       personalization_json: personalization ?? null,
-      download_url: null,
-      error_message: null,
-      attempt_count: 0,
       user_id: user.id,
-      completed_at: null,
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
+    });
+  } catch (error) {
     console.error("[submitAdvancedGeneration] Supabase insert error:", error);
     return { success: false, error: "Failed to save your schema. Please try again." };
   }
@@ -588,7 +518,7 @@ export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
     resetsAtLabel: nextResetLabel(),
   };
 
-  if (isDemoMode || !hasServerSupabaseConfig()) {
+  if (isDemoMode || !hasDataStoreConfig()) {
     return full;
   }
 
@@ -597,14 +527,7 @@ export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
     return full;
   }
 
-  let db;
-  try {
-    db = createServerClient();
-  } catch {
-    return full;
-  }
-
-  const used = await countFreeGenerationsThisMonth(db, user.id);
+  const used = await countFreeGenerationsThisMonth(user.id);
   return {
     ...full,
     used,
@@ -620,35 +543,21 @@ export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
 export async function getGeneration(generationId: string, demoTier?: Tier) {
   const isExplicitDemoFlow = generationId.startsWith("demo-");
 
-  if (isExplicitDemoFlow && (isDemoMode || !hasServerSupabaseConfig())) {
+  if (isExplicitDemoFlow && (isDemoMode || !hasDataStoreConfig())) {
     const tier = demoTier ?? 0;
     return buildDemoGeneration(generationId, tier);
   }
 
-  if (!hasServerSupabaseConfig()) {
+  if (!hasDataStoreConfig()) {
     return null;
   }
-
-  let db;
 
   try {
-    db = createServerClient();
+    return await getDataStore().getGenerationById(generationId);
   } catch (error) {
-    console.error("[getGeneration] Supabase configuration error:", error);
-    return null;
-  }
-  const { data, error } = await db
-    .from("generations")
-    .select("*")
-    .eq("id", generationId)
-    .single();
-
-  if (error) {
     console.error("[getGeneration] Error:", error);
     return null;
   }
-
-  return data;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -658,7 +567,7 @@ export async function getGeneration(generationId: string, demoTier?: Tier) {
 export async function retryGeneration(
   generationId: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (isDemoMode || !hasServerSupabaseConfig() || !hasEngineConfig()) {
+  if (isDemoMode || !hasDataStoreConfig() || !hasEngineConfig()) {
     return { success: true };
   }
 
@@ -670,22 +579,15 @@ export async function retryGeneration(
     return { success: false, error: "Please sign in to retry a build." };
   }
 
-  let db;
-
+  let gen: Generation | null;
   try {
-    db = createServerClient();
+    gen = await getDataStore().getGenerationById(generationId);
   } catch (error) {
-    console.error("[retryGeneration] Supabase configuration error:", error);
-    return { success: false, error: "Server configuration is incomplete. Please contact support." };
+    console.error("[retryGeneration] Lookup error:", error);
+    return { success: false, error: "Generation not found." };
   }
 
-  const { data: gen, error: fetchErr } = await db
-    .from("generations")
-    .select("*")
-    .eq("id", generationId)
-    .single();
-
-  if (fetchErr || !gen) {
+  if (!gen) {
     return { success: false, error: "Generation not found." };
   }
 
@@ -703,11 +605,13 @@ export async function retryGeneration(
     return { success: false, error: "Only failed generations can be retried." };
   }
 
-  // Reset status
-  await db
-    .from("generations")
-    .update({ status: "pending", error_message: null })
-    .eq("id", generationId);
+  // Reset status. Scoped to the owner's failed row in SQL as a second guard;
+  // the checks above already decided, so the result is not consulted.
+  try {
+    await getDataStore().resetForRetry(generationId, user.id);
+  } catch (err) {
+    console.error("[retryGeneration] Status reset failed:", err);
+  }
 
   // Re-fire the engine
   try {
@@ -748,16 +652,8 @@ export async function createPendingGeneration(
   projectType: ProjectType = "DotNetNextJs",
   personalization?: PersonalizationData
 ): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
-  if (isDemoMode || !hasServerSupabaseConfig()) {
+  if (isDemoMode || !hasDataStoreConfig()) {
     return { success: true, generationId: `demo-pending-${Date.now()}` };
-  }
-
-  let db;
-  try {
-    db = createServerClient();
-  } catch (err) {
-    console.error("[createPendingGeneration] Supabase config error:", err);
-    return { success: false, error: "Server configuration is incomplete. Please contact support." };
   }
 
   const promptSummary =
@@ -773,26 +669,18 @@ export async function createPendingGeneration(
     return { success: false, error: "Please sign in to start a build." };
   }
 
-  const { data, error } = await db
-    .from("generations")
-    .insert({
+  let data: Generation;
+  try {
+    data = await getDataStore().insertGeneration({
       mode,
       tier,
       prompt: promptSummary || null,
       project_type: projectType,
-      status: "pending",
       schema_json: schema ?? null,
       personalization_json: personalization ?? null,
-      download_url: null,
-      error_message: null,
-      attempt_count: 0,
       user_id: user.id,
-      completed_at: null,
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
+    });
+  } catch (error) {
     console.error("[createPendingGeneration] Insert error:", error);
     return { success: false, error: "Failed to create generation record. Please try again." };
   }
@@ -886,35 +774,19 @@ export async function getMyGenerations(
 
   const user = await getServerUser();
   if (!user) return empty;
-  if (!hasServerSupabaseConfig()) return empty;
-
-  let db;
-  try {
-    db = createServerClient();
-  } catch (err) {
-    console.error("[getMyGenerations] Supabase config error:", err);
-    return empty;
-  }
+  if (!hasDataStoreConfig()) return empty;
 
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const from = (safePage - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const offset = (safePage - 1) * pageSize;
 
-  // `count: "exact"` returns the full match count alongside the page window, so
-  // the caller can render pagination without a second query.
-  const { data, error, count } = await db
-    .from("generations")
-    .select("*", { count: "exact" })
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (error) {
-    console.error("[getMyGenerations] Query error:", error);
+  // The store returns the full match count alongside the page window, so the
+  // caller can render pagination without a second query.
+  try {
+    return await getDataStore().listMyGenerations(user.id, offset, pageSize);
+  } catch (err) {
+    console.error("[getMyGenerations] Query error:", err);
     return empty;
   }
-
-  return { generations: (data ?? []) as Generation[], total: count ?? 0 };
 }
 
 /**
@@ -930,37 +802,12 @@ export async function getGenerationStats(): Promise<{
   const empty = { total: 0, completed: 0, inProgress: 0 };
 
   const user = await getServerUser();
-  if (!user || !hasServerSupabaseConfig()) return empty;
+  if (!user || !hasDataStoreConfig()) return empty;
 
-  let db;
   try {
-    db = createServerClient();
+    return await getDataStore().generationStats(user.id);
   } catch (err) {
-    console.error("[getGenerationStats] Supabase config error:", err);
+    console.error("[getGenerationStats] Count error:", err);
     return empty;
   }
-
-  // head:true → count only, no rows transferred.
-  const base = () =>
-    db.from("generations").select("*", { count: "exact", head: true }).eq("user_id", user.id);
-
-  const [totalRes, completedRes, inProgressRes] = await Promise.all([
-    base(),
-    base().eq("status", "success"),
-    base().not("status", "in", "(success,failed)"),
-  ]);
-
-  if (totalRes.error || completedRes.error || inProgressRes.error) {
-    console.error(
-      "[getGenerationStats] Count error:",
-      totalRes.error ?? completedRes.error ?? inProgressRes.error
-    );
-    return empty;
-  }
-
-  return {
-    total: totalRes.count ?? 0,
-    completed: completedRes.count ?? 0,
-    inProgress: inProgressRes.count ?? 0,
-  };
 }

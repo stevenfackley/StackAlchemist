@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  hasDataStoreConfig,
   hasEngineConfig,
   hasPublicSupabaseConfig,
   hasServerSupabaseConfig,
@@ -31,6 +32,35 @@ describe('runtime-config', () => {
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
     expect(hasServerSupabaseConfig()).toBe(false);
+  });
+
+  it('hasDataStoreConfig is true with DATABASE_URL alone, or with the Supabase service pair', () => {
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    expect(hasDataStoreConfig()).toBe(false);
+
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
+    expect(hasDataStoreConfig()).toBe(true);
+
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+    expect(hasDataStoreConfig()).toBe(true);
+  });
+
+  it('does not auto-enable demo mode when DATABASE_URL is set without a Supabase URL', async () => {
+    // isDemoMode is computed at module load, so re-import under the stubbed env.
+    vi.resetModules();
+    vi.stubEnv('NEXT_PUBLIC_DEMO_MODE', '');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '');
+
+    vi.stubEnv('DATABASE_URL', '');
+    expect((await import('../../src/lib/runtime-config')).isDemoMode).toBe(true);
+
+    vi.resetModules();
+    vi.stubEnv('DATABASE_URL', 'postgres://u:p@localhost:5432/db');
+    expect((await import('../../src/lib/runtime-config')).isDemoMode).toBe(false);
   });
 
   it('hasStripeConfig and hasEngineConfig follow env presence', () => {

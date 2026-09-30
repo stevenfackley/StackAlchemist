@@ -7,7 +7,7 @@
  */
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
-import { hasServerSupabaseConfig } from "@/lib/runtime-config";
+import { hasDataStoreConfig, hasServerSupabaseConfig } from "@/lib/runtime-config";
 import {
   createPendingGeneration,
   extractSchema,
@@ -24,6 +24,7 @@ vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
   hasServerSupabaseConfig: vi.fn(() => true),
+  hasDataStoreConfig: vi.fn(() => true),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => "engine-service-key-test"),
 }));
@@ -54,6 +55,7 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -172,6 +174,7 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -235,6 +238,7 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -264,6 +268,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -273,6 +278,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
 
   it("getFreeQuotaStatus falls back to a full quota when Supabase config is missing, even though isDemoMode is false", async () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
 
     const status = await getFreeQuotaStatus();
     expect(status.remaining).toBe(status.limit);
@@ -290,6 +296,7 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
 
   it("getMyGenerations returns an empty page when Supabase config is missing", async () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
 
     const result = await getMyGenerations();

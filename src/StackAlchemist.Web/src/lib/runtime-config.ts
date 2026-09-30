@@ -1,12 +1,13 @@
 const _autoDemo =
   !process.env.NEXT_PUBLIC_DEMO_MODE &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !process.env.DATABASE_URL &&
   process.env.NODE_ENV !== "production";
 
 if (_autoDemo && typeof window === "undefined") {
   console.warn(
-    "[runtime-config] Demo mode auto-enabled: NEXT_PUBLIC_SUPABASE_URL is not set. " +
-    "Set it or add NEXT_PUBLIC_DEMO_MODE=true to silence this warning."
+    "[runtime-config] Demo mode auto-enabled: neither NEXT_PUBLIC_SUPABASE_URL nor DATABASE_URL is set. " +
+    "Set one of them or add NEXT_PUBLIC_DEMO_MODE=true to silence this warning."
   );
 }
 
@@ -49,6 +50,11 @@ export function hasServerSupabaseConfig() {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
+}
+
+/** A server-side store is reachable: qavren-db (DATABASE_URL) or the Supabase service role pair. */
+export function hasDataStoreConfig() {
+  return Boolean(process.env.DATABASE_URL) || hasServerSupabaseConfig();
 }
 
 export function hasEngineConfig() {
