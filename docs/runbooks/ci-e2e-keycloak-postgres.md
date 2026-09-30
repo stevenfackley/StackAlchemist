@@ -119,7 +119,7 @@ Load-bearing fields:
 | Client id | `stackalchemist-ci-web` | The app derives the client as `${QAVREN_REALM}-web`, so `QAVREN_REALM=stackalchemist-ci` selects it. Rename the realm and the client together. |
 | Redirect URI | `http://localhost:3000/api/auth/callback/keycloak` | The one exact Auth.js callback (provider id `keycloak`), not a wildcard. |
 | Web origin | `http://localhost:3000` | |
-| Access type | public client, standard flow, PKCE `S256` (`pkce.code.challenge.method`), no secret | Mirrors prod's client shape, plus `directAccessGrantsEnabled` (prod's client has none), which lets a script mint a user token without a browser. The suite itself signs in through the browser and uses direct grant only for the admin API (`admin-cli` on the master realm). |
+| Access type | public client, standard flow, PKCE `S256` (`pkce.code.challenge.method`), no secret, `directAccessGrantsEnabled: false` | Mirrors prod's client shape. The suite signs in through the browser; the only password grant it uses is for the admin API (`admin-cli` on the master realm), never against this client. |
 | Post-logout allow-list | `post.logout.redirect.uris` = `http://localhost:3000/*` | `/auth/signout` sends `post_logout_redirect_uri = ${NEXT_PUBLIC_APP_URL}/`. |
 | `registrationAllowed` | `true` | The registration test goes through `prompt=create`. |
 | `registrationEmailAsUsername` | `true` | The email is the username: the registration form has no username field and the login field is labelled "Email". |
@@ -138,9 +138,12 @@ Things that bit:
 - **The fixture password (`E2e-Fixture-2026!`) and the `admin`/`admin` bootstrap
   account are public CI constants** for a throwaway realm on a runner-local
   container. Never reuse either anywhere real.
-- **`openid` is not a Keycloak client scope.** Keycloak handles it itself, so it
-  was dropped from `defaultClientScopes`; do not add it back. The list is
-  `profile`, `email`, `roles`, `web-origins`.
+- **The client lists no scopes; it inherits the realm defaults** (`basic`, `acr`,
+  `profile`, `email`, `roles`, `web-origins`, ...), like qavren-auth's realm. An
+  explicit `defaultClientScopes` list replaces those defaults: the old list left
+  out `basic` and `acr`, and the access token then carried no `sub`. `openid` is
+  not a Keycloak client scope either (Keycloak handles it itself); never put it in
+  a scope list.
 - **Discovery advertises both `plain` and `S256`** PKCE methods. That is the
   server's capability list, not the client's policy: only the client requires
   `S256`.
@@ -263,22 +266,29 @@ part of the Quality Gate: it never gates a PR.
   `DATABASE_URL_MIGRATE` (the `:5432` session-mode URL).
 - **Isolation suite through the transaction pooler:** `npx vitest run
   __tests__/data/drizzle-store.integration.test.ts` with `TEST_DATABASE_URL` set
-  from `DATABASE_URL` (the `:6543` transaction-pooler URL, `prepare: false`).
+  from `DATABASE_URL` (the `:6543` transaction-pooler URL). Both clients in that
+  run set `prepare: false`, the app's own (`src/db/index.ts`) and the test's
+  direct `postgres()` client, because prepared statements break in Supavisor
+  transaction mode.
 
 Test-environment secrets it needs: `DATABASE_URL_MIGRATE` and `DATABASE_URL`
-(the qavren-db-test logins from phase A). Each step prints a warning and exits 0
-when its secret is absent, so the job is green and useless until both exist;
-read the warnings. Both URLs must be percent-encoded as described in
+(the qavren-db-test logins from phase A). The migrate step has `id: migrate` and
+writes `ran=true` to its step output only after `npm run db:migrate` succeeded
+(`ran=false` when its secret is absent); the isolation step is gated on
+`steps.migrate.outputs.ran == 'true'`, so an unmigrated pooler database is never
+tested. Each step prints a warning and exits 0 when its secret is absent, so the
+job is green and useless until both exist; read the warnings. Both URLs must be percent-encoded as described in
 `qavren-db-migrations.md`.
 
 ## Troubleshooting
 
 - **Keycloak never turns healthy (the compose step fails after 180 s).** Read the
   `keycloak logs` group of the log-dump step, or locally `docker compose -f
-  docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs keycloak`. Usual causes: a syntax error in
-  the realm JSON (including a client scope Keycloak does not know, see `openid`
-  above), or a port clash on 8080/9000 (locally). A merely slow Keycloak is fine:
-  the healthcheck allows 20 s plus 36 tries 5 s apart, and the compose wait 180 s.
+  docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs keycloak`.
+  Usual causes: a syntax error in the realm JSON (including a client scope
+  Keycloak does not know, such as `openid`), or a port clash on 8080/9000
+  (locally). A merely slow Keycloak is fine: the healthcheck allows 20 s plus 36
+  tries 5 s apart, and the compose wait 180 s.
 - **"Account is not fully set up".** Keycloak 26 refuses a direct grant, and a
   browser sign-in stalls on a required-action screen, for a user with no first or
   last name. Give the user both, `emailVerified: true` and no required actions,

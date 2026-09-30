@@ -167,8 +167,12 @@ jobs:
         # Tier3InfrastructureCompileTests.HelmChart_Lints shells out to `helm lint` and
         # hard-fails on CI when the binary is missing. GitHub's ubuntu-24.04 runner image
         # 20260927.320.1 (2026-09-30) stopped shipping Helm; the 20260920 image still had it.
-        # Never rely on the image's preinstalled tool set for a gate.
-        uses: azure/setup-helm@v4
+        # Never rely on the image's preinstalled tool set for a gate. The version is
+        # pinned so a Helm major cannot enter the gating test unreviewed (v4.3.0 is what
+        # went green on PR #437's run 36764383691).
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.3.0
 
       - name: Run Engine Tests
         run: dotnet test src/StackAlchemist.Engine.Tests/ --no-build --configuration Release --logger "trx;LogFileName=engine-test-results.trx" --collect:"XPlat Code Coverage"
@@ -410,7 +414,7 @@ jobs:
           done
 
           if [ "$skip_e2e" = "true" ]; then
-            echo "⚠️  One or more secrets are placeholder values. Skipping E2E Integration tests."
+            echo "⚠️  One or more secrets are missing or placeholder values. Skipping the NIGHTLY real-API specs; the integration suite runs regardless."
             echo "skip_e2e=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -584,6 +588,7 @@ jobs:
         run: npm ci
 
       - name: Migrate qavren-db-test (session URL)
+        id: migrate
         working-directory: src/StackAlchemist.Web
         env:
           DATABASE_URL_MIGRATE: ${{ secrets.DATABASE_URL_MIGRATE }}
@@ -591,12 +596,16 @@ jobs:
           set -euo pipefail
           if [ -z "${DATABASE_URL_MIGRATE:-}" ]; then
             echo "::warning::DATABASE_URL_MIGRATE is not set in the Test environment; skipping the pooler smoke."
+            echo "ran=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "::add-mask::${DATABASE_URL_MIGRATE}"
           npm run db:migrate
+          echo "ran=true" >> "$GITHUB_OUTPUT"
 
       - name: Isolation suite through the transaction pooler
+        # Only after the migrate step really ran: never test an unmigrated pooler DB.
+        if: steps.migrate.outputs.ran == 'true'
         working-directory: src/StackAlchemist.Web
         env:
           TEST_DATABASE_URL: ${{ secrets.DATABASE_URL }}
