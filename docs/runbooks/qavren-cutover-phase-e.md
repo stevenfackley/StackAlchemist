@@ -401,7 +401,10 @@ curl -s https://stackalchemist.app/api/auth/session -o /dev/null -w '%{http_code
 ```
 
 Prefix the `docker` lines with `sudo` if the session user (`ssm-user`, say)
-is not in the `docker` group. The images are the ones the flip built; the
+is not in the `docker` group. In the wrong-mode case (prod serving, no
+maintenance page) the `docker rm -f` removes the live nginx, so expect a few
+seconds of 502 until `up -d reverse-proxy` brings it back, the same as a
+normal deploy swap. The images are the ones the flip built; the
 mode is chosen at runtime, so recreating with blanked variables is enough,
 and nginx resolves its upstreams per request and needs no restart.
 
