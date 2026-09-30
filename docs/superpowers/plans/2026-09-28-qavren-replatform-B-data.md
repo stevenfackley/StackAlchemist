@@ -1488,6 +1488,8 @@ git commit -m "refactor(engine): IBillingStore seam for Stripe paths; Supabase i
 
 ### Task 7: Deploy plumbing (inert until the secret exists)
 
+- [ ] **Step 0: three follow-ups from the Task 3 quality review** (web + `ci.yml`, both touched here anyway): (a) `drizzle-store.ts`: detect a Postgres error with `cause instanceof postgres.PostgresError` (exported by postgres-js), not `cause.name === "PostgresError"`: Next bundles `postgres` into the server build and the minifier may rename the class, which would silently drop the quota trigger's text from prod logs. (b) `ci.yml` drift guard: `out=$(npm run db:generate -- --name ci-drift-check 2>&1) || { echo "$out"; exit 1; }` so a non-zero drizzle-kit exit still prints its output under `bash -e`. (c) `drizzle-store.integration.test.ts` quota-predicate test: after asserting the count is 3, insert two more tier-0 rows (both succeed) and assert the third is rejected, so a trigger that ignored one exclusion (count 4) would fail the test.
+
 **Files:**
 - Modify: `.github/actions/setup-env/action.yml`, `docker-compose.prod.yml`, `.github/workflows/deploy-prod.yml`
 - Create: `docs/runbooks/qavren-db-migrations.md`
