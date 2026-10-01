@@ -757,9 +757,15 @@ export async function createCheckoutSession(
   if (!user) {
     return { success: false, error: "Please sign in to continue to checkout." };
   }
+  // Without a store the row cannot be verified, so refuse. Only a misconfigured
+  // deploy gets here (a dev setup without one is in demo mode, handled above).
+  if (!hasDataStoreConfig()) {
+    console.error("[createCheckoutSession] No data store configured: cannot verify the generation's owner.");
+    return { success: false, error: "Generation not found." };
+  }
   let owned: Generation | null = null;
   try {
-    if (hasDataStoreConfig()) owned = await getDataStore().getGenerationForUser(generationId, user.id);
+    owned = await getDataStore().getGenerationForUser(generationId, user.id);
   } catch (error) {
     console.error("[createCheckoutSession] Lookup error:", error);
   }

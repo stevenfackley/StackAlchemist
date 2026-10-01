@@ -17,6 +17,7 @@ import { fakeResponse, makeDb } from "./actions-test-helpers";
 
 const hasStripeConfigMock = vi.fn(() => true);
 const hasEngineConfigMock = vi.fn(() => true);
+const hasDataStoreConfigMock = vi.fn(() => true);
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
@@ -29,7 +30,7 @@ vi.mock("@/lib/runtime-config", () => ({
   hasPublicSupabaseConfig: vi.fn(() => false),
   hasEngineConfig: () => hasEngineConfigMock(),
   hasServerSupabaseConfig: vi.fn(() => true),
-  hasDataStoreConfig: vi.fn(() => true),
+  hasDataStoreConfig: () => hasDataStoreConfigMock(),
   usesPostgresStore: vi.fn(() => false),
   usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: () => hasStripeConfigMock(),
@@ -62,6 +63,7 @@ describe("actions.ts — createCheckoutSession", () => {
     vi.stubEnv("NODE_ENV", "test");
     hasStripeConfigMock.mockReturnValue(true);
     hasEngineConfigMock.mockReturnValue(true);
+    hasDataStoreConfigMock.mockReturnValue(true);
     headersMock.mockReset();
     headersMock.mockResolvedValue(new Headers({ host: "app.stackalchemist.app" }));
     // Default: the signed-in caller owns GEN_ID.
@@ -123,6 +125,39 @@ describe("actions.ts — createCheckoutSession", () => {
     expect(result).toEqual({ success: false, error: "Generation not found." });
     const builder = db.from.mock.results[0]?.value as { eq: ReturnType<typeof vi.fn> };
     expect(builder.eq.mock.calls).toContainEqual(["user_id", INTRUDER_ID]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads the generation scoped to the signed-in owner before calling the Engine", async () => {
+    const db = ownedRow();
+    vi.mocked(createServerClient).mockImplementation(() => db as never);
+    fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/own" }));
+
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: true, sessionUrl: "https://checkout.stripe.com/session/own" });
+    const builder = db.from.mock.results[0]?.value as { eq: ReturnType<typeof vi.fn> };
+    expect(builder.eq.mock.calls).toEqual(expect.arrayContaining([["id", GEN_ID], ["user_id", OWNER_ID]]));
+  });
+
+  it("refuses, without calling the Engine, when the ownership lookup itself fails", async () => {
+    const db = makeDb([{ data: null, error: { message: "boom", code: "XX000" } }]);
+    vi.mocked(createServerClient).mockImplementation(() => db as never);
+
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(consoleErrorSpy).toHaveBeenCalledWith("[createCheckoutSession] Lookup error:", expect.anything());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses, without calling the Engine, when no data store is configured", async () => {
+    hasDataStoreConfigMock.mockReturnValue(false);
+
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[createCheckoutSession] No data store configured")
+    );
+    expect(createServerClient).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

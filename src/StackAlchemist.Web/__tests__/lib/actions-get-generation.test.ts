@@ -56,6 +56,9 @@ describe("actions.ts — getGeneration is owner-only", () => {
 
     await expect(getGeneration(GEN_ID)).resolves.toBeNull();
     expect(createServerClient).not.toHaveBeenCalled();
+    // A clean null, not a swallowed `user.id` TypeError: without the explicit
+    // signed-out guard the catch would still return null, but would log.
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it("scopes the read to the signed-in user's id and returns the owner's row", async () => {
