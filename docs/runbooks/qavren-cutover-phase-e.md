@@ -456,3 +456,14 @@ realm, which is untouched); the Supabase accounts come back.
 - `gh workflow run`, `gh secret delete`, `gh pr merge`, `gh api -X …` (guard-writes hook) — §2, §5, and:
   `gh workflow run ci.yml --repo stevenfackley/StackAlchemist --ref main` (exercises `db-pooler-nightly` and the nightly specs once, phase D follow-up);
   `gh secret delete CI_SUPABASE_DB_URL --repo stevenfackley/StackAlchemist --env Test` (unused since phase D).
+
+## Execution record
+
+**2026-10-01 02:3x UTC — flipped.** `DATABASE_URL` (pooler URL from `provision-prod.txt` + `?sslmode=require`, behind the shape guard) and `QAVREN_AUTH_URL=https://auth.stackalchemist.app` set in Prod; Steve dispatched deploy **36806238503** (`9fee34b8`), green:
+
+- Preflight: `shape ok` for all three URLs, `Deploy mode: qavren-db store + Qavren Auth`.
+- qavren-db migrate step: success (both files were already applied by run 36803904667, so a no-op).
+- Mode check: `prod is in Qavren Auth mode (/api/auth/session → 200; /login marker present)`.
+- Live right after: `/api/healthz` 200; `/api/auth/session` → `null` (200); anonymous `/dashboard` → 307 `/login?returnTo=/dashboard`; `/api/auth/providers` lists `keycloak`; the Sign in button hands off to `auth.stackalchemist.app` with PKCE S256 and the StackAlchemist skin (email/password, Google, Register). No account was created by the check.
+
+**Still open (owner):** §3.2–3.6 (re-register, Tier 0 end to end, money path, sign-out, quota), then §4 (pause `ctqhwykryoglhdwatljt` after the test-mirror check) and §6 bookkeeping. Security: #444 (R2 public custom domains on both generation buckets).
