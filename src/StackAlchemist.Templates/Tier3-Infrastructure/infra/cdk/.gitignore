@@ -1,0 +1,6 @@
+# `cdk synth` compiles bin/ and lib/ in place (cdk.json runs `tsc` before node), so the
+# emitted JavaScript and declarations sit beside their sources. They are build output.
+*.js
+*.d.ts
+node_modules/
+cdk.out/
