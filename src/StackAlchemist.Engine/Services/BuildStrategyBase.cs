@@ -58,9 +58,17 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         using var process = new Process { StartInfo = psi };
         process.Start();
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
+        // Drain both pipes at once. Reading stdout to EOF before touching stderr deadlocks the
+        // moment the child fills the stderr pipe buffer (a few KB on Windows, 64 KB on Linux): the
+        // child blocks on its write, so stdout never closes. `npm ci` on the V2-DotNet-NextJs
+        // tree writes ~10 KB of peer-dependency warnings to stderr and hung here indefinitely.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        await Task.WhenAll(stdoutTask, stderrTask);
         await process.WaitForExitAsync(ct);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
 
         return new BuildResult
         {
