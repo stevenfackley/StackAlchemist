@@ -561,37 +561,15 @@ public sealed class V1TemplateCompileTests : IDisposable
         buildExit.Should().Be(0,
             $"a personalized config must not break `next build`.\n\n{IntegrationToolchain.Tail(buildLog)}");
 
-        var css = TailwindStylesheet.AssertCompiled(
-            Path.Combine(nextjsDir, ".next", "static"), ".bg-primary", ".text-accent");
-
-        css.Should().Contain("#0f766e").And.Contain("#c2410c",
-            "the palette values from tailwind.config.ts must reach the stylesheet the customer ships");
+        TailwindStylesheet.AssertPersonalizedPaletteCompiled(Path.Combine(nextjsDir, ".next", "static"));
     }
 
     private static readonly TimeSpan FrontendStepTimeout = TimeSpan.FromMinutes(10);
 
     /// <summary>A model's answer to the Color Theme section: a whole config plus a page using it.</summary>
-    private const string PaletteResponse = """
+    private const string PaletteResponse = $$"""
         [[FILE:nextjs/tailwind.config.ts]]
-        import type { Config } from "tailwindcss";
-
-        const config: Config = {
-          content: ["./src/app/**/*.{ts,tsx}", "./src/components/**/*.{ts,tsx}"],
-          theme: {
-            extend: {
-              colors: {
-                primary: "#0f766e",
-                secondary: "#334155",
-                accent: "#c2410c",
-                background: "#f8fafc",
-                surface: "#ffffff",
-              },
-            },
-          },
-          plugins: [],
-        };
-
-        export default config;
+        {{TailwindStylesheet.PersonalizedConfig}}
         [[END_FILE]]
         [[FILE:nextjs/src/app/page.tsx]]
         export default function HomePage() {

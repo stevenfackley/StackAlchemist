@@ -48,4 +48,43 @@ internal static class TailwindStylesheet
 
         return css;
     }
+
+    /// <summary>
+    /// A model's answer to <c>PromptBuilderService</c>'s Color Theme section, in the shape models
+    /// actually write: a whole v3-style config with the palette under <c>theme.extend.colors</c>.
+    /// Tailwind 4 only sees it through the template stylesheet's <c>@config</c> line.
+    /// </summary>
+    public const string PersonalizedConfig = """
+        import type { Config } from "tailwindcss";
+
+        const config: Config = {
+          content: ["./index.html", "./src/**/*.{ts,tsx}"],
+          theme: {
+            extend: {
+              colors: {
+                primary: "#0f766e",
+                secondary: "#334155",
+                accent: "#c2410c",
+                background: "#f8fafc",
+                surface: "#ffffff",
+              },
+            },
+          },
+          plugins: [],
+        };
+
+        export default config;
+        """;
+
+    /// <summary>
+    /// Asserts the palette from <see cref="PersonalizedConfig"/> reached the built CSS: the
+    /// utilities the personalized markup uses exist and carry the configured colors.
+    /// </summary>
+    public static void AssertPersonalizedPaletteCompiled(string buildOutputDirectory)
+    {
+        var css = AssertCompiled(buildOutputDirectory, ".bg-primary", ".text-accent");
+
+        css.Should().Contain("#0f766e").And.Contain("#c2410c",
+            "the palette values from tailwind.config.ts must reach the stylesheet the customer ships");
+    }
 }
