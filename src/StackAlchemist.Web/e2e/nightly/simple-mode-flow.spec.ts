@@ -15,9 +15,19 @@ test.describe("Integration: Simple Mode Runtime Path", () => {
     await page.getByTestId("home-synthesize-button").click();
 
     // /simple auto-submits one Spark build and shows the friendly building phase…
-    await expect(page.getByTestId("simple-phase-building")).toBeVisible();
-    // …then the engine's deterministic Spark preview completes and realtime
-    // hard-navigates to the result page.
+    // unless the engine's deterministic Spark preview has already completed: in
+    // Postgres mode the watcher's first catch-up fetch runs at once (no Realtime
+    // handshake), and a finished row hard-navigates before the phase is visible.
+    // Accept either state; the redirect below is the real assertion.
+    await expect
+      .poll(
+        async () =>
+          /\/generate\//.test(page.url()) ||
+          (await page.getByTestId("simple-phase-building").isVisible()),
+        { timeout: 10_000, message: "neither the building phase nor the result page appeared" },
+      )
+      .toBe(true);
+    // …then the watcher (polling in Postgres mode) hard-navigates to the result page.
     await expect(page).toHaveURL(/\/generate\//, { timeout: 60_000 });
   });
 });
