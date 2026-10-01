@@ -50,7 +50,7 @@ for the flip"; it is the next deploy's configuration.
 | `auth.stackalchemist.app` | resolves; `/realms/master/.well-known/openid-configuration` 200, `/realms/stackalchemist/…` 404 until §1.4; shared host 308s `/realms/stackalchemist/*` to it | — |
 | Realms `stackalchemist` + `stackalchemist-dev` on the prod Keycloak | **applied 2026-10-01** without `-Themes` (config-cli only, no Keycloak restart): issuer `https://auth.stackalchemist.app/realms/stackalchemist`, 2 signing keys, login page "Sign in to StackAlchemist" with Google + Register on Keycloak's **built-in** theme; dev realm issuer `https://auth.qavrensolutions.com/realms/stackalchemist-dev` | ship the skin off-hours (§1.4) |
 | Google redirect URIs for both realms | not registered | §1.3 |
-| `www.stackalchemist.app` | **serves the app (HTTP 200, no redirect)** — must 301 to the apex before the flip. The zone has no redirect rules at all (checked via API 2026-10-01); creating one via the API was refused to the assistant as a DNS/domain change | §1.5 |
+| `www.stackalchemist.app` | **301 to the apex since 2026-10-01** (zone redirect ruleset created via the API with one rule, `http.host eq "www.stackalchemist.app"` → `concat("https://stackalchemist.app", http.request.uri.path)`, query preserved; rule id `21701121e05140b9bada3d8f58f8ac03`). Verified: `/login?x=1` and `/generate/abc?tier=0` keep path and query | — |
 | `sa-prod-tunnel` ingress | **host-only** (checked via API 2026-10-01): `stackalchemist.app` and `www.stackalchemist.app` → `http://sa-reverse-proxy:80`, catch-all 404 | — |
 | Prod app | Supabase mode: `/api/healthz` 200, `/api/auth/session` 404, `/login` renders the Supabase client; last deploy 36766447657 green; the last four deploys took 2–4 minutes each | — |
 | `deploy-prod.yml` guards (preflight with shape checks, mode check) | PR #439 | — |
@@ -258,7 +258,7 @@ Do not start §2 until each line is true:
 - [ ] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain
 - [x] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist` (2026-10-01)
 - [ ] §1.4 login page shows the skin (`./update-realms.ps1 -Realm stackalchemist -Themes`, off-hours; cosmetic, does not block the flip)
-- [ ] §1.5 `www.` → 301 to the apex
+- [x] §1.5 `www.` → 301 to the apex (2026-10-01)
 - [x] §1.6 tunnel rows are host-only (2026-10-01)
 - [ ] The last `deploy-prod` run is green and its summary says `Prod verified in Supabase Auth mode` — proves the mode check works before you rely on it for the flip (the merge of PR #439 produced the first such run)
 
