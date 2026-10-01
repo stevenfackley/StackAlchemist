@@ -47,6 +47,16 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      # qavren-db (phase B). Empty keeps every Supabase path; set in phase E.
+      DATABASE_URL: ${DATABASE_URL:-}
+      # Qavren Auth (phase C). Empty keeps Supabase Auth; set with DATABASE_URL in phase E.
+      QAVREN_AUTH_URL: ${QAVREN_AUTH_URL:-}
+      QAVREN_REALM: ${QAVREN_REALM:-stackalchemist}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # Auth.js needs the public origin behind the reverse proxy (request.url is the container
+      # bind address and X-Forwarded-Proto is http). Origin only, never a path. Harmless in
+      # Supabase mode: Auth.js is never loaded there.
+      AUTH_URL: ${NEXT_PUBLIC_APP_URL:-https://stackalchemist.app}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
@@ -78,6 +88,8 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      # qavren-db (phase B). Empty keeps every Supabase path; set in phase E.
+      DATABASE_URL: ${DATABASE_URL:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}

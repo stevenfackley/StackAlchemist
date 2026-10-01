@@ -1,23 +1,5 @@
-/**
- * Logic-mirroring tests for the private pure functions in middleware.ts.
- * Since isProtectedRoute and timingSafeEqual are not exported, we re-implement
- * them here verbatim and test the spec they encode.  If the source ever drifts,
- * these tests act as the authoritative contract.
- */
-
-// ── mirrors of the private functions ───────────────────────────────────────
-
-function isProtectedRoute(pathname: string): boolean {
-  const prefixes = ["/simple", "/advanced", "/generate"];
-  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
-}
+import { describe, expect, it } from "vitest";
+import { isProtectedRoute, safeReturnTo, timingSafeEqual } from "@/lib/proxy-utils";
 
 // ── isProtectedRoute ────────────────────────────────────────────────────────
 
@@ -96,5 +78,41 @@ describe("timingSafeEqual", () => {
 
   it("handles single character inequality", () => {
     expect(timingSafeEqual("x", "y")).toBe(false);
+  });
+});
+
+// ── safeReturnTo ────────────────────────────────────────────────────────────
+
+describe("safeReturnTo", () => {
+  it("keeps same-origin absolute paths", () => {
+    expect(safeReturnTo("/dashboard")).toBe("/dashboard");
+    expect(safeReturnTo("/generate/abc?tier=0")).toBe("/generate/abc?tier=0");
+    // Percent-encoding stays same-origin and must keep working.
+    expect(safeReturnTo("/generate/a%2Fb")).toBe("/generate/a%2Fb");
+  });
+  it("rejects everything that could leave the origin", () => {
+    for (const bad of [
+      "//evil.example",
+      "https://evil.example",
+      "/\\evil.example",
+      "dashboard",
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
+      expect(safeReturnTo(bad)).toBe("/");
+    }
+    expect(safeReturnTo("//evil", "/dashboard")).toBe("/dashboard");
+  });
+  it("rejects control characters that URL parsers strip (tab/newline/CR smuggle `//`)", () => {
+    for (const bad of [
+      "/\t/evil.example",
+      "/\n/evil.example",
+      "/\r/evil.example",
+      "/\u007f/evil.example",
+    ]) {
+      expect(safeReturnTo(bad)).toBe("/");
+    }
   });
 });

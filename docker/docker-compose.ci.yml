@@ -1,0 +1,64 @@
+# CI-only overlay for the E2E integration lane. Always combine with
+# docker-compose.test.yml (`-f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml`).
+# Never used by deploy-test.yml, which starts the base file alone.
+#
+# Phase D CI stack: Postgres + Keycloak for the E2E lane. ./keycloak is relative
+# to the FIRST -f file's directory (docker/), so it resolves to docker/keycloak.
+# The stackalchemist-test network is declared in the base file.
+services:
+  sa-engine:
+    environment:
+      # Overrides any DATABASE_URL from ../.env: inside the compose network the
+      # Engine reaches Postgres by service name, not localhost.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/stackalchemist?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stackalchemist-test
+
+  postgres:
+    container_name: sa-test-postgres
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: stackalchemist
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stackalchemist"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - stackalchemist-test
+
+  keycloak:
+    container_name: sa-test-keycloak
+    image: quay.io/keycloak/keycloak:26.5.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # The image ships no curl/wget; bash's /dev/tcp against the management port.
+      test:
+        - CMD-SHELL
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/9000
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 20s
+    networks:
+      - stackalchemist-test

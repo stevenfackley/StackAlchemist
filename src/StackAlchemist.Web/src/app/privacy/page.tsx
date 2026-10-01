@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentHeader } from "@/components/content-header";
 import { PageHeader } from "@/components/page-header";
+import { usesQavrenAuth } from "@/lib/runtime-config";
+
+// Branches on the auth mode, which is a runtime secret; never prerender.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -13,6 +17,8 @@ export const metadata: Metadata = {
 const LAST_UPDATED = "April 18, 2026";
 
 export default function PrivacyPage() {
+  const qavren = usesQavrenAuth();
+
   return (
     <div className="min-h-screen flex flex-col bg-void">
       <ContentHeader />
@@ -30,13 +36,20 @@ export default function PrivacyPage() {
               <li>We collect the minimum needed to run the product: your email, payment, and the spec you submit.</li>
               <li>We do not sell your data, ever. We do not use it to train any AI model.</li>
               <li>Analytics is <strong>Plausible</strong> — cookieless, no personal profiles, no cross-site tracking.</li>
-              <li>Payments are handled by <strong>Stripe</strong>. Auth is handled by <strong>Supabase</strong>.</li>
+              <li>Payments are handled by <strong>Stripe</strong>. Auth is handled by{" "}
+                {qavren ? (
+                  <><strong>Qavren Auth</strong>, a Keycloak sign-in service operated by Qavren Solutions LLC.</>
+                ) : (
+                  <><strong>Supabase</strong>.</>
+                )}
+              </li>
               <li>The generated code belongs to you. We keep a copy only long enough to deliver it.</li>
             </ul>
 
             <h2>What we collect</h2>
             <p>
-              When you sign up we collect your email address through Supabase Auth. When you pay,
+              When you sign up we collect your email address through{" "}
+              {qavren ? "Qavren Auth, our Keycloak sign-in service" : "Supabase Auth"}. When you pay,
               Stripe collects the card details directly — we never see or store them. When you submit
               a spec, we store the spec text and the generated repository long enough to deliver the
               download to you; these are deleted after 30 days.
@@ -56,7 +69,14 @@ export default function PrivacyPage() {
             <h2>Subprocessors</h2>
             <ul>
               <li><strong>Stripe</strong> — payment processing.</li>
-              <li><strong>Supabase</strong> — authentication and database.</li>
+              {qavren ? (
+                <>
+                  <li><strong>Qavren Auth (Keycloak)</strong> — authentication, operated by Qavren Solutions LLC.</li>
+                  <li><strong>Supabase</strong> — database.</li>
+                </>
+              ) : (
+                <li><strong>Supabase</strong> — authentication and database.</li>
+              )}
               <li><strong>Anthropic</strong> — the LLM that generates your code. Requests are sent
                 through our API key or yours (BYOK tier). Anthropic&apos;s policy: prompts are not
                 used for training on the commercial API.</li>
@@ -75,8 +95,11 @@ export default function PrivacyPage() {
 
             <h2>Cookies</h2>
             <p>
-              We use a small number of first-party cookies for authentication (session + refresh
-              tokens from Supabase) and for preserving your cart during checkout. That&apos;s it.
+              We use a small number of first-party cookies for authentication (
+              {qavren
+                ? "an encrypted session cookie set by our sign-in service"
+                : "session + refresh tokens from Supabase"}
+              ) and for preserving your cart during checkout. That&apos;s it.
               No advertising cookies. No cross-site tracking.
             </p>
 

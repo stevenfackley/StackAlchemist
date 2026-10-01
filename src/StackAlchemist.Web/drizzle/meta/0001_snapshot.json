@@ -1,0 +1,547 @@
+{
+  "id": "15dfdcce-cd12-4594-88bb-e37fc1492f78",
+  "prevId": "68386ad6-2110-405b-9be5-806489078494",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "stackalchemist.generations": {
+      "name": "generations",
+      "schema": "stackalchemist",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schema_json": {
+          "name": "schema_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "download_url": {
+          "name": "download_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preview_files_json": {
+          "name": "preview_files_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_log": {
+          "name": "build_log",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempt_count": {
+          "name": "attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_type": {
+          "name": "project_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DotNetNextJs'"
+        },
+        "personalization_json": {
+          "name": "personalization_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "model_used": {
+          "name": "model_used",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_category": {
+          "name": "error_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_generations_user_id": {
+          "name": "idx_generations_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_generations_status": {
+          "name": "idx_generations_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_generations_project_type": {
+          "name": "idx_generations_project_type",
+          "columns": [
+            {
+              "expression": "project_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "generations_user_id_profiles_id_fk": {
+          "name": "generations_user_id_profiles_id_fk",
+          "tableFrom": "generations",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "profiles",
+          "schemaTo": "stackalchemist",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "generations_transaction_id_transactions_id_fk": {
+          "name": "generations_transaction_id_transactions_id_fk",
+          "tableFrom": "generations",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "tableTo": "transactions",
+          "schemaTo": "stackalchemist",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "generations_mode_check": {
+          "name": "generations_mode_check",
+          "value": "\"stackalchemist\".\"generations\".\"mode\" in ('simple', 'advanced')"
+        },
+        "generations_tier_check": {
+          "name": "generations_tier_check",
+          "value": "\"stackalchemist\".\"generations\".\"tier\" >= 0 and \"stackalchemist\".\"generations\".\"tier\" <= 3"
+        },
+        "generations_status_check": {
+          "name": "generations_status_check",
+          "value": "\"stackalchemist\".\"generations\".\"status\" in ('pending', 'extracting_schema', 'generating_code', 'generating', 'building', 'packing', 'uploading', 'success', 'failed')"
+        },
+        "generations_project_type_check": {
+          "name": "generations_project_type_check",
+          "value": "\"stackalchemist\".\"generations\".\"project_type\" in ('DotNetNextJs', 'PythonReact')"
+        },
+        "generations_error_category_check": {
+          "name": "generations_error_category_check",
+          "value": "\"stackalchemist\".\"generations\".\"error_category\" is null or \"stackalchemist\".\"generations\".\"error_category\" in ('quota', 'schema', 'build', 'rate_limit', 'network', 'internal')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "stackalchemist.profiles": {
+      "name": "profiles",
+      "schema": "stackalchemist",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api_key_override": {
+          "name": "api_key_override",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preferred_model": {
+          "name": "preferred_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'claude-sonnet-4-6'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "stackalchemist.stripe_events": {
+      "name": "stripe_events",
+      "schema": "stackalchemist",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "stackalchemist.transactions": {
+      "name": "transactions",
+      "schema": "stackalchemist",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_session_id": {
+          "name": "stripe_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tier": {
+          "name": "tier",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "generation_id": {
+          "name": "generation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_payment_intent": {
+          "name": "stripe_payment_intent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_charge_id": {
+          "name": "stripe_charge_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_stripe_event_id": {
+          "name": "last_stripe_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_transactions_user_id": {
+          "name": "idx_transactions_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_transactions_stripe_session": {
+          "name": "idx_transactions_stripe_session",
+          "columns": [
+            {
+              "expression": "stripe_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_transactions_payment_intent": {
+          "name": "idx_transactions_payment_intent",
+          "columns": [
+            {
+              "expression": "stripe_payment_intent",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"stackalchemist\".\"transactions\".\"stripe_payment_intent\" is not null",
+          "concurrently": false
+        },
+        "idx_transactions_charge": {
+          "name": "idx_transactions_charge",
+          "columns": [
+            {
+              "expression": "stripe_charge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"stackalchemist\".\"transactions\".\"stripe_charge_id\" is not null",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "transactions_user_id_profiles_id_fk": {
+          "name": "transactions_user_id_profiles_id_fk",
+          "tableFrom": "transactions",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "profiles",
+          "schemaTo": "stackalchemist",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "transactions_generation_id_generations_id_fk": {
+          "name": "transactions_generation_id_generations_id_fk",
+          "tableFrom": "transactions",
+          "columnsFrom": [
+            "generation_id"
+          ],
+          "tableTo": "generations",
+          "schemaTo": "stackalchemist",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "transactions_stripe_session_id_key": {
+          "name": "transactions_stripe_session_id_key",
+          "columns": [
+            "stripe_session_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "transactions_status_check": {
+          "name": "transactions_status_check",
+          "value": "\"stackalchemist\".\"transactions\".\"status\" in ('pending', 'completed', 'failed', 'refund_pending', 'refunded', 'disputed')"
+        },
+        "transactions_tier_check": {
+          "name": "transactions_tier_check",
+          "value": "\"stackalchemist\".\"transactions\".\"tier\" >= 0 and \"stackalchemist\".\"transactions\".\"tier\" <= 3"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "stackalchemist": "stackalchemist"
+  },
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

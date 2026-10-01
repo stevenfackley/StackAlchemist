@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import ResetPasswordPage from "@/app/auth/reset-password/page";
+import ResetPasswordPage from "@/app/auth/reset-password/ResetPasswordClient";
 
 const mockGetSession = vi.fn();
 const mockUpdateUser = vi.fn();

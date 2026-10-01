@@ -1,27 +1,7 @@
+import { NextResponse, type NextFetchEvent, type NextMiddleware, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-import { isDemoMode } from "./lib/runtime-config";
-
-/**
- * Routes that require an authenticated user. The generation flow
- * (prompt → build → preview → download) is gated so every creation is tied to
- * an account — a prerequisite for the per-account free-tier quota.
- */
-function isProtectedRoute(pathname: string): boolean {
-  const prefixes = ["/simple", "/advanced", "/generate"];
-  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-/**
- * Constant-time string comparison — mitigates timing attacks on the
- * Basic-Auth credentials check below. Works on edge + node runtimes.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
-}
+import { isDemoMode, usesQavrenAuth } from "./lib/runtime-config";
+import { isProtectedRoute, timingSafeEqual } from "./lib/proxy-utils";
 
 /**
  * Gate the test mirror behind HTTP Basic Auth. Prevents casual discovery of
@@ -99,11 +79,7 @@ function checkTestSiteBasicAuth(request: NextRequest): NextResponse | null {
  * This keeps the server-side session in sync without any extra round-trips in
  * Server Components or Server Actions.
  */
-export async function middleware(request: NextRequest) {
-  // Run Basic Auth first so unauthenticated traffic never touches Supabase.
-  const authChallenge = checkTestSiteBasicAuth(request);
-  if (authChallenge) return authChallenge;
-
+async function supabaseSessionRefresh(request: NextRequest): Promise<NextResponse> {
   let supabaseResponse = NextResponse.next({ request });
 
   // Bail out early when Supabase public vars are not configured (demo / CI).
@@ -163,6 +139,86 @@ export async function middleware(request: NextRequest) {
   }
 
   return supabaseResponse;
+}
+
+// The slice of Auth.js's NextAuthRequest the gate reads. Declared here rather than
+// imported so nothing outside auth.ts/auth.config.ts names next-auth, even as a type;
+// tsc still checks it, because Auth.js's request type must be assignable to it.
+type AuthedRequest = NextRequest & { auth: { user?: { id?: string } } | null };
+let qavrenGate: NextMiddleware | null = null;
+
+/**
+ * Built on first use so a Supabase-mode process never loads next-auth (see the
+ * invariant in src/auth.config.ts). `auth()` resolves the session onto `req.auth`.
+ * This is a redirect convenience, not the authorization boundary: every action
+ * and page reads getSessionUser() itself and enforces ownership there.
+ */
+async function getQavrenGate(): Promise<NextMiddleware> {
+  if (qavrenGate) return qavrenGate;
+  const { auth } = await import("@/auth");
+  // The (req, event) signature selects Auth.js's middleware overload, which returns
+  // a NextMiddleware; no cast needed.
+  qavrenGate = auth((req: AuthedRequest, _event: NextFetchEvent) => {
+    const { pathname, search } = req.nextUrl;
+    // Next runs the proxy when the raw OR the decoded path matches the matcher, but
+    // hands over the raw pathname, and serves /%73imple as /simple. Guard the decoded form.
+    let path = pathname;
+    try {
+      path = decodeURIComponent(pathname);
+    } catch {
+      // Malformed escape (e.g. /%zz): keep the raw path.
+    }
+    if (!isProtectedRoute(path) || req.auth?.user?.id) return NextResponse.next();
+    // Same shape as the Supabase branch: bounce to /login and come back afterwards.
+    const login = new URL("/login", req.nextUrl.origin);
+    login.searchParams.set("returnTo", pathname + search);
+    return NextResponse.redirect(login);
+  });
+  return qavrenGate;
+}
+
+// Non-empty values only: a deletion (`name=; Max-Age=0`) can never resurrect a session and
+// must pass through, e.g. Auth.js clearing a cookie that no longer decrypts after a secret rotation.
+const SESSION_COOKIE_HEADER = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?=[^;]/;
+
+/**
+ * Auth.js's middleware wrapper re-encodes the JWT and appends a refreshed session
+ * cookie to EVERY gated response (sliding expiry). That makes any late response —
+ * a Server Action or a router refresh still in flight when the user signs out —
+ * resurrect the session the sign-out just deleted. The proxy therefore never
+ * re-issues session cookies: sign-in sets the cookie through Auth.js's own route,
+ * sign-out deletes it, and the session lives a fixed maxAge (7 days) in between.
+ * Other cookies the wrapper may set (callback-url, csrf) pass through untouched.
+ */
+function stripSessionRefresh<T>(res: T): T {
+  if (!(res instanceof Response)) return res;
+  const cookies = res.headers.getSetCookie();
+  if (!cookies.some((c) => SESSION_COOKIE_HEADER.test(c))) return res;
+  res.headers.delete("set-cookie");
+  for (const c of cookies) if (!SESSION_COOKIE_HEADER.test(c)) res.headers.append("set-cookie", c);
+  return res;
+}
+
+/** Next 16 proxy (replaces middleware.ts). Basic Auth first, then the auth mode. */
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // Run Basic Auth first so unauthenticated traffic never touches Supabase or Auth.js.
+  const challenge = checkTestSiteBasicAuth(request);
+  if (challenge) return challenge;
+  // Auth.js's own routes are never gated (they create the session the gate reads),
+  // but they stay behind the test mirror's Basic Auth above. Exact prefix so a
+  // future /api/author… route is not silently exempted. The sign-out route deletes the
+  // session cookie; the gate would otherwise append a refreshed one to the same response
+  // and the browser's header order decides who wins.
+  const { pathname } = request.nextUrl;
+  if (pathname === "/api/auth" || pathname.startsWith("/api/auth/") || pathname === "/auth/signout") {
+    return NextResponse.next();
+  }
+  if (usesQavrenAuth()) {
+    // Demo mode never gates, so it never needs to load Auth.js or decrypt a cookie.
+    if (isDemoMode) return NextResponse.next();
+    return stripSessionRefresh(await (await getQavrenGate())(request, event));
+  }
+  return supabaseSessionRefresh(request);
 }
 
 export const config = {

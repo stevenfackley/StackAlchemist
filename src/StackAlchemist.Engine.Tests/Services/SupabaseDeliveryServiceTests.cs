@@ -130,6 +130,37 @@ public class SupabaseDeliveryServiceTests
     }
 
     [Fact]
+    public async Task GetGenerationSnapshotAsync_ReadsSchemaJsonInTheCasingItWasWritten()
+    {
+        // schema_json is written snake_case (lowercase keys) by UpdateSchemaAsync; a case-sensitive
+        // read used to drop every entity and hand the reconciler an empty schema.
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK,
+            "[{\"id\":\"gen-snap\",\"status\":\"pending\",\"tier\":1,\"mode\":\"advanced\"," +
+            "\"schema_json\":{\"entities\":[{\"name\":\"Customer\",\"fields\":[{\"name\":\"id\",\"type\":\"uuid\",\"pk\":true}]}]}," +
+            "\"attempt_count\":0,\"updated_at\":\"2026-06-11T10:00:00Z\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var snapshot = await sut.GetGenerationSnapshotAsync("gen-snap", CancellationToken.None);
+
+        snapshot!.Schema!.Entities.Should().ContainSingle().Which.Fields.Should().ContainSingle().Which.Pk.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetStaleNonTerminalAsync_SkipsARowWhoseSchemaDoesNotFit()
+    {
+        // The first row's field lacks SchemaField's required "type"; it must not hide the second.
+        var handler = new CapturingHttpHandler(HttpStatusCode.OK,
+            "[{\"id\":\"gen-bad\",\"status\":\"building\"," +
+            "\"schema_json\":{\"entities\":[{\"name\":\"x\",\"fields\":[{\"name\":\"id\"}]}]}}," +
+            "{\"id\":\"gen-good\",\"status\":\"building\"}]");
+        var sut = BuildSut(BuildConfig(), handler);
+
+        var rows = await sut.GetStaleNonTerminalAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
+
+        rows.Select(r => r.Id).Should().Equal("gen-good");
+    }
+
+    [Fact]
     public async Task GetGenerationSnapshotAsync_ReturnsNullWhenRowMissing()
     {
         var handler = new CapturingHttpHandler(HttpStatusCode.OK, "[]");

@@ -17,19 +17,28 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov', 'html'],
       reportsDirectory: './coverage',
-      include: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/lib/**/*.{ts,tsx}'],
+      include: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}', 'src/lib/**/*.{ts,tsx}', 'src/db/**/*.ts'],
       exclude: ['**/*.d.ts', '**/*.config.*', '**/types/**', '**/__tests__/**', '**/mocks/**'],
       // Ratchet floors: set just under measured coverage (2026-07-04 baseline:
       // 32.68 L / 28.41 B / 25.55 F / 32.3 S) so CI blocks regressions today.
       // Raise these as new suites land — never lower them.
       thresholds: { lines: 30, branches: 26, functions: 23, statements: 30 },
     },
+    // `next` ships no "exports" map, so `next/server` only resolves by CJS
+    // extension guessing. Vite does that; Node's ESM resolver, which vite-node uses
+    // for externalized dependencies, does not, so `next-auth` importing
+    // `next/server` dies on load. Run these through Vite's resolver instead.
+    server: { deps: { inline: ['next-auth', '@auth/core', '@qavren/auth-next'] } },
     css: false,
     reporters: ['default', 'junit'],
     outputFile: { junit: './test-results/junit.xml' },
   },
   resolve: {
-    // Mirror Next.js tsconfig paths: "@/*" -> "./src/*"
-    alias: { '@': path.resolve(__dirname, 'src') },
+    // "@" mirrors the Next.js tsconfig path "@/*" -> "./src/*". "server-only" is not an
+    // installed package (Next aliases it internally), so tests stub it.
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+      'server-only': path.resolve(__dirname, '__tests__/mocks/server-only.ts'),
+    },
   },
 });

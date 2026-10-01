@@ -32,16 +32,39 @@ inputs:
 
   # ─── Supabase ────────────────────────────────────────────────────────────────
   supabase_url:
-    description: 'Supabase project URL'
-    required: true
+    description: 'Supabase project URL. Empty = Postgres/Keycloak mode (phase D CI).'
+    required: false
+    default: ''
 
   supabase_anon_key:
-    description: 'Supabase anon/public key'
-    required: true
+    description: 'Supabase anon/public key. Empty = Postgres/Keycloak mode (phase D CI).'
+    required: false
+    default: ''
 
   supabase_service_role_key:
-    description: 'Supabase service role key (secret)'
-    required: true
+    description: 'Supabase service role key (secret). Empty = Postgres/Keycloak mode (phase D CI).'
+    required: false
+    default: ''
+
+  database_url:
+    description: 'qavren-db pooler URL (postgres://...?sslmode=require). Empty = Supabase mode.'
+    required: false
+    default: ''
+
+  qavren_auth_url:
+    description: 'Qavren Auth (Keycloak) base URL, e.g. https://auth.stackalchemist.app. Empty = Supabase Auth.'
+    required: false
+    default: ''
+
+  qavren_realm:
+    description: 'Keycloak realm name. Empty = stackalchemist (the app default).'
+    required: false
+    default: ''
+
+  auth_secret:
+    description: 'Auth.js session-cookie secret (openssl rand -base64 32). Required when qavren_auth_url is set.'
+    required: false
+    default: ''
 
   # ─── Cloudflare R2 ───────────────────────────────────────────────────────────
   cf_account_id:
@@ -152,6 +175,10 @@ runs:
         SUPABASE_URL: ${{ inputs.supabase_url }}
         SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.supabase_service_role_key }}
+        DATABASE_URL: ${{ inputs.database_url }}
+        QAVREN_AUTH_URL: ${{ inputs.qavren_auth_url }}
+        QAVREN_REALM: ${{ inputs.qavren_realm }}
+        AUTH_SECRET: ${{ inputs.auth_secret }}
         CF_ACCOUNT_ID: ${{ inputs.cf_account_id }}
         R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
         R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
@@ -189,6 +216,12 @@ runs:
         NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
         SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+        # qavren-db (phase B). Empty keeps every Supabase path.
+        DATABASE_URL=${DATABASE_URL}
+        # Qavren Auth (phase C). Empty keeps Supabase Auth; set together with DATABASE_URL in phase E.
+        QAVREN_AUTH_URL=${QAVREN_AUTH_URL}
+        QAVREN_REALM=${QAVREN_REALM}
+        AUTH_SECRET=${AUTH_SECRET}
 
         # Cloudflare R2
         R2_ACCOUNT_ID=${CF_ACCOUNT_ID}

@@ -18,7 +18,7 @@ import { createDecipheriv, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getServerUser } from "@/lib/supabase-server";
 import { createServerClient } from "@/lib/supabase";
-import { hasServerSupabaseConfig } from "@/lib/runtime-config";
+import { hasDataStoreConfig, hasServerSupabaseConfig } from "@/lib/runtime-config";
 import { getProfileSettings, saveProfileSettings } from "@/lib/actions";
 import type { SaveProfileSettingsState } from "@/lib/types";
 import { makeDb } from "./actions-test-helpers";
@@ -27,6 +27,9 @@ vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
   hasServerSupabaseConfig: vi.fn(() => true),
+  hasDataStoreConfig: vi.fn(() => true),
+  usesPostgresStore: vi.fn(() => false),
+  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => ""),
 }));
@@ -35,7 +38,8 @@ vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const USER = { id: "user-1", email: "founder@example.com" };
+// The store rejects malformed ids before querying, so the user id must be a real UUID.
+const USER = { id: "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c", email: "founder@example.com" };
 const IDLE: SaveProfileSettingsState = { status: "idle", message: "" };
 
 /** Mirrors `encryptApiKeyOverride`'s decrypt side exactly (see actions.ts). */
@@ -67,6 +71,7 @@ describe("actions.ts — saveProfileSettings", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     vi.mocked(revalidatePath).mockClear();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -86,6 +91,7 @@ describe("actions.ts — saveProfileSettings", () => {
   it("rejects when Supabase server config is incomplete", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(false);
 
     const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-4-6" }));
     expect(result).toEqual({ status: "error", message: "Supabase server configuration is incomplete." });
@@ -274,6 +280,7 @@ describe("actions.ts — getProfileSettings", () => {
     vi.mocked(getServerUser).mockReset();
     vi.mocked(createServerClient).mockReset();
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -294,6 +301,7 @@ describe("actions.ts — getProfileSettings", () => {
   it("returns a fallback (using the user's email) when Supabase server config is incomplete", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(false);
+    vi.mocked(hasDataStoreConfig).mockReturnValue(false);
 
     const settings = await getProfileSettings();
     expect(settings).toEqual({
