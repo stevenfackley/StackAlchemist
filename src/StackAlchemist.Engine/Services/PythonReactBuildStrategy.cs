@@ -62,12 +62,15 @@ public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> 
         // EXTERNALLY-MANAGED python3 (PEP 668), which refuses `pip install` outright, so this
         // half failed at its first step on every generation; and a shared interpreter let one
         // generation's pins leak into another's verification. `--system-site-packages` keeps the
-        // image's preinstalled flake8/pytest reachable as a fallback; the venv's own installs
-        // (the template pins both) take precedence. `.venv` is excluded from the customer's
-        // archive (BuildResiduePaths) and from flake8 (the template's .flake8).
+        // image's preinstalled flake8/pytest reachable when a generated requirements.txt omits
+        // them (when it pins the same versions, pip treats the image's copies as satisfied).
+        // `--clear`: the repair loop re-runs this build in the same directory, and a venv kept
+        // across attempts would keep packages a repair removed from requirements.txt, so the
+        // checks would pass on imports the customer's fresh image cannot satisfy. `.venv` is
+        // excluded from the customer's archive (BuildResiduePaths) and from flake8 (below).
         var venvResult = await RunStepAsync(
             BuildHalf.Python, "python -m venv .venv", "python",
-            $"-m venv --system-site-packages {VenvDirectoryName}", pythonDir, transcript, steps, ct);
+            $"-m venv --clear --system-site-packages {VenvDirectoryName}", pythonDir, transcript, steps, ct);
         if (!venvResult.IsSuccess)
             return venvResult;
 
@@ -80,8 +83,11 @@ public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> 
         if (!pipResult.IsSuccess)
             return pipResult;
 
+        // --extend-exclude on the command line, not only via the template's .flake8: a repair
+        // can rewrite that file, and a .flake8 that stops excluding .venv would lint
+        // site-packages and fail every retry into a refund.
         var flake8Result = await RunStepAsync(
-            BuildHalf.Python, "python -m flake8 .", python, "-m flake8 .",
+            BuildHalf.Python, "python -m flake8 .", python, $"-m flake8 --extend-exclude={VenvDirectoryName} .",
             pythonDir, transcript, steps, ct);
         if (!flake8Result.IsSuccess)
             return flake8Result;

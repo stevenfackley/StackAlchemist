@@ -59,6 +59,51 @@ public sealed class BuildProcessEnvironmentTests
     public void ToolchainVariables_ArePassedThrough(string name) =>
         BuildProcessEnvironment.IsAllowed(name).Should().BeTrue();
 
+    [Theory]
+    [InlineData("NUGET_AUTH_TOKEN")]
+    [InlineData("NPM_CONFIG__AUTH")]
+    [InlineData("NPM_CONFIG_//registry.example/:_authToken")]
+    [InlineData("PIP_PASSWORD")]
+    [InlineData("DOTNET_ConnectionStrings__SecretDb")]
+    [InlineData("NUGET_API_KEY")]
+    public void CredentialShapedNames_AreWithheld_EvenInsideAnAllowedFamily(string name) =>
+        BuildProcessEnvironment.IsAllowed(name).Should().BeFalse();
+
+    [Fact]
+    public void Filter_KeepsCaseDistinctNamesApart()
+    {
+        // On Linux `http_proxy` and `HTTP_PROXY` are two variables; curl reads only the former.
+        IDictionary source = new Hashtable
+        {
+            ["http_proxy"] = "http://lower:3128",
+            ["HTTP_PROXY"] = "http://upper:3128",
+        };
+
+        var filtered = BuildProcessEnvironment.Filter(source);
+
+        filtered.Should().HaveCount(2);
+        filtered["http_proxy"].Should().Be("http://lower:3128");
+        filtered["HTTP_PROXY"].Should().Be("http://upper:3128");
+    }
+
+    [Fact]
+    public void Apply_PrunesInPlace_KeepingTheTargetsComparerAndEntries()
+    {
+        var target = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["PATH"] = "/usr/bin",
+            ["http_proxy"] = "http://lower:3128",
+            ["HTTP_PROXY"] = "http://upper:3128",
+            ["DATABASE_URL"] = "postgres://secret",
+            ["NUGET_AUTH_TOKEN"] = "tok",
+        };
+
+        BuildProcessEnvironment.Apply(target);
+
+        target.Keys.Should().BeEquivalentTo("PATH", "http_proxy", "HTTP_PROXY");
+        target.Comparer.Should().BeSameAs(StringComparer.Ordinal);
+    }
+
     [Fact]
     public void Filter_KeepsOnlyTheAllowlistedEntries()
     {
@@ -109,19 +154,45 @@ public sealed class BuildProcessEnvironmentTests
     [Fact]
     public async Task CancelledBuildStep_KillsTheChild()
     {
-        // Pipe reads ignore cancellation; without the kill a hung toolchain held the compile
-        // worker indefinitely while the caller believed it had given up.
+        // The read side gives up on cancellation by itself; what matters is that the CHILD is
+        // gone. Without the kill a hung toolchain (an install waiting on the network) kept
+        // running — and holding the job directory — after the worker had moved on. The child
+        // writes its own PID so the test can prove it no longer exists.
+        var pidFile = Path.Combine(Path.GetTempPath(), $"sa-kill-probe-{Guid.NewGuid():N}.pid");
         var runner = new ProcessRunner();
         var (fileName, arguments) = OperatingSystem.IsWindows()
-            ? ("cmd.exe", "/c ping -n 60 127.0.0.1 >NUL")
-            : ("/bin/sh", "-c \"sleep 60\"");
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            ? ("powershell.exe", $"-NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '{pidFile}' -Value $PID -Encoding ascii; Start-Sleep -Seconds 60\"")
+            : ("/bin/sh", $"-c \"echo $$ > '{pidFile}'; exec sleep 60\"");
+        using var cts = new CancellationTokenSource();
+        try
+        {
+            var run = runner.RunAsync(fileName, arguments, Path.GetTempPath(), cts.Token);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var act = () => runner.RunAsync(fileName, arguments, Path.GetTempPath(), cts.Token);
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (!File.Exists(pidFile) || new FileInfo(pidFile).Length == 0)
+            {
+                DateTime.UtcNow.Should().BeBefore(deadline, "the probe child should have started");
+                await Task.Delay(100);
+            }
+            await Task.Delay(200); // let the write flush
+            var pid = int.Parse(File.ReadAllText(pidFile).Trim(), System.Globalization.CultureInfo.InvariantCulture);
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30), "the child must be killed, not waited out");
+            // Hold a handle to THIS process before cancelling: a bare PID can be reused by an
+            // unrelated process within seconds on Windows (the whole suite spawns processes),
+            // and a handle always refers to the process it was opened on.
+            using var child = System.Diagnostics.Process.GetProcessById(pid);
+
+            await cts.CancelAsync();
+            var act = () => run;
+            await act.Should().ThrowAsync<OperationCanceledException>();
+
+            child.WaitForExit(TimeSpan.FromSeconds(15)).Should()
+                .BeTrue("cancellation must kill the child process, not just stop reading it");
+        }
+        finally
+        {
+            try { File.Delete(pidFile); } catch (IOException) { }
+        }
     }
 
     /// <summary>Exposes the production process runner without a toolchain.</summary>

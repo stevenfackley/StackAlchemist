@@ -49,6 +49,14 @@ internal static class BuildProcessEnvironment
         "LC_", "XDG_", "DOTNET_", "NUGET_", "NPM_CONFIG_", "PIP_",
     ];
 
+    /// <summary>
+    /// Credential-shaped words that disqualify a name even inside an allowed prefix family:
+    /// <c>NUGET_AUTH_TOKEN</c> (setup-dotnet), <c>NPM_CONFIG__AUTH</c>, <c>PIP_PASSWORD</c>,
+    /// and <c>DOTNET_</c>-prefixed app-configuration keys all fit a family but are secrets.
+    /// None exist in the Engine's environment today; this keeps one from riding in later.
+    /// </summary>
+    private static readonly string[] CredentialWords = ["TOKEN", "AUTH", "PASSWORD", "SECRET", "KEY"];
+
     /// <summary>True when a variable of this name may be passed to a build child.</summary>
     public static bool IsAllowed(string name)
     {
@@ -59,15 +67,27 @@ internal static class BuildProcessEnvironment
         foreach (var prefix in AllowedPrefixes)
         {
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return !LooksLikeCredential(name);
+        }
+        return false;
+    }
+
+    private static bool LooksLikeCredential(string name)
+    {
+        foreach (var word in CredentialWords)
+        {
+            if (name.Contains(word, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
         return false;
     }
 
-    /// <summary>The allowlisted subset of <paramref name="source"/>.</summary>
+    /// <summary>The allowlisted subset of <paramref name="source"/>, keyed as given.</summary>
     public static Dictionary<string, string> Filter(IDictionary source)
     {
-        var filtered = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // Ordinal, not case-insensitive: on Linux `http_proxy` and `HTTP_PROXY` are two
+        // variables (curl reads only the lowercase one) and must not collapse into one.
+        var filtered = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (DictionaryEntry entry in source)
         {
             if (entry.Key is string name && entry.Value is string value && IsAllowed(name))
@@ -77,14 +97,14 @@ internal static class BuildProcessEnvironment
     }
 
     /// <summary>
-    /// Replaces <paramref name="target"/> (a <c>ProcessStartInfo.Environment</c>, pre-populated
-    /// from the current process) with the allowlisted subset of the current process environment.
+    /// Prunes <paramref name="target"/> (a <c>ProcessStartInfo.Environment</c>, which .NET
+    /// pre-populates from the current process with the platform's own comparer) down to the
+    /// allowlisted names. Pruning rather than clear-and-refill keeps that comparer, so
+    /// case-distinct names on Linux survive intact.
     /// </summary>
     public static void Apply(IDictionary<string, string?> target)
     {
-        var allowed = Filter(Environment.GetEnvironmentVariables());
-        target.Clear();
-        foreach (var (name, value) in allowed)
-            target[name] = value;
+        foreach (var name in target.Keys.Where(name => !IsAllowed(name)).ToList())
+            target.Remove(name);
     }
 }

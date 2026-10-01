@@ -61,25 +61,31 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         using var process = new Process { StartInfo = psi };
         process.Start();
 
-        // Cancellation must end the child, not just stop waiting for it: reads on anonymous
-        // pipes do not observe `ct` mid-read, so without this a hung toolchain (an install
-        // waiting on the network, a build that never exits) holds the compile worker forever
-        // while the caller believes it gave up. Kill the whole tree — npm, dotnet and pip all
-        // spawn children that keep the pipes open.
-        using var killOnCancel = ct.Register(() =>
-        {
-            try { process.Kill(entireProcessTree: true); }
-            catch (InvalidOperationException) { /* already exited */ }
-        });
-
         // Drain both pipes at once. Reading stdout to EOF before touching stderr deadlocks the
         // moment the child fills the stderr pipe buffer (a few KB on Windows, 64 KB on Linux): the
         // child blocks on its write, so stdout never closes. `npm ci` on the V2-DotNet-NextJs
         // tree writes ~10 KB of peer-dependency warnings to stderr and hung here indefinitely.
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = process.StandardError.ReadToEndAsync(ct);
-        await Task.WhenAll(stdoutTask, stderrTask);
-        await process.WaitForExitAsync(ct);
+        // The reads are not cancellable on purpose: they end when the child (or the kill below)
+        // closes the pipes, so output is never torn mid-stream.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await Task.WhenAll(stdoutTask, stderrTask).WaitAsync(ct);
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation must END the child, not just stop waiting for it: otherwise a hung
+            // toolchain (an install waiting on the network, a build that never exits) keeps
+            // running, and keeps the job directory, after the worker has moved on. Killed here,
+            // explicitly, rather than from a `ct.Register` callback: callbacks run newest-first,
+            // so the wait's own cancellation could complete, unwind this method and dispose that
+            // registration before it ever fired — which is exactly what happened under load.
+            // Whole tree: npm, dotnet and pip spawn children that hold the pipes open.
+            KillProcessTree(process);
+            throw;
+        }
 
         var stdout = await stdoutTask;
         var stderr = await stderrTask;
@@ -90,6 +96,26 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
             StandardOutput = stdout,
             ErrorOutput = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr,
         };
+    }
+
+    private static void KillProcessTree(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Already exited.
+        }
+        catch (AggregateException)
+        {
+            // Some descendant could not be killed (gone, or not ours); the root was attempted.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // The OS refused or the process is exiting; nothing more to do.
+        }
     }
 
     // ── Transcript + per-step recording ───────────────────────────────────────

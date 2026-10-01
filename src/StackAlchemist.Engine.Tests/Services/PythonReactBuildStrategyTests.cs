@@ -152,13 +152,13 @@ public sealed class PythonReactBuildStrategyTests : IDisposable
 
         var pythonCalls = strategy.Calls.Where(c => c.Arguments.StartsWith("-m ", StringComparison.Ordinal)).ToList();
         pythonCalls[0].FileName.Should().Be("python", "the venv is created by the system interpreter");
-        pythonCalls[0].Arguments.Should().Be("-m venv --system-site-packages .venv");
+        pythonCalls[0].Arguments.Should().Be("-m venv --clear --system-site-packages .venv");
         pythonCalls[0].WorkingDirectory.Should().Be(backend);
         pythonCalls.Skip(1).Select(c => c.FileName).Should().OnlyContain(f => f == venvPython,
             "pip, flake8 and pytest must run with the venv's interpreter, never the Engine's");
         pythonCalls.Skip(1).Select(c => c.Arguments).Should().Equal(
             "-m pip install -r requirements.txt --quiet --disable-pip-version-check",
-            "-m flake8 .",
+            "-m flake8 --extend-exclude=.venv .",
             "-m pytest --collect-only -q");
     }
 
