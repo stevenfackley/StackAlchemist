@@ -150,25 +150,27 @@ describe("SupabaseStore", () => {
     });
   });
 
-  describe("getGenerationById", () => {
-    it("returns null for a malformed id without calling the client", async () => {
-      await expect(new SupabaseStore().getGenerationById("not-a-uuid")).resolves.toBeNull();
+  describe("getGenerationForUser", () => {
+    it("returns null for a malformed generation or owner id without calling the client", async () => {
+      await expect(new SupabaseStore().getGenerationForUser("not-a-uuid", UID)).resolves.toBeNull();
+      await expect(new SupabaseStore().getGenerationForUser(GEN_ID, "not-a-uuid")).resolves.toBeNull();
       expect(createServerClient).not.toHaveBeenCalled();
     });
 
-    it("returns null when no row matches", async () => {
+    it("is scoped to the owner in the query itself and returns null when no row matches", async () => {
       const { queries } = stubClient({ data: null, error: null });
 
-      await expect(new SupabaseStore().getGenerationById(GEN_ID)).resolves.toBeNull();
+      await expect(new SupabaseStore().getGenerationForUser(GEN_ID, UID)).resolves.toBeNull();
 
       expect(queries[0].calls).toContainEqual(["eq", "id", GEN_ID]);
+      expect(queries[0].calls).toContainEqual(["eq", "user_id", UID]);
       expect(queries[0].calls.map(([method]) => method)).toContain("maybeSingle");
     });
 
-    it("returns the row when it exists", async () => {
+    it("returns the row when the owner's row exists", async () => {
       const row = { id: GEN_ID, user_id: UID };
       stubClient({ data: row, error: null });
-      await expect(new SupabaseStore().getGenerationById(GEN_ID)).resolves.toEqual(row);
+      await expect(new SupabaseStore().getGenerationForUser(GEN_ID, UID)).resolves.toEqual(row);
     });
   });
 
@@ -180,7 +182,7 @@ describe("SupabaseStore", () => {
       ["upsertProfile", (s: SupabaseStore) => s.upsertProfile({ id: UID, email: "a@b.c", preferred_model: "m" })],
       ["ensureProfile", (s: SupabaseStore) => s.ensureProfile({ id: UID, email: "a@b.c" })],
       ["countFreeGenerationsThisMonth", (s: SupabaseStore) => s.countFreeGenerationsThisMonth(UID, new Date())],
-      ["getGenerationById", (s: SupabaseStore) => s.getGenerationById(GEN_ID)],
+      ["getGenerationForUser", (s: SupabaseStore) => s.getGenerationForUser(GEN_ID, UID)],
       ["resetForRetry", (s: SupabaseStore) => s.resetForRetry(GEN_ID, UID)],
       ["listMyGenerations", (s: SupabaseStore) => s.listMyGenerations(UID, 0, 20)],
       ["generationStats", (s: SupabaseStore) => s.generationStats(UID)],

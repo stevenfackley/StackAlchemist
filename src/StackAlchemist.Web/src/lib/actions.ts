@@ -558,7 +558,11 @@ export async function getFreeQuotaStatus(): Promise<FreeQuotaStatus> {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    getGeneration
-   Fetches a single generation record by ID.
+   Fetches one generation by ID for the signed-in user: owner-only (decided
+   2026-09-30). The /generate/[id] page and the status watcher's polling both
+   read through here, and as a server action it is callable from any page with
+   any id, so the session is the only input it trusts. Signed out, someone
+   else's id, or an unknown id: all null, the same "not found" page.
    Safe to use in Server Components.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getGeneration(generationId: string, demoTier?: Tier) {
@@ -574,7 +578,9 @@ export async function getGeneration(generationId: string, demoTier?: Tier) {
   }
 
   try {
-    return await getDataStore().getGenerationById(generationId);
+    const user = await getSessionUser();
+    if (!user) return null;
+    return await getDataStore().getGenerationForUser(generationId, user.id);
   } catch (error) {
     console.error("[getGeneration] Error:", error);
     return null;
@@ -602,7 +608,8 @@ export async function retryGeneration(
 
   let gen: Generation | null;
   try {
-    gen = await getDataStore().getGenerationById(generationId);
+    // Scoped to the caller in the query: someone else's id reads as not found.
+    gen = await getDataStore().getGenerationForUser(generationId, user.id);
   } catch (error) {
     console.error("[retryGeneration] Lookup error:", error);
     return { success: false, error: "Generation not found." };
@@ -612,8 +619,8 @@ export async function retryGeneration(
     return { success: false, error: "Generation not found." };
   }
 
-  // Same message as not-found so the response is not an existence oracle
-  // for other users' generation ids.
+  // Defence in depth on top of the scoped read, with the same message as
+  // not-found so the response is not an existence oracle for other users' ids.
   if (gen.user_id !== user.id) {
     return { success: false, error: "Generation not found." };
   }
@@ -741,6 +748,23 @@ export async function createCheckoutSession(
   // Demo / no-Stripe fallback: skip payment and redirect to generate page directly.
   if (isDemoMode || !hasStripeConfig() || !hasEngineConfig()) {
     return { success: true, sessionUrl: `/generate/${generationId}?demo=1&tier=${tier}` };
+  }
+
+  // Owner-only, like the result page an upgrade starts from: a checkout acts on
+  // an existing generation row, and a server action takes that id from the
+  // browser. Someone else's id reads exactly like an unknown one.
+  const user = await getSessionUser();
+  if (!user) {
+    return { success: false, error: "Please sign in to continue to checkout." };
+  }
+  let owned: Generation | null = null;
+  try {
+    if (hasDataStoreConfig()) owned = await getDataStore().getGenerationForUser(generationId, user.id);
+  } catch (error) {
+    console.error("[createCheckoutSession] Lookup error:", error);
+  }
+  if (!owned) {
+    return { success: false, error: "Generation not found." };
   }
 
   // Resolve the origin for success / cancel URLs.

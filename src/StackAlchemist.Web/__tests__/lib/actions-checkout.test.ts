@@ -6,10 +6,14 @@
  * actually holds a Stripe price/secret key. So "missing price ID" isn't a
  * Next.js-side concern here — these tests instead cover the pieces that DO
  * live in this file: the tier-0 guard, the demo/no-Stripe fallback, origin
- * resolution from request headers, and Engine error propagation.
+ * resolution from request headers, Engine error propagation, and the owner
+ * check: a checkout acts on an existing generation row, so (like the result
+ * page) only the signed-in owner of that row may start one.
  */
+import { getServerUser } from "@/lib/supabase-server";
+import { createServerClient } from "@/lib/supabase";
 import { createCheckoutSession } from "@/lib/actions";
-import { fakeResponse } from "./actions-test-helpers";
+import { fakeResponse, makeDb } from "./actions-test-helpers";
 
 const hasStripeConfigMock = vi.fn(() => true);
 const hasEngineConfigMock = vi.fn(() => true);
@@ -27,12 +31,25 @@ vi.mock("@/lib/runtime-config", () => ({
   hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
   usesPostgresStore: vi.fn(() => false),
+  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: () => hasStripeConfigMock(),
   getEngineServiceKey: vi.fn(() => ""),
 }));
 
 const headersMock = vi.fn();
 vi.mock("next/headers", () => ({ headers: () => headersMock() }));
+vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
+vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+
+// The store rejects malformed ids before querying, so fixtures need real UUIDs.
+const GEN_ID = "0b5d3c1e-6f7a-4c2d-9e8f-1a2b3c4d5e6f";
+const OWNER_ID = "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c";
+const INTRUDER_ID = "9c8d7e6f-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
+
+/** The signed-in owner's row, as the scoped read returns it. */
+function ownedRow() {
+  return makeDb([{ data: { id: GEN_ID, user_id: OWNER_ID, tier: 0, status: "success" }, error: null }]);
+}
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -47,6 +64,11 @@ describe("actions.ts — createCheckoutSession", () => {
     hasEngineConfigMock.mockReturnValue(true);
     headersMock.mockReset();
     headersMock.mockResolvedValue(new Headers({ host: "app.stackalchemist.app" }));
+    // Default: the signed-in caller owns GEN_ID.
+    vi.mocked(getServerUser).mockReset();
+    vi.mocked(getServerUser).mockResolvedValue({ id: OWNER_ID } as never);
+    vi.mocked(createServerClient).mockReset();
+    vi.mocked(createServerClient).mockImplementation(() => ownedRow() as never);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -57,7 +79,7 @@ describe("actions.ts — createCheckoutSession", () => {
   });
 
   it("rejects tier 0 — Spark is free, no checkout needed", async () => {
-    const result = await createCheckoutSession("gen-1", 0);
+    const result = await createCheckoutSession(GEN_ID, 0);
     expect(result).toEqual({
       success: false,
       error: "Tier 0 (Spark) is free — no checkout required.",
@@ -69,16 +91,38 @@ describe("actions.ts — createCheckoutSession", () => {
   it("falls back to a demo redirect when Stripe isn't configured", async () => {
     hasStripeConfigMock.mockReturnValue(false);
 
-    const result = await createCheckoutSession("gen-2", 1);
-    expect(result).toEqual({ success: true, sessionUrl: "/generate/gen-2?demo=1&tier=1" });
+    const result = await createCheckoutSession(GEN_ID, 1);
+    expect(result).toEqual({ success: true, sessionUrl: `/generate/${GEN_ID}?demo=1&tier=1` });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back to a demo redirect when the Engine isn't configured", async () => {
     hasEngineConfigMock.mockReturnValue(false);
 
-    const result = await createCheckoutSession("gen-3", 2);
-    expect(result).toEqual({ success: true, sessionUrl: "/generate/gen-3?demo=1&tier=2" });
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: true, sessionUrl: `/generate/${GEN_ID}?demo=1&tier=2` });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a signed-out caller before calling the Engine", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(null as never);
+
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: false, error: "Please sign in to continue to checkout." });
+    expect(createServerClient).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects someone else's generation with the not-found message, before calling the Engine", async () => {
+    vi.mocked(getServerUser).mockResolvedValue({ id: INTRUDER_ID } as never);
+    // The read is scoped to the caller in the query, so the intruder's lookup matches nothing.
+    const db = makeDb([{ data: null, error: null }]);
+    vi.mocked(createServerClient).mockImplementation(() => db as never);
+
+    const result = await createCheckoutSession(GEN_ID, 2);
+    expect(result).toEqual({ success: false, error: "Generation not found." });
+    const builder = db.from.mock.results[0]?.value as { eq: ReturnType<typeof vi.fn> };
+    expect(builder.eq.mock.calls).toContainEqual(["user_id", INTRUDER_ID]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -87,14 +131,14 @@ describe("actions.ts — createCheckoutSession", () => {
       fakeResponse({ url: "https://checkout.stripe.com/session/abc" })
     );
 
-    const result = await createCheckoutSession("gen-4", 2, "make me an app", "DotNetNextJs", "simple");
+    const result = await createCheckoutSession(GEN_ID, 2, "make me an app", "DotNetNextJs", "simple");
 
     expect(result).toEqual({ success: true, sessionUrl: "https://checkout.stripe.com/session/abc" });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/stripe/create-session");
     const body = JSON.parse(init.body);
     expect(body.successUrl).toBe(
-      "http://app.stackalchemist.app/generate/gen-4?session_id={CHECKOUT_SESSION_ID}"
+      `http://app.stackalchemist.app/generate/${GEN_ID}?session_id={CHECKOUT_SESSION_ID}`
     );
     expect(body.cancelUrl).toContain("/simple?q=make%20me%20an%20app&tier=2");
   });
@@ -102,7 +146,7 @@ describe("actions.ts — createCheckoutSession", () => {
   it("uses the advanced-mode default cancel path when mode is advanced", async () => {
     fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/xyz" }));
 
-    await createCheckoutSession("gen-5", 3, undefined, "PythonReact", "advanced");
+    await createCheckoutSession(GEN_ID, 3, undefined, "PythonReact", "advanced");
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
@@ -112,11 +156,11 @@ describe("actions.ts — createCheckoutSession", () => {
   it("prefers an explicit cancelPath over the mode default", async () => {
     fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/qqq" }));
 
-    await createCheckoutSession("gen-6", 1, "p", "DotNetNextJs", "simple", "/generate/gen-6?upgrade=1");
+    await createCheckoutSession(GEN_ID, 1, "p", "DotNetNextJs", "simple", `/generate/${GEN_ID}?upgrade=1`);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
-    expect(body.cancelUrl).toBe("http://app.stackalchemist.app/generate/gen-6?upgrade=1");
+    expect(body.cancelUrl).toBe(`http://app.stackalchemist.app/generate/${GEN_ID}?upgrade=1`);
   });
 
   it("resolves https origin from x-forwarded-proto even outside production", async () => {
@@ -125,7 +169,7 @@ describe("actions.ts — createCheckoutSession", () => {
     );
     fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/ssl" }));
 
-    await createCheckoutSession("gen-7", 1);
+    await createCheckoutSession(GEN_ID, 1);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
@@ -139,7 +183,7 @@ describe("actions.ts — createCheckoutSession", () => {
     vi.stubEnv("ENGINE_API_URL", "https://engine.internal");
     fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/prod" }));
 
-    await createCheckoutSession("gen-7b", 1);
+    await createCheckoutSession(GEN_ID, 1);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
@@ -149,14 +193,14 @@ describe("actions.ts — createCheckoutSession", () => {
   it("propagates the Engine's error message on a non-2xx response", async () => {
     fetchMock.mockResolvedValue(fakeResponse({ error: "Card declined" }, { ok: false, status: 402 }));
 
-    const result = await createCheckoutSession("gen-8", 1);
+    const result = await createCheckoutSession(GEN_ID, 1);
     expect(result).toEqual({ success: false, error: "Card declined" });
   });
 
   it("uses the json()-parse-failure fallback message when the non-2xx body isn't valid JSON", async () => {
     fetchMock.mockResolvedValue(fakeResponse("", { ok: false, status: 500, jsonThrows: true }));
 
-    const result = await createCheckoutSession("gen-9", 1);
+    const result = await createCheckoutSession(GEN_ID, 1);
     // `.json().catch(() => ({ error: "Checkout session creation failed." }))`
     // supplies its own `error` field, so the `body.error ?? "Failed to create
     // checkout session."` fallback further down never actually triggers here.
@@ -166,14 +210,14 @@ describe("actions.ts — createCheckoutSession", () => {
   it("uses the 'Failed to create checkout session' fallback when the JSON body has no error field", async () => {
     fetchMock.mockResolvedValue(fakeResponse({}, { ok: false, status: 500 }));
 
-    const result = await createCheckoutSession("gen-9b", 1);
+    const result = await createCheckoutSession(GEN_ID, 1);
     expect(result).toEqual({ success: false, error: "Failed to create checkout session." });
   });
 
   it("returns a sane error when the fetch itself throws", async () => {
     fetchMock.mockRejectedValue(new Error("network down"));
 
-    const result = await createCheckoutSession("gen-10", 1);
+    const result = await createCheckoutSession(GEN_ID, 1);
     expect(result).toEqual({
       success: false,
       error: "Failed to reach the payment service. Please try again.",

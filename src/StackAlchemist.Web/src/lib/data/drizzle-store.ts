@@ -97,10 +97,11 @@ export class DrizzleStore implements DataStore {
     return row;
   }
 
-  async getGenerationById(id: string): Promise<Generation | null> {
-    if (!UUID.test(id)) return null;
+  async getGenerationForUser(id: string, userId: string): Promise<Generation | null> {
+    if (!UUID.test(id) || !UUID.test(userId)) return null;
     try {
-      const [row] = await this.db.select().from(generations).where(eq(generations.id, id)).limit(1);
+      const [row] = await this.db.select().from(generations)
+        .where(and(eq(generations.id, id), eq(generations.user_id, userId))).limit(1);
       return row ?? null;
     } catch (e) { throw new DataStoreError("generations select failed", driverError(e)); }
   }
