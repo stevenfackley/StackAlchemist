@@ -18,10 +18,11 @@ internal static class IntegrationToolchain
     /// Skips locally when a toolchain is missing, but FAILS when <paramref name="requiredOnCi"/>
     /// and we are on CI. A gate that quietly passes in 0.4s because a binary moved is not a gate.
     ///
-    /// <paramref name="requiredOnCi"/> is a statement about the GitHub-hosted runner image, not a
-    /// preference: <c>ubuntu-latest</c> (24.04) ships Node, npm and Helm 3.x, so their absence
-    /// means the gate has stopped gating. It does NOT ship Terraform — HashiCorp's licence change
-    /// got it removed from the image — so a Terraform check has to skip cleanly even on CI.
+    /// <paramref name="requiredOnCi"/> is a statement about what the backend CI job provides, not
+    /// a preference: <c>ubuntu-latest</c> ships Node and npm, and the job installs Helm and Python
+    /// itself, so their absence means the gate has stopped gating. Nothing provides Terraform —
+    /// HashiCorp's licence change got it removed from the image — so a Terraform check has to
+    /// skip cleanly even on CI.
     /// </summary>
     public static bool Available(string fileName, string arguments, string label, bool requiredOnCi)
     {
@@ -32,10 +33,9 @@ internal static class IntegrationToolchain
         {
             Assert.False(
                 IsContinuousIntegration,
-                $"{label} is required to verify the Tier-3 deliverable and was not found on PATH " +
-                $"(tried '{fileName}'). The backend CI job runs on ubuntu-latest, which provides " +
-                "it — if this fires, the gate is no longer actually exercising the infrastructure " +
-                "the customer paid for.");
+                $"{label} is required by a template compile gate and was not found on PATH " +
+                $"(tried '{fileName}'). The backend CI job provides it — if this fires, the gate " +
+                "is no longer actually exercising the template it guards.");
         }
 
         Console.WriteLine($"Skipping — {label} not found on PATH.");

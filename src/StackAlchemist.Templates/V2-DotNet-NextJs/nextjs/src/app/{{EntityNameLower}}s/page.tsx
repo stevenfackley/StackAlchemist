@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { get{{EntityName}}s } from "@/lib/api";
 
+// Live data from the generated API, so render per request: prerendering this page at
+// `next build` would call the API at build time, when nothing is listening.
+export const dynamic = "force-dynamic";
+
 export default async function {{EntityName}}sPage() {
   const items = await get{{EntityName}}s();
 

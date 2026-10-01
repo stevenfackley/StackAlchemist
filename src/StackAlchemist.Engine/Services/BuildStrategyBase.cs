@@ -58,9 +58,28 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         using var process = new Process { StartInfo = psi };
         process.Start();
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
+        // Cancellation must end the child, not just stop waiting for it: reads on anonymous
+        // pipes do not observe `ct` mid-read, so without this a hung toolchain (an install
+        // waiting on the network, a build that never exits) holds the compile worker forever
+        // while the caller believes it gave up. Kill the whole tree — npm, dotnet and pip all
+        // spawn children that keep the pipes open.
+        using var killOnCancel = ct.Register(() =>
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { /* already exited */ }
+        });
+
+        // Drain both pipes at once. Reading stdout to EOF before touching stderr deadlocks the
+        // moment the child fills the stderr pipe buffer (a few KB on Windows, 64 KB on Linux): the
+        // child blocks on its write, so stdout never closes. `npm ci` on the V2-DotNet-NextJs
+        // tree writes ~10 KB of peer-dependency warnings to stderr and hung here indefinitely.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        await Task.WhenAll(stdoutTask, stderrTask);
         await process.WaitForExitAsync(ct);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
 
         return new BuildResult
         {
