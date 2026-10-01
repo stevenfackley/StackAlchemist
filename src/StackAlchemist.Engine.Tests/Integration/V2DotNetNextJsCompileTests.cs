@@ -130,5 +130,13 @@ public sealed class V2DotNetNextJsCompileTests : IDisposable
 
         TailwindStylesheet.AssertCompiled(
             Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-blue-600");
+
+        // This was `next lint`, which Next 16 removed: the script died before linting anything (#291).
+        var (lintExit, lintLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run lint", Path.Combine(_outputDir, "nextjs"), TimeSpan.FromMinutes(5));
+
+        lintExit.Should().Be(0,
+            "the archive ships `npm run lint`; it must run, and pass, on the template as rendered."
+            + $"\n\n{IntegrationToolchain.Tail(lintLog)}");
     }
 }

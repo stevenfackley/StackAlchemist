@@ -108,6 +108,14 @@ public sealed class V1TemplateCompileTests : IDisposable
         TailwindStylesheet.AssertCompiled(
             Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-2xl");
 
+        // The eslint-config-next + eslint 9 stack is held back from ESLint 10 (#291); keep it gated.
+        var (lintExit, lintLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run lint", Path.Combine(_outputDir, "nextjs"), TimeSpan.FromMinutes(5));
+
+        lintExit.Should().Be(0,
+            "the archive ships `npm run lint`; it must run, and pass, on the template as rendered."
+            + $"\n\n{IntegrationToolchain.Tail(lintLog)}");
+
         // A pass with no recorded steps would mean the strategy short-circuited — exactly
         // the failure mode that let a never-built frontend ship stamped "Compile Verified".
         // Assert both halves were really exercised, not just that nothing threw.
