@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/app.ts",
+  "app": "npx tsc && node bin/app.js",
   "output": "cdk.out",
   "watch": {
     "include": ["**"],

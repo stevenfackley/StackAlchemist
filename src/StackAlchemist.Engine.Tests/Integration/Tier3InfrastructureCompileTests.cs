@@ -340,7 +340,7 @@ public sealed class Tier3InfrastructureCompileTests : IDisposable
     /// <summary>Cold npm registry fetch of the CDK toolchain.</summary>
     private static readonly TimeSpan NpmTimeout = TimeSpan.FromMinutes(10);
 
-    /// <summary>ts-node compile plus a full construct-tree synthesis.</summary>
+    /// <summary>The <c>tsc</c> compile cdk.json runs before <c>node bin/app.js</c>, plus a full construct-tree synthesis.</summary>
     private static readonly TimeSpan SynthTimeout = TimeSpan.FromMinutes(10);
 
     private static readonly TimeSpan HelmTimeout = TimeSpan.FromMinutes(3);

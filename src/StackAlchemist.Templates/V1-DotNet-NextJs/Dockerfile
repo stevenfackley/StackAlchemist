@@ -20,7 +20,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-sdk
 FROM node-base AS web-deps
 COPY nextjs/package.json nextjs/package-lock.json ./
 # NOT --omit=dev: `next build` needs typescript, @types/*, tailwindcss, postcss and
-# autoprefixer, all of which are devDependencies. Omitting them made the web target
+# @tailwindcss/postcss, all of which are devDependencies. Omitting them made the web target
 # fail at the build step. Only the runtime image (below) is dependency-free — it runs
 # the traced `standalone` output, which bundles what it needs.
 RUN npm ci

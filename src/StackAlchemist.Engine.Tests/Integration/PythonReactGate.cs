@@ -120,5 +120,8 @@ internal static class PythonReactGate
 
         File.Exists(Path.Combine(frontendDirectory, "dist", "index.html"))
             .Should().BeTrue("`vite build` must have produced the bundle nginx serves, not been skipped");
+
+        TailwindStylesheet.AssertCompiled(
+            Path.Combine(frontendDirectory, "dist"), ".min-h-screen", ".bg-gray-50");
     }
 }

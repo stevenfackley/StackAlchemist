@@ -98,7 +98,8 @@ app.MapCustomerEndpoints();
    Import the entity types from `@/types`.
 9. `nextjs/src/app/page.tsx` — the complete home page: a default-exported React component
    linking to each entity. Plain `<a href>` to API routes is fine; use `next/link` for
-   internal app routes. Do not use unescaped apostrophes in JSX text (ESLint runs on build).
+   internal app routes. Do not use unescaped apostrophes in JSX text (the archive ships
+   `npm run lint`, and `next build` no longer lints).
 
 ## Schema
 

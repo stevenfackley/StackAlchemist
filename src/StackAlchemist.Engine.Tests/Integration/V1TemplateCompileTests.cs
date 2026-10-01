@@ -105,6 +105,17 @@ public sealed class V1TemplateCompileTests : IDisposable
         File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "standalone", "server.js"))
             .Should().BeTrue("`next build` must have produced the standalone output, not been skipped");
 
+        TailwindStylesheet.AssertCompiled(
+            Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-2xl");
+
+        // The eslint-config-next + eslint 9 stack is held back from ESLint 10 (#291); keep it gated.
+        var (lintExit, lintLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run lint", Path.Combine(_outputDir, "nextjs"), TimeSpan.FromMinutes(5));
+
+        lintExit.Should().Be(0,
+            "the archive ships `npm run lint`; it must run, and pass, on the template as rendered."
+            + $"\n\n{IntegrationToolchain.Tail(lintLog)}");
+
         // A pass with no recorded steps would mean the strategy short-circuited — exactly
         // the failure mode that let a never-built frontend ship stamped "Compile Verified".
         // Assert both halves were really exercised, not just that nothing threw.
@@ -519,6 +530,57 @@ public sealed class V1TemplateCompileTests : IDisposable
                      + "output no longer compiles against the tree, a key misconfiguration becomes "
                      + $"a refunded generation.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
     }
+
+    /// <summary>
+    /// The personalization palette survives Tailwind 4.
+    ///
+    /// The palette is not a Handlebars token. <c>PromptBuilderService</c>'s Color Theme section
+    /// asks the model to write it into the frontend's <c>tailwind.config.ts</c>, and Tailwind 4
+    /// no longer reads that file on its own: a stylesheet has to name it with <c>@config</c>.
+    /// Without the directive the app still builds, so every other gate stays green while each
+    /// customer's chosen colors silently disappear. This routes a v3-shaped config, the shape
+    /// models write, through the real reconstruction path, builds the frontend, and looks for
+    /// the colors in the emitted CSS.
+    /// </summary>
+    [Fact]
+    public async Task PersonalizedPalette_ReachesTheBuiltStylesheet()
+    {
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
+            return;
+
+        var nextjsDir = Path.Combine(_outputDir, "palette-build", "nextjs");
+        V1TemplateHarness.RenderWithLlmResponseTo(Path.Combine(_outputDir, "palette-build"), PaletteResponse);
+
+        var (installExit, installLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "ci --no-audit --no-fund", nextjsDir, FrontendStepTimeout);
+        installExit.Should().Be(0,
+            $"`npm ci` must install the frontend from its lockfile.\n\n{IntegrationToolchain.Tail(installLog)}");
+
+        var (buildExit, buildLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run build", nextjsDir, FrontendStepTimeout);
+        buildExit.Should().Be(0,
+            $"a personalized config must not break `next build`.\n\n{IntegrationToolchain.Tail(buildLog)}");
+
+        TailwindStylesheet.AssertPersonalizedPaletteCompiled(Path.Combine(nextjsDir, ".next", "static"));
+    }
+
+    private static readonly TimeSpan FrontendStepTimeout = TimeSpan.FromMinutes(10);
+
+    /// <summary>A model's answer to the Color Theme section: a whole config plus a page using it.</summary>
+    private const string PaletteResponse = $$"""
+        [[FILE:nextjs/tailwind.config.ts]]
+        {{TailwindStylesheet.PersonalizedConfig}}
+        [[END_FILE]]
+        [[FILE:nextjs/src/app/page.tsx]]
+        export default function HomePage() {
+          return (
+            <main className="min-h-screen bg-primary p-8">
+              <h1 className="text-2xl font-bold text-accent">InvoiceHub</h1>
+            </main>
+          );
+        }
+        [[END_FILE]]
+        """;
 
     /// <summary>
     /// Skips locally when a toolchain is missing, but FAILS on CI. A gate that quietly

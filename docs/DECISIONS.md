@@ -778,3 +778,38 @@ recorded response through the real services and builds both halves in CI.
 - **CI:** the backend job installs Python 3.14 (`actions/setup-python`) to match `python:3.14-slim` in the templates' Dockerfile.backend. Dependabot already listed every new lock directory; its #291 major-only ignores are unchanged.
 
 **Addendum 2026-10-01 — psycopg 3 for the Python-React templates.** Dependabot #448 moved both Python-React backends to `sqlalchemy==2.1.1`. SQLAlchemy 2.1 maps a bare `postgresql://` URL to the psycopg 3 driver, while the templates shipped `psycopg2-binary`, so every generated FastAPI app failed at import (`ModuleNotFoundError: No module named 'psycopg'`), in uvicorn and in its own tests. The new `V1PythonReactCompileTests` gate caught it on this PR's merge ref. Both templates now ship `psycopg[binary]==3.3.6` and keep the plain `postgresql://` URLs (config.py, alembic.ini, docker-compose.yml, .env.example), which is the 2.1-native form. Same change: `BuildStrategyBase.RunProcessAsync` kills the child process tree when its token is cancelled, because pipe reads do not observe cancellation and a hung toolchain otherwise held the compile worker indefinitely.
+
+---
+
+## 2026-10-01 — Templates wave (#291): Tailwind 4, lucide 1, vite 8, ESLint 10 (Python-React), Tier3 CDK on TS 7
+
+**Status:** accepted
+**Decision:** the rest of the #291 majors land, each under the compile gate for its template set. Two stay blocked upstream and move to #456.
+- **Tailwind 3 → 4, tailwind-merge 2 → 3** (V1/V2-DotNet-NextJs, V1/V2-Python-React). Stylesheets use `@import "tailwindcss"`. The Next templates run `@tailwindcss/postcss` and the Vite templates run `@tailwindcss/vite`. autoprefixer and the Vite `postcss.config.js` files are gone.
+  - **`tailwind.config.ts` stays, loaded with `@config`.** The personalization palette is not a Handlebars token. `PromptBuilderService`'s Color Theme section tells the model to write it into `tailwind.config.ts`, and Tailwind 4 ignores that file unless a stylesheet names it. Keeping the file kept the prompt contract.
+  - **The Color Theme prompt now says Tailwind CSS v4.** It tells the model to put the palette under `theme.extend.colors`, to leave the stylesheet's `@import`/`@config` lines alone, not to add v3 `@tailwind` directives, and not to use `safelist`/`corePlugins`. A stylesheet rewritten with `@tailwind` directives still builds, but ships CSS with no theme, no preflight and no palette, which is silent. `safelist`/`corePlugins` at least fail the typecheck.
+  - The stale "ESLint runs during `next build`" line is gone from the prompt and from `V1-generation.md`. Next 16 does not lint on build.
+  - **Compat base layer.** The official v4 upgrade-guide styles restore three v3 defaults: gray-200 borders, gray-400 placeholders, and a pointer cursor on enabled buttons. The ring-width change is not restored.
+- **V2-DotNet-NextJs never ran Tailwind.** It had no PostCSS config, so every utility class in that template was a no-op. It has one now. Customers see V2 pages styled for the first time.
+- **lucide-react 0.x → 1.x** in both Next templates. No template imports an icon.
+- **vite 6 → 8, @vitejs/plugin-react 4 → 6** in both Python-React frontends. `vite.config.ts` uses `import.meta.dirname`.
+- **ESLint 9 → 10** in the Python-React frontends, with @eslint/js 10, eslint-plugin-react-hooks 7, globals 17 and typescript-eslint ^8.71. The flat config moves to `defineConfig`.
+  - The hooks rules are pinned to react-hooks 5's pair (`rules-of-hooks`, `exhaustive-deps`). v7's `recommended` adds the React Compiler rules, and `npm run lint -- --max-warnings=0` is a Compile Guarantee step over model-written code, so turning them on is a product call (#456).
+  - ESLint 10's own new recommended rules (`no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error`) are taken.
+- **ESLint 10 deferred for the Next templates (#456).** `eslint-config-next` 16.3.8 pulls eslint-plugin-react 7.37.5 (which calls the removed `context.getFilename()`), eslint-plugin-import 2.32 and jsx-a11y 6.10, and all three peer on eslint <=9.
+- **`npm run lint` was broken in both Next templates. Fixed.**
+  - V2 ran `next lint`, which Next 16 removed. It now uses `eslint .` with V1's flat config.
+  - V1, and V2 after that fix, crashed on load with "typescript-eslint does not support TS 7.0", a leftover of the 2026-08-19 TS 7 merge. **Both Next templates are back on `typescript ^6.0.3`**, matching the Python-React frontends (#452).
+  - The TS 7 release notes' side-by-side setup was tried and dropped in review: `@typescript/native` for `tsc`, with `typescript` aliased to `@typescript/typescript6`. `next build` already type-checks through the `typescript` package (TS 6 API), so TS 7 only added a second checker. Two packages competed for `.bin/tsc`. dependabot-core skips `npm:`-aliased requirements, which would have frozen both silently. Editors could not use the workspace TS.
+  - Every template that lints with typescript-eslint moves to TS 7 once it supports the TS 7.1 API (#456).
+- **Tier3 CDK on TypeScript 7.** ts-node cannot host TS 7, which has no compiler API (#267 was closed for this). `cdk.json` runs `npx tsc && node bin/app.js`. With `noEmitOnError`, a type error still fails `cdk synth`. Tier 3 overlays every project type, so the CDK app now ships its own `infra/cdk/.gitignore` for the emitted `.js`/`.d.ts`.
+- **Gates added.**
+  - `TailwindStylesheet.AssertCompiled` checks the built CSS of V1/V2-DotNet and both Python-React sets: no Tailwind directive survives, and the utilities the template's markup uses exist.
+  - `PersonalizedPalette_ReachesTheBuiltStylesheet` (V1-DotNet and V1-Python-React) routes a v3-shaped palette config through reconstruction, builds, and finds the hex values in the CSS. It fails when `@config` is removed.
+  - Both Next gates now run `npm run lint`.
+- **Dependabot:** the templates npm block keeps major-only ignores for `typescript` and `eslint` only (#456).
+- **Customer-visible:**
+  - Tailwind 4 rendering, including v4's scale shifts for v3 names that model-written markup may use (`shadow-sm`, `rounded-sm`, `blur-sm`, and a bare `ring` is now 1px).
+  - V2-DotNet pages are styled for the first time.
+  - `npm run lint` runs in both Next templates, and those templates' `tsc` is TS 6.0.
+  - The Tier-3 CDK app compiles with `tsc` instead of running through ts-node.

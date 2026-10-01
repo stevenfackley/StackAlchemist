@@ -127,5 +127,16 @@ public sealed class V2DotNetNextJsCompileTests : IDisposable
         // written by a `next build` that ran to completion.
         File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "BUILD_ID"))
             .Should().BeTrue("`next build` must have produced output, not been skipped");
+
+        TailwindStylesheet.AssertCompiled(
+            Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-blue-600");
+
+        // This was `next lint`, which Next 16 removed: the script died before linting anything (#291).
+        var (lintExit, lintLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run lint", Path.Combine(_outputDir, "nextjs"), TimeSpan.FromMinutes(5));
+
+        lintExit.Should().Be(0,
+            "the archive ships `npm run lint`; it must run, and pass, on the template as rendered."
+            + $"\n\n{IntegrationToolchain.Tail(lintLog)}");
     }
 }
