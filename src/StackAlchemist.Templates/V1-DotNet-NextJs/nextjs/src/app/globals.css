@@ -1,3 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/*
+  Theme extensions live in tailwind.config.ts, not here. That file is where a personalized
+  palette is written (primary, secondary, accent, background, surface), so Tailwind 4 loads it
+  explicitly; without this line its colors would never reach the generated utilities.
+*/
+@config "../../tailwind.config.ts";
+
+/*
+  Tailwind 4 changed the default border color to `currentcolor`. Keep the v3 default (gray-200)
+  so an unqualified `border` still draws the light rule v3-era markup expects.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}

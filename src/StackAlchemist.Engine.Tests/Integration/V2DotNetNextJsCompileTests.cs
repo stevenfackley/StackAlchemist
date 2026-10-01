@@ -127,5 +127,8 @@ public sealed class V2DotNetNextJsCompileTests : IDisposable
         // written by a `next build` that ran to completion.
         File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "BUILD_ID"))
             .Should().BeTrue("`next build` must have produced output, not been skipped");
+
+        TailwindStylesheet.AssertCompiled(
+            Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-blue-600");
     }
 }

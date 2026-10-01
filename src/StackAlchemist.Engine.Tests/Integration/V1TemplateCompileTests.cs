@@ -105,6 +105,9 @@ public sealed class V1TemplateCompileTests : IDisposable
         File.Exists(Path.Combine(_outputDir, "nextjs", ".next", "standalone", "server.js"))
             .Should().BeTrue("`next build` must have produced the standalone output, not been skipped");
 
+        TailwindStylesheet.AssertCompiled(
+            Path.Combine(_outputDir, "nextjs", ".next", "static"), ".min-h-screen", ".text-2xl");
+
         // A pass with no recorded steps would mean the strategy short-circuited — exactly
         // the failure mode that let a never-built frontend ship stamped "Compile Verified".
         // Assert both halves were really exercised, not just that nothing threw.
@@ -519,6 +522,79 @@ public sealed class V1TemplateCompileTests : IDisposable
                      + "output no longer compiles against the tree, a key misconfiguration becomes "
                      + $"a refunded generation.\n\n{result.StandardOutput}\n{result.ErrorOutput}");
     }
+
+    /// <summary>
+    /// The personalization palette survives Tailwind 4.
+    ///
+    /// The palette is not a Handlebars token. <c>PromptBuilderService</c>'s Color Theme section
+    /// asks the model to write it into the frontend's <c>tailwind.config.ts</c>, and Tailwind 4
+    /// no longer reads that file on its own: a stylesheet has to name it with <c>@config</c>.
+    /// Without the directive the app still builds, so every other gate stays green while each
+    /// customer's chosen colors silently disappear. This routes a v3-shaped config, the shape
+    /// models write, through the real reconstruction path, builds the frontend, and looks for
+    /// the colors in the emitted CSS.
+    /// </summary>
+    [Fact]
+    public async Task PersonalizedPalette_ReachesTheBuiltStylesheet()
+    {
+        if (!ToolchainAvailable(ProcessCommandResolver.Npm, "--version", "npm"))
+            return;
+
+        var nextjsDir = Path.Combine(_outputDir, "palette-build", "nextjs");
+        V1TemplateHarness.RenderWithLlmResponseTo(Path.Combine(_outputDir, "palette-build"), PaletteResponse);
+
+        var (installExit, installLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "ci --no-audit --no-fund", nextjsDir, FrontendStepTimeout);
+        installExit.Should().Be(0,
+            $"`npm ci` must install the frontend from its lockfile.\n\n{IntegrationToolchain.Tail(installLog)}");
+
+        var (buildExit, buildLog) = await IntegrationToolchain.RunAsync(
+            ProcessCommandResolver.Npm, "run build", nextjsDir, FrontendStepTimeout);
+        buildExit.Should().Be(0,
+            $"a personalized config must not break `next build`.\n\n{IntegrationToolchain.Tail(buildLog)}");
+
+        var css = TailwindStylesheet.AssertCompiled(
+            Path.Combine(nextjsDir, ".next", "static"), ".bg-primary", ".text-accent");
+
+        css.Should().Contain("#0f766e").And.Contain("#c2410c",
+            "the palette values from tailwind.config.ts must reach the stylesheet the customer ships");
+    }
+
+    private static readonly TimeSpan FrontendStepTimeout = TimeSpan.FromMinutes(10);
+
+    /// <summary>A model's answer to the Color Theme section: a whole config plus a page using it.</summary>
+    private const string PaletteResponse = """
+        [[FILE:nextjs/tailwind.config.ts]]
+        import type { Config } from "tailwindcss";
+
+        const config: Config = {
+          content: ["./src/app/**/*.{ts,tsx}", "./src/components/**/*.{ts,tsx}"],
+          theme: {
+            extend: {
+              colors: {
+                primary: "#0f766e",
+                secondary: "#334155",
+                accent: "#c2410c",
+                background: "#f8fafc",
+                surface: "#ffffff",
+              },
+            },
+          },
+          plugins: [],
+        };
+
+        export default config;
+        [[END_FILE]]
+        [[FILE:nextjs/src/app/page.tsx]]
+        export default function HomePage() {
+          return (
+            <main className="min-h-screen bg-primary p-8">
+              <h1 className="text-2xl font-bold text-accent">InvoiceHub</h1>
+            </main>
+          );
+        }
+        [[END_FILE]]
+        """;
 
     /// <summary>
     /// Skips locally when a toolchain is missing, but FAILS on CI. A gate that quietly
