@@ -90,15 +90,15 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # The #291 wave landed (TypeScript 7, Next 16, @types/node 26, Tailwind 4,
-      # tailwind-merge 3, lucide-react 1, vite 8, @vitejs/plugin-react 6, and ESLint 10
-      # in the Python-React frontends). Every template set now has a compile gate, so
-      # majors arrive as ordinary PRs. Two stay blocked, tracked in #456:
+      # The #291 wave landed (Next 16, @types/node 26, Tailwind 4, tailwind-merge 3,
+      # lucide-react 1, vite 8, @vitejs/plugin-react 6, ESLint 10 in the Python-React
+      # frontends, TypeScript 7 in V0-Spark and the Tier3 CDK app). Every template set now
+      # has a compile gate, so majors arrive as ordinary PRs. Two stay blocked, tracked in #456:
       #
       # typescript: typescript-eslint 8 peers on typescript <6.1 and has no TS 7 support
-      # yet (TS 7.0 ships no programmatic API). The Python-React frontends stay on ^6.0.3.
-      # The Next templates run `tsc` from TS 7 under the `@typescript/native` alias and
-      # alias `typescript` to @typescript/typescript6 for typescript-eslint and next build.
+      # yet (TS 7.0 ships no programmatic API), so every template that lints with it stays on
+      # ^6.0.3: both Next templates (via eslint-config-next) and both Python-React frontends.
+      # V0-Spark (no eslint) and the Tier3 CDK app are on TS 7, so their next major waits too.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
       # eslint: eslint-config-next 16 pulls eslint-plugin-react 7.37 (calls
