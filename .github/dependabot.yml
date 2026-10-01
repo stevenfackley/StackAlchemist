@@ -90,39 +90,23 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # Templates-content majors are a product decision — take the wave
-      # together; remove when #291 is decided.
+      # The #291 wave landed (TypeScript 7, Next 16, @types/node 26, Tailwind 4,
+      # tailwind-merge 3, lucide-react 1, vite 8, @vitejs/plugin-react 6, and ESLint 10
+      # in the Python-React frontends). Every template set now has a compile gate, so
+      # majors arrive as ordinary PRs. Two stay blocked, tracked in #456:
+      #
+      # typescript: typescript-eslint 8 peers on typescript <6.1 and has no TS 7 support
+      # yet (TS 7.0 ships no programmatic API). The Python-React frontends stay on ^6.0.3.
+      # The Next templates run `tsc` from TS 7 under the `@typescript/native` alias and
+      # alias `typescript` to @typescript/typescript6 for typescript-eslint and next build.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "next"
-        update-types: ["version-update:semver-major"]
-      # Template framework majors deferred to the #291 wave (2026-09-22):
-      # tailwind 4 needs a CSS-first config migration (templates still ship
-      # tailwind.config.ts) and tailwind-merge 3 targets Tailwind 4; eslint 10
-      # breaks eslint-plugin-react via eslint-config-next; lucide-react 1.x is
-      # held to keep the template stacks consistent. Remove with #291.
-      - dependency-name: "tailwindcss"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "tailwind-merge"
-        update-types: ["version-update:semver-major"]
+      # eslint: eslint-config-next 16 pulls eslint-plugin-react 7.37 (calls
+      # context.getFilename(), which ESLint 10 removed), eslint-plugin-import 2.32 and
+      # eslint-plugin-jsx-a11y 6.10, all of which peer on eslint <=9. That holds the Next
+      # templates on eslint 9. This entry also covers the Python-React frontends, which
+      # are already on 10, so their next major waits with it.
       - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "lucide-react"
-        update-types: ["version-update:semver-major"]
-      # Same #291 wave: @eslint/js 10 and eslint-plugin-react-hooks 7 move with
-      # eslint 10; @vitejs/plugin-react 6 needs vite 8 (templates are on vite 6, so vite moves too);
-      # globals 17 goes with the flat-config refresh (Dependabot #396-#399).
-      - dependency-name: "@eslint/js"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "eslint-plugin-react-hooks"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "globals"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@vitejs/plugin-react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
@@ -168,8 +152,8 @@ updates:
   # NOTE: no `helm` ecosystem here on purpose. infra/helm/values.yaml is a
   # Scriban template ({{ProjectNameKebab}}.example.com) — not valid YAML until
   # rendered — so the Dependabot helm updater crashes every week with
-  # Psych::SyntaxError (run 32550414527, 2026-08-22). Chart.yaml dependencies
-  # in templates move with the templates wave (#291), not via Dependabot.
+  # Psych::SyntaxError (run 32550414527, 2026-08-22). The chart declares no
+  # dependencies; if it gains any, they are bumped by hand, not via Dependabot.
   - package-ecosystem: "terraform"
     directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/terraform"
     schedule:
