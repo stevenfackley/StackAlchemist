@@ -1,6 +1,4 @@
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Integration;
@@ -122,20 +120,5 @@ internal static class PythonReactGate
 
         File.Exists(Path.Combine(frontendDirectory, "dist", "index.html"))
             .Should().BeTrue("`vite build` must have produced the bundle nginx serves, not been skipped");
-    }
-
-    /// <summary>
-    /// The production <see cref="PythonReactBuildStrategy"/>, unchanged except that its
-    /// <c>python</c> resolves to the gate's virtual environment instead of whatever interpreter
-    /// is first on PATH. Uses the <see cref="BuildStrategyBase.RunProcessAsync"/> seam the
-    /// strategy keeps open for exactly this.
-    /// </summary>
-    public sealed class VenvPythonReactBuildStrategy(string venvPython)
-        : PythonReactBuildStrategy(NullLogger<PythonReactBuildStrategy>.Instance)
-    {
-        protected override Task<BuildResult> RunProcessAsync(
-            string fileName, string arguments, string workingDirectory, CancellationToken ct) =>
-            base.RunProcessAsync(
-                fileName == Python ? venvPython : fileName, arguments, workingDirectory, ct);
     }
 }

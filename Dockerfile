@@ -85,13 +85,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         python3 \
         python3-pip \
+        python3-venv \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 # Node.js — PythonReactBuildStrategy runs `npm install`, `npm run lint`, and `npx tsc`
 # against generated React frontends.
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs
-# flake8 + pytest are invoked directly by PythonReactBuildStrategy (not declared in the
-# generated project's requirements.txt), so they must be preinstalled in the image.
+# PythonReactBuildStrategy builds in a per-generation venv (#451): Ubuntu's python3 is
+# EXTERNALLY-MANAGED (PEP 668), so `pip install -r requirements.txt` into it is refused, and
+# `python -m venv` needs python3-venv (ensurepip) on Ubuntu. The venv is created with
+# --system-site-packages, so the flake8/pytest below stay reachable as a fallback for
+# generated projects whose requirements.txt omits them.
 RUN python3 -m pip install --no-cache-dir --break-system-packages flake8 pytest
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
@@ -128,7 +132,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install
 # Not currently deployed (see docker-compose.*.yml — compile pipeline runs in-process
 # in the engine stage above), but kept buildable as a future scale-out host, so it
 # needs the same Python toolchain PythonReactBuildStrategy invokes.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip python3-venv \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 RUN python3 -m pip install --no-cache-dir --break-system-packages flake8 pytest

@@ -58,22 +58,52 @@ public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> 
 
         LogRunningPython(Logger, pythonDir);
 
+        // A per-build virtual environment (#451). The Engine image's interpreter is Ubuntu's
+        // EXTERNALLY-MANAGED python3 (PEP 668), which refuses `pip install` outright, so this
+        // half failed at its first step on every generation; and a shared interpreter let one
+        // generation's pins leak into another's verification. `--system-site-packages` keeps the
+        // image's preinstalled flake8/pytest reachable when a generated requirements.txt omits
+        // them (when it pins the same versions, pip treats the image's copies as satisfied).
+        // `--clear`: the repair loop re-runs this build in the same directory, and a venv kept
+        // across attempts would keep packages a repair removed from requirements.txt, so the
+        // checks would pass on imports the customer's fresh image cannot satisfy. `.venv` is
+        // excluded from the customer's archive (BuildResiduePaths) and from flake8 (below).
+        var venvResult = await RunStepAsync(
+            BuildHalf.Python, "python -m venv .venv", "python",
+            $"-m venv --clear --system-site-packages {VenvDirectoryName}", pythonDir, transcript, steps, ct);
+        if (!venvResult.IsSuccess)
+            return venvResult;
+
+        var python = VenvInterpreter(pythonDir);
+
         var pipResult = await RunStepAsync(
-            BuildHalf.Python, "python -m pip install -r requirements.txt", "python",
-            "-m pip install -r requirements.txt --quiet", pythonDir, transcript, steps, ct);
+            BuildHalf.Python, "python -m pip install -r requirements.txt", python,
+            "-m pip install -r requirements.txt --quiet --disable-pip-version-check",
+            pythonDir, transcript, steps, ct);
         if (!pipResult.IsSuccess)
             return pipResult;
 
+        // --extend-exclude on the command line, not only via the template's .flake8: a repair
+        // can rewrite that file, and a .flake8 that stops excluding .venv would lint
+        // site-packages and fail every retry into a refund.
         var flake8Result = await RunStepAsync(
-            BuildHalf.Python, "python -m flake8 .", "python", "-m flake8 .",
+            BuildHalf.Python, "python -m flake8 .", python, $"-m flake8 --extend-exclude={VenvDirectoryName} .",
             pythonDir, transcript, steps, ct);
         if (!flake8Result.IsSuccess)
             return flake8Result;
 
         return await RunStepAsync(
-            BuildHalf.Python, "python -m pytest --collect-only", "python", "-m pytest --collect-only -q",
+            BuildHalf.Python, "python -m pytest --collect-only", python, "-m pytest --collect-only -q",
             pythonDir, transcript, steps, ct);
     }
+
+    internal const string VenvDirectoryName = ".venv";
+
+    /// <summary>The interpreter inside the per-build venv created under <paramref name="backendDirectory"/>.</summary>
+    internal static string VenvInterpreter(string backendDirectory) =>
+        OperatingSystem.IsWindows()
+            ? Path.Combine(backendDirectory, VenvDirectoryName, "Scripts", "python.exe")
+            : Path.Combine(backendDirectory, VenvDirectoryName, "bin", "python");
 
     private async Task<BuildResult> BuildFrontendAsync(
         string projectDirectory,

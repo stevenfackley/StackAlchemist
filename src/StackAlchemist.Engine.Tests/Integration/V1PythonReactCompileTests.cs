@@ -1,5 +1,6 @@
 using System.IO.Abstractions;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
@@ -27,9 +28,9 @@ namespace StackAlchemist.Engine.Tests.Integration;
 /// <list type="number">
 /// <item><c>npm ci</c> against the committed <c>frontend/package-lock.json</c>, so a
 /// manifest/lock desync fails;</item>
-/// <item>the real <see cref="PythonReactBuildStrategy"/> — pip install, flake8,
-/// <c>pytest --collect-only</c>, npm install, eslint, <c>tsc --noEmit</c> — with only its
-/// interpreter redirected into a throwaway venv;</item>
+/// <item>the real, unmodified <see cref="PythonReactBuildStrategy"/> — its own per-build venv
+/// (#451), pip install, flake8, <c>pytest --collect-only</c>, npm install, eslint,
+/// <c>tsc --noEmit</c> — with the production child-process environment allowlist;</item>
 /// <item>the two things that strategy does not run but the customer does: <c>npm run build</c>
 /// (their <c>Dockerfile.frontend</c>) and the archive's own pytest suite.</item>
 /// </list>
@@ -45,8 +46,6 @@ public sealed class V1PythonReactCompileTests : IDisposable
         Path.GetTempPath(), "sa-v1-python-gate-" + Guid.NewGuid().ToString("N")[..8]);
 
     private string OutputDir => Path.Combine(_workDir, "archive");
-
-    private string VenvDir => Path.Combine(_workDir, "venv");
 
     public void Dispose()
     {
@@ -114,8 +113,7 @@ public sealed class V1PythonReactCompileTests : IDisposable
 
         await PythonReactGate.AssertFrontendInstallsFromLockfileAsync(frontendDir);
 
-        var venvPython = await PythonReactGate.CreateVenvAsync(VenvDir);
-        var strategy = new PythonReactGate.VenvPythonReactBuildStrategy(venvPython);
+        var strategy = new PythonReactBuildStrategy(NullLogger<PythonReactBuildStrategy>.Instance);
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(20));
 
         var result = await strategy.ExecuteBuildAsync(OutputDir, cts.Token);
@@ -129,7 +127,7 @@ public sealed class V1PythonReactCompileTests : IDisposable
         result.Steps.Where(step => step.Half == BuildHalf.Python && !step.Skipped)
             .Select(step => step.Command)
             .Should().Contain(
-                ["python -m pip install -r requirements.txt", "python -m flake8 .", "python -m pytest --collect-only"],
+                ["python -m venv .venv", "python -m pip install -r requirements.txt", "python -m flake8 .", "python -m pytest --collect-only"],
                 $"the FastAPI half must actually be verified.\n\n{transcript}");
 
         result.Steps.Where(step => step.Half == BuildHalf.React && !step.Skipped)
@@ -140,6 +138,8 @@ public sealed class V1PythonReactCompileTests : IDisposable
         result.Steps.Should().OnlyContain(step => step.Skipped || step.ExitCode == 0);
 
         await PythonReactGate.AssertFrontendBuildsAsync(frontendDir);
-        await PythonReactGate.AssertBackendTestsPassAsync(venvPython, backendDir);
+        // The archive's own suite, with the interpreter of the venv the strategy just built.
+        await PythonReactGate.AssertBackendTestsPassAsync(
+            PythonReactBuildStrategy.VenvInterpreter(backendDir), backendDir);
     }
 }

@@ -42,6 +42,7 @@ public sealed class PythonReactBuildStrategyTests : IDisposable
 
         result.IsSuccess.Should().BeTrue();
         result.Steps.Where(s => s.Half == BuildHalf.Python).Select(s => s.Command).Should().Equal(
+            "python -m venv .venv",
             "python -m pip install -r requirements.txt",
             "python -m flake8 .",
             "python -m pytest --collect-only");
@@ -135,6 +136,48 @@ public sealed class PythonReactBuildStrategyTests : IDisposable
         report.Halves.Single(h => h.Half == "python").Status.Should().Be("passed");
     }
 
+    [Fact]
+    public async Task Backend_IsVerifiedInsideItsOwnVenv_NotTheEnginesInterpreter()
+    {
+        // #451: the Engine image's python3 is EXTERNALLY-MANAGED (PEP 668), so `pip install`
+        // into it is refused and the Python half failed at step 1 on every generation; and a
+        // shared interpreter let one generation's pins leak into another's verification.
+        var strategy = new StubbedStrategy();
+
+        await strategy.ExecuteBuildAsync(_root);
+
+        var backend = Path.Combine(_root, "backend");
+        var venvPython = PythonReactBuildStrategy.VenvInterpreter(backend);
+        venvPython.Should().StartWith(Path.Combine(backend, ".venv"));
+
+        var pythonCalls = strategy.Calls.Where(c => c.Arguments.StartsWith("-m ", StringComparison.Ordinal)).ToList();
+        pythonCalls[0].FileName.Should().Be("python", "the venv is created by the system interpreter");
+        pythonCalls[0].Arguments.Should().Be("-m venv --clear --system-site-packages .venv");
+        pythonCalls[0].WorkingDirectory.Should().Be(backend);
+        pythonCalls.Skip(1).Select(c => c.FileName).Should().OnlyContain(f => f == venvPython,
+            "pip, flake8 and pytest must run with the venv's interpreter, never the Engine's");
+        pythonCalls.Skip(1).Select(c => c.Arguments).Should().Equal(
+            "-m pip install -r requirements.txt --quiet --disable-pip-version-check",
+            "-m flake8 --extend-exclude=.venv .",
+            "-m pytest --collect-only -q");
+    }
+
+    [Fact]
+    public async Task VenvCreationFails_ShortCircuitsTheBackendHalf()
+    {
+        var strategy = new StubbedStrategy
+        {
+            Failures = { ["-m venv"] = new StubResponse(1, "The virtual environment was not created successfully because ensurepip is not available.") },
+        };
+
+        var result = await strategy.ExecuteBuildAsync(_root);
+
+        result.IsSuccess.Should().BeFalse();
+        strategy.Commands.Should().NotContain(c => c.Contains("pip install", StringComparison.Ordinal));
+        result.Steps.Should().ContainSingle(s => s.Half == BuildHalf.Python)
+            .Which.Command.Should().Be("python -m venv .venv");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static BuildReport ReportFor(BuildResult result)
@@ -169,6 +212,9 @@ public sealed class PythonReactBuildStrategyTests : IDisposable
     {
         public List<string> Commands { get; } = [];
 
+        /// <summary>Every invocation, unnormalised, in execution order.</summary>
+        public List<(string FileName, string Arguments, string WorkingDirectory)> Calls { get; } = [];
+
         /// <summary>Arguments substring → non-zero response.</summary>
         public Dictionary<string, StubResponse> Failures { get; } = new(StringComparer.Ordinal);
 
@@ -178,6 +224,7 @@ public sealed class PythonReactBuildStrategyTests : IDisposable
             string workingDirectory,
             CancellationToken ct)
         {
+            Calls.Add((fileName, arguments, workingDirectory));
             // fileName is an absolute npm.cmd/npx.cmd path on Windows; normalise to what a
             // reader (and the recorded step's Command) would call it.
             var tool = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
