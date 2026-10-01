@@ -58,22 +58,46 @@ public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> 
 
         LogRunningPython(Logger, pythonDir);
 
+        // A per-build virtual environment (#451). The Engine image's interpreter is Ubuntu's
+        // EXTERNALLY-MANAGED python3 (PEP 668), which refuses `pip install` outright, so this
+        // half failed at its first step on every generation; and a shared interpreter let one
+        // generation's pins leak into another's verification. `--system-site-packages` keeps the
+        // image's preinstalled flake8/pytest reachable as a fallback; the venv's own installs
+        // (the template pins both) take precedence. `.venv` is excluded from the customer's
+        // archive (BuildResiduePaths) and from flake8 (the template's .flake8).
+        var venvResult = await RunStepAsync(
+            BuildHalf.Python, "python -m venv .venv", "python",
+            $"-m venv --system-site-packages {VenvDirectoryName}", pythonDir, transcript, steps, ct);
+        if (!venvResult.IsSuccess)
+            return venvResult;
+
+        var python = VenvInterpreter(pythonDir);
+
         var pipResult = await RunStepAsync(
-            BuildHalf.Python, "python -m pip install -r requirements.txt", "python",
-            "-m pip install -r requirements.txt --quiet", pythonDir, transcript, steps, ct);
+            BuildHalf.Python, "python -m pip install -r requirements.txt", python,
+            "-m pip install -r requirements.txt --quiet --disable-pip-version-check",
+            pythonDir, transcript, steps, ct);
         if (!pipResult.IsSuccess)
             return pipResult;
 
         var flake8Result = await RunStepAsync(
-            BuildHalf.Python, "python -m flake8 .", "python", "-m flake8 .",
+            BuildHalf.Python, "python -m flake8 .", python, "-m flake8 .",
             pythonDir, transcript, steps, ct);
         if (!flake8Result.IsSuccess)
             return flake8Result;
 
         return await RunStepAsync(
-            BuildHalf.Python, "python -m pytest --collect-only", "python", "-m pytest --collect-only -q",
+            BuildHalf.Python, "python -m pytest --collect-only", python, "-m pytest --collect-only -q",
             pythonDir, transcript, steps, ct);
     }
+
+    internal const string VenvDirectoryName = ".venv";
+
+    /// <summary>The interpreter inside the per-build venv created under <paramref name="backendDirectory"/>.</summary>
+    internal static string VenvInterpreter(string backendDirectory) =>
+        OperatingSystem.IsWindows()
+            ? Path.Combine(backendDirectory, VenvDirectoryName, "Scripts", "python.exe")
+            : Path.Combine(backendDirectory, VenvDirectoryName, "bin", "python");
 
     private async Task<BuildResult> BuildFrontendAsync(
         string projectDirectory,

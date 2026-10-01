@@ -54,6 +54,9 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        // Children run LLM-generated code: they get a toolchain allowlist, never the Engine's
+        // secrets (DATABASE_URL, Stripe/Anthropic/R2 keys, …). See BuildProcessEnvironment.
+        BuildProcessEnvironment.Apply(psi.Environment);
 
         using var process = new Process { StartInfo = psi };
         process.Start();
