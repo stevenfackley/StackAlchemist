@@ -392,6 +392,7 @@ jobs:
           docker run -d \
             --name sa-reverse-proxy \
             --restart no \
+            --log-driver json-file --log-opt max-size=10m --log-opt max-file=2 \
             --network stackalchemist-prod \
             --network-alias reverse-proxy \
             -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
