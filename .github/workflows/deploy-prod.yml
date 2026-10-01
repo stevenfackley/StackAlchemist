@@ -392,6 +392,7 @@ jobs:
           docker run -d \
             --name sa-reverse-proxy \
             --restart no \
+            --log-driver json-file --log-opt max-size=10m --log-opt max-file=2 \
             --network stackalchemist-prod \
             --network-alias reverse-proxy \
             -v "$(pwd)/docker/maintenance.html:/usr/share/nginx/html/maintenance.html:ro" \
@@ -443,7 +444,7 @@ jobs:
           if [ $ELAPSED -ge $MAX_WAIT ]; then
             echo "❌ FATAL: app containers not healthy within ${MAX_WAIT}s — leaving maintenance shim up."
             docker compose -f docker-compose.prod.yml ps
-            docker compose -f docker-compose.prod.yml logs --tail 30
+            docker compose -f docker-compose.prod.yml logs --tail 30 2>&1 | sed -E -f "$GITHUB_WORKSPACE/scripts/redact-logs.sed" || true
             exit 1
           fi
 
@@ -497,7 +498,7 @@ jobs:
           if [ $ELAPSED -ge $MAX_WAIT ]; then
             echo "❌ FATAL: Containers did not become healthy within ${MAX_WAIT}s"
             docker compose -f docker-compose.prod.yml ps
-            docker compose -f docker-compose.prod.yml logs --tail 30
+            docker compose -f docker-compose.prod.yml logs --tail 30 2>&1 | sed -E -f "$GITHUB_WORKSPACE/scripts/redact-logs.sed" || true
             exit 1
           fi
 
@@ -528,9 +529,9 @@ jobs:
           if [ "$HTTP_CODE" != "200" ]; then
             echo "❌ FATAL: $URL did not return 200 within ${MAX_WAIT}s"
             echo "--- sa-tunnel logs (last 40) ---"
-            docker logs sa-tunnel --tail 40 2>&1 || true
+            docker logs sa-tunnel --tail 40 2>&1 | sed -E -f "$GITHUB_WORKSPACE/scripts/redact-logs.sed" || true
             echo "--- sa-reverse-proxy logs (last 40) ---"
-            docker logs sa-reverse-proxy --tail 40 2>&1 || true
+            docker logs sa-reverse-proxy --tail 40 2>&1 | sed -E -f "$GITHUB_WORKSPACE/scripts/redact-logs.sed" || true
             exit 1
           fi
 
@@ -563,7 +564,7 @@ jobs:
           if [ "$session" != "$want_session" ] || [ "$marker_state" != "present" ]; then
             echo "❌ FATAL: prod is not in $label mode — /api/auth/session → ${session} (wanted ${want_session}); /login marker '${marker}' ${marker_state}"
             echo "--- sa-web logs (last 60) ---"
-            docker compose -f docker-compose.prod.yml logs --tail 60 sa-web 2>&1 || true
+            docker compose -f docker-compose.prod.yml logs --tail 60 sa-web 2>&1 | sed -E -f "$GITHUB_WORKSPACE/scripts/redact-logs.sed" || true
             echo "### ❌ Prod is NOT in $label mode (/api/auth/session → ${session}, /login marker ${marker_state}). Prod is serving in the other mode; see docs/runbooks/qavren-cutover-phase-e.md §5." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
@@ -575,19 +576,26 @@ jobs:
         shell: bash
         run: |
           set +e
-          mkdir -p .artifacts/deploy-prod
-          docker ps -a > .artifacts/deploy-prod/docker-ps.txt
-          docker compose -f docker-compose.prod.yml ps > .artifacts/deploy-prod/compose-ps-workspace.txt 2>&1 || true
-          docker compose -f docker-compose.prod.yml logs --tail 200 > .artifacts/deploy-prod/compose-workspace.log 2>&1 || true
+          # This repo is PUBLIC: artifacts are downloadable by any signed-in
+          # GitHub user, so every container log passes through the redaction
+          # filter (query strings and nginx referrers carry prompts, #432).
+          # Absolute paths: the `cd "$DEPLOY_DIR"` below used to send the four
+          # `docker logs` files to a non-existent relative dir, so they were
+          # never uploaded.
+          A="$GITHUB_WORKSPACE/.artifacts/deploy-prod"
+          REDACT="$GITHUB_WORKSPACE/scripts/redact-logs.sed"
+          mkdir -p "$A"
+          docker ps -a > "$A/docker-ps.txt"
+          docker compose -f docker-compose.prod.yml ps > "$A/compose-ps-workspace.txt" 2>&1 || true
+          docker compose -f docker-compose.prod.yml logs --tail 200 2>&1 | sed -E -f "$REDACT" > "$A/compose-workspace.log" || true
           if [ -d "$DEPLOY_DIR" ]; then
             cd "$DEPLOY_DIR"
-            docker compose -f docker-compose.prod.yml ps > "$GITHUB_WORKSPACE/.artifacts/deploy-prod/compose-ps-deploy-dir.txt" 2>&1 || true
-            docker compose -f docker-compose.prod.yml logs --tail 200 > "$GITHUB_WORKSPACE/.artifacts/deploy-prod/compose-deploy-dir.log" 2>&1 || true
+            docker compose -f docker-compose.prod.yml ps > "$A/compose-ps-deploy-dir.txt" 2>&1 || true
+            docker compose -f docker-compose.prod.yml logs --tail 200 2>&1 | sed -E -f "$REDACT" > "$A/compose-deploy-dir.log" || true
           fi
-          docker logs sa-engine > .artifacts/deploy-prod/sa-engine.log 2>&1 || true
-          docker logs sa-web > .artifacts/deploy-prod/sa-web.log 2>&1 || true
-          docker logs sa-reverse-proxy > .artifacts/deploy-prod/sa-reverse-proxy.log 2>&1 || true
-          docker logs sa-tunnel > .artifacts/deploy-prod/sa-tunnel.log 2>&1 || true
+          for c in sa-engine sa-web sa-reverse-proxy sa-tunnel; do
+            docker logs --tail 2000 "$c" 2>&1 | sed -E -f "$REDACT" > "$A/$c.log" || true
+          done
 
       - name: Upload deploy diagnostics
         if: failure()

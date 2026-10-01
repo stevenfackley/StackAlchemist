@@ -1,8 +1,18 @@
+# Bounded container logs (#432). Docker's default json-file driver never
+# rotates, so on the single prod EC2 host the logs of a long-lived container
+# grow until the disk fills. 5 × 50 MB per service is days of normal traffic.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   reverse-proxy:
     image: nginx:alpine
     container_name: sa-reverse-proxy
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       sa-web:
         condition: service_healthy
@@ -37,6 +47,7 @@ services:
         NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
     container_name: sa-web
     restart: unless-stopped
+    logging: *default-logging
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -81,6 +92,7 @@ services:
       target: engine
     container_name: sa-engine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:80
