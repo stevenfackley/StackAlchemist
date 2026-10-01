@@ -14,6 +14,13 @@ namespace StackAlchemist.Engine.Data;
 /// size is a deployment setting and is applied where the data source is registered.
 /// </para>
 /// <para>
+/// GSS session encryption is pinned off (<c>GssEncryptionMode = Disable</c>). Npgsql 10 changed
+/// the default to <c>Prefer</c>, so every new physical connection first tries GSSAPI (and logs a
+/// libgssapi load failure on a Linux image without Kerberos) before falling back to TLS. Nothing
+/// in this stack uses Kerberos and the peer is the Supavisor pooler, so the Engine keeps the
+/// Npgsql 9 handshake: straight to TLS.
+/// </para>
+/// <para>
 /// Parsing is strict on purpose: a URL that silently lost its intent (a mis-cased
 /// <c>sslmode</c>, a pgbouncer flag glued on with a second <c>?</c>) would fall back to a weaker
 /// TLS mode without anyone noticing. Only <c>sslmode</c>, <c>application_name</c>,
@@ -60,6 +67,7 @@ public static partial class PostgresUrl
                 MaxAutoPrepare = 0,
                 NoResetOnClose = true,
                 SslMode = SslMode.Prefer,
+                GssEncryptionMode = GssEncryptionMode.Disable,
             };
 
             foreach (var (key, values) in query)

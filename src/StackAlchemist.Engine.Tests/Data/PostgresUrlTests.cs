@@ -25,6 +25,18 @@ public sealed class PostgresUrlTests
         b.SslMode.Should().Be(SslMode.Require);
         b.MaxAutoPrepare.Should().Be(0);                 // transaction pooler: no server-side prepare
         b.NoResetOnClose.Should().BeTrue();              // transaction pooler: no DISCARD ALL
+        b.GssEncryptionMode.Should().Be(GssEncryptionMode.Disable); // Npgsql 10 defaults to Prefer
+    }
+
+    [Fact]
+    public void Pins_gss_encryption_off_even_without_query_parameters()
+    {
+        // Npgsql 10 made GSS session encryption Prefer by default; the Engine has no Kerberos and
+        // talks to the Supavisor pooler, so it must keep the Npgsql 9 handshake (straight to TLS).
+        new NpgsqlConnectionStringBuilder().GssEncryptionMode
+            .Should().NotBe(GssEncryptionMode.Disable, "otherwise this pin is redundant and the test proves nothing");
+        Convert("postgresql://u:p@localhost/db").GssEncryptionMode
+            .Should().Be(GssEncryptionMode.Disable);
     }
 
     [Fact]
