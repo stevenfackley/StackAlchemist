@@ -34,23 +34,24 @@ Supabase identities that no Keycloak account will ever own. Any push to `main`
 outside `paths-ignore` deploys prod, so a half-set of secrets is not "waiting
 for the flip"; it is the next deploy's configuration.
 
-## State measured 2026-09-30 (after phase D deployed)
+## State measured 2026-09-30, updated 2026-10-01 01:30 UTC
 
 | Prerequisite | State | Owner action |
 |---|---|---|
 | qavren-db `stackalchemist` schema on `qavren-db-test` | done 2026-09-29 | — |
-| qavren-db `stackalchemist` schema on `qavren-db-prod` | **missing** | §1.1 |
-| qavren-db manifest `apps/stackalchemist.yaml` (qavren-db #41) | merged 2026-09-30, lists `[test, prod]` | see the warning in §1.1 |
-| Prod secret `DATABASE_URL_MIGRATE` | **absent** | §1.1 |
+| qavren-db `stackalchemist` schema on `qavren-db-prod` | **provisioned 2026-10-01** (`status=created`; schema + role verified read-only; 0 tables until the first migrate). Credentials in `provision-prod.txt` in the vault directory | — |
+| qavren-db manifest `apps/stackalchemist.yaml` (qavren-db #41) | merged 2026-09-30, lists `[test, prod]`; both targets now exist, so the nightly backup passes. Notes update: qavren-db #42 | — |
+| Prod secret `DATABASE_URL_MIGRATE` | **set 2026-10-01** (session pooler `:5432` on the `*.pooler.supabase.com` host, so IPv4; `?sslmode=require`) | dispatch one deploy (§1.1) |
 | Prod secret `DATABASE_URL` | absent (set it in §2, not before) | §2 |
 | Prod secret `AUTH_SECRET` | **set 2026-09-30** (minted `openssl rand -base64 32`; inert until `QAVREN_AUTH_URL` exists) | — |
 | Prod secret `QAVREN_AUTH_URL` | absent (set it in §2, not before) | §2 |
 | qavren-auth realms `stackalchemist` + `stackalchemist-dev`, hostname entry, login skin (qavren-auth #164) | merged 2026-09-30 (`f2f0ae8`) | — |
 | Terraform edge for `auth.stackalchemist.app` | **applied 2026-09-30** (1 added, 2 changed, 0 destroyed, after the owner granted the apply) | — |
 | `auth.stackalchemist.app` | resolves; `/realms/master/.well-known/openid-configuration` 200, `/realms/stackalchemist/…` 404 until §1.4; shared host 308s `/realms/stackalchemist/*` to it | — |
-| Realm `stackalchemist` on the prod Keycloak | not applied (`auth.qavrensolutions.com/realms/stackalchemist-dev` → 404 too) | §1.4 |
+| Realms `stackalchemist` + `stackalchemist-dev` on the prod Keycloak | **applied 2026-10-01** without `-Themes` (config-cli only, no Keycloak restart): issuer `https://auth.stackalchemist.app/realms/stackalchemist`, 2 signing keys, login page "Sign in to StackAlchemist" with Google + Register on Keycloak's **built-in** theme; dev realm issuer `https://auth.qavrensolutions.com/realms/stackalchemist-dev` | ship the skin off-hours (§1.4) |
 | Google redirect URIs for both realms | not registered | §1.3 |
-| `www.stackalchemist.app` | **serves the app (HTTP 200, no redirect)** — must 301 to the apex before the flip | §1.5 |
+| `www.stackalchemist.app` | **serves the app (HTTP 200, no redirect)** — must 301 to the apex before the flip. The zone has no redirect rules at all (checked via API 2026-10-01); creating one via the API was refused to the assistant as a DNS/domain change | §1.5 |
+| `sa-prod-tunnel` ingress | **host-only** (checked via API 2026-10-01): `stackalchemist.app` and `www.stackalchemist.app` → `http://sa-reverse-proxy:80`, catch-all 404 | — |
 | Prod app | Supabase mode: `/api/healthz` 200, `/api/auth/session` 404, `/login` renders the Supabase client; last deploy 36766447657 green; the last four deploys took 2–4 minutes each | — |
 | `deploy-prod.yml` guards (preflight with shape checks, mode check) | PR #439 | — |
 
@@ -173,6 +174,8 @@ immediately. `docs/google-oauth-setup.md` in qavren-auth has the details.
 
 ### 1.4 Apply the realms and ship the login skin (off-hours)
 
+**Realms applied 2026-10-01 without `-Themes`** (`./update-realms.ps1 -Realm stackalchemist`, then `-Realm stackalchemist-dev`): config-cli only, no Keycloak restart, other realms unaffected. Keycloak serves its built-in login theme until the skin ships, because the realm names a theme the server does not have yet. What remains is the one restart that ships the skin, off-hours, from `qavren-auth/infra` in a pwsh prompt: `./update-realms.ps1 -Realm stackalchemist -Themes`. The original instructions follow for reference.
+
 `-Themes` recreates the Keycloak container so `start` re-reads the mounted
 themes: **about 40 s of 503s at the edge for every realm on the box**
 (haulcall, squarelog, recharacter, trailtold, gavel-suite, fairsquare, …).
@@ -249,13 +252,14 @@ If every row is host-only, nothing to do.
 
 Do not start §2 until each line is true:
 
-- [ ] §1.1 `gh secret list … --env Prod` shows `DATABASE_URL_MIGRATE` and `AUTH_SECRET`, and NOT `DATABASE_URL`; `provision-prod.txt` has 2 URL lines
+- [x] §1.1 `gh secret list … --env Prod` shows `DATABASE_URL_MIGRATE` and `AUTH_SECRET`, and NOT `DATABASE_URL`; `provision-prod.txt` has 2 URL lines (2026-10-01)
 - [ ] §1.1 the deploy dispatched right after is green with `qavren-db migrations applied` and `Prod verified in Supabase Auth mode`
 - [x] §1.2 `auth.stackalchemist.app` resolves (done 2026-09-30)
 - [ ] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain
-- [ ] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist`; login page shows the skin
+- [x] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist` (2026-10-01)
+- [ ] §1.4 login page shows the skin (`./update-realms.ps1 -Realm stackalchemist -Themes`, off-hours; cosmetic, does not block the flip)
 - [ ] §1.5 `www.` → 301 to the apex
-- [ ] §1.6 tunnel rows are host-only
+- [x] §1.6 tunnel rows are host-only (2026-10-01)
 - [ ] The last `deploy-prod` run is green and its summary says `Prod verified in Supabase Auth mode` — proves the mode check works before you rely on it for the flip (the merge of PR #439 produced the first such run)
 
 ## 2. The flip (two secrets, one deploy)
