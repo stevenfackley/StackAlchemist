@@ -59,10 +59,12 @@ export class SupabaseStore implements DataStore {
     return data as Generation;
   }
 
-  async getGenerationById(id: string): Promise<Generation | null> {
+  async getGenerationForUser(id: string, userId: string): Promise<Generation | null> {
     // A malformed id would make Postgres raise 22P02; it is simply not found.
-    if (!UUID.test(id)) return null;
-    const { data, error } = await this.client().from("generations").select("*").eq("id", id).maybeSingle();
+    if (!UUID.test(id) || !UUID.test(userId)) return null;
+    // Service-role client: RLS is bypassed, so the owner scope must be explicit.
+    const { data, error } = await this.client().from("generations").select("*")
+      .eq("id", id).eq("user_id", userId).maybeSingle();
     if (error) throw new DataStoreError("generations select failed", error);
     return (data as Generation | null) ?? null;
   }

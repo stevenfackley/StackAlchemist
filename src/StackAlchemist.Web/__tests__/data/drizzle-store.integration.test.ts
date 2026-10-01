@@ -92,7 +92,7 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
     expect(await store.resetForRetry(g.id, bob)).toBe(false);
     expect(await store.resetForRetry(g.id, alice)).toBe(true);
-    expect((await store.getGenerationById(g.id))?.status).toBe("pending");
+    expect((await store.getGenerationForUser(g.id, alice))?.status).toBe("pending");
   });
 
   it("retry only flips failed rows", async () => {
@@ -175,16 +175,19 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     }
   });
 
-  it("getGenerationById returns null for an unknown or malformed id", async () => {
-    expect(await store.getGenerationById(randomUUID())).toBeNull();
-    expect(await store.getGenerationById("demo-simple-123")).toBeNull();
+  it("getGenerationForUser returns null for an unknown or malformed id, or a malformed owner id", async () => {
+    expect(await store.getGenerationForUser(randomUUID(), alice)).toBeNull();
+    expect(await store.getGenerationForUser("demo-simple-123", alice)).toBeNull();
+    const g = await gen(alice);
+    expect(await store.getGenerationForUser(g.id, "not-a-uuid")).toBeNull();
   });
 
-  it("getGenerationById is deliberately unscoped: anyone with the id gets the row", async () => {
+  it("getGenerationForUser is owner-only: another user gets null, the same answer as an unknown id", async () => {
     const g = await gen(alice);
-    // Phase B decision 3: the by-id read stays unscoped (the result page is reachable by link);
-    // owner-only result pages are an open product question. Callers that need ownership check user_id.
-    expect((await store.getGenerationById(g.id))?.user_id).toBe(alice);
+    // Result pages are owner-only (decided 2026-09-30, phase B decision 3): the
+    // scope lives in the SQL, so no caller can forget it.
+    expect((await store.getGenerationForUser(g.id, alice))?.user_id).toBe(alice);
+    expect(await store.getGenerationForUser(g.id, bob)).toBeNull();
   });
 
   it("a failed query rejects with the Postgres error as cause, without the SQL params", async () => {

@@ -48,13 +48,14 @@ export interface DataStore {
   /** Returns the row as stored: status `pending`, `attempt_count` 0, column defaults applied. */
   insertGeneration(gen: NewGeneration): Promise<Generation>;
   /**
-   * By id, deliberately unscoped: parity with today's service-role read (the
-   * /generate/[id] page is reachable by link; phase B decision 3 leaves
-   * owner-only result pages as an open product question). Callers that need
-   * ownership check `user_id` themselves, as `retryGeneration` does.
-   * Returns null for an unknown or malformed id.
+   * The row with this id, only if it belongs to `userId`: the owner scope is in
+   * the query itself, so no caller can forget it (result pages are owner-only,
+   * decided 2026-09-30, phase B decision 3). Someone else's id, an unknown id
+   * and a malformed id or owner id all return null, the same answer, so the
+   * read is not an existence oracle. There is deliberately no unscoped by-id
+   * read in this interface.
    */
-  getGenerationById(id: string): Promise<Generation | null>;
+  getGenerationForUser(id: string, userId: string): Promise<Generation | null>;
   /**
    * Atomic compare-and-set, scoped in SQL: only the owner's failed row flips
    * back to pending. Returns whether a row changed, so of two concurrent
