@@ -48,7 +48,7 @@ for the flip"; it is the next deploy's configuration.
 | qavren-auth realms `stackalchemist` + `stackalchemist-dev`, hostname entry, login skin (qavren-auth #164) | merged 2026-09-30 (`f2f0ae8`) | — |
 | Terraform edge for `auth.stackalchemist.app` | **applied 2026-09-30** (1 added, 2 changed, 0 destroyed, after the owner granted the apply) | — |
 | `auth.stackalchemist.app` | resolves; `/realms/master/.well-known/openid-configuration` 200, `/realms/stackalchemist/…` 404 until §1.4; shared host 308s `/realms/stackalchemist/*` to it | — |
-| Realms `stackalchemist` + `stackalchemist-dev` on the prod Keycloak | **applied 2026-10-01** without `-Themes` (config-cli only, no Keycloak restart): issuer `https://auth.stackalchemist.app/realms/stackalchemist`, 2 signing keys, login page "Sign in to StackAlchemist" with Google + Register on Keycloak's **built-in** theme; dev realm issuer `https://auth.qavrensolutions.com/realms/stackalchemist-dev` | ship the skin off-hours (§1.4) |
+| Realms `stackalchemist` + `stackalchemist-dev` on the prod Keycloak | **applied 2026-10-01** without `-Themes` (config-cli only, no Keycloak restart): issuer `https://auth.stackalchemist.app/realms/stackalchemist`, 2 signing keys, login page "Sign in to StackAlchemist" with Google + Register on Keycloak's **built-in** theme; dev realm issuer `https://auth.qavrensolutions.com/realms/stackalchemist-dev` | skin shipped 2026-10-01 02:18 UTC (`-Themes`) |
 | Google redirect URIs for both realms | **registered 2026-10-01** on the `qavren-auth` client (`…o14grta42…`, the one the realm's Google button sends; 13 existing URIs untouched); `stackalchemist.app` was already an authorized domain. Verified in a signed-in browser: Google issues a code to both broker endpoints, while an unregistered control URI gets "Access blocked … Error 400" | — |
 | `www.stackalchemist.app` | **301 to the apex since 2026-10-01** (zone redirect ruleset created via the API with one rule, `http.host eq "www.stackalchemist.app"` → `concat("https://stackalchemist.app", http.request.uri.path)`, query preserved; rule id `21701121e05140b9bada3d8f58f8ac03`). Verified: `/login?x=1` and `/generate/abc?tier=0` keep path and query | — |
 | `sa-prod-tunnel` ingress | **host-only** (checked via API 2026-10-01): `stackalchemist.app` and `www.stackalchemist.app` → `http://sa-reverse-proxy:80`, catch-all 404 | — |
@@ -257,7 +257,7 @@ Do not start §2 until each line is true:
 - [x] §1.2 `auth.stackalchemist.app` resolves (done 2026-09-30)
 - [x] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain (2026-10-01)
 - [x] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist` (2026-10-01)
-- [ ] §1.4 login page shows the skin (`./update-realms.ps1 -Realm stackalchemist -Themes`, off-hours; cosmetic, does not block the flip)
+- [x] §1.4 login page shows the skin (`-Themes` run 2026-10-01 02:16–02:18 UTC; Keycloak recreated healthy, every other realm answered 200 after; prod sign-in loads `/resources/…/login/stackalchemist`)
 - [x] §1.5 `www.` → 301 to the apex (2026-10-01)
 - [x] §1.6 tunnel rows are host-only (2026-10-01)
 - [ ] The last `deploy-prod` run is green and its summary says `Prod verified in Supabase Auth mode` — proves the mode check works before you rely on it for the flip (the merge of PR #439 produced the first such run)
