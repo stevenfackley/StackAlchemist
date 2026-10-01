@@ -8,8 +8,9 @@
 @config "../../tailwind.config.ts";
 
 /*
-  Tailwind 4 changed the default border color to `currentcolor`. Keep the v3 default (gray-200)
-  so an unqualified `border` still draws the light rule v3-era markup expects.
+  Tailwind 4 changed three v3 defaults that v3-era markup relies on. These are the
+  compatibility styles from the official v4 upgrade guide: borders default to gray-200 instead
+  of `currentcolor`, placeholders to gray-400, and enabled buttons get a pointer cursor.
 */
 @layer base {
   *,
@@ -18,5 +19,15 @@
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
