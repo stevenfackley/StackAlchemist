@@ -49,7 +49,7 @@ for the flip"; it is the next deploy's configuration.
 | Terraform edge for `auth.stackalchemist.app` | **applied 2026-09-30** (1 added, 2 changed, 0 destroyed, after the owner granted the apply) | — |
 | `auth.stackalchemist.app` | resolves; `/realms/master/.well-known/openid-configuration` 200, `/realms/stackalchemist/…` 404 until §1.4; shared host 308s `/realms/stackalchemist/*` to it | — |
 | Realms `stackalchemist` + `stackalchemist-dev` on the prod Keycloak | **applied 2026-10-01** without `-Themes` (config-cli only, no Keycloak restart): issuer `https://auth.stackalchemist.app/realms/stackalchemist`, 2 signing keys, login page "Sign in to StackAlchemist" with Google + Register on Keycloak's **built-in** theme; dev realm issuer `https://auth.qavrensolutions.com/realms/stackalchemist-dev` | ship the skin off-hours (§1.4) |
-| Google redirect URIs for both realms | not registered | §1.3 |
+| Google redirect URIs for both realms | **registered 2026-10-01** on the `qavren-auth` client (`…o14grta42…`, the one the realm's Google button sends; 13 existing URIs untouched); `stackalchemist.app` was already an authorized domain. Verified in a signed-in browser: Google issues a code to both broker endpoints, while an unregistered control URI gets "Access blocked … Error 400" | — |
 | `www.stackalchemist.app` | **301 to the apex since 2026-10-01** (zone redirect ruleset created via the API with one rule, `http.host eq "www.stackalchemist.app"` → `concat("https://stackalchemist.app", http.request.uri.path)`, query preserved; rule id `21701121e05140b9bada3d8f58f8ac03`). Verified: `/login?x=1` and `/generate/abc?tier=0` keep path and query | — |
 | `sa-prod-tunnel` ingress | **host-only** (checked via API 2026-10-01): `stackalchemist.app` and `www.stackalchemist.app` → `http://sa-reverse-proxy:80`, catch-all 404 | — |
 | Prod app | Supabase mode: `/api/healthz` 200, `/api/auth/session` 404, `/login` renders the Supabase client; last deploy 36766447657 green; the last four deploys took 2–4 minutes each | — |
@@ -253,9 +253,9 @@ If every row is host-only, nothing to do.
 Do not start §2 until each line is true:
 
 - [x] §1.1 `gh secret list … --env Prod` shows `DATABASE_URL_MIGRATE` and `AUTH_SECRET`, and NOT `DATABASE_URL`; `provision-prod.txt` has 2 URL lines (2026-10-01)
-- [ ] §1.1 the deploy dispatched right after is green with `qavren-db migrations applied` and `Prod verified in Supabase Auth mode`
+- [x] §1.1 the deploy dispatched right after is green with `qavren-db migrations applied` and `Prod verified in Supabase Auth mode` (run 36803904667, `migrations applied (2)`)
 - [x] §1.2 `auth.stackalchemist.app` resolves (done 2026-09-30)
-- [ ] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain
+- [x] §1.3 both Google redirect URIs saved; `stackalchemist.app` an authorized domain (2026-10-01)
 - [x] §1.4 discovery issuer is `https://auth.stackalchemist.app/realms/stackalchemist` (2026-10-01)
 - [ ] §1.4 login page shows the skin (`./update-realms.ps1 -Realm stackalchemist -Themes`, off-hours; cosmetic, does not block the flip)
 - [x] §1.5 `www.` → 301 to the apex (2026-10-01)
