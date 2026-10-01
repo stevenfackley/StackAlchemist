@@ -164,6 +164,47 @@ describe("POST /api/csp-report", () => {
     for (const value of Object.values(logged)) expect(value.length).toBeLessThanOrEqual(512);
   });
 
+  it("summarizes a flat (unwrapped) report the same way", async () => {
+    await POST(makeRequest(JSON.stringify({
+      "document-uri": "https://stackalchemist.app/simple?q=secret",
+      "effective-directive": "font-src",
+      "blocked-uri": "https://fonts.example/f.woff2?v=2",
+    })));
+    expect(JSON.parse(loggedLine())).toEqual({
+      directive: "font-src",
+      blocked: "https://fonts.example/f.woff2",
+      document: "/simple",
+    });
+  });
+
+  it("ignores array bodies (Reporting API format is not used by this policy)", async () => {
+    await POST(makeRequest(JSON.stringify([{ type: "csp-violation", body: { documentURL: "https://x/?q=secret" } }])));
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("reduces opaque document and blocked URLs to their scheme instead of logging the payload", async () => {
+    await POST(makeRequest(JSON.stringify({
+      "csp-report": {
+        "document-uri": "data:text/html,<p>my secret prompt</p>",
+        "effective-directive": "script-src",
+        "blocked-uri": "blob:https://stackalchemist.app/1f2e3d4c",
+      },
+    })));
+    const logged = JSON.parse(loggedLine());
+    expect(logged).toEqual({ directive: "script-src", blocked: "blob:", document: "data:" });
+    vi.mocked(console.warn).mockClear();
+    await POST(makeRequest(JSON.stringify({ "csp-report": { "effective-directive": "img-src", "document-uri": "about:blank", "blocked-uri": "chrome-extension://abcdef/icon.png" } })));
+    // Non-special schemes have an opaque ("null") origin in WHATWG URL, so both reduce to the scheme.
+    expect(JSON.parse(loggedLine())).toEqual({ directive: "img-src", blocked: "chrome-extension:", document: "about:" });
+  });
+
+  it("caps keyword-like fields (disposition, CSP keywords) at 64 characters", async () => {
+    await POST(makeRequest(JSON.stringify({ "csp-report": { "effective-directive": "script-src", "blocked-uri": "k".repeat(500), disposition: "d".repeat(500) } })));
+    const logged = JSON.parse(loggedLine());
+    expect(logged.blocked.length).toBe(64);
+    expect(logged.disposition.length).toBe(64);
+  });
+
   it("logs nothing when the report has none of the allowlisted fields", async () => {
     await POST(makeRequest(JSON.stringify({ "csp-report": { referrer: "https://www.google.com/?q=x" } })));
     expect(console.warn).not.toHaveBeenCalled();

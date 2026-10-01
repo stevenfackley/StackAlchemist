@@ -9,7 +9,9 @@ import { NextResponse } from "next/server";
 // `document-uri` for `/simple?q=<prompt>` carries the user's prompt, and
 // `referrer`, `script-sample` and `original-policy` are PII or noise. URLs lose
 // their query string and fragment, the document URL keeps only its path, and
-// every field is length-capped. nginx already caps this request body at 16k.
+// every field is length-capped. The request body itself is bounded by nginx
+// (`client_max_body_size 16k` on this location); the slice below only bounds
+// what is parsed.
 
 const MAX_BODY_CHARS = 16_384;
 const MAX_FIELD_CHARS = 512;
@@ -17,12 +19,21 @@ const MAX_KEYWORD_CHARS = 64;
 
 type Report = Record<string, unknown>;
 
-/** Origin + path of an absolute URL; `data:`/`blob:` → scheme; CSP keywords ("inline", "eval") pass through, short. */
+/**
+ * A URL whose "path" is really a payload (data:, javascript:, about:, …) or
+ * that wraps another URL (blob:) is reduced to its scheme; logging its
+ * pathname would log the payload.
+ */
+function isOpaque(url: URL): boolean {
+  return url.origin === "null" || url.protocol === "blob:";
+}
+
+/** Origin + path of an absolute URL; opaque URLs → scheme; CSP keywords ("inline", "eval") pass through, short. */
 function stripUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || value === "") return undefined;
   try {
     const url = new URL(value);
-    if (url.origin === "null") return url.protocol; // data:, blob:, about:, …
+    if (isOpaque(url)) return url.protocol;
     return (url.origin + url.pathname).slice(0, MAX_FIELD_CHARS);
   } catch {
     return value.split(/[?#]/)[0].slice(0, MAX_KEYWORD_CHARS);
@@ -33,7 +44,9 @@ function stripUrl(value: unknown): string | undefined {
 function pathOnly(value: unknown): string | undefined {
   if (typeof value !== "string" || value === "") return undefined;
   try {
-    return new URL(value).pathname.slice(0, MAX_FIELD_CHARS);
+    const url = new URL(value);
+    if (isOpaque(url)) return url.protocol;
+    return url.pathname.slice(0, MAX_FIELD_CHARS);
   } catch {
     return value.split(/[?#]/)[0].slice(0, MAX_FIELD_CHARS);
   }
