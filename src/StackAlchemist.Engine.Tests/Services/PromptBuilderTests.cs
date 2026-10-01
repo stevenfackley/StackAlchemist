@@ -408,6 +408,32 @@ public class PromptBuilderTests
                     "Program.cs registration fragments are addressed by zone, not by file path");
     }
 
+    [Theory]
+    [InlineData(ProjectType.DotNetNextJs)]
+    [InlineData(ProjectType.PythonReact)]
+    public void BuildGenerationPrompt_ColorTheme_PointsThePaletteAtTheTailwind4ConfigHook(ProjectType projectType)
+    {
+        // Tailwind 4 reads tailwind.config.ts only because the template stylesheet names it with
+        // `@config`. A model that "fixes" the stylesheet back to v3 `@tailwind` directives keeps
+        // the build green and ships CSS with no theme, no preflight and no palette.
+        var personalization = new GenerationPersonalization
+        {
+            ColorScheme = new PersonalizationColorScheme { Primary = "#0F766E" },
+        };
+
+        var prompt = _sut.BuildGenerationPrompt(
+            new GenerationSchema(), projectType, personalization, projectName: "InvoiceHub");
+
+        prompt.Should().Contain("Tailwind CSS v4")
+              .And.Contain("`tailwind.config.ts`")
+              .And.Contain("`theme.extend.colors`")
+              .And.Contain("`@config`")
+              .And.Contain("- primary: #0F766E");
+        prompt.Should().Contain("do NOT add")
+              .And.Contain("`@tailwind base/components/utilities`")
+              .And.Contain("`safelist` or `corePlugins`");
+    }
+
     [Fact]
     public void BuildGenerationPrompt_UsesTheRenderedProjectNameForNamespaces()
     {

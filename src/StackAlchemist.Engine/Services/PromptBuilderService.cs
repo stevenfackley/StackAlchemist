@@ -135,12 +135,19 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
             {
                 sb.AppendLine();
                 sb.AppendLine("## Color Theme");
-                sb.AppendLine(CultureInfo.InvariantCulture, $"Use this palette in the generated frontend's Tailwind config (tailwind.config.ts):");
+                sb.AppendLine("The frontend uses Tailwind CSS v4. Put this palette in the frontend's `tailwind.config.ts` under");
+                sb.AppendLine("`theme.extend.colors`; the stylesheet loads that file with `@config`:");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- primary: {personalization.ColorScheme.Primary}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- secondary: {personalization.ColorScheme.Secondary}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- accent: {personalization.ColorScheme.Accent}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- background: {personalization.ColorScheme.Background}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- surface: {personalization.ColorScheme.Surface}");
+                // A stylesheet rewritten with v3 `@tailwind` directives still builds, but ships CSS
+                // with no theme, no preflight and no palette, and no gate notices. `safelist` and
+                // `corePlugins` are unsupported in v4 and fail the Next typecheck (a wasted retry).
+                sb.AppendLine("Do NOT edit the stylesheet's `@import \"tailwindcss\";` or `@config` lines, and do NOT add");
+                sb.AppendLine("v3 `@tailwind base/components/utilities` directives. Do not use `safelist` or `corePlugins`");
+                sb.AppendLine("in the config; Tailwind v4 does not support them.");
             }
 
             if (personalization.FeatureFlags is not null)
@@ -240,7 +247,8 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
         sb.AppendLine("8. `nextjs/src/lib/api.ts` — whole file. Keep the exported `apiFetch<T>` helper (other code imports it),");
         sb.AppendLine("   add typed helpers per entity, and import the entity types from `@/types`.");
         sb.AppendLine("9. `nextjs/src/app/page.tsx` — whole file: a default-exported home page linking to each entity.");
-        sb.AppendLine("   ESLint runs during `next build`: no unused symbols, no unescaped apostrophes in JSX text.");
+        sb.AppendLine("   `tsc --noEmit` and `next build` must pass, and the archive ships `npm run lint`: no unused");
+        sb.AppendLine("   symbols, no unescaped apostrophes in JSX text.");
         sb.AppendLine();
         sb.AppendLine("### .NET constraints");
         sb.AppendLine("- Dapper, not Entity Framework. Parameterized SQL only — never interpolate into a query.");
