@@ -460,5 +460,18 @@ public class PromptBuilderTests
             + "using and failed CS0246 — burning the build-repair loop's retries on a prompt defect");
     }
 
+    [Theory]
+    [InlineData(ProjectType.DotNetNextJs)]
+    [InlineData(ProjectType.PythonReact)]
+    public void BuildGenerationPrompt_StackLineNamesTailwindV4AndItsUtilityScale(ProjectType projectType)
+    {
+        // #456: models default to Tailwind v3 utility names, several of which shifted scale in v4.
+        var prompt = _sut.BuildGenerationPrompt(new GenerationSchema(), projectType);
+
+        prompt.Should().Contain("Tailwind CSS v4 (v4 utility scale")
+              .And.Contain("`shadow-xs`")
+              .And.Contain("`ring-3`");
+    }
+
     #endregion
 }

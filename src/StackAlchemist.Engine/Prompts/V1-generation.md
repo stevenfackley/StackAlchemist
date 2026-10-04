@@ -43,7 +43,7 @@ app.MapCustomerEndpoints();
 ## Stack
 
 - **Backend:** .NET 10, Minimal API, Dapper, PostgreSQL (Npgsql)
-- **Frontend:** Next.js 16 (App Router), TypeScript strict, Tailwind CSS
+- **Frontend:** Next.js 16 (App Router), TypeScript strict, Tailwind CSS v4 (v4 utility scale: use `shadow-xs`, `rounded-xs`, `blur-xs` where v3 used `shadow-sm`, `rounded-sm`, `blur-sm`; a bare `ring` is 1px, so write `ring-3` for the old default)
 - **Database:** PostgreSQL with UUID primary keys and Row Level Security
 
 ## Project Identity
