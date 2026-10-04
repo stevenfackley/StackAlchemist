@@ -890,3 +890,9 @@ The review found six defects, all fixed in this change:
 - an owner-approved zero-charge probe workflow, which creates and immediately expires a $1 session.
 
 Phase F's gate G2(2) becomes "this hardening merged, plus one of those two checks green" instead of "a paid checkout and refund".
+
+**Addendum 2026-10-04 — the live account had no webhook endpoint.** The approved wiring check (`.github/workflows/stripe-wiring-check.yml`) found **zero** webhook endpoints in the live Stripe account. Every live checkout so far would have charged the customer and built nothing. The Prod `STRIPE_WEBHOOK_SECRET` (2026-04-02) matched no live endpoint.
+- The workflow created `we_1UMfsUCF5Q50oI5Iyz6LUolM` with the six handled events, `api_version` pinned to Stripe.net 53's.
+- Stripe returns the signing secret only once. The workflow printed it only RSA-OAEP-encrypted to a one-time operator key, and it was decrypted locally into the Prod secret.
+- Prod was redeployed. The zero-charge probe then proved Stripe → Engine → qavren-db end to end.
+- **Lesson:** a paid path that has never processed a payment is unverified, whatever its tests say. Run the wiring check after any Stripe account, key or URL change.

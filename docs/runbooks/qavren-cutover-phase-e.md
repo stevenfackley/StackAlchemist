@@ -485,3 +485,10 @@ realm, which is untouched); the Supabase accounts come back.
 - Default model moved to Claude Sonnet 5.5 (PR #467).
 - Test mirror retired (PR #468, closes #211): `deploy-test.yml` deleted. The base compose file `docker/docker-compose.test.yml` is now only used by CI with the ci overlay.
 - Phase F (retire Supabase mode, delete the old project) is planned in `docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`.
+
+**2026-10-04 — §3.4 money path verified without a purchase.**
+- The owner declined a live buy and refund.
+- #471 hardened the webhook path.
+- The wiring check found and fixed a missing live webhook endpoint (`we_1UMfsUCF5Q50oI5Iyz6LUolM`, new Prod `STRIPE_WEBHOOK_SECRET`, redeploy 37173519076).
+- A zero-charge probe (run 37173569528) proved Stripe → Engine → qavren-db with the signing secret.
+- Details in `docs/runbooks/stripe-webhooks.md`.
