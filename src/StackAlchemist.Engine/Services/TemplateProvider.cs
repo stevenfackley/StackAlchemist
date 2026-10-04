@@ -98,11 +98,27 @@ public sealed partial class TemplateProvider : ITemplateProvider
             .ToList();
     }
 
+    /// <remarks>
+    /// The fill is re-indented to the START marker's line (<see cref="ZoneIndentation"/>), keeping
+    /// its relative indentation, so a zone inside a Python <c>def</c> stays a valid block
+    /// (StackAlchemist#450). The END marker keeps its own indentation, and the fill is inserted
+    /// literally — a <c>$1</c> or <c>$_</c> in generated code is not a substitution token.
+    /// </remarks>
     public string InjectIntoZone(string template, string zoneName, string content)
     {
-        var pattern = $@"(\[\[LLM_INJECTION_START:\s*{Regex.Escape(zoneName)}\s*\]\])(\r?\n)?(.*?)(\[\[LLM_INJECTION_END:\s*{Regex.Escape(zoneName)}\s*\]\])";
-        var replacement = $"${{1}}\n{content}\n${{4}}";
-        return Regex.Replace(template, pattern, replacement, RegexOptions.Singleline);
+        var name = Regex.Escape(zoneName);
+        var pattern =
+            $@"(?<start>\[\[LLM_INJECTION_START:\s*{name}\s*\]\])(?<newline>\r?\n)?.*?"
+            + $@"(?<endIndent>[ \t]*)(?<end>\[\[LLM_INJECTION_END:\s*{name}\s*\]\])";
+
+        return Regex.Replace(template, pattern, match =>
+        {
+            var newline = match.Groups["newline"].Success ? match.Groups["newline"].Value : "\n";
+            var indent = ZoneIndentation.LineIndentation(template, match.Index);
+            var body = ZoneIndentation.Reindent(content, indent, newline);
+            return match.Groups["start"].Value + newline + body + newline
+                 + match.Groups["endIndent"].Value + match.Groups["end"].Value;
+        }, RegexOptions.Singleline);
     }
 
     public string StripInjectionMarkers(string content)
