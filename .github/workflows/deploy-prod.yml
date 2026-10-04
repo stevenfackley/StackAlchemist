@@ -593,6 +593,25 @@ jobs:
           echo "✅ prod is in $label mode (/api/auth/session → ${session}; /login marker present)"
           echo "### ✅ Prod verified in $label mode" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Build sandbox selftest (prod)
+        # The Compile Guarantee build sandbox (#454) on the prod kernel. Proves:
+        # - builds run as uid 10001 and cannot read the Engine's secrets or other jobs;
+        # - they cannot reach instance metadata or loopback, but can reach the registries;
+        # - the toolchains work as that user;
+        # - nothing survives the purge.
+        # It runs after the swap, so prod is already serving. A failure here means paid builds
+        # are unsafe or broken: fix forward or revert.
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$DEPLOY_DIR"
+          if docker compose -f docker-compose.prod.yml exec -T sa-engine /usr/local/lib/stackalchemist/sandbox-selftest.sh; then
+            echo "### ✅ Build sandbox selftest passed on prod" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ❌ Build sandbox selftest FAILED on prod: Compile Guarantee builds are unsafe or broken" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Capture deploy diagnostics
         if: failure()
         shell: bash

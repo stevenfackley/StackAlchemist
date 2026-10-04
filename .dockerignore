@@ -59,6 +59,8 @@ Thumbs.db
 # compare, and solutions prerendering.
 scripts/
 docker/
+# …except the engine's build-sandbox scripts, which the engine stage COPYs (#454).
+!docker/engine/
 
 # ─── Misc project files ───────────────────────────────────────────────────────
 # Scoped to repo root so content/**/*.md and docs/**/*.md reach the build context.

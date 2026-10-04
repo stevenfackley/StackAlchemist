@@ -277,6 +277,17 @@ builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 builder.Services.AddGenerationStore(Ev("DATABASE_URL"), builder.Environment);
 
 // ── Compile service ───────────────────────────────────────────────────────────
+// Compile Guarantee builds run LLM-generated code. In the engine image they run as the
+// unprivileged build user, in a throwaway copy of the tree (#454; docker/engine/). Production
+// refuses to start without that rather than run generated code as root next to every secret.
+var (buildSandboxSettings, buildSandboxReason) = BuildSandboxSettings.FromEnvironment();
+if (buildSandboxSettings is null && builder.Environment.IsProduction())
+    throw new InvalidOperationException(
+        $"The Compile Guarantee build sandbox is unavailable: {buildSandboxReason}. " +
+        "Production runs builds only inside it; run the engine image as built.");
+if (buildSandboxSettings is not null)
+    builder.Services.AddSingleton(sp => new BuildSandbox(buildSandboxSettings, sp.GetRequiredService<ILogger<BuildSandbox>>()));
+
 // Per-step deadline for every build command (#455). <= 0 disables it.
 builder.Services.AddSingleton(sp =>
 {
@@ -285,6 +296,7 @@ builder.Services.AddSingleton(sp =>
     return new BuildStrategyOptions
     {
         StepTimeout = minutes > 0 ? TimeSpan.FromMinutes(minutes) : Timeout.InfiniteTimeSpan,
+        Sandbox = sp.GetService<BuildSandbox>(),
     };
 });
 builder.Services.AddSingleton<IBuildStrategy, DotNetBuildStrategy>();
