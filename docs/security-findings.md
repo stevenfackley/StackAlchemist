@@ -115,4 +115,4 @@ Production dependencies now audit clean (`npm audit --omit=dev` → 0 vulnerabil
 
 - **`braces` GHSA-vfj7-8cjw-p6xm.** Dev-only advisory with no upstream fix. Added to `audit-allowlist.json` (PR #466), which gates `npm run audit:ci`. The entry expires **2026-12-31**; the gate fails when it expires or when upstream ships a fix. This is separate from the `brace-expansion` entry in the 2026-07-28 addendum.
 - **Open security issues:** #444 (generated ZIPs are also reachable through a public R2 custom domain, in addition to presigned URLs) and #454 (Compile Guarantee builds run unsandboxed on the build host).
-- **[I1] `.p8` key:** the owner is moving it into a password manager, so it no longer sits in a working directory.
+- **[I1] `.p8` key: resolved 2026-10-03.** It is stored in the owner's Bitwarden vault as a Secure Note, and the vault copy was checked against the file before the working-directory file was deleted. No `AuthKey_*.p8` remains under the projects folder.
