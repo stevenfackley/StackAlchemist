@@ -114,6 +114,11 @@ Order: **A (platform) → B (data) → C (auth) → D (CI) → E (cutover) → F
 
 > **Execution plan written 2026-10-03:** `2026-10-03-qavren-replatform-F-retire.md`. It has gates (Task 1, the polling-only status transport, ships now; the code deletions merge on or after 2026-10-08 and only once §3.4 is proven) and a recommendation to retire the dead test mirror instead of giving it a realm. The list below is the 2026-09-28 sketch; the execution plan supersedes it.
 
+> **Results so far:**
+> - 2026-10-03: Task 1 (polling) merged (#465), and the test mirror was retired (#468).
+> - 2026-10-04: the money path was proven by the zero-charge probe, after the missing live webhook endpoint was created.
+> - The code deletions are #483 (web), #482 (Engine) and #480 (CI, deploy, docs). All three are green and held for G2(1) on 2026-10-08.
+
 - Day 7+: delete `ctqhwykryoglhdwatljt`. Delete `cdlefpvsvyepofsboepc` once D is green on main (it's needed until then). Delete `supabase/` and `docs/runbooks/ci-supabase-migrations.md`. Remove the Supabase secrets from both GitHub environments. Update the vault project note and the workspace memory that describes the auto-pause.
 
 ## Order and risk

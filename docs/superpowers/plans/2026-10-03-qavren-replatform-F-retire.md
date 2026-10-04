@@ -16,6 +16,22 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
 > - The default model moved to Claude Sonnet 5.5 (PR #467). That doesn't affect this plan.
 >
 > Still gated: Tasks 2–6 (G2: on or after 2026-10-08, plus the §3.4 money path) and Task 7 (owner).
+>
+> **Progress (2026-10-04):**
+> - G2(2), the money path, is met (see Gates).
+> - Tasks 2–6 are built, reviewed and green, but not merged:
+>   - #483: web, Tasks 2–3;
+>   - #482: Engine and Worker, Task 4, plus #426;
+>   - #480: CI, deploy and config (Task 5) and docs (Task 6).
+> - **Merge order, on or after 2026-10-08: #483 and #482 first, then #480.**
+>   #480 removes the `NEXT_PUBLIC_SUPABASE_*` build args. On today's web code
+>   those are what keep `/dashboard` dynamic. Without them `next build`
+>   prerenders `/dashboard` as a static redirect to `/login`, which signs out
+>   every user. #483 makes `/dashboard` `force-dynamic`.
+> - Task 7 so far:
+>   - The Test environment has no Supabase secrets left.
+>   - Prod's three `SUPABASE_*` secrets stay until #480 deploys green.
+>   - The credential files are still on disk. The Bitwarden move script is ready but hasn't been run.
 
 ---
 
