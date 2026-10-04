@@ -1,126 +1,82 @@
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import { vi, beforeEach, afterEach } from "vitest";
 
-// ── Hoisted mocks (must be declared before vi.mock factories run) ─────────────
-
-const { mockRefresh, mockChannel, mockRemoveChannel } = vi.hoisted(() => {
-  const mockRefresh = vi.fn();
-  const mockRemoveChannel = vi.fn();
-  const mockChannel = {
-    on: vi.fn().mockReturnThis(),
-    subscribe: vi.fn().mockReturnThis(),
-  };
-  return { mockRefresh, mockChannel, mockRemoveChannel };
-});
+const { mockRefresh } = vi.hoisted(() => ({ mockRefresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mockRefresh }),
 }));
 
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    channel: vi.fn(() => mockChannel),
-    removeChannel: mockRemoveChannel,
-  },
-}));
+import { GenerationsLiveRefresher, DASHBOARD_REFRESH_MS } from "@/app/dashboard/GenerationsLiveRefresher";
 
-vi.mock("@/lib/runtime-config", () => ({ isDemoMode: false }));
-
-// ── Import component AFTER mocks are set up ───────────────────────────────────
-
-import { GenerationsLiveRefresher } from "@/app/dashboard/GenerationsLiveRefresher";
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-type ChangeCallback = (payload: { new: Record<string, unknown> }) => void;
-let capturedChangeCallback: ChangeCallback | null = null;
-let capturedVisibilityCallback: (() => void) | null = null;
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
 
 describe("GenerationsLiveRefresher", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    capturedChangeCallback = null;
-    capturedVisibilityCallback = null;
-
-    mockChannel.on.mockImplementation(
-      (_event: string, _filter: unknown, cb: ChangeCallback) => {
-        capturedChangeCallback = cb;
-        return mockChannel;
-      }
-    );
-
-    vi.spyOn(document, "addEventListener").mockImplementation(
-      (event: string, cb: EventListenerOrEventListenerObject) => {
-        if (event === "visibilitychange") {
-          capturedVisibilityCallback = cb as () => void;
-        }
-      }
-    );
+    vi.useFakeTimers();
+    mockRefresh.mockReset();
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
   it("renders null (no DOM output)", () => {
-    const { container } = render(<GenerationsLiveRefresher userId="user-1" />);
+    const { container } = render(<GenerationsLiveRefresher active />);
     expect(container.firstChild).toBeNull();
   });
 
-  it("subscribes to the correct channel and table filter", async () => {
-    const { supabase } = await vi.importMock<typeof import("@/lib/supabase")>("@/lib/supabase");
-    render(<GenerationsLiveRefresher userId="user-42" />);
-    expect((supabase as { channel: ReturnType<typeof vi.fn> }).channel).toHaveBeenCalledWith("gen-feed:user-42");
-    expect(mockChannel.on).toHaveBeenCalledWith(
-      "postgres_changes",
-      expect.objectContaining({
-        table: "generations",
-        filter: "user_id=eq.user-42",
-      }),
-      expect.any(Function)
-    );
-  });
-
-  it("calls router.refresh() when a matching change arrives", () => {
-    vi.useFakeTimers();
-    render(<GenerationsLiveRefresher userId="user-1" />);
-    capturedChangeCallback?.({ new: { user_id: "user-1" } });
-    expect(mockRefresh).toHaveBeenCalledOnce();
-  });
-
-  it("throttles: second call within 5s is dropped", () => {
-    vi.useFakeTimers();
-    render(<GenerationsLiveRefresher userId="user-1" />);
-    capturedChangeCallback?.({ new: { user_id: "user-1" } });
-    capturedChangeCallback?.({ new: { user_id: "user-1" } });
-    expect(mockRefresh).toHaveBeenCalledOnce();
-  });
-
-  it("throttle resets after 5s", () => {
-    vi.useFakeTimers();
-    render(<GenerationsLiveRefresher userId="user-1" />);
-    capturedChangeCallback?.({ new: { user_id: "user-1" } });
-    vi.advanceTimersByTime(5001);
-    capturedChangeCallback?.({ new: { user_id: "user-1" } });
+  it("refreshes every 10s while a build is in progress", () => {
+    expect(DASHBOARD_REFRESH_MS).toBe(10_000);
+    render(<GenerationsLiveRefresher active />);
+    expect(mockRefresh).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS));
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS));
     expect(mockRefresh).toHaveBeenCalledTimes(2);
   });
 
-  it("ignores events for a different user_id", () => {
-    vi.useFakeTimers();
-    render(<GenerationsLiveRefresher userId="user-1" />);
-    capturedChangeCallback?.({ new: { user_id: "user-999" } });
+  it("does not poll when nothing is in progress", () => {
+    render(<GenerationsLiveRefresher active={false} />);
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS * 5));
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("refreshes on visibilitychange to visible", () => {
-    vi.useFakeTimers();
-    render(<GenerationsLiveRefresher userId="user-1" />);
-    Object.defineProperty(document, "visibilityState", {
-      value: "visible",
-      configurable: true,
-    });
-    capturedVisibilityCallback?.();
-    expect(mockRefresh).toHaveBeenCalledOnce();
+  it("stops polling once the in-progress builds finish", () => {
+    const { rerender } = render(<GenerationsLiveRefresher active />);
+    rerender(<GenerationsLiveRefresher active={false} />);
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS * 3));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("pauses while hidden, refreshes on return and resumes", () => {
+    render(<GenerationsLiveRefresher active />);
+    act(() => setVisibility("hidden"));
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS * 3));
+    expect(mockRefresh).not.toHaveBeenCalled();
+
+    act(() => setVisibility("visible"));
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS));
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes on return to the tab even with nothing in progress (a build may have started elsewhere)", () => {
+    render(<GenerationsLiveRefresher active={false} />);
+    act(() => setVisibility("hidden"));
+    act(() => setVisibility("visible"));
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears its timer and listener on unmount", () => {
+    const { unmount } = render(<GenerationsLiveRefresher active />);
+    unmount();
+    act(() => vi.advanceTimersByTime(DASHBOARD_REFRESH_MS * 3));
+    act(() => setVisibility("visible"));
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });

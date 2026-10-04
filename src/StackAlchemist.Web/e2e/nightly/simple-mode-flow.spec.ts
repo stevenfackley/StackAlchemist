@@ -30,8 +30,7 @@ test.describe("Integration: Simple Mode Runtime Path", () => {
     await expect(page).toHaveURL(/\/generate\//, { timeout: 60_000 });
     // The URL alone only proves the submit succeeded. The free-tier panel renders
     // only once the generation row is `success`, i.e. the engine's deterministic
-    // Spark preview finished; the /generate watcher polls every 30 s without
-    // Realtime, so allow a cycle.
+    // Spark preview finished; the /generate watcher polls every 3 s.
     await expect(page.getByTestId("generate-free-tier-panel")).toBeVisible({ timeout: 60_000 });
   });
 });
