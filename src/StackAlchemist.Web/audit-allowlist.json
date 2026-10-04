@@ -9,5 +9,13 @@
     "This file is not a way to silence a fixable finding. If `npm audit` can",
     "resolve it with an override or an upgrade, do that instead."
   ],
-  "allow": []
+  "allow": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "scope": "dev",
+      "expires": "2026-12-31",
+      "reason": "Stack-exhaustion DoS through deeply nested brace patterns (published 2026-09-18). No patched release exists: the advisory covers braces <=3.0.3 and 3.0.3 is the latest version. Our only path is eslint-config-next -> @next/eslint-plugin-next -> fast-glob 3.3.1 -> micromatch 4.0.8 -> braces 3.0.3, i.e. lint-time globbing over our own repo's file patterns, never shipped to users and never fed untrusted input. Delete this entry when braces ships a fix (the gate fails once it stops matching)."
+    }
+  ]
 }
