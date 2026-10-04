@@ -63,7 +63,7 @@ export const FAQS = [
     category: "generation",
     question: "How long does a generation take?",
     answer:
-      "Simple schemas with 3–5 entities finish in about 30 seconds. Medium schemas of 6–10 entities take roughly 60 seconds. Complex schemas with 10 or more entities take about 90 seconds. Progress updates stream in real time throughout.",
+      "Simple schemas with 3–5 entities finish in about 30 seconds. Medium schemas of 6–10 entities take roughly 60 seconds. Complex schemas with 10 or more entities take about 90 seconds. The status page updates every few seconds throughout.",
   },
   {
     category: "generation",

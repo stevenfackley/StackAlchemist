@@ -11,7 +11,7 @@ WORKDIR /app
 # NEXT_PUBLIC_* vars are read at module scope (e.g. layout.tsx `isTestSite`)
 # which means they must be present during `next build`, not just at runtime.
 # Missing IS_TEST_SITE here is what historically broke the test-mirror noindex.
-ARG NEXT_PUBLIC_APP_URL=https://test.stackalchemist.app
+ARG NEXT_PUBLIC_APP_URL=https://stackalchemist.app
 ARG NEXT_PUBLIC_IS_TEST_SITE=false
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_IS_TEST_SITE=$NEXT_PUBLIC_IS_TEST_SITE

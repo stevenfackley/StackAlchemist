@@ -106,7 +106,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Docker Compose (alternative)
 
 ```bash
-# Fill in .env.development first (docker-compose.yml reads it), then:
+# Copy .env.example to .env and fill it in (docker-compose.yml reads it), then:
 docker compose up
 ```
 

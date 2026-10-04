@@ -17,7 +17,7 @@ const FAQS = [
   },
   {
     q: "How long does generation take?",
-    a: "Simple schemas generate in under 30 seconds. Complex multi-entity systems typically take 60–90 seconds. You'll see real-time progress throughout.",
+    a: "Simple schemas generate in under 30 seconds. Complex multi-entity systems typically take 60–90 seconds. You'll see live progress throughout.",
   },
 ];
 

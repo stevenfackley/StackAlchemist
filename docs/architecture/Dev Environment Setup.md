@@ -24,7 +24,7 @@ Local dev needs a throwaway Postgres and a local Keycloak with the `stackalchemi
 *   **Postgres:** "Local database recipe" in [`docs/runbooks/qavren-db-migrations.md`](../runbooks/qavren-db-migrations.md). It starts a `postgres:17-alpine` container and runs `npm run db:migrate` against it.
 *   **Keycloak, dev realm, test user and `.env.local`:** "Local recipe" in [`docs/runbooks/qavren-auth.md`](../runbooks/qavren-auth.md). It covers the qavren-auth compose, applying the `stackalchemist-dev` realm, creating a test user, and the `.env.local` the web app needs (`QAVREN_AUTH_URL`, `QAVREN_REALM`, `AUTH_SECRET`, `DATABASE_URL`).
 *   **Demo mode:** with `NEXT_PUBLIC_DEMO_MODE=true` the web app runs without a database or Engine; the Playwright smoke suite uses it.
-*   **Run:** `npm run dev` from `src/StackAlchemist.Web`; the Engine runs from `src/StackAlchemist.Engine` (`dotnet run`) or through the root `docker-compose.yml` (`sa-web`, `sa-engine`, `sa-worker`, reading `.env.development`). `.env.example` lists the variables.
+*   **Run:** `npm run dev` from `src/StackAlchemist.Web`; the Engine runs from `src/StackAlchemist.Engine` (`dotnet run`) or through the root `docker-compose.yml` (`sa-web`, `sa-engine`, `sa-worker`, reading the repo-root `.env`). `.env.example` lists the variables.
 
 ## 5. Git Branching & Release Workflow
 *   **Default Branch:** `main`. Work on a feature branch and open a PR; never push to `main` directly.

@@ -148,7 +148,7 @@ npm run dev --prefix src/StackAlchemist.Web
 
 ## Docker
 
-The repository ships a multi-stage `Dockerfile` with `web`, `engine` and `worker` targets. `docker-compose.yml` builds `sa-web`, `sa-engine` and `sa-worker` for local use and reads its environment from `.env.development`. It does not include Postgres or Keycloak, so point `DATABASE_URL` and `QAVREN_AUTH_URL` at ones you run yourself. You do not need `sa-worker`; start only the two services you need:
+The repository ships a multi-stage `Dockerfile` with `web`, `engine` and `worker` targets. `docker-compose.yml` builds `sa-web`, `sa-engine` and `sa-worker` for local use and reads its environment from the repo-root `.env` (copy `.env.example`, or run `node scripts/setup-env.mjs`). It does not include Postgres or Keycloak, so point `DATABASE_URL` and `QAVREN_AUTH_URL` at ones you run yourself. You do not need `sa-worker`; start only the two services you need:
 
 ```bash
 docker compose up sa-web sa-engine
