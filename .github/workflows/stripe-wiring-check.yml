@@ -1,0 +1,184 @@
+name: Stripe wiring check
+
+# Proves the money path is wired without anyone paying. Read-only by default:
+# it lists the live webhook endpoints, checks that one targets this app with
+# every event the Engine handles, and shows recent events with their delivery
+# backlog. With `probe: true` it also creates a $1 Checkout Session and expires
+# it at once (no charge is possible). Stripe then delivers
+# `checkout.session.expired`, and the Engine records it in stackalchemist.stripe_events.
+# The workflow then checks that row through the prod database, which proves
+# Stripe → Cloudflare → nginx → Engine → signature → qavren-db end to end,
+# signing secret included. The probe needs the endpoint to be subscribed to
+# `checkout.session.expired`; when it is not, the probe adds that event for the
+# duration of the run and restores the original list afterwards.
+# `fix_missing_events: true` permanently subscribes the endpoint to any event
+# the Engine handles that it is missing (approved by the owner 2026-10-03).
+#
+# Output is metadata only: no key, secret or customer data is printed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "Send one real (zero-charge) event through the live webhook"
+        type: boolean
+        default: false
+      fix_missing_events:
+        description: "Permanently subscribe the endpoint to any handled event it is missing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stripe-wiring-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 10
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      APP_WEBHOOK_URL: https://stackalchemist.app/api/webhooks/stripe
+      REQUIRED_EVENTS: checkout.session.completed checkout.session.async_payment_succeeded checkout.session.async_payment_failed payment_intent.payment_failed charge.refunded charge.dispute.created
+    steps:
+      - name: Key mode
+        run: |
+          set -euo pipefail
+          case "$STRIPE_SECRET_KEY" in
+            sk_live_*|rk_live_*) echo "Stripe key: LIVE" ;;
+            sk_test_*|rk_test_*) echo "Stripe key: TEST" ;;
+            *) echo "::error::STRIPE_SECRET_KEY is missing or not a Stripe key"; exit 1 ;;
+          esac
+
+      - name: Webhook endpoints
+        id: endpoints
+        run: |
+          set -euo pipefail
+          curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/webhook_endpoints?limit=100" > endpoints.json
+          jq -r '.data[] | "\(.id)  status=\(.status)  api_version=\(.api_version // "account default")  created=\(.created | todate)\n  url=\(.url)\n  events=\(.enabled_events | join(","))"' endpoints.json
+          match=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)] | length' endpoints.json)
+          if [ "$match" = "0" ]; then
+            echo "::error::No webhook endpoint targets $APP_WEBHOOK_URL — paid checkouts would never reach the Engine."
+            exit 1
+          fi
+          [ "$match" = "1" ] || echo "::warning::$match endpoints target $APP_WEBHOOK_URL — each delivers every event (handled idempotently, but check why)."
+          id=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].id' endpoints.json)
+          status=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].status' endpoints.json)
+          [ "$status" = "enabled" ] || { echo "::error::Endpoint $id is $status, not enabled."; exit 1; }
+          events=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].enabled_events | join(" ")' endpoints.json)
+          missing=""
+          for e in $REQUIRED_EVENTS; do
+            case " $events " in *" * "*|*" $e "*) ;; *) missing="$missing $e" ;; esac
+          done
+          { echo "id=$id"; echo "events=$events"; echo "missing=${missing# }"; } >> "$GITHUB_OUTPUT"
+          if [ -n "$missing" ]; then
+            echo "::warning::Endpoint $id does not send:$missing"
+          else
+            echo "OK: $id is enabled and sends every event the Engine handles."
+          fi
+
+      - name: Subscribe the endpoint to missing handled events
+        id: fix
+        if: ${{ inputs.fix_missing_events && steps.endpoints.outputs.missing != '' }}
+        env:
+          ENDPOINT_ID: ${{ steps.endpoints.outputs.id }}
+          ENDPOINT_EVENTS: ${{ steps.endpoints.outputs.events }}
+          MISSING: ${{ steps.endpoints.outputs.missing }}
+        run: |
+          set -euo pipefail
+          args=()
+          for e in $ENDPOINT_EVENTS $MISSING; do args+=(-d "enabled_events[]=$e"); done
+          curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/webhook_endpoints/$ENDPOINT_ID" "${args[@]}" \
+            | jq -r '"Now sends: \(.enabled_events | join(","))"'
+          { echo "events=$ENDPOINT_EVENTS $MISSING"; echo "missing="; } >> "$GITHUB_OUTPUT"
+
+      - name: Recent events and delivery backlog
+        run: |
+          set -euo pipefail
+          curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/events?limit=25" \
+            | jq -r '.data[] | "\(.created | todate)  \(.type)  pending_webhooks=\(.pending_webhooks)"'
+          echo "(pending_webhooks > 0 on an event older than a few minutes means a delivery is failing.)"
+
+      - name: Probe — send one zero-charge event through the live webhook
+        if: ${{ inputs.probe }}
+        env:
+          ENDPOINT_ID: ${{ steps.endpoints.outputs.id }}
+          ENDPOINT_EVENTS: ${{ steps.fix.outputs.events || steps.endpoints.outputs.events }}
+        run: |
+          set -euo pipefail
+          added=0
+          case " $ENDPOINT_EVENTS " in
+            *" * "*|*" checkout.session.expired "*) ;;
+            *)
+              args=()
+              for e in $ENDPOINT_EVENTS checkout.session.expired; do args+=(-d "enabled_events[]=$e"); done
+              curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/webhook_endpoints/$ENDPOINT_ID" "${args[@]}" > /dev/null
+              added=1
+              echo "Temporarily subscribed $ENDPOINT_ID to checkout.session.expired."
+              ;;
+          esac
+          restore() {
+            if [ "$added" = "1" ]; then
+              args=()
+              for e in $ENDPOINT_EVENTS; do args+=(-d "enabled_events[]=$e"); done
+              curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/webhook_endpoints/$ENDPOINT_ID" "${args[@]}" > /dev/null \
+                && echo "Restored the endpoint's original event list." \
+                || echo "::error::Could not restore $ENDPOINT_ID's event list — remove checkout.session.expired by hand."
+            fi
+          }
+          trap restore EXIT
+
+          session=$(curl -fsS -u "$STRIPE_SECRET_KEY:" https://api.stripe.com/v1/checkout/sessions \
+            -d mode=payment \
+            -d success_url=https://stackalchemist.app/ \
+            -d cancel_url=https://stackalchemist.app/ \
+            -d "line_items[0][quantity]=1" \
+            -d "line_items[0][price_data][currency]=usd" \
+            -d "line_items[0][price_data][unit_amount]=100" \
+            -d "line_items[0][price_data][product_data][name]=StackAlchemist wiring probe (never payable)" \
+            -d "metadata[wiring_probe]=true")
+          sid=$(jq -r .id <<<"$session")
+          curl -fsS -u "$STRIPE_SECRET_KEY:" -X POST "https://api.stripe.com/v1/checkout/sessions/$sid/expire" > /dev/null
+          echo "Created and expired $sid."
+
+          ev=""
+          for _ in $(seq 1 12); do
+            ev=$(curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/events?type=checkout.session.expired&limit=10" \
+              | jq -r --arg s "$sid" '[.data[] | select(.data.object.id == $s)][0] | select(. != null) | "\(.id) \(.pending_webhooks)"')
+            if [ -n "$ev" ] && [ "${ev#* }" = "0" ]; then break; fi
+            sleep 5
+          done
+          echo "event: ${ev:-none}"
+          [ -n "$ev" ] || { echo "::error::Stripe emitted no checkout.session.expired event for $sid."; exit 1; }
+          [ "${ev#* }" = "0" ] || { echo "::error::Event ${ev%% *} is still pending delivery: the endpoint did not answer 2xx (wrong signing secret, or the Engine is down)."; exit 1; }
+          echo "PROBE_EVENT_ID=${ev%% *}" >> "$GITHUB_ENV"
+          echo "OK: Stripe delivered ${ev%% *} and the Engine answered 2xx."
+
+      - name: Probe — the event reached qavren-db
+        if: ${{ inputs.probe }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_MIGRATE }}
+        run: |
+          set -euo pipefail
+          command -v psql > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client > /dev/null; }
+          n=$(psql "$DATABASE_URL" -X -At -c "set default_transaction_read_only = on; select count(*) from stackalchemist.stripe_events where id = '$PROBE_EVENT_ID'" | tail -1)
+          [ "$n" = "1" ] || { echo "::error::$PROBE_EVENT_ID is not in stackalchemist.stripe_events — the Engine answered but did not record it."; exit 1; }
+          echo "OK: $PROBE_EVENT_ID is recorded in stackalchemist.stripe_events. Stripe → Engine → qavren-db is wired, signing secret included."
+
+      - name: Verdict
+        if: ${{ always() }}
+        env:
+          FIX_OUTCOME: ${{ steps.fix.outcome }}
+          ENDPOINT_MISSING: ${{ steps.endpoints.outputs.missing }}
+        run: |
+          MISSING="$ENDPOINT_MISSING"
+          [ "$FIX_OUTCOME" = "success" ] && MISSING=""
+          if [ -n "$MISSING" ]; then
+            echo "::error::The live endpoint does not send: $MISSING. Re-run with fix_missing_events, or add them in the Stripe dashboard."
+            exit 1
+          fi
+          echo "Endpoint configuration complete."

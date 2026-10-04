@@ -23,6 +23,7 @@ on:
       - '.github/workflows/secret-scan.yml'
       - '.github/workflows/dependabot-auto-merge.yml'
       - '.github/workflows/prod-healthwatch.yml'
+      - '.github/workflows/stripe-wiring-check.yml'
   workflow_dispatch:
 
 concurrency:
