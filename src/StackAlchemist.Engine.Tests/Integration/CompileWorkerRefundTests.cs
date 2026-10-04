@@ -10,7 +10,7 @@ namespace StackAlchemist.Engine.Tests.Integration;
 /// <summary>
 /// Coverage for the Compile Guarantee refund wiring at the final-build-failure
 /// branch of <see cref="CompileWorkerService"/>. <see cref="IRefundService"/> is
-/// mocked here — the actual Stripe/Supabase orchestration lives in
+/// mocked here — the actual Stripe/billing-store orchestration lives in
 /// <see cref="Services.StripeRefundServiceTests"/>. These tests only assert the
 /// worker's orchestration: who it calls, when, and that a refund-side failure
 /// never escapes the worker loop or flips the generation's terminal status.

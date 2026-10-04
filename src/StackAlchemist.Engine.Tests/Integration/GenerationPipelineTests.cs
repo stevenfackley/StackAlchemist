@@ -18,8 +18,8 @@ namespace StackAlchemist.Engine.Tests.Integration;
 /// and <see cref="TemplateProvider"/> against a <see cref="MockFileSystem"/> with
 /// a stub <see cref="ILlmClient"/> emitting <c>[[FILE:path]]…[[END_FILE]]</c> blocks.
 ///
-/// No Postgres / Testcontainers required: the Engine speaks to Supabase via PostgREST
-/// HTTP and has no local DB on its hot path.
+/// No Postgres / Testcontainers required: the store is a substituted
+/// <see cref="IDeliveryService"/>, so nothing on this path touches a database.
 /// </summary>
 public class GenerationPipelineTests
 {

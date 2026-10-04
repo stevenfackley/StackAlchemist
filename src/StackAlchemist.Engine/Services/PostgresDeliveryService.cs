@@ -9,9 +9,8 @@ namespace StackAlchemist.Engine.Services;
 
 /// <summary>
 /// Persists generation pipeline state to the qavren-db <c>stackalchemist.generations</c> table over
-/// Npgsql. A method-for-method port of <see cref="SupabaseDeliveryService"/>: the same payloads,
-/// retry budgets, compare-and-set filters and pending-write buffering, with SQL in place of
-/// PostgREST. Registered instead of the Supabase service when DATABASE_URL is set.
+/// Npgsql, with per-write retry budgets, compare-and-set filters and pending-write buffering for
+/// terminal writes. The store's delivery service: registered whenever DATABASE_URL is set.
 /// <para>
 /// Generation ids arrive as strings. One that is not a uuid can never match a row, so every method
 /// treats it as "not found" (null / false / no-op) without a round trip.
@@ -441,8 +440,8 @@ public sealed partial class PostgresDeliveryService(
         // !succeeded: every attempt failed, or a non-transient error (a CHECK violation, say) cut the
         // budget short. A terminal write is buffered either way, for the periodic reconciler to
         // re-flush once per tick until its age cap, so an outage no longer strands the row in a
-        // non-terminal state. Buffering a write that can never succeed is the price of parity with
-        // SupabaseDeliveryService, which buffered after a 4xx too.
+        // non-terminal state. A write that can never succeed is buffered too; it costs one retry per
+        // tick until the age cap drops it.
         if (!succeeded && critical)
         {
             pendingWrites.Enqueue(new PendingGenerationWrite(generationId, payload, DateTimeOffset.UtcNow));
@@ -616,7 +615,7 @@ public sealed partial class PostgresDeliveryService(
             LogFunctionFailed(logger, loggable, functionName, reason);
     }
 
-    // ── LoggerMessage source-gen (same EventIds as SupabaseDeliveryService) ─
+    // ── LoggerMessage source-gen (EventIds 500–513, kept from the original delivery service) ─
 
     [LoggerMessage(EventId = 500, Level = LogLevel.Information, Message = "Postgres updated: generation {Id} → {State}")]
     private static partial void LogUpdated(ILogger logger, string id, GenerationState state);

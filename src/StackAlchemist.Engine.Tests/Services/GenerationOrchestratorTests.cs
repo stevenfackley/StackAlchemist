@@ -443,7 +443,7 @@ public class GenerationOrchestratorTests
     [Fact]
     public async Task EnqueueAsync_NoSnapshot_UsesRequestTier()
     {
-        // Supabase unconfigured / row missing → snapshot null → request tier preserved
+        // No store configured / row missing → snapshot null → request tier preserved
         // (the tier-0 Spark preview path still works in local dev).
         var (sut, llm, _, _) = BuildSut();
 

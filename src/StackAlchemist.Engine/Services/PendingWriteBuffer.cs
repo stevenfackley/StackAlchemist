@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// A critical generation-row write (success/failed) that exhausted its HTTP retries.
+/// A critical generation-row write (success/failed) that exhausted its retries.
 /// Buffered in memory and re-flushed by the periodic reconciler so a transient
-/// Supabase outage no longer strands a finished generation in a non-terminal state.
+/// store outage no longer strands a finished generation in a non-terminal state.
 /// </summary>
 public sealed record PendingGenerationWrite(
     string GenerationId,

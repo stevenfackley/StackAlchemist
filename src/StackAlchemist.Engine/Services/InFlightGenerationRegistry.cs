@@ -5,7 +5,7 @@ namespace StackAlchemist.Engine.Services;
 /// <summary>
 /// Tracks generation ids this Engine instance is actively processing (orchestration
 /// or compile-worker job). The periodic reconciler skips registered ids so a slow but
-/// alive job — e.g. a multi-minute LLM call that hasn't pinged Supabase recently —
+/// alive job — e.g. a multi-minute LLM call that hasn't written to its row recently —
 /// is never reaped out from under the running process.
 /// </summary>
 public interface IInFlightGenerationRegistry

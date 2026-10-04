@@ -7,9 +7,8 @@ using StackAlchemist.Engine.Models;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// <see cref="IBillingStore"/> over Npgsql against the qavren-db <c>stackalchemist</c> schema: the
-/// same statements <see cref="SupabaseBillingStore"/> sends through PostgREST, as parameterised SQL.
-/// Registered instead of the Supabase store when DATABASE_URL is set.
+/// <see cref="IBillingStore"/> over Npgsql against the qavren-db <c>stackalchemist</c> schema, as
+/// parameterised SQL. Registered whenever DATABASE_URL is set.
 /// <para>
 /// Ids that must be uuids (generation and transaction ids) arrive as strings. One that is not a uuid
 /// can never match a row, so the lookups and writes treat it as "not found" (null / false / no-op)
@@ -39,7 +38,7 @@ public sealed partial class PostgresBillingStore(
         }
         catch (Exception ex)
         {
-            // Never throws, as the Supabase store: the caller turns Unavailable into a Stripe retry
+            // Never throws: the caller turns Unavailable into a Stripe retry
             // rather than processing the event unlogged.
             var (loggable, reason) = PostgresErrors.Redact(ex);
             LogStripeEventRecordFailed(logger, loggable, eventId, reason);
@@ -292,7 +291,7 @@ public sealed partial class PostgresBillingStore(
     private static InvalidOperationException Sanitized(string operation, Exception ex) =>
         new($"{operation} failed ({PostgresErrors.Redact(ex).Reason})");
 
-    // ── LoggerMessage source-gen (same EventIds as SupabaseBillingStore) ─────
+    // ── LoggerMessage source-gen (EventIds kept from the original billing store) ─────
 
     [LoggerMessage(EventId = 304, Level = LogLevel.Warning, Message = "Failed to record Stripe event {Id} for idempotency in Postgres ({Reason})")]
     private static partial void LogStripeEventRecordFailed(ILogger logger, Exception? ex, string id, string reason);
