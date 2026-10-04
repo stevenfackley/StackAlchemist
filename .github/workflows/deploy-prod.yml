@@ -178,7 +178,6 @@ jobs:
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           r2_bucket_name: stackalchemist-generations-prod
-          r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
           cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN || secrets.CF_TUNNEL_TOKEN }}
           stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
