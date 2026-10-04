@@ -277,6 +277,16 @@ builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
 builder.Services.AddGenerationStore(Ev("DATABASE_URL"), builder.Environment);
 
 // ── Compile service ───────────────────────────────────────────────────────────
+// Per-step deadline for every build command (#455). <= 0 disables it.
+builder.Services.AddSingleton(sp =>
+{
+    var minutes = sp.GetRequiredService<IConfiguration>().GetValue(
+        "Generation:BuildStepTimeoutMinutes", (int)BuildStrategyOptions.DefaultStepTimeout.TotalMinutes);
+    return new BuildStrategyOptions
+    {
+        StepTimeout = minutes > 0 ? TimeSpan.FromMinutes(minutes) : Timeout.InfiniteTimeSpan,
+    };
+});
 builder.Services.AddSingleton<IBuildStrategy, DotNetBuildStrategy>();
 builder.Services.AddSingleton<IBuildStrategy, PythonReactBuildStrategy>();
 builder.Services.AddSingleton<ICompileService, CompileService>();

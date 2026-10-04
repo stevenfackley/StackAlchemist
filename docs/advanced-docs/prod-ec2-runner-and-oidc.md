@@ -67,6 +67,11 @@ Recommended application path:
 
 ---
 
+
+### Host hardening applied by every deploy
+
+- **needrestart exclusion (#463).** Ubuntu's `apt-daily-upgrade` (06:00–07:00 UTC) installs security updates. `needrestart` used to restart the runner service whenever a library it links was patched, which killed an in-flight deploy job (run 36825103434). The deploy now writes `/etc/needrestart/conf.d/50-actions-runner.conf` with `$nrconf{override_rc}{qr(^actions\.runner\..+\.service$)} = 0;` on every run. The step is idempotent and never fails the deploy. The runner picks up patched libraries on its next self-update or reboot.
+
 ## 4. Install the GitHub Actions runner on EC2
 
 On the EC2 host:
@@ -175,7 +180,7 @@ The preflight step is first in the job. It refuses an inconsistent set (auth wit
 Common:
 
 - `AWS_ROLE_TO_ASSUME`
-- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` (account id from `CF_ACCOUNT_ID`, falling back to `R2_ACCOUNT_ID`)
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (account id from `CF_ACCOUNT_ID`, falling back to `R2_ACCOUNT_ID`)
 - `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `ANTHROPIC_API_KEY`; the model comes from the repository variable `ANTHROPIC_MODEL` (default Claude Sonnet 5.5, `claude-sonnet-5-5`)
 - `CLOUDFLARE_TUNNEL_TOKEN`

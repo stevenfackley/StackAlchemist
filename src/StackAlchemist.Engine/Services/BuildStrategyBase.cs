@@ -5,8 +5,14 @@ using StackAlchemist.Engine.Models;
 
 namespace StackAlchemist.Engine.Services;
 
-public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
+public abstract partial class BuildStrategyBase(ILogger logger, BuildStrategyOptions? options = null) : IBuildStrategy
 {
+    /// <summary>
+    /// Exit code recorded for a step killed at its deadline: the one <c>timeout(1)</c> uses, so a
+    /// reader of the transcript recognises it.
+    /// </summary>
+    public const int StepTimedOutExitCode = 124;
+
     public abstract ProjectType SupportedProjectType { get; }
 
     public abstract Task<BuildResult> ExecuteBuildAsync(string projectDirectory, CancellationToken ct = default);
@@ -22,6 +28,13 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
     protected abstract int CountWarnings(string output);
 
     protected ILogger Logger { get; } = logger;
+
+    /// <summary>
+    /// How long one build command may run (StackAlchemist#455). The host's stopping token used to
+    /// be the only cancellation a step ever saw, so a hung install held the in-process compile
+    /// worker, and every generation queued behind it, until the next deploy.
+    /// </summary>
+    internal TimeSpan StepTimeout { get; } = (options ?? new BuildStrategyOptions()).StepTimeout;
 
     /// <inheritdoc cref="ProcessCommandResolver"/>
     protected static string NpmExecutable => ProcessCommandResolver.Npm;
@@ -144,7 +157,7 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
-        var result = await RunProcessAsync(fileName, arguments, workingDirectory, ct);
+        var result = await RunWithDeadlineAsync(displayCommand, fileName, arguments, workingDirectory, ct);
         stopwatch.Stop();
 
         Append(transcript, displayCommand, result);
@@ -164,6 +177,52 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         });
 
         return result;
+    }
+
+    /// <summary>
+    /// <see cref="RunProcessAsync"/> under the step deadline. The deadline cancels the same token
+    /// the host's shutdown does, so <see cref="RunProcessAsync"/> kills the process tree either
+    /// way; only the cause decides what happens next. A deadline is the build's failure, recorded
+    /// as a failed step the repair loop and the refund logic handle like any other. A shutdown is
+    /// not the generated code's fault, so it still propagates as cancellation.
+    /// </summary>
+    private async Task<BuildResult> RunWithDeadlineAsync(
+        string displayCommand,
+        string fileName,
+        string arguments,
+        string workingDirectory,
+        CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(StepTimeout);
+        try
+        {
+            return await RunProcessAsync(fileName, arguments, workingDirectory, deadline.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            var limit = Describe(StepTimeout);
+            LogStepTimedOut(Logger, displayCommand, limit);
+            return new BuildResult
+            {
+                ExitCode = StepTimedOutExitCode,
+                StandardOutput = string.Empty,
+                ErrorOutput =
+                    $"`{displayCommand}` timed out after {limit} and was stopped. A dependency install "
+                    + "waiting on the network, or a command that never exits, is the usual cause.",
+                TimedOut = true,
+            };
+        }
+    }
+
+    /// <summary>"10 minutes", "1 minute", "0.3 seconds": whole minutes when it is whole minutes.</summary>
+    private static string Describe(TimeSpan span)
+    {
+        if (span < TimeSpan.FromMinutes(1) || span.Ticks % TimeSpan.TicksPerMinute != 0)
+            return string.Create(CultureInfo.InvariantCulture, $"{span.TotalSeconds:0.###} seconds");
+
+        var minutes = span.Ticks / TimeSpan.TicksPerMinute;
+        return minutes == 1 ? "1 minute" : string.Create(CultureInfo.InvariantCulture, $"{minutes} minutes");
     }
 
     /// <summary>
@@ -202,6 +261,7 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
         StandardOutput = transcript.ToString(),
         ErrorOutput = failed.ErrorOutput,
         Steps = steps,
+        TimedOut = failed.TimedOut,
     };
 
     private static void Append(StringBuilder transcript, string step, BuildResult result)
@@ -212,4 +272,20 @@ public abstract class BuildStrategyBase(ILogger logger) : IBuildStrategy
             transcript.AppendLine(result.ErrorOutput);
         transcript.AppendLine();
     }
+
+    [LoggerMessage(EventId = 1050, Level = LogLevel.Warning, Message = "Build step `{Command}` timed out after {Limit}; its process tree was killed")]
+    private static partial void LogStepTimedOut(ILogger logger, string command, string limit);
+}
+
+/// <summary>Limits applied to every Compile Guarantee build step.</summary>
+public sealed class BuildStrategyOptions
+{
+    public static readonly TimeSpan DefaultStepTimeout = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Per-command deadline (<c>Generation:BuildStepTimeoutMinutes</c>, default 10). Generous for a
+    /// cold <c>npm ci</c> or <c>next build</c> of a generated app, short enough that a stalled
+    /// registry fails the attempt instead of holding the compile worker indefinitely.
+    /// </summary>
+    public TimeSpan StepTimeout { get; init; } = DefaultStepTimeout;
 }

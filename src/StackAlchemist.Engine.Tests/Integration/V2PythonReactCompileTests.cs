@@ -15,8 +15,10 @@ namespace StackAlchemist.Engine.Tests.Integration;
 /// <c>tsc --noEmit</c>, and <c>npm run build</c>;</item>
 /// <item>backend: the pinned <c>requirements.txt</c> installs into a throwaway venv — the
 /// surface pip Dependabot bumps touch;</item>
-/// <item>backend compile + the archive's own tests: currently skipped, see
-/// <see cref="RenderedBackend_CompilesAndPassesItsOwnTests"/>.</item>
+/// <item>backend: flake8 (the build strategy's compile check) and the archive's own pytest
+/// suite, see <see cref="RenderedBackend_CompilesAndPassesItsOwnTests"/>. Every Python zone sits
+/// inside a <c>def</c>/<c>class</c>, so this is also the end-to-end proof that a zone fill keeps
+/// its indentation (StackAlchemist#450).</item>
 /// </list>
 ///
 /// Toolchain-guarded via <see cref="PythonReactGate.ToolchainsAvailable"/>: skips locally when
@@ -25,13 +27,6 @@ namespace StackAlchemist.Engine.Tests.Integration;
 public sealed class V2PythonReactCompileTests : IDisposable
 {
     private const string TemplateSetName = "V2-Python-React";
-
-    /// <summary>The follow-up that unblocks <see cref="RenderedBackend_CompilesAndPassesItsOwnTests"/>.</summary>
-    private const string IndentationSkipReason =
-        "StackAlchemist#450 — InjectionEngine drops the first line's indentation of every zone fill "
-        + "(CleanZoneContent trims it; InjectIntoZone re-inserts at column 0), so every Python zone "
-        + "inside a def/class is an IndentationError (flake8 E999 on every repositories/ and schemas/ "
-        + "file). Unskip when #450 is fixed.";
 
     private readonly string _workDir = Path.Combine(
         Path.GetTempPath(), "sa-v2-python-gate-" + Guid.NewGuid().ToString("N")[..8]);
@@ -111,7 +106,7 @@ public sealed class V2PythonReactCompileTests : IDisposable
     /// The production verification for this half (<c>PythonReactBuildStrategy</c>'s flake8 +
     /// pytest collection), plus the archive's own pytest suite, over the Swiss-Cheese output.
     /// </summary>
-    [Fact(Skip = IndentationSkipReason)]
+    [Fact]
     public async Task RenderedBackend_CompilesAndPassesItsOwnTests()
     {
         if (!PythonReactGate.ToolchainsAvailable())

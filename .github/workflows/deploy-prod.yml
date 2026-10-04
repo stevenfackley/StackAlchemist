@@ -24,6 +24,7 @@ on:
       - '.github/workflows/dependabot-auto-merge.yml'
       - '.github/workflows/prod-healthwatch.yml'
       - '.github/workflows/stripe-wiring-check.yml'
+      - '.github/workflows/llm-contract.yml'
   workflow_dispatch:
 
 concurrency:
@@ -178,7 +179,6 @@ jobs:
           r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID || secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
           r2_bucket_name: stackalchemist-generations-prod
-          r2_public_url: ${{ secrets.R2_PUBLIC_URL }}
           cloudflare_tunnel_token: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN || secrets.CF_TUNNEL_TOKEN }}
           stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -307,6 +307,28 @@ jobs:
           npm ci --omit=dev --ignore-scripts
           npm run db:migrate
           echo "### ✅ qavren-db migrations applied" >> "$GITHUB_STEP_SUMMARY"
+
+      # #463: unattended-upgrades runs needrestart, which restarted this runner's own service
+      # mid-deploy whenever a library it links (libssl) was patched, killing the job before
+      # verification. Exclude the runner from needrestart; it picks the new library up on its
+      # next natural restart (self-update or reboot). Idempotent, and installed by every
+      # deploy so a rebuilt host gets it too. Never fails the deploy.
+      - name: Host hardening — keep needrestart away from the runner
+        shell: bash
+        run: |
+          set -uo pipefail
+          conf=/etc/needrestart/conf.d/50-actions-runner.conf
+          # shellcheck disable=SC2016  # $nrconf is Perl, written literally
+          want='$nrconf{override_rc}{qr(^actions\.runner\..+\.service$)} = 0;'
+          if [ ! -d /etc/needrestart/conf.d ]; then
+            echo "needrestart is not installed — nothing to do."
+          elif sudo -n grep -qxF "$want" "$conf" 2>/dev/null; then
+            echo "needrestart exclusion already present."
+          elif echo "$want" | sudo -n tee "$conf" > /dev/null; then
+            echo "Installed $conf."
+          else
+            echo "::warning::Could not write $conf (no passwordless sudo?) — see #463."
+          fi
 
       - name: Docker pre-flight cleanup
         shell: bash

@@ -26,7 +26,8 @@ def create(db: Session, payload: Create{{EntityName}}) -> {{EntityName}}:
 
 def update(db: Session, id: UUID, payload: Create{{EntityName}}) -> {{EntityName}} | None:
     [[LLM_INJECTION_START: UpdateImpl]]
-    # LLM fills: load by id, apply payload.model_dump() field-by-field, commit, return updated entity (or None if not found).
+    # LLM fills: load by id, apply payload.model_dump() field-by-field, commit,
+    # return the updated entity (or None if not found).
     raise NotImplementedError("Zone UpdateImpl not yet generated.")
     [[LLM_INJECTION_END: UpdateImpl]]
 

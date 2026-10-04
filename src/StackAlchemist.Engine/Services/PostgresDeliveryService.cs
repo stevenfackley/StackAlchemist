@@ -251,7 +251,8 @@ public sealed partial class PostgresDeliveryService(
             while (await reader.ReadAsync(ct))
             {
                 // Per row: schema_json can be client-supplied, so one row that does not fit the model
-                // must cost only that row, not blind the whole sweep for every other user.
+                // must cost only that row, not blind the whole sweep for every other user. It is still
+                // returned, flagged unreadable, so the reconciler can fail it (#425).
                 var id = reader.GetGuid(0).ToString();
                 try
                 {
@@ -261,6 +262,7 @@ public sealed partial class PostgresDeliveryService(
                 {
                     var (loggable, reason) = PostgresErrors.Redact(ex);
                     LogSnapshotReadFailed(logger, loggable, id, reason);
+                    rows.Add(ReadUnreadableSnapshot(reader));
                 }
             }
             return rows;
@@ -591,6 +593,15 @@ public sealed partial class PostgresDeliveryService(
             projectType: NullableString(r, 5),
             schemaJson: NullableString(r, 6),
             personalizationJson: NullableString(r, 7),
+            attemptCount: r.IsDBNull(8) ? null : r.GetInt32(8),
+            updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9));
+
+    // Same row, none of the jsonb columns: what the reconciler needs to fail it and nothing more.
+    private static GenerationSnapshot ReadUnreadableSnapshot(NpgsqlDataReader r) =>
+        SnapshotMapper.Unreadable(
+            id: r.GetGuid(0).ToString(),
+            status: NullableString(r, 1),
+            tier: r.IsDBNull(2) ? null : r.GetInt32(2),
             attemptCount: r.IsDBNull(8) ? null : r.GetInt32(8),
             updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9));
 

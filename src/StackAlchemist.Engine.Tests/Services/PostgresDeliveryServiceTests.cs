@@ -239,11 +239,11 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
     }
 
     [Fact]
-    public async Task GetStaleNonTerminalAsync_skips_a_row_whose_schema_does_not_fit_and_keeps_the_rest()
+    public async Task GetStaleNonTerminalAsync_flags_a_row_whose_schema_does_not_fit_and_keeps_the_rest()
     {
         if (!fx.Available) return;
         // schema_json can come from the client; this one lacks SchemaField's required "type".
-        var bad = await fx.SeedGenerationAsync(status: "building");
+        var bad = await fx.SeedGenerationAsync(status: "building", attempts: 1);
         try
         {
             await fx.ExecuteAsync(
@@ -255,16 +255,52 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
             var log = new EventRecorder();
             var sut = new PostgresDeliveryService(fx.DataSource, new PendingWriteBuffer(), log);
 
-            var ids = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Select(r => r.Id).ToList();
+            var rows = await sut.GetStaleNonTerminalAsync(StaleWindow, Ct);
 
-            ids.Should().Contain(good.ToString()).And.NotContain(bad.ToString());
-            log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the skipped row is logged by id");
+            rows.Single(r => r.Id == good.ToString()).IsUnreadable.Should().BeFalse();
+            var unreadable = rows.Single(r => r.Id == bad.ToString());
+            unreadable.IsUnreadable.Should().BeTrue(
+                "#425: a dropped row stayed stale and was skipped on every tick, forever");
+            unreadable.Status.Should().Be("building");
+            unreadable.AttemptCount.Should().Be(1);
+            unreadable.Schema.Should().BeNull();
+            unreadable.UpdatedAt.Should().BeBefore(await DatabaseNow() - StaleWindow);
+            log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the unreadable row is logged by id");
             log.Count(510).Should().Be(0, "the sweep itself did not fail");
         }
         finally
         {
             // Terminal even when an assertion above fails, so the unreadable row never leaks into
             // the other tests' sweeps on the shared container.
+            await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", bad);
+        }
+    }
+
+    [Fact]
+    public async Task TryFailStaleRowAsync_fails_an_unreadable_row_from_its_flagged_snapshot()
+    {
+        if (!fx.Available) return;
+        var bad = await fx.SeedGenerationAsync(status: "generating_code", attempts: 2);
+        try
+        {
+            await fx.ExecuteAsync(
+                "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
+                """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", bad);
+            await fx.SetUpdatedAtAsync(bad, OneHour);
+            var sut = Sut();
+            var snapshot = (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Single(r => r.Id == bad.ToString());
+
+            // The plain columns the flagged snapshot carries are exactly the compare-and-set filter.
+            (await sut.TryFailStaleRowAsync(snapshot, StaleWindow, "unreadable", "schema", Ct)).Should().BeTrue();
+
+            (await Column<string>(bad, "status")).Should().Be("failed");
+            (await Column<string>(bad, "error_message")).Should().Be("unreadable");
+            (await Column<string>(bad, "error_category")).Should().Be("schema");
+            (await sut.GetStaleNonTerminalAsync(StaleWindow, Ct)).Should().NotContain(r => r.Id == bad.ToString(),
+                "once failed, the row leaves the sweep");
+        }
+        finally
+        {
             await fx.ExecuteAsync("update stackalchemist.generations set status = 'failed' where id = $1", bad);
         }
     }
