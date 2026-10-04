@@ -146,18 +146,28 @@ public class SupabaseDeliveryServiceTests
     }
 
     [Fact]
-    public async Task GetStaleNonTerminalAsync_SkipsARowWhoseSchemaDoesNotFit()
+    public async Task GetStaleNonTerminalAsync_FlagsARowWhoseSchemaDoesNotFit()
     {
-        // The first row's field lacks SchemaField's required "type"; it must not hide the second.
+        // The first row's field lacks SchemaField's required "type"; it must not hide the second,
+        // and it must come back flagged so the reconciler can fail it (#425) instead of skipping it.
         var handler = new CapturingHttpHandler(HttpStatusCode.OK,
-            "[{\"id\":\"gen-bad\",\"status\":\"building\"," +
+            "[{\"id\":\"gen-bad\",\"status\":\"building\",\"tier\":2,\"attempt_count\":1," +
+            "\"updated_at\":\"2026-06-11T10:00:00Z\"," +
             "\"schema_json\":{\"entities\":[{\"name\":\"x\",\"fields\":[{\"name\":\"id\"}]}]}}," +
             "{\"id\":\"gen-good\",\"status\":\"building\"}]");
         var sut = BuildSut(BuildConfig(), handler);
 
         var rows = await sut.GetStaleNonTerminalAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
 
-        rows.Select(r => r.Id).Should().Equal("gen-good");
+        rows.Select(r => r.Id).Should().Equal("gen-bad", "gen-good");
+        rows[1].IsUnreadable.Should().BeFalse();
+        var bad = rows[0];
+        bad.IsUnreadable.Should().BeTrue();
+        bad.Status.Should().Be("building");
+        bad.Tier.Should().Be(2);
+        bad.AttemptCount.Should().Be(1);
+        bad.UpdatedAt.Should().Be(DateTimeOffset.Parse("2026-06-11T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture));
+        bad.Schema.Should().BeNull();
     }
 
     [Fact]
