@@ -476,7 +476,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           cd "$DEPLOY_DIR"
-          if docker compose -f docker-compose.prod.yml exec -T sa-engine /usr/local/lib/stackalchemist/sandbox-selftest.sh; then
+          # sa-web:3000 is a private peer on the compose network: the build user must not reach it.
+          if docker compose -f docker-compose.prod.yml exec -T -e SELFTEST_PRIVATE_TARGET=sa-web:3000 \n              sa-engine /usr/local/lib/stackalchemist/sandbox-selftest.sh; then
             echo "### ✅ Build sandbox selftest passed on prod" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### ❌ Build sandbox selftest FAILED on prod: Compile Guarantee builds are unsafe or broken" >> "$GITHUB_STEP_SUMMARY"
