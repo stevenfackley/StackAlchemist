@@ -3,16 +3,22 @@ name: Stripe wiring check
 # Proves the money path is wired without anyone paying. Read-only by default:
 # it lists the live webhook endpoints, checks that one targets this app with
 # every event the Engine handles, and shows recent events with their delivery
-# backlog. With `probe: true` it also creates a $1 Checkout Session and expires
-# it at once (no charge is possible). Stripe then delivers
-# `checkout.session.expired`, and the Engine records it in stackalchemist.stripe_events.
-# The workflow then checks that row through the prod database, which proves
-# Stripe → Cloudflare → nginx → Engine → signature → qavren-db end to end,
-# signing secret included. The probe needs the endpoint to be subscribed to
-# `checkout.session.expired`; when it is not, the probe adds that event for the
-# duration of the run and restores the original list afterwards.
-# `fix_missing_events: true` permanently subscribes the endpoint to any event
-# the Engine handles that it is missing (approved by the owner 2026-10-03).
+# backlog.
+#
+# probe: true — creates a $1 Checkout Session and expires it at once (no charge
+#   is possible). Stripe delivers `checkout.session.expired`; the Engine records
+#   every non-checkout event in stackalchemist.stripe_events, and the job checks
+#   that row through the prod database. That proves Stripe → Cloudflare → nginx →
+#   Engine → signature → qavren-db end to end, signing secret included. If the
+#   endpoint is not subscribed to `checkout.session.expired`, the probe adds it
+#   for the run and restores the original list afterwards.
+# fix_missing_events: true — permanently subscribes the endpoint to any event the
+#   Engine handles that it is missing.
+# create_endpoint: true — when NO endpoint targets the app, creates one with every
+#   handled event. Stripe returns its signing secret only at creation; the job
+#   encrypts it to `recipient_public_key` (base64 of an RSA public key PEM) and
+#   prints only the ciphertext, which the operator decrypts locally into the Prod
+#   STRIPE_WEBHOOK_SECRET before redeploying. (Owner-approved 2026-10-03.)
 #
 # Output is metadata only: no key, secret or customer data is printed.
 
@@ -27,6 +33,14 @@ on:
         description: "Permanently subscribe the endpoint to any handled event it is missing"
         type: boolean
         default: false
+      create_endpoint:
+        description: "Create the live endpoint if none targets the app (needs recipient_public_key)"
+        type: boolean
+        default: false
+      recipient_public_key:
+        description: "Base64 of an RSA public key PEM; the new signing secret is encrypted to it"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -44,6 +58,8 @@ jobs:
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       APP_WEBHOOK_URL: https://stackalchemist.app/api/webhooks/stripe
       REQUIRED_EVENTS: checkout.session.completed checkout.session.async_payment_succeeded checkout.session.async_payment_failed payment_intent.payment_failed charge.refunded charge.dispute.created
+      # Matches the API version Stripe.net 53 is pinned to, so event payloads deserialize exactly.
+      ENDPOINT_API_VERSION: 2026-09-30.endive
     steps:
       - name: Key mode
         run: |
@@ -59,27 +75,54 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsS -u "$STRIPE_SECRET_KEY:" "https://api.stripe.com/v1/webhook_endpoints?limit=100" > endpoints.json
+          echo "Endpoints in this account: $(jq '.data | length' endpoints.json)"
           jq -r '.data[] | "\(.id)  status=\(.status)  api_version=\(.api_version // "account default")  created=\(.created | todate)\n  url=\(.url)\n  events=\(.enabled_events | join(","))"' endpoints.json
           match=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)] | length' endpoints.json)
           if [ "$match" = "0" ]; then
-            echo "::error::No webhook endpoint targets $APP_WEBHOOK_URL — paid checkouts would never reach the Engine."
-            exit 1
+            echo "::warning::No webhook endpoint targets $APP_WEBHOOK_URL — paid checkouts would never reach the Engine."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           [ "$match" = "1" ] || echo "::warning::$match endpoints target $APP_WEBHOOK_URL — each delivers every event (handled idempotently, but check why)."
           id=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].id' endpoints.json)
           status=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].status' endpoints.json)
-          [ "$status" = "enabled" ] || { echo "::error::Endpoint $id is $status, not enabled."; exit 1; }
           events=$(jq -r --arg u "$APP_WEBHOOK_URL" '[.data[] | select(.url == $u)][0].enabled_events | join(" ")' endpoints.json)
           missing=""
           for e in $REQUIRED_EVENTS; do
             case " $events " in *" * "*|*" $e "*) ;; *) missing="$missing $e" ;; esac
           done
-          { echo "id=$id"; echo "events=$events"; echo "missing=${missing# }"; } >> "$GITHUB_OUTPUT"
+          { echo "found=true"; echo "id=$id"; echo "status=$status"; echo "events=$events"; echo "missing=${missing# }"; } >> "$GITHUB_OUTPUT"
+          [ "$status" = "enabled" ] || echo "::warning::Endpoint $id is $status, not enabled."
           if [ -n "$missing" ]; then
             echo "::warning::Endpoint $id does not send:$missing"
           else
-            echo "OK: $id is enabled and sends every event the Engine handles."
+            echo "OK: $id sends every event the Engine handles."
           fi
+
+      - name: Create the live endpoint
+        id: create
+        if: ${{ inputs.create_endpoint && steps.endpoints.outputs.found == 'false' }}
+        env:
+          RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
+        run: |
+          set -euo pipefail
+          [ -n "$RECIPIENT_PUBLIC_KEY" ] || { echo "::error::create_endpoint needs recipient_public_key"; exit 1; }
+          printf '%s' "$RECIPIENT_PUBLIC_KEY" | base64 -d > recipient.pub.pem
+          openssl pkey -pubin -in recipient.pub.pem -noout || { echo "::error::recipient_public_key is not a public key PEM"; exit 1; }
+          args=(-d "url=$APP_WEBHOOK_URL" -d "api_version=$ENDPOINT_API_VERSION"
+                -d "description=StackAlchemist Engine (prod) — created by stripe-wiring-check")
+          for e in $REQUIRED_EVENTS; do args+=(-d "enabled_events[]=$e"); done
+          curl -fsS -u "$STRIPE_SECRET_KEY:" https://api.stripe.com/v1/webhook_endpoints "${args[@]}" > created.json
+          id=$(jq -r .id created.json)
+          jq -r '.secret' created.json | tr -d '\n' \
+            | openssl pkeyutl -encrypt -pubin -inkey recipient.pub.pem -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            | base64 -w0 > secret.enc.b64
+          rm -f created.json
+          echo "Created $id at $APP_WEBHOOK_URL (api_version $ENDPOINT_API_VERSION) sending: $REQUIRED_EVENTS"
+          echo "ENCRYPTED_SIGNING_SECRET_BEGIN"
+          cat secret.enc.b64; echo
+          echo "ENCRYPTED_SIGNING_SECRET_END"
+          echo "Decrypt it locally into the Prod STRIPE_WEBHOOK_SECRET, then redeploy before probing."
 
       - name: Subscribe the endpoint to missing handled events
         id: fix
@@ -104,7 +147,7 @@ jobs:
           echo "(pending_webhooks > 0 on an event older than a few minutes means a delivery is failing.)"
 
       - name: Probe — send one zero-charge event through the live webhook
-        if: ${{ inputs.probe }}
+        if: ${{ inputs.probe && steps.endpoints.outputs.found == 'true' }}
         env:
           ENDPOINT_ID: ${{ steps.endpoints.outputs.id }}
           ENDPOINT_EVENTS: ${{ steps.fix.outputs.events || steps.endpoints.outputs.events }}
@@ -159,7 +202,7 @@ jobs:
           echo "OK: Stripe delivered ${ev%% *} and the Engine answered 2xx."
 
       - name: Probe — the event reached qavren-db
-        if: ${{ inputs.probe }}
+        if: ${{ inputs.probe && steps.endpoints.outputs.found == 'true' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_MIGRATE }}
         run: |
@@ -172,9 +215,21 @@ jobs:
       - name: Verdict
         if: ${{ always() }}
         env:
+          FOUND: ${{ steps.endpoints.outputs.found }}
+          STATUS: ${{ steps.endpoints.outputs.status }}
+          CREATED: ${{ steps.create.outcome }}
           FIX_OUTCOME: ${{ steps.fix.outcome }}
           ENDPOINT_MISSING: ${{ steps.endpoints.outputs.missing }}
         run: |
+          if [ "$FOUND" != "true" ]; then
+            if [ "$CREATED" = "success" ]; then
+              echo "Endpoint created. Set the Prod STRIPE_WEBHOOK_SECRET from the ciphertext above, redeploy, then run again with probe."
+              exit 0
+            fi
+            echo "::error::No live webhook endpoint targets $APP_WEBHOOK_URL. Re-run with create_endpoint, or create it in the Stripe dashboard."
+            exit 1
+          fi
+          [ "$STATUS" = "enabled" ] || { echo "::error::The endpoint is $STATUS."; exit 1; }
           MISSING="$ENDPOINT_MISSING"
           [ "$FIX_OUTCOME" = "success" ] && MISSING=""
           if [ -n "$MISSING" ]; then
