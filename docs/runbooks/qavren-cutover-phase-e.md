@@ -492,3 +492,22 @@ realm, which is untouched); the Supabase accounts come back.
 - The wiring check found and fixed a missing live webhook endpoint (`we_1UMfsUCF5Q50oI5Iyz6LUolM`, new Prod `STRIPE_WEBHOOK_SECRET`, redeploy 37173519076).
 - A zero-charge probe (run 37173569528) proved Stripe → Engine → qavren-db with the signing secret.
 - Details in `docs/runbooks/stripe-webhooks.md`.
+
+**2026-10-04: phase F executed.** The owner brought the merge forward from 2026-10-08. Prod had been stable on qavren-db and Qavren Auth since the flip, and the money gate was met.
+- **Pre-merge check:** `main` (43985b2d) with all three PRs merged in went through the full CI on a throwaway branch. Run 37242986190 was green, including E2E Integration and the build-sandbox selftest.
+- **Merged in order:**
+  - #483 web (07d2272c);
+  - #482 Engine and Worker (d1bd53c3, fixes #426);
+  - #480 CI, deploy, config and docs (a58edc74).
+- **Deploys:** run 37243523436 (web), then run 37243546821 (final state). Both green. The #482 deploy was superseded in the queue.
+- **Verified on the final deploy:**
+  - preflight `Deploy mode: qavren-db store + Qavren Auth`, and the migrator reported no pending migrations;
+  - the mode check passed (`/api/auth/session` 200, `/login` marker present);
+  - the build-sandbox selftest passed every check on prod, including the `sa-web` private peer.
+- **Verified live afterwards:**
+  - `/api/healthz` 200;
+  - anonymous `/dashboard` → 307 `/login?returnTo=/dashboard` with `Cache-Control: private, no-store`, so it is dynamic, not prerendered;
+  - 0 of 15 scanned JS chunks mention `supabase.co`, and the served CSP `connect-src` lists no Supabase host.
+- **Secrets:** the Prod `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are deleted. No `SUPABASE*` secret is left at repo, Prod or Test level.
+- **Issues:** #431 and #422 closed as retired, and #426 closed by #482.
+- **Still open (owner, Supabase dashboard):** delete projects `ctqhwykryoglhdwatljt` (prod) and `cdlefpvsvyepofsboepc` (CI). Nothing reads either one. An optional final `pg_dump` of the prod project into the password vault comes first.

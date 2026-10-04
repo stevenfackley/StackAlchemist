@@ -17,7 +17,14 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
 >
 > Still gated: Tasks 2–6 (G2: on or after 2026-10-08, plus the §3.4 money path) and Task 7 (owner).
 >
-> **Progress (2026-10-04):**
+> **Executed 2026-10-04** (the owner brought it forward from 2026-10-08):
+> - Merged in order: #483 (07d2272c), #482 (d1bd53c3), #480 (a58edc74).
+> - The final deploy (run 37243546821) is green.
+> - The Prod `SUPABASE_*` secrets are deleted, and #431 and #422 are closed.
+> - Remaining: the owner deletes the two Supabase projects (Task 7).
+> - The record is in `docs/runbooks/qavren-cutover-phase-e.md` (Execution record).
+>
+> **Progress (2026-10-04, before the merge):**
 > - G2(2), the money path, is met (see Gates).
 > - Tasks 2–6 are built, reviewed and green, but not merged:
 >   - #483: web, Tasks 2–3;
