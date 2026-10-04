@@ -41,6 +41,11 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
      - Stripe delivery confirmed by one of the checks in `docs/runbooks/stripe-webhooks.md` (the dashboard's recent deliveries showing 200s, or the owner-approved zero-charge probe).
 
      Rollback to Supabase mode stays possible until G2 holds.
+
+     **Met on 2026-10-04:**
+     - #471 merged.
+     - The live endpoint was created; there had been none.
+     - The zero-charge probe passed (run 37173569528). The event reached `stackalchemist.stripe_events`.
   3. No open rollback-class incident.
 - **G3, Task 7:** the merged F deploy is green and its mode check passes in the single remaining mode.
 

@@ -47,7 +47,10 @@ The **signing secret** shown on that endpoint must equal the `STRIPE_WEBHOOK_SEC
    - **`probe: true`** creates a $1 Checkout Session and expires it at once, so it is never payable. It temporarily subscribes the endpoint to `checkout.session.expired`, then confirms Stripe delivered the event with a 2xx and that the event id landed in `stripe_events`. That proves the full chain, signing secret included.
    - **`fix_missing_events: true`** subscribes the endpoint to any handled event it is missing.
 
-As of 2026-10-03, `stripe_events` was empty: no live event had reached the Engine since the 2026-10-01 cutover. No payment had happened, and the one test session's `checkout.session.expired` isn't a subscribed event, so this does not prove a fault. It does mean delivery has not yet been proven end to end on qavren-db.
+**History.**
+- **Before 2026-10-04 there was no live endpoint at all.** The wiring check's first run, 37173133284, found **zero webhook endpoints** in the live Stripe account. Every paid checkout until then would have taken the money and built nothing. The old `STRIPE_WEBHOOK_SECRET` (set 2026-04-02) belonged to no live endpoint.
+- **2026-10-04 03:14 UTC: endpoint created** by `create_endpoint` in run 37173485849. It is `we_1UMfsUCF5Q50oI5Iyz6LUolM` with the six events above and `api_version` `2026-09-30.endive`. Its signing secret went into the Prod `STRIPE_WEBHOOK_SECRET`, and prod was redeployed (run 37173519076).
+- **Probe passed** (run 37173569528). `evt_1UMfu8CF5Q50oI5I9EfgAM8c` was delivered with `pending_webhooks = 0` and recorded in `stackalchemist.stripe_events`.
 
 ## Failure handling, by design
 
