@@ -175,7 +175,7 @@ The preflight step is first in the job. It refuses an inconsistent set (auth wit
 Common:
 
 - `AWS_ROLE_TO_ASSUME`
-- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` (account id from `CF_ACCOUNT_ID`, falling back to `R2_ACCOUNT_ID`)
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (account id from `CF_ACCOUNT_ID`, falling back to `R2_ACCOUNT_ID`)
 - `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `ANTHROPIC_API_KEY`; the model comes from the repository variable `ANTHROPIC_MODEL` (default Claude Sonnet 5.5, `claude-sonnet-5-5`)
 - `CLOUDFLARE_TUNNEL_TOKEN`
