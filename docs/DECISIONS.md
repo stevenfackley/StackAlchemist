@@ -953,7 +953,7 @@ Phase F's gate G2(2) becomes "this hardening merged, plus one of those two check
 
 ## 2026-10-04 — Phase F: Supabase retired; one store, one identity provider
 
-**Status:** accepted (merges on or after 2026-10-08, gate G2)
+**Status:** accepted and executed 2026-10-04 (#483, #482, #480). The owner brought the merge forward from the 2026-10-08 gate.
 **Context:** Prod has run on qavren-db and Qavren Auth since the phase E flip (2026-10-01). Supabase mode stayed compiled in only as a rollback path. G2 sets the conditions for removing it: seven clean days after the flip, and the money path verified. The money path was met on 2026-10-04 (#471, the live webhook endpoint, and the zero-charge probe). Keeping two modes doubled every auth, data and deploy path, and the browser bundle still carried the old project's URL and anon key.
 
 **Decision:**
