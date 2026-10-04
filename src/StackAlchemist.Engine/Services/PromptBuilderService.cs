@@ -49,7 +49,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
         var stackDescription = projectType switch
         {
             ProjectType.PythonReact =>
-                "You are an expert Python (FastAPI, SQLAlchemy, Pydantic, Alembic) and React (Vite, TypeScript, Tailwind CSS, TanStack Query) developer generating production-quality code.",
+                "You are an expert Python (FastAPI, SQLAlchemy, Pydantic, Alembic) and React (Vite, TypeScript, Tailwind CSS v4, TanStack Query) developer generating production-quality code.",
             _ =>
                 "You are an expert .NET 10 and Next.js 16 developer generating production-quality code.",
         };
@@ -180,7 +180,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
     {
         sb.AppendLine("## Stack");
         sb.AppendLine("- Backend: FastAPI with SQLAlchemy ORM, Pydantic schemas, Alembic migrations");
-        sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS, TanStack Query");
+        sb.AppendLine("- Frontend: React 19 with Vite, TypeScript strict mode, Tailwind CSS v4 (v4 utility scale: use `shadow-xs`, `rounded-xs`, `blur-xs` where v3 used `shadow-sm`, `rounded-sm`, `blur-sm`; a bare `ring` is 1px, so write `ring-3` for the old default), TanStack Query");
         sb.AppendLine();
         sb.AppendLine("## Project Tree — paths are not negotiable");
         sb.AppendLine();
@@ -211,7 +211,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
     {
         sb.AppendLine("## Stack");
         sb.AppendLine("- Backend: .NET 10 Minimal API with Dapper and PostgreSQL (Npgsql)");
-        sb.AppendLine("- Frontend: Next.js 16 App Router, TypeScript strict mode, Tailwind CSS");
+        sb.AppendLine("- Frontend: Next.js 16 App Router, TypeScript strict mode, Tailwind CSS v4 (v4 utility scale: use `shadow-xs`, `rounded-xs`, `blur-xs` where v3 used `shadow-sm`, `rounded-sm`, `blur-sm`; a bare `ring` is 1px, so write `ring-3` for the old default)");
         sb.AppendLine();
         sb.AppendLine("## Project Tree — paths are not negotiable");
         sb.AppendLine();
