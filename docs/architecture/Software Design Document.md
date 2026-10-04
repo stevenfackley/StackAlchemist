@@ -1,6 +1,6 @@
 ### Software Design Document (SDD): StackAlchemist
 
-> Status (2026-10-03): describes the system as deployed. Prod runs the V1 one-shot generation path on Claude Sonnet 5.5, with data in qavren-db (Postgres) and sign-in through Qavren Auth (Keycloak). Supabase is legacy and rollback-only; phase F deletes the remaining Supabase code (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`).
+> Status (2026-10-03): describes the system as deployed. Prod runs the V1 one-shot generation path on Claude Sonnet 5.5, with data in qavren-db (Postgres) and sign-in through Qavren Auth (Keycloak). Phase F deleted the legacy Supabase mode, so there is one store and one identity provider (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`).
 
 **1. System Architecture**
 * **Frontend and API Gateway:** Next.js 16 (App Router, React 19, Tailwind CSS 4, `@xyflow/react`). Server Actions handle intake and checkout and call the Engine with an `X-Engine-Key` header.

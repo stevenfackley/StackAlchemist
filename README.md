@@ -99,7 +99,7 @@ npm run dev --prefix src/StackAlchemist.Web
 
 Open [http://localhost:3000](http://localhost:3000).
 
-> **Demo mode:** with no Supabase URL set outside production, the web app auto-enables demo mode (no sign-in, no database). For the real auth path set `NEXT_PUBLIC_DEMO_MODE=false`, `DATABASE_URL`, `QAVREN_AUTH_URL`, `QAVREN_REALM` and `AUTH_SECRET` in `src/StackAlchemist.Web/.env.local`. Full local recipe: [Qavren Auth runbook](docs/runbooks/qavren-auth.md).
+> **Demo mode:** outside production the web app runs in demo mode (no sign-in, no database) unless `NEXT_PUBLIC_DEMO_MODE=false`. For the real auth path set `NEXT_PUBLIC_DEMO_MODE=false`, `DATABASE_URL`, `QAVREN_AUTH_URL`, `QAVREN_REALM` and `AUTH_SECRET` in `src/StackAlchemist.Web/.env.local`. Full local recipe: [Qavren Auth runbook](docs/runbooks/qavren-auth.md).
 
 > **Note:** The Engine and the Compile Worker run in the same process (in-process `Channel<T>`). You only need to start `StackAlchemist.Engine` — no separate Worker process is required for local development.
 
@@ -222,7 +222,6 @@ StackAlchemist/
 | [Runbook: Qavren Auth](docs/runbooks/qavren-auth.md) | Keycloak realm, env contract, local recipe |
 | [Runbook: qavren-db migrations](docs/runbooks/qavren-db-migrations.md) | Drizzle migrations, `DATABASE_URL` vs `DATABASE_URL_MIGRATE` |
 | [Self-hosting](docs/advanced-docs/self-hosting.md) | Run the repo yourself |
-| [Legacy: CI Supabase migrations](docs/runbooks/ci-supabase-migrations.md) | Rollback-only Supabase mode, being removed |
 
 ---
 

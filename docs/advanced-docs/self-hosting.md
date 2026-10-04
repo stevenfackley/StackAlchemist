@@ -48,7 +48,7 @@ External services the full pipeline uses: Anthropic (generation), Cloudflare R2 
 
 ## Quick Start: Demo Mode
 
-Demo mode is the fastest way to see the UI. With no Supabase URL set outside production, the web app enables demo mode automatically: no sign-in and no database.
+Demo mode is the fastest way to see the UI. Outside production the web app runs in demo mode unless `NEXT_PUBLIC_DEMO_MODE=false`: no sign-in and no database.
 
 ```bash
 git clone https://github.com/stevenfackley/StackAlchemist.git
@@ -212,12 +212,6 @@ curl http://localhost:5000/healthz
 curl http://localhost:3000/api/healthz
 docker compose logs -f sa-engine
 ```
-
----
-
-## Legacy Supabase Mode
-
-Earlier versions used Supabase for auth and data. The hosted platform left it on 2026-10-01, and the legacy "Supabase mode" is being removed from the code. Do not set up new installs on Supabase.
 
 ---
 

@@ -1,66 +1,64 @@
 # Qavren Auth Runbook
 
-> **Status (2026-10-03):** prod has run in **Qavren mode** since 2026-10-01 (phase E
-> flip). Supabase mode is still compiled in as a **rollback-only** path and is
-> deleted in phase F; see
-> `docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`. Read the
-> "Supabase mode" statements below as describing that rollback path, not a live
-> alternative.
+> **Status (2026-10-04):** prod has signed in through Qavren Auth since the
+> phase E flip (2026-10-01). Phase F deleted the Supabase Auth mode
+> (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`), so this
+> is the only sign-in path.
 
-StackAlchemist moved sign-in from Supabase Auth to Qavren Auth (Keycloak,
-realm `stackalchemist`) through Auth.js. The switch is a runtime flag, so one
-image serves both modes. This document covers what the flag does, the env
-contract, the realm facts, a local recipe, the phase E flip, the traps and what
-is deliberately left for phase F. Data moves separately; see
-`qavren-db-migrations.md`. Qavren Auth is the live mode since the phase E flip (2026-10-01).
+StackAlchemist signs users in through Qavren Auth (Keycloak, realm
+`stackalchemist`) with Auth.js. This document covers the configuration rules,
+the env contract, the realm facts, a local recipe, the production shape and the
+traps. The data side is in `qavren-db-migrations.md`.
 
-## What the flag does
+## Configuration rules
 
-- **`QAVREN_AUTH_URL` set:** sign-in goes through the Keycloak realm with
-  Auth.js (`next-auth` v5 plus `@qavren/auth-next`). `/login` and `/register`
-  are one-button pages that hand off to the realm's own screen.
-- **`QAVREN_AUTH_URL` unset or blank:** Supabase Auth, every existing path
-  unchanged. Auth.js is never loaded in that mode (lazy imports behind
-  `usesQavrenAuth()`).
-- **Boot assert.** `assertAuthModeConsistent()` in `src/lib/runtime-config.ts`
-  runs once per server start from `src/instrumentation.ts`. With
-  `QAVREN_AUTH_URL` set it throws unless all of these hold:
-  1. `DATABASE_URL` is set. A Keycloak `sub` cannot own a row where
-     `profiles.id` references Supabase's `auth.users`, so auth without the
-     Postgres store is refused by design.
-  2. `QAVREN_AUTH_URL` is an absolute http(s) URL.
-  3. `AUTH_SECRET` is not blank.
+- **Production has one shape.** `assertProductionConfig()` in
+  `src/lib/runtime-config.ts` runs once per server start from
+  `src/instrumentation.ts`. In production it throws unless `DATABASE_URL`,
+  `QAVREN_AUTH_URL` (an absolute http(s) URL) and `AUTH_SECRET` are all set.
+  Outside production all three may be unset (demo mode). A `QAVREN_AUTH_URL`
+  that is set still needs the other two, because a Keycloak `sub` can only own
+  rows in the qavren-db store.
 
-  A failure aborts **server start** (the container never turns healthy and the
-  deploy's health gate fails), never the build: `next build` does not run the
-  hook and the values exist only at runtime. The error messages never echo a
-  value.
-- **Every mode-branching page is `force-dynamic`.** The mode is a runtime secret
-  that `next build` never sees; a prerendered page would freeze Supabase mode in
-  at build time. Today that is `/login`, `/register`, `/forgot-password`,
-  `/auth/reset-password` and `/privacy`. A new page that branches on
-  `usesQavrenAuth()` must export `dynamic = "force-dynamic"`.
-- **`/api/auth/*` answers 404 in Supabase mode** (the route handler returns 404
-  before it imports Auth.js, so a stray request cannot surface a `MissingSecret`
-  500). In Qavren mode it is Auth.js.
+  A failure aborts **server start**: the container never turns healthy and the
+  deploy's health gate fails. It never fails the build, because `next build`
+  does not run the hook and the values exist only at runtime. The error
+  messages never echo a value.
+- **Demo mode is explicit or local.** `isDemoMode` is true when
+  `NEXT_PUBLIC_DEMO_MODE=true`, or when it is unset outside production. In demo
+  mode there is no realm and no `AUTH_SECRET`, so nothing loads Auth.js:
+  - `usesQavrenAuth()` (is `QAVREN_AUTH_URL` set?) guards the sign-in and
+    sign-up actions;
+  - `getSessionUser()` returns no session;
+  - `/api/auth/*` answers 404 before it imports Auth.js, so a stray request
+    cannot surface a `MissingSecret` 500.
+- **Pages that read runtime auth state are `force-dynamic`.** `next build`
+  never sees `QAVREN_AUTH_URL`, so a prerendered page would freeze the
+  build-time answer. Today that is `/login` and `/register`, which show the
+  sign-in host, and `/dashboard`, which reads the session. Without it the
+  build prerendered `/dashboard` as a static redirect to `/login`. A new page
+  that reads the session or the auth configuration on the server must export
+  `dynamic = "force-dynamic"`.
+- **`/forgot-password` and `/auth/reset-password` redirect to `/login`.**
+  Password reset lives on the Keycloak screen.
 - **nginx sends `/api/auth/` to `sa-web`.** `docker/nginx.prod.conf` routes the
-  rest of `/api/` to the Engine; without the `/api/auth/` location the OAuth
-  callback would land on the Engine and 404. The rule ships inert ahead of the
-  flip (the web answers the same 404 the Engine did).
+  rest of `/api/` to the Engine. Without the `/api/auth/` location the OAuth
+  callback would land on the Engine and 404.
 
 ## Env contract
 
 Prod path: GitHub secret or variable -> `deploy-prod.yml` -> `setup-env` inputs
 -> `.env` -> `docker-compose.prod.yml` `sa-web.environment`. Only `sa-web` gets
-them; the Engine does not authenticate users.
+them; the Engine does not authenticate users. The deploy preflight refuses to
+run without `QAVREN_AUTH_URL` and `AUTH_SECRET`.
 
 | Variable | Prod | Local | Notes |
 |---|---|---|---|
-| `QAVREN_AUTH_URL` | `https://auth.stackalchemist.app` (secret `QAVREN_AUTH_URL`) | `http://localhost:8090` | Keycloak base URL, no realm path. The flag. |
+| `QAVREN_AUTH_URL` | `https://auth.stackalchemist.app` (secret `QAVREN_AUTH_URL`) | `http://localhost:8090` | Keycloak base URL, no realm path. Required in production. |
 | `QAVREN_REALM` | unset (repo variable `QAVREN_REALM`, optional); compose defaults it to `stackalchemist` | `stackalchemist-dev` | The OIDC client is `${realm}-web`. |
 | `AUTH_SECRET` | secret `AUTH_SECRET` | any base64 string | At least 32 random bytes, base64: `openssl rand -base64 32`. Encrypts the session cookie. |
-| `AUTH_URL` | derived in compose from `NEXT_PUBLIC_APP_URL` (`docker-compose.prod.yml:59`) | unset | The public **origin** only. See below. |
-| `NEXT_PUBLIC_APP_URL` | `https://stackalchemist.app` (build arg, `docker-compose.prod.yml:33`; runtime env, `:44`) | `http://localhost:3000` | **Build-time** public origin. See below. |
+| `AUTH_URL` | derived in `docker-compose.prod.yml` from `NEXT_PUBLIC_APP_URL` | unset | The public **origin** only. See below. |
+| `NEXT_PUBLIC_APP_URL` | `https://stackalchemist.app` (build arg and runtime env in `docker-compose.prod.yml`) | `http://localhost:3000` | **Build-time** public origin. See below. |
 
 Notes:
 
@@ -80,9 +78,8 @@ Notes:
   one, so the callback URL is `https://stackalchemist.app/api/auth/callback/keycloak`
   and the cookies get the `__Secure-` prefix. A path in it would change Auth.js's
   `basePath` and break `/api/auth`. Prod compose derives it from
-  `NEXT_PUBLIC_APP_URL`, so the two cannot drift. It is harmless in Supabase
-  mode (Auth.js is never loaded). Locally leave it unset: `http://localhost:3000`
-  is what the browser and the server both see.
+  `NEXT_PUBLIC_APP_URL`, so the two cannot drift. Locally leave it unset:
+  `http://localhost:3000` is what the browser and the server both see.
 - **Sign-out follows the session cookie the browser sent.** Auth.js names the
   cookie from `AUTH_URL` / `X-Forwarded-Proto` (`__Secure-authjs.session-token`
   over https, `authjs.session-token` otherwise). `/auth/signout` needs the ID
@@ -99,23 +96,19 @@ Notes:
   it, and sends `post_logout_redirect_uri = ${NEXT_PUBLIC_APP_URL}/`. An image
   built without the right value falls back to the container bind origin (or a
   wrong site) and **403s every sign-out behind the reverse proxy**. The
-  `Dockerfile` defaults it on line 14 to `https://test.stackalchemist.app`, so a
-  bare `docker build` (not through compose) bakes the TEST URL: every prod
-  sign-out would 403 or redirect post-logout to the test site. Always build via
-  `docker compose -f docker-compose.prod.yml build`, which passes the build arg
-  (`docker-compose.prod.yml:33`, defaulting to `https://stackalchemist.app`).
+  `Dockerfile` and `docker-compose.prod.yml` both default it to
+  `https://stackalchemist.app` (the Dockerfile defaulted to the retired test
+  site until PR #469). A build for any other origin must pass the build arg.
 - **One canonical host.** The same-origin check pins exactly one origin, and the
   realm's redirect and post-logout lists name only `https://stackalchemist.app`.
   `www.` or any other alias must redirect to the apex at Cloudflare; a
   sign-out POSTed from an alias is refused. `prod-ec2-runner-and-oidc.md` lists
   `www.stackalchemist.app` as an optional tunnel hostname that serves the app
-  as-is: if it is configured, turn it into a redirect (or drop it) before
-  phase E.
-- **Local dev needs `NEXT_PUBLIC_DEMO_MODE=false` explicitly.** Demo mode
-  auto-enables whenever `NEXT_PUBLIC_SUPABASE_URL` is unset outside production,
-  and demo mode switches the proxy gate off and the app's demo code paths on.
-  Without the explicit `false` a Keycloak-mode dev server never redirects you to
-  sign in.
+  as-is: if it is configured, turn it into a redirect (or drop it).
+- **Local dev needs `NEXT_PUBLIC_DEMO_MODE=false` explicitly.** Outside
+  production an unset `NEXT_PUBLIC_DEMO_MODE` means demo mode, which switches
+  the proxy gate off and the app's demo code paths on. Without the explicit
+  `false` a Keycloak dev server never redirects you to sign in.
 
 ## Realm facts
 
@@ -162,7 +155,7 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
    actions. A user missing either name is stopped at a required-action screen
    and cannot finish signing in. (Self-registration needs working SMTP because
    of `verifyEmail`.)
-4. **Postgres.** `DATABASE_URL` is required in this mode. Use the throwaway
+4. **Postgres.** `DATABASE_URL` is required with `QAVREN_AUTH_URL`. Use the throwaway
    database from "Local database recipe" in `qavren-db-migrations.md` and run
    `npm run db:migrate` against it first.
 5. **`src/StackAlchemist.Web/.env.local`** (gitignored; Next reads env files from
@@ -188,29 +181,21 @@ Definitions live in the qavren-auth repo: `realms/apps/stackalchemist.yaml`
       redirects to `/login` (the realm session is gone too: **Sign in** shows
       the Keycloak form again instead of signing straight back in).
 
-## Phase E flip order
+## Production shape
 
-The owner-run checklist (measured state, exact commands, verification, the
-Supabase pause, rollback) is `docs/runbooks/qavren-cutover-phase-e.md`; this
-section keeps only the invariant the code enforces.
-
-- Prod has two legitimate shapes: **Supabase mode** (rollback only since 2026-10-01) (neither `DATABASE_URL`
-  nor `QAVREN_AUTH_URL`) and **Qavren mode** (both, plus `DATABASE_URL_MIGRATE`
-  and `AUTH_SECRET`). `DATABASE_URL` and `QAVREN_AUTH_URL` flip **together in
-  one deploy**; the other two may exist earlier (`AUTH_SECRET` is inert alone,
-  `DATABASE_URL_MIGRATE` alone pre-applies migrations). `QAVREN_REALM` stays
-  unset unless the realm is renamed; `AUTH_URL` derives from
-  `NEXT_PUBLIC_APP_URL` in compose; nginx already routes `/api/auth/`.
-- Since 2026-09-30 `deploy-prod.yml` enforces this in a first-step preflight
-  (auth without store or without `AUTH_SECRET`, store without the migrate URL
-  or without auth, or a malformed value, aborts the run before the build) and
-  checks the resulting mode after the health probe (`/api/auth/session` 200 +
-  the hand-off copy on `/login` in Qavren mode; 404 + the Supabase email field
-  otherwise).
-- Existing Supabase users do **not** carry over (fresh provision, parent plan
-  decision 3). Rollback is one deploy with `QAVREN_AUTH_URL`, `DATABASE_URL`
-  and `DATABASE_URL_MIGRATE` removed, or the box-side fast path in the runbook;
-  data written to qavren-db meanwhile does not flow back.
+- Prod needs `DATABASE_URL`, `DATABASE_URL_MIGRATE`, `QAVREN_AUTH_URL` and
+  `AUTH_SECRET`. `QAVREN_REALM` stays unset unless the realm is renamed.
+  `AUTH_URL` is derived from `NEXT_PUBLIC_APP_URL` in compose, and nginx routes
+  `/api/auth/`.
+- `deploy-prod.yml` checks this in its first step. A missing secret or a
+  malformed URL aborts the run before the build, while the old stack still
+  serves. After the health probe it checks that prod came up on Qavren Auth:
+  `/api/auth/session` returns 200, and `/login` carries the hand-off copy
+  (`sign-in service at`).
+- The flip itself (2026-10-01) is recorded in
+  `docs/runbooks/qavren-cutover-phase-e.md`. Supabase users did not carry over
+  (fresh provision, parent plan decision 3). There is no rollback to Supabase
+  Auth: phase F deleted that mode.
 
 ## Troubleshooting
 
@@ -259,22 +244,23 @@ section keeps only the invariant the code enforces.
   window is unbounded while the user stays active; ours is tighter. Shorten `maxAge` in
   `src/auth.config.ts` if that window is ever unacceptable.
 
-## Known gaps and phase F
+## Phase F (done)
 
-Phase F is planned in `docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`
-(retire Supabase mode and delete the old Supabase project, no earlier than
-2026-10-08). The list below is a summary; the plan is authoritative.
+Phase F (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`)
+deleted the Supabase Auth mode:
+- the Supabase sign-in, sign-up and password pages, and `oauth-buttons.tsx`;
+- the Supabase branches of `proxy.ts`, `/auth/signout` and `/auth/callback`
+  (the callback route itself is gone);
+- `@supabase/ssr` and `@supabase/supabase-js`;
+- the Supabase CSP entries and the Supabase config helpers.
 
-- The Qavren gate in `src/proxy.ts` decodes the path before the protected-prefix
-  check (so `/%73imple` is guarded). The Supabase branch keeps its pre-existing
-  gap for that encoding. Both are redirect conveniences: `getSessionUser()` in
-  each action and page is the authorization boundary.
-- In Supabase mode `returnTo` is unsanitised (pre-existing). Qavren mode runs it
-  through `safeReturnTo`.
-- Phase F (prod has now run on Qavren Auth since 2026-10-01) deletes: `LoginPageClient`,
-  `RegisterPageClient`, `ForgotPasswordClient`, `ResetPasswordClient`,
-  `oauth-buttons.tsx`, the Supabase branches of `proxy.ts`, `/auth/signout` and
-  `/auth/callback`, `@supabase/ssr` and `@supabase/supabase-js`, the Supabase
-  CSP entries, and `hasPublicSupabaseConfig` / `hasServerSupabaseConfig`. It
-  also turns the `isDemoMode || !supabase` hard-navigation guards in
-  `SimpleModePage` and `AdvancedModePage` into plain hard navigations.
+The simple and advanced pages now always hard-navigate after a free submit.
+
+Two gaps closed with it:
+- the old Supabase gate did not decode the path before the protected-prefix
+  check;
+- the old Supabase path left `returnTo` unsanitised.
+
+The remaining gate decodes the path (so `/%73imple` is guarded) and runs
+`returnTo` through `safeReturnTo`. The gate is a redirect convenience:
+`getSessionUser()` in each action and page is the authorization boundary.

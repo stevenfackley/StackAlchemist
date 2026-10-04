@@ -64,6 +64,8 @@ Gap: The validation in CI's quality gate (`validate-secrets`) checks `ENGINE_SER
 
 The Engine uses Dapper with parameterized queries (enforced via code review and the injection prompt constraint "Use parameterized SQL — no string interpolation in queries"). Supabase PostgREST handles the web-facing queries via RLS-filtered selects. No raw SQL interpolation found.
 
+> **Update (2026-10-04):** PostgREST and RLS are gone. The web queries qavren-db through Drizzle (parameterized), and every query is scoped to the session user; the two-user isolation suite proves it.
+
 ### [I8] CSP report endpoint
 
 `POST /api/csp-report` logs violations to stdout only, never persists PII, never returns 5xx. The `runtime = "nodejs"` directive is correct (Edge runtime cannot log to stdout). This is well-implemented.
