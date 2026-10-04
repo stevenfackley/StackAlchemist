@@ -11,34 +11,32 @@
  *
  * To prove the round trip, these tests replicate the exact decrypt side of
  * the algorithm locally and use it to open the ciphertext captured from the
- * mocked `upsert(...)` call. That's the only way to verify encryption
+ * mocked `upsertProfile(...)` call. That's the only way to verify encryption
  * correctness without modifying production source.
  */
 import { createDecipheriv, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { getServerUser } from "@/lib/supabase-server";
-import { createServerClient } from "@/lib/supabase";
-import { hasDataStoreConfig, hasServerSupabaseConfig } from "@/lib/runtime-config";
+import { getDataStore } from "@/lib/data";
+import { DataStoreError } from "@/lib/data/store";
+import { getSessionUser } from "@/lib/session";
+import { hasDataStoreConfig } from "@/lib/runtime-config";
 import { getProfileSettings, saveProfileSettings } from "@/lib/actions";
 import type { SaveProfileSettingsState } from "@/lib/types";
-import { makeDb } from "./actions-test-helpers";
+import { makeStore, type FakeStore } from "./actions-test-helpers";
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
-  hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
-  usesPostgresStore: vi.fn(() => false),
-  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => ""),
 }));
 
-vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+vi.mock("@/lib/session", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/data", () => ({ getDataStore: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-// The store rejects malformed ids before querying, so the user id must be a real UUID.
+// Session ids are Keycloak subs, always UUIDs.
 const USER = { id: "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c", email: "founder@example.com" };
 const IDLE: SaveProfileSettingsState = { status: "idle", message: "" };
 
@@ -65,12 +63,25 @@ function makeFormData(fields: Record<string, string>): FormData {
 }
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let store: FakeStore;
+
+/** Fresh fake store per test, returned by every getDataStore() call. */
+function resetStore() {
+  store = makeStore();
+  vi.mocked(getDataStore).mockReset();
+  vi.mocked(getDataStore).mockReturnValue(store);
+}
+
+/** The profile object saveProfileSettings handed to the store. */
+function upsertedProfile() {
+  expect(store.upsertProfile).toHaveBeenCalledTimes(1);
+  return store.upsertProfile.mock.calls[0][0];
+}
 
 describe("actions.ts — saveProfileSettings", () => {
   beforeEach(() => {
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     vi.mocked(revalidatePath).mockClear();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -82,23 +93,23 @@ describe("actions.ts — saveProfileSettings", () => {
   });
 
   it("rejects when the caller isn't authenticated", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
 
     const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-5-5" }));
     expect(result).toEqual({ status: "error", message: "Sign in before saving API settings." });
   });
 
-  it("rejects when Supabase server config is incomplete", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(false);
+  it("rejects when no data store is configured", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     vi.mocked(hasDataStoreConfig).mockReturnValue(false);
 
     const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-5-5" }));
-    expect(result).toEqual({ status: "error", message: "Supabase server configuration is incomplete." });
+    expect(result).toEqual({ status: "error", message: "Server database configuration is incomplete." });
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("rejects an unsupported preferredModel value", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
 
     const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "gpt-5-turbo-nope" }));
     expect(result).toEqual({ status: "error", message: "Choose a supported model before saving." });
@@ -107,7 +118,7 @@ describe("actions.ts — saveProfileSettings", () => {
   it.each(["claude-sonnet-4-6", "claude-3-5-sonnet-20241022", "openai/gpt-4o-mini"])(
     "rejects the superseded model id %s",
     async (retired) => {
-      vi.mocked(getServerUser).mockResolvedValue(USER as never);
+      vi.mocked(getSessionUser).mockResolvedValue(USER as never);
 
       const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: retired }));
       expect(result).toEqual({ status: "error", message: "Choose a supported model before saving." });
@@ -115,7 +126,7 @@ describe("actions.ts — saveProfileSettings", () => {
   );
 
   it("rejects an API key that's obviously too short", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     vi.stubEnv("BYOK_ENCRYPTION_KEY", "a".repeat(32));
 
     const result = await saveProfileSettings(
@@ -126,11 +137,11 @@ describe("actions.ts — saveProfileSettings", () => {
       status: "error",
       message: "API key looks too short. Paste the full provider key.",
     });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("fails closed with a config error when neither BYOK_ENCRYPTION_KEY nor ENGINE_SERVICE_KEY is set", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     vi.stubEnv("BYOK_ENCRYPTION_KEY", undefined);
     vi.stubEnv("ENGINE_SERVICE_KEY", undefined);
 
@@ -142,11 +153,11 @@ describe("actions.ts — saveProfileSettings", () => {
       status: "error",
       message: "BYOK encryption is not configured. Set BYOK_ENCRYPTION_KEY before storing keys.",
     });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("also fails closed when BYOK_ENCRYPTION_KEY is set but shorter than 32 chars (no fallback rescue)", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     vi.stubEnv("BYOK_ENCRYPTION_KEY", "too-short");
     vi.stubEnv("ENGINE_SERVICE_KEY", "e".repeat(40)); // would be long enough, but nullish-coalescing never reaches it
 
@@ -158,7 +169,7 @@ describe("actions.ts — saveProfileSettings", () => {
   });
 
   it("requires a distinct BYOK_ENCRYPTION_KEY on save and does NOT fall back to ENGINE_SERVICE_KEY (finding I3)", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     // `getByokEncryptionSecret()` no longer falls back to ENGINE_SERVICE_KEY for saves: a stored
     // key decrypted engine-side with the engine key would be stranded if that key rotates. So a
     // save with ONLY ENGINE_SERVICE_KEY set must fail closed, not silently encrypt with it.
@@ -174,16 +185,13 @@ describe("actions.ts — saveProfileSettings", () => {
       status: "error",
       message: "BYOK encryption is not configured. Set BYOK_ENCRYPTION_KEY before storing keys.",
     });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("encrypts + round-trips the key when BYOK_ENCRYPTION_KEY is set", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     const byokKey = "byok-encryption-key-that-is-32-chars-plus!!";
     vi.stubEnv("BYOK_ENCRYPTION_KEY", byokKey);
-
-    const dbMock = makeDb([{ error: null }]);
-    vi.mocked(createServerClient).mockReturnValue(dbMock as never);
 
     const plaintext = "sk-ant-super-secret-real-looking-key-000111";
     const result = await saveProfileSettings(
@@ -196,8 +204,9 @@ describe("actions.ts — saveProfileSettings", () => {
       message: "API settings saved. The key was encrypted before storage.",
     });
 
-    const upsertCall = (dbMock.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn> }).upsert;
-    const [profile] = upsertCall.mock.calls[0];
+    const profile = upsertedProfile();
+    // Written for the session's own id and email.
+    expect(profile).toMatchObject({ id: USER.id, email: USER.email, preferred_model: "claude-sonnet-5-5" });
     const ciphertext = profile.api_key_override as string;
 
     expect(ciphertext).not.toBe(plaintext);
@@ -211,14 +220,11 @@ describe("actions.ts — saveProfileSettings", () => {
   });
 
   it("prefers BYOK_ENCRYPTION_KEY over ENGINE_SERVICE_KEY when both are set", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     const byokKey = "byok-encryption-key-thats-32-chars-plus";
     const engineKey = "engine-service-key-thats-also-32-chars-plus";
     vi.stubEnv("BYOK_ENCRYPTION_KEY", byokKey);
     vi.stubEnv("ENGINE_SERVICE_KEY", engineKey);
-
-    const dbMock = makeDb([{ error: null }]);
-    vi.mocked(createServerClient).mockReturnValue(dbMock as never);
 
     const plaintext = "sk-ant-another-realistic-looking-secret-key";
     await saveProfileSettings(
@@ -226,18 +232,14 @@ describe("actions.ts — saveProfileSettings", () => {
       makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: plaintext })
     );
 
-    const upsertCall = (dbMock.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn> }).upsert;
-    const [profile] = upsertCall.mock.calls[0];
-    const ciphertext = profile.api_key_override as string;
+    const ciphertext = upsertedProfile().api_key_override as string;
 
     expect(decryptForTest(byokKey, ciphertext)).toBe(plaintext);
     expect(() => decryptForTest(engineKey, ciphertext)).toThrow();
   });
 
-  it("omits api_key_override entirely from the upsert when neither a new key nor clearApiKey is provided", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    const dbMock = makeDb([{ error: null }]);
-    vi.mocked(createServerClient).mockReturnValue(dbMock as never);
+  it("leaves api_key_override undefined (keep the stored key) when neither a new key nor clearApiKey is provided", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
 
     const result = await saveProfileSettings(
       IDLE,
@@ -245,16 +247,15 @@ describe("actions.ts — saveProfileSettings", () => {
     );
 
     expect(result).toEqual({ status: "success", message: "Preferred model saved." });
-    const upsertCall = (dbMock.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn> }).upsert;
-    const [profile] = upsertCall.mock.calls[0];
-    expect(profile).not.toHaveProperty("api_key_override");
+    // ProfileUpsert's contract: undefined = leave the stored key alone; null = clear it.
+    const profile = upsertedProfile();
+    expect(profile.api_key_override).toBeUndefined();
+    expect(profile).toEqual({ id: USER.id, email: USER.email, preferred_model: "claude-haiku-4-5" });
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
   it("clears the stored key when clearApiKey=true", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    const dbMock = makeDb([{ error: null }]);
-    vi.mocked(createServerClient).mockReturnValue(dbMock as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
 
     const result = await saveProfileSettings(
       IDLE,
@@ -265,16 +266,12 @@ describe("actions.ts — saveProfileSettings", () => {
       status: "success",
       message: "API settings saved. Stored API key cleared.",
     });
-    const upsertCall = (dbMock.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn> }).upsert;
-    const [profile] = upsertCall.mock.calls[0];
-    expect(profile.api_key_override).toBeNull();
+    expect(upsertedProfile().api_key_override).toBeNull();
   });
 
   it("reports a generic failure when the upsert errors", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ error: { message: "constraint violation" } }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
+    store.upsertProfile.mockRejectedValue(new DataStoreError("profiles upsert failed"));
 
     const result = await saveProfileSettings(
       IDLE,
@@ -287,9 +284,8 @@ describe("actions.ts — saveProfileSettings", () => {
 
 describe("actions.ts — getProfileSettings", () => {
   beforeEach(() => {
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -299,7 +295,7 @@ describe("actions.ts — getProfileSettings", () => {
   });
 
   it("returns an anonymous fallback when unauthenticated", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
     const settings = await getProfileSettings();
     expect(settings).toEqual({
       email: "",
@@ -308,9 +304,8 @@ describe("actions.ts — getProfileSettings", () => {
     });
   });
 
-  it("returns a fallback (using the user's email) when Supabase server config is incomplete", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(false);
+  it("returns a fallback (using the user's email) when no data store is configured", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
     vi.mocked(hasDataStoreConfig).mockReturnValue(false);
 
     const settings = await getProfileSettings();
@@ -319,18 +314,16 @@ describe("actions.ts — getProfileSettings", () => {
       hasApiKeyOverride: false,
       preferredModel: "claude-sonnet-5-5",
     });
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("returns hasApiKeyOverride=true when a stored key is present, and passes through a known preferredModel", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        {
-          data: { email: "db@example.com", api_key_override: "v1:aa:bb:cc", preferred_model: "claude-haiku-4-5" },
-          error: null,
-        },
-      ]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
+    store.getProfile.mockResolvedValue({
+      email: "db@example.com",
+      api_key_override: "v1:aa:bb:cc",
+      preferred_model: "claude-haiku-4-5",
+    });
 
     const settings = await getProfileSettings();
     expect(settings).toEqual({
@@ -338,15 +331,17 @@ describe("actions.ts — getProfileSettings", () => {
       hasApiKeyOverride: true,
       preferredModel: "claude-haiku-4-5",
     });
+    // Read for the session's own id only.
+    expect(store.getProfile).toHaveBeenCalledWith(USER.id);
   });
 
   it("normalizes an unrecognized stored preferredModel back to the default", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { data: { email: "db@example.com", api_key_override: null, preferred_model: "some-retired-model" }, error: null },
-      ]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
+    store.getProfile.mockResolvedValue({
+      email: "db@example.com",
+      api_key_override: null,
+      preferred_model: "some-retired-model",
+    });
 
     const settings = await getProfileSettings();
     expect(settings.preferredModel).toBe("claude-sonnet-5-5");
@@ -354,10 +349,8 @@ describe("actions.ts — getProfileSettings", () => {
   });
 
   it("falls back gracefully when the profile query errors", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: null, error: { message: "boom" } }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER as never);
+    store.getProfile.mockRejectedValue(new DataStoreError("profiles select failed"));
 
     const settings = await getProfileSettings();
     expect(settings).toEqual({

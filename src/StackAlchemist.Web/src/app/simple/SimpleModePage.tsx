@@ -7,8 +7,6 @@ import { Loader2 } from "lucide-react";
 import { submitSimpleGeneration, getFreeQuotaStatus } from "@/lib/actions";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
 import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
-import { supabase } from "@/lib/supabase";
-import { isDemoMode } from "@/lib/runtime-config";
 import { Logo } from "@/components/logo";
 import type { Generation } from "@/lib/types";
 
@@ -77,11 +75,10 @@ export default function SimpleModePage() {
       if (result.success) {
         setProgress(100);
         setGenerationId(result.generationId);
-        // Demo / no-Realtime: nothing will push us forward, so navigate now.
-        if (isDemoMode || !supabase) {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
-          window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
-        }
+        // Navigate now: the result page polls the build's status itself. Hard nav
+        // (see the watcher below) so the preview page loads isolated.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
+        window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
       } else {
         setErrorMsg(result.error);
         setPhase("error");

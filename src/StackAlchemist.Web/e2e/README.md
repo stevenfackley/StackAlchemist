@@ -38,7 +38,6 @@ $env:AUTH_SECRET = '<any 32-byte base64, e.g. openssl rand -base64 32>'
 $env:AUTH_URL = 'http://localhost:3000'
 $env:NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 $env:DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable'
-$env:NEXT_PUBLIC_SUPABASE_URL = ''; $env:NEXT_PUBLIC_SUPABASE_ANON_KEY = ''; $env:SUPABASE_SERVICE_ROLE_KEY = ''
 $env:ENGINE_API_URL = 'http://127.0.0.1:5000'
 $env:E2E_KEYCLOAK_URL = 'http://localhost:8080'
 npm run e2e:integration          # sets NEXT_PUBLIC_DEMO_MODE=false itself

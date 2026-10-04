@@ -1,49 +1,15 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { getQavrenAuthUrl, getQavrenRealm, usesQavrenAuth } from "@/lib/runtime-config";
+import { getQavrenAuthUrl, getQavrenRealm } from "@/lib/runtime-config";
 
 /**
- * Phase 6 — Sign-Out Route Handler
+ * Sign-out route handler, called via a POST form submission from the navbar's
+ * "Sign Out" button.
  *
- * Called via a POST form submission from the navbar's "Sign Out" button.
- * Using a Route Handler (not a Server Action) keeps the sign-out logic server-
- * side and avoids shipping Supabase credentials to the browser bundle.
- */
-export async function POST(request: NextRequest) {
-  if (usesQavrenAuth()) return qavrenSignOut(request);
-
-  const cookieStore = await cookies();
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  await supabase.auth.signOut();
-
-  // Redirect to home after sign-out.
-  return NextResponse.redirect(new URL("/", request.url));
-}
-
-/**
- * Sign out of StackAlchemist AND of the realm. Dropping our cookie alone leaves
+ * Signs out of StackAlchemist AND of the realm. Dropping our cookie alone leaves
  * Keycloak's SSO cookie alive, so the next "sign in" on a shared machine would
  * hand the account straight back. RP-initiated logout ends the realm session.
  */
-async function qavrenSignOut(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || new URL(request.url).origin).replace(/\/+$/, "");
   const appOrigin = new URL(appBaseUrl).origin;
 
@@ -56,7 +22,7 @@ async function qavrenSignOut(request: NextRequest) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // Lazy: a Supabase-mode process never loads Auth.js.
+  // Lazy: Auth.js loads only when someone actually signs out.
   const [{ getToken }, { signOut }, { issuerFor }] = await Promise.all([
     import("next-auth/jwt"),
     import("@/auth"),

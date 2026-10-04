@@ -1,45 +1,21 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/data/drizzle-store", () => ({ DrizzleStore: class { kind = "drizzle" as const; } }));
-vi.mock("@/lib/data/supabase-store", () => ({ SupabaseStore: class { kind = "supabase" as const; } }));
+vi.mock("@/lib/data/drizzle-store", () => ({ DrizzleStore: class {} }));
 
 describe("getDataStore", () => {
-  beforeEach(() => {
-    // The real runtime-config warns when demo mode is auto-enabled; opt in explicitly to keep the output clean.
-    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
-  });
-
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it("picks Drizzle when DATABASE_URL is set", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://u:p@localhost:5432/db");
+  it("returns the qavren-db (Drizzle) store", async () => {
     const { getDataStore } = await import("@/lib/data");
-    expect(getDataStore().kind).toBe("drizzle");
+    const { DrizzleStore } = await import("@/lib/data/drizzle-store");
+    expect(getDataStore()).toBeInstanceOf(DrizzleStore);
   });
 
-  it("re-reads DATABASE_URL on every call, not at module load", async () => {
+  it("builds a store per call, not one at module load", async () => {
     const { getDataStore } = await import("@/lib/data");
-
-    vi.stubEnv("DATABASE_URL", "postgres://u:p@localhost:5432/db");
-    expect(getDataStore().kind).toBe("drizzle");
-
-    vi.stubEnv("DATABASE_URL", "");
-    expect(getDataStore().kind).toBe("supabase");
-  });
-
-  it("falls back to Supabase when DATABASE_URL is unset", async () => {
-    vi.stubEnv("DATABASE_URL", "");
-    const { getDataStore } = await import("@/lib/data");
-    expect(getDataStore().kind).toBe("supabase");
-  });
-
-  it("treats a whitespace-only DATABASE_URL as unset, like the Engine does", async () => {
-    vi.stubEnv("DATABASE_URL", "   ");
-    const { getDataStore } = await import("@/lib/data");
-    expect(getDataStore().kind).toBe("supabase");
+    expect(getDataStore()).not.toBe(getDataStore());
   });
 });

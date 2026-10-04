@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    StackAlchemist – Shared Types
-   These mirror the Supabase `public` schema. Keep in sync with migrations.
+   These mirror the Drizzle schema in src/db/schema.ts. Keep them in sync.
 ───────────────────────────────────────────────────────────────────────────── */
 
 // ─── Generation Error Category ───────────────────────────────────────────────
@@ -129,72 +129,6 @@ export interface Transaction {
   amount: number;
   status: TransactionStatus;
   created_at: string;
-}
-
-// ─── Supabase Database Type (used for createClient<Database>) ────────────────
-// Supabase v2 TypeScript client requires Relationships[], CompositeTypes, etc.
-// Missing Relationships causes the Insert type to resolve to `never`.
-export interface Database {
-  public: {
-    Tables: {
-      generations: {
-        Row: Generation;
-        Insert: {
-          id?: string;
-          user_id?: string | null;
-          transaction_id?: string | null;
-          project_type?: ProjectType;
-          status?: GenerationStatus;
-          mode: "simple" | "advanced";
-          tier: Tier;
-          prompt?: string | null;
-          schema_json?: GenerationSchema | null;
-          download_url?: string | null;
-          preview_files_json?: Record<string, string> | null;
-          personalization_json?: PersonalizationData | null;
-          build_log?: string | null;
-          error_message?: string | null;
-          error_category?: GenerationErrorCategory | null;
-          attempt_count?: number;
-          created_at?: string;
-          updated_at?: string;
-          completed_at?: string | null;
-        };
-        Update: Partial<Generation>;
-        Relationships: [];
-      };
-      profiles: {
-        Row: Profile;
-        Insert: {
-          id: string;
-          email: string;
-          api_key_override?: string | null;
-          preferred_model?: string;
-          created_at?: string;
-        };
-        Update: Partial<Profile>;
-        Relationships: [];
-      };
-      transactions: {
-        Row: Transaction;
-        Insert: {
-          id?: string;
-          user_id?: string | null;
-          stripe_session_id?: string | null;
-          tier: Tier;
-          amount: number;
-          status?: TransactionStatus;
-          created_at?: string;
-        };
-        Update: Partial<Transaction>;
-        Relationships: [];
-      };
-    };
-    Views: Record<never, never>;
-    Functions: Record<never, never>;
-    Enums: Record<never, never>;
-    CompositeTypes: Record<never, never>;
-  };
 }
 
 // ─── Server Action Result Types ───────────────────────────────────────────────

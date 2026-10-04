@@ -2,8 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/auth", () => ({ signIn: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ supabase: null }));
-vi.mock("@/components/oauth-buttons", () => ({ OAuthButtons: () => null }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
@@ -15,7 +13,8 @@ vi.mock("next/navigation", () => ({
 type Params = { error?: string; returnTo?: string };
 const searchParams = (p: Params) => ({ searchParams: Promise.resolve(p) });
 const qavrenMode = () => vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090");
-const supabaseMode = () => vi.stubEnv("QAVREN_AUTH_URL", "");
+// Demo mode: no realm configured. The pages are the same; the actions are inert.
+const demoMode = () => vi.stubEnv("QAVREN_AUTH_URL", "");
 const hiddenReturnTo = (container: HTMLElement) =>
   container.querySelector<HTMLInputElement>('input[type="hidden"][name="returnTo"]')?.value;
 
@@ -50,11 +49,13 @@ describe("/login", () => {
     expect(screen.queryByText(/pwned/)).not.toBeInTheDocument();
   });
 
-  it("Supabase mode renders the existing client page", async () => {
-    supabaseMode();
+  it("demo mode renders the same hand-off page, naming the default sign-in host", async () => {
+    demoMode();
     const { default: LoginPage } = await import("@/app/login/page");
     render(await LoginPage(searchParams({})));
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign in/i })).toHaveAttribute("type", "submit");
+    expect(screen.getByText("auth.stackalchemist.app")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
 });
 
@@ -82,26 +83,26 @@ describe("/register", () => {
     expect(screen.queryByTestId("register-auth-error")).not.toBeInTheDocument();
   });
 
-  it("Supabase mode renders the existing client page", async () => {
-    supabaseMode();
+  it("demo mode renders the same hand-off page", async () => {
+    demoMode();
     const { default: RegisterPage } = await import("@/app/register/page");
     render(await RegisterPage(searchParams({})));
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /create your account/i })).toHaveAttribute("type", "submit");
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
 });
 
-describe("Supabase-only password pages", () => {
+describe("Password pages (Keycloak owns reset)", () => {
   it("/forgot-password redirects to /login in Qavren mode", async () => {
     qavrenMode();
     const { default: ForgotPasswordPage } = await import("@/app/forgot-password/page");
     expect(() => ForgotPasswordPage()).toThrow("REDIRECT:/login");
   });
 
-  it("/forgot-password renders the existing client page in Supabase mode", async () => {
-    supabaseMode();
+  it("/forgot-password redirects to /login in demo mode too", async () => {
+    demoMode();
     const { default: ForgotPasswordPage } = await import("@/app/forgot-password/page");
-    render(ForgotPasswordPage());
-    expect(screen.getByRole("button", { name: /send reset link/i })).toBeInTheDocument();
+    expect(() => ForgotPasswordPage()).toThrow("REDIRECT:/login");
   });
 
   it("/auth/reset-password redirects to /login in Qavren mode", async () => {
@@ -110,11 +111,9 @@ describe("Supabase-only password pages", () => {
     expect(() => ResetPasswordPage()).toThrow("REDIRECT:/login");
   });
 
-  it("/auth/reset-password renders the existing client page in Supabase mode", async () => {
-    supabaseMode();
+  it("/auth/reset-password redirects to /login in demo mode too", async () => {
+    demoMode();
     const { default: ResetPasswordPage } = await import("@/app/auth/reset-password/page");
-    render(ResetPasswordPage());
-    // No Supabase client configured: the client component shows its expired state straight away.
-    expect(screen.getByText(/link expired/i)).toBeInTheDocument();
+    expect(() => ResetPasswordPage()).toThrow("REDIRECT:/login");
   });
 });

@@ -11,10 +11,9 @@
  * docs/advanced-docs/compile-guarantee.md and are a published contract.
  *
  * FOLLOW-UP: the verdict is carried in `build_log` rather than a dedicated `build_report`
- * jsonb column purely to avoid coupling this change to a Supabase migration — the prod
- * deploy workflow hard-blocks when a push touches supabase/migrations and
- * PROD_SUPABASE_DB_URL is unset. When that column lands, read it here and keep this parser
- * as the fallback for rows generated before it.
+ * jsonb column, a choice made while schema changes still needed a hand-applied migration.
+ * The column can now ship as an ordinary Drizzle migration (src/db/schema.ts). When it
+ * lands, read it here and keep this parser as the fallback for rows generated before it.
  */
 
 export const BUILD_REPORT_BEGIN_MARKER = "=== COMPILE GUARANTEE REPORT ===";

@@ -17,7 +17,6 @@ vi.mock("@/lib/hooks/use-generation-status", () => ({
   },
 }));
 
-vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/runtime-config", () => ({ isDemoMode: false }));
 
 const searchParamsMock = vi.hoisted(() => ({ value: new URLSearchParams() }));
@@ -54,6 +53,20 @@ describe("SimpleModePage", () => {
     render(<SimpleModePage />);
     expect(screen.getByTestId("simple-phase-error")).toBeInTheDocument();
     expect(submitMock).not.toHaveBeenCalled();
+  });
+
+  it("hard-navigates to the result page as soon as the submit returns", async () => {
+    searchParamsMock.value = new URLSearchParams("q=Build+me+an+app");
+    submitMock.mockResolvedValue({
+      success: true,
+      generationId: "gen-1",
+      redirectUrl: "/generate/gen-1",
+    });
+
+    render(<SimpleModePage />);
+
+    // No status event needed: the result page polls the build's status itself.
+    await waitFor(() => expect(window.location.href).toBe("/generate/gen-1?tier=0"));
   });
 
   it("submits the prompt and redirects when the watcher reports success", async () => {

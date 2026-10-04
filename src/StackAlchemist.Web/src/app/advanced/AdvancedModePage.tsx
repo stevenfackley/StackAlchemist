@@ -7,8 +7,6 @@ import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSessio
 import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
 import { useFreeQuota } from "@/lib/hooks/use-free-quota";
 import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
-import { supabase } from "@/lib/supabase";
-import { isDemoMode } from "@/lib/runtime-config";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
 import { PersonalizationModal } from "@/components/personalization-modal";
 import { Alert } from "@/components/ui";
@@ -142,7 +140,7 @@ export default function AdvancedModePage() {
   // Snapshot for cancel-restore: the modal live-patches parent state while
   // editing (so the draft persists keystrokes), and cancel rolls back to this.
   const personalizationSnapshotRef = useRef<PersonalizationData>(DEFAULT_PERSONALIZATION);
-  const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
+  const [submitPhase, setSubmitPhase] = useState<"idle" | "submitting" | "error">("idle");
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<Generation["status"] | null>(null);
   const [liveBuildLog, setLiveBuildLog] = useState<string | null>(null);
@@ -197,15 +195,12 @@ export default function AdvancedModePage() {
         const result = await submitAdvancedGeneration(schema, 0, selectedProjectType, personalization);
         if (result.success) {
           setGenerationId(result.generationId);
-          if (isDemoMode || !supabase) {
-            // Build submitted — clear the draft BEFORE the hard nav.
-            clearDraft();
-            // Hard nav (see realtime handler above) so the preview page is isolated.
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
-            window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
-            return;
-          }
-          setSubmitPhase("submitted");
+          // Build submitted — clear the draft BEFORE the hard nav.
+          clearDraft();
+          // Navigate now: the result page polls the build's status itself. Hard nav
+          // (see the status handler above) so the preview page is isolated.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard nav: preview page must load isolated (StackBlitz)
+          window.location.href = `${result.redirectUrl}${result.redirectUrl.includes("?") ? "&" : "?"}tier=0`;
         } else {
           setErrorMsg(result.error);
           setSubmitPhase("error");
@@ -240,7 +235,7 @@ export default function AdvancedModePage() {
     });
   }
 
-  if (submitPhase === "submitting" || submitPhase === "submitted") {
+  if (submitPhase === "submitting") {
     return (
       <SubmittingPanel
         generationId={generationId}

@@ -5,7 +5,7 @@ import { generations, profiles } from "@/db/schema";
 import type { Generation } from "@/lib/types";
 import { DataStoreError, type DataStore, type NewGeneration, type ProfileSettingsRow, type ProfileUpsert } from "./store";
 
-// Same guard SupabaseStore applies: both stores return null for a malformed id.
+// A malformed id would make Postgres raise 22P02 (invalid uuid); it is simply not found.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -14,9 +14,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * callers get the Postgres message (the quota trigger's text) and the wrapper's
  * `params:` text (prompts, the encrypted API key) never reaches a DataStoreError.
  * What is NOT stripped: a PostgresError's `detail` for a check or not-null
- * violation reads "Failing row contains (...)" with column values, the same as
- * PostgREST's `details` does today. Fails closed: a wrapper with no cause becomes
- * a bare Error rather than being passed through.
+ * violation reads "Failing row contains (...)" with column values. Fails closed:
+ * a wrapper with no cause becomes a bare Error rather than being passed through.
  */
 function driverError(e: unknown): unknown {
   return e instanceof DrizzleQueryError ? (e.cause ?? new Error("query failed")) : e;
@@ -24,7 +23,6 @@ function driverError(e: unknown): unknown {
 
 /** Drizzle over postgres-js against the qavren-db `stackalchemist` schema. */
 export class DrizzleStore implements DataStore {
-  readonly kind = "drizzle" as const;
   private readonly db: Db;
 
   constructor(url?: string) {
@@ -71,8 +69,8 @@ export class DrizzleStore implements DataStore {
     let row: Generation | undefined;
     try {
       // Explicit columns, not `.values(gen)`: a wider object must never be able
-      // to set status, attempt_count, transaction_id or preview_files_json here.
-      // SupabaseStore forces those; the column defaults give the same row.
+      // to set status, attempt_count, transaction_id or preview_files_json here:
+      // the column defaults give a pending row with attempt_count 0.
       [row] = await this.db.insert(generations).values({
         mode: gen.mode,
         tier: gen.tier,

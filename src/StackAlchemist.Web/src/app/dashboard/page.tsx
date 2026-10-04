@@ -28,6 +28,12 @@ export const metadata: Metadata = {
     "Track your StackAlchemist generations, downloads, and delivery status.",
 };
 
+// Per-request: the session gate below runs before anything else reads the
+// request. `next build` never sees QAVREN_AUTH_URL, so getSessionUser() returns
+// null there without touching cookies, and a prerender would freeze the
+// redirect to /login into a static page that every signed-in user then gets.
+export const dynamic = "force-dynamic";
+
 /* ─── Tier helpers ───────────────────────────────────────────────────────── */
 const TIER_NAMES: Record<number, string> = {
   0: "Spark",

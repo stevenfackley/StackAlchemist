@@ -1,33 +1,32 @@
 /**
  * actions.ts — retryGeneration guards (configured / non-demo runtime).
  *
- * retryGeneration re-fires the Engine (real LLM spend) via the service-role
- * client, which bypasses RLS — so it must authenticate the caller and verify
+ * retryGeneration re-fires the Engine (real LLM spend), and the store has no
+ * row-level security — so it must authenticate the caller and verify
  * ownership itself. The ownership rejection reuses the "Generation not found."
  * message so responses are not an existence oracle for other users' ids.
  */
-import { getServerUser } from "@/lib/supabase-server";
-import { createServerClient } from "@/lib/supabase";
+import { getDataStore } from "@/lib/data";
+import { DataStoreError } from "@/lib/data/store";
+import { getSessionUser } from "@/lib/session";
 import { retryGeneration } from "@/lib/actions";
-import { makeDb, chainable, fakeResponse } from "./actions-test-helpers";
+import { makeStore, fakeResponse, type FakeStore } from "./actions-test-helpers";
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
-  hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
-  usesPostgresStore: vi.fn(() => false),
-  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => ""),
 }));
 
-vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+vi.mock("@/lib/session", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/data", () => ({ getDataStore: vi.fn() }));
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let store: FakeStore;
 
-// The store rejects malformed ids before querying, so fixtures need real UUIDs.
+// Session ids are Keycloak subs, and generation ids are UUIDs too.
 const GEN_ID = "0b5d3c1e-6f7a-4c2d-9e8f-1a2b3c4d5e6f";
 const MISSING_ID = "7a1c9d2e-3b4f-4a5c-8d6e-9f0a1b2c3d4e";
 const OWNER_ID = "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c";
@@ -55,10 +54,12 @@ describe("actions.ts — retryGeneration (configured)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
-    vi.mocked(getServerUser).mockReset();
+    vi.mocked(getSessionUser).mockReset();
     // Default: the signed-in caller owns baseGeneration().
-    vi.mocked(getServerUser).mockResolvedValue({ id: OWNER_ID } as never);
-    vi.mocked(createServerClient).mockReset();
+    vi.mocked(getSessionUser).mockResolvedValue({ id: OWNER_ID, email: null });
+    store = makeStore();
+    vi.mocked(getDataStore).mockReset();
+    vi.mocked(getDataStore).mockReturnValue(store);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -68,86 +69,88 @@ describe("actions.ts — retryGeneration (configured)", () => {
   });
 
   it("rejects unauthenticated callers before touching the database", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null as never);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: false, error: "Please sign in to retry a build." });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects a caller who does not own the generation, without leaking its existence", async () => {
-    vi.mocked(getServerUser).mockResolvedValue({ id: INTRUDER_ID } as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: baseGeneration(), error: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue({ id: INTRUDER_ID, email: null });
+    // Even if the read handed back someone else's row, the defence-in-depth owner check refuses it.
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
 
     const result = await retryGeneration(GEN_ID);
     // Identical message to the missing-row case — no existence oracle.
     expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(store.getGenerationForUser).toHaveBeenCalledWith(GEN_ID, INTRUDER_ID);
+    expect(store.resetForRetry).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns an error when the generation does not exist", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: null, error: { message: "not found" } }]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(null);
 
     const result = await retryGeneration(MISSING_ID);
     expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(store.getGenerationForUser).toHaveBeenCalledWith(MISSING_ID, OWNER_ID);
+  });
+
+  it("returns the same not-found error when the lookup itself fails", async () => {
+    store.getGenerationForUser.mockRejectedValue(new DataStoreError("generations select failed"));
+
+    const result = await retryGeneration(MISSING_ID);
+    expect(result).toEqual({ success: false, error: "Generation not found." });
+    expect(consoleErrorSpy).toHaveBeenCalledWith("[retryGeneration] Lookup error:", expect.any(DataStoreError));
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("refuses to retry once the max attempt count (3) is reached", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: baseGeneration({ attempt_count: 3 }), error: null }]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(baseGeneration({ attempt_count: 3 }) as never);
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({
       success: false,
       error: "Maximum retry attempts (3) reached. Please start a new generation.",
     });
+    expect(store.resetForRetry).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("refuses to retry a generation that isn't in a failed state", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: baseGeneration({ status: "success" }), error: null }]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(baseGeneration({ status: "success" }) as never);
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({
       success: false,
       error: "Only failed generations can be retried.",
     });
+    expect(store.resetForRetry).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("resets status and re-fires the engine for the owner of a failed generation", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { data: baseGeneration(), error: null }, // select
-        { data: [{ id: GEN_ID }], error: null }, // update
-      ]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    store.resetForRetry.mockResolvedValue(true);
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
-    expect(getServerUser).toHaveBeenCalledTimes(1);
+    expect(getSessionUser).toHaveBeenCalledTimes(1);
+    // The compare-and-set is scoped to the caller, and it runs before the spend.
+    expect(store.resetForRetry).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(store.resetForRetry.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/generate");
   });
 
   it("does not re-fire the engine when another retry already claimed the failed row", async () => {
     // The scoped UPDATE matched no row: a concurrent retry flipped it first.
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { data: baseGeneration(), error: null }, // select
-        { data: [], error: null }, // update
-      ]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    store.resetForRetry.mockResolvedValue(false);
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: false, error: "Only failed generations can be retried." });
@@ -155,13 +158,9 @@ describe("actions.ts — retryGeneration (configured)", () => {
   });
 
   it("does not re-fire the engine when the reset query itself rejects", async () => {
-    const db = makeDb([{ data: baseGeneration(), error: null }]); // select
-    // The update's awaited result throws (a dropped connection), rather than resolving with an error.
-    const rejecting = chainable({});
-    rejecting.then = (resolve: (v: unknown) => unknown, reject?: (r: unknown) => unknown) =>
-      Promise.reject(new Error("connection reset")).then(resolve, reject);
-    db.from.mockReturnValueOnce(rejecting);
-    vi.mocked(createServerClient).mockReturnValue(db as never);
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    // The update throws (a dropped connection).
+    store.resetForRetry.mockRejectedValue(new Error("connection reset"));
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: false, error: "Only failed generations can be retried." });
@@ -173,15 +172,12 @@ describe("actions.ts — retryGeneration (configured)", () => {
   });
 
   it("still reports success even when the re-fire fetch throws", async () => {
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { data: baseGeneration(), error: null },
-        { data: [{ id: GEN_ID }], error: null },
-      ]) as never
-    );
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    store.resetForRetry.mockResolvedValue(true);
     fetchMock.mockRejectedValue(new Error("engine unreachable"));
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
   });
 });
+

@@ -2,20 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { getToken, authjsSignOut, supabaseSignOut, createServerClient, cookieStore } = vi.hoisted(() => {
-  const supabaseSignOut = vi.fn(async () => ({ error: null }));
-  return {
-    getToken: vi.fn(),
-    authjsSignOut: vi.fn(),
-    supabaseSignOut,
-    createServerClient: vi.fn(() => ({ auth: { signOut: supabaseSignOut } })),
-    cookieStore: { getAll: () => [], set: vi.fn() },
-  };
-});
+const { getToken, authjsSignOut } = vi.hoisted(() => ({
+  getToken: vi.fn(),
+  authjsSignOut: vi.fn(),
+}));
 vi.mock("next-auth/jwt", () => ({ getToken }));
 vi.mock("@/auth", () => ({ signOut: authjsSignOut }));
-vi.mock("@supabase/ssr", () => ({ createServerClient }));
-vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
 
 const URL_ = "http://localhost:3000/auth/signout";
 const post = (headers: Record<string, string> = {}) => new NextRequest(URL_, { method: "POST", headers });
@@ -105,36 +97,5 @@ describe("POST /auth/signout (Qavren mode)", () => {
     const end = new URL((await POST(post({ "sec-fetch-site": "same-origin" }))).headers.get("location")!);
     expect(end.searchParams.get("client_id")).toBe("stackalchemist-dev-web");
     expect(end.searchParams.has("id_token_hint")).toBe(false);
-  });
-});
-
-describe("POST /auth/signout (Supabase mode)", () => {
-  beforeEach(() => {
-    getToken.mockReset();
-    authjsSignOut.mockReset();
-    createServerClient.mockClear();
-    supabaseSignOut.mockClear();
-    vi.stubEnv("QAVREN_AUTH_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.co");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_stub");
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it("signs out of Supabase, redirects home and never touches Auth.js", async () => {
-    const { POST } = await import("@/app/auth/signout/route");
-    const res = await POST(post({ origin: "http://localhost:3000", cookie: "authjs.session-token=abc" }));
-    expect(createServerClient).toHaveBeenCalledWith(
-      "https://stub.supabase.co",
-      "sb_publishable_stub",
-      expect.objectContaining({ cookies: expect.any(Object) }),
-    );
-    expect(supabaseSignOut).toHaveBeenCalledOnce();
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://localhost:3000/");
-    expect(authjsSignOut).not.toHaveBeenCalled();
-    expect(getToken).not.toHaveBeenCalled();
   });
 });

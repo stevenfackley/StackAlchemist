@@ -1,25 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import PrivacyPage from "@/app/privacy/page";
 
 describe("privacy page auth-processor copy", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it("names Supabase as the auth processor in Supabase mode", async () => {
-    vi.stubEnv("QAVREN_AUTH_URL", "");
-    const { default: PrivacyPage } = await import("@/app/privacy/page");
-    render(PrivacyPage());
-    expect(screen.getByText(/Auth is handled by/)).toHaveTextContent(/Supabase/);
-    expect(screen.queryByText(/Qavren Auth/)).toBeNull();
-    expect(screen.getByText(/authentication and database/)).toHaveTextContent(/Supabase/);
-    expect(screen.getByText(/refresh tokens from Supabase/)).toBeInTheDocument();
-  });
-
-  it("names Qavren Auth (Keycloak) in Qavren mode and keeps Supabase as the database", async () => {
-    vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090");
-    const { default: PrivacyPage } = await import("@/app/privacy/page");
+  it("names Qavren Auth (Keycloak) and keeps Supabase as the database", () => {
     render(PrivacyPage());
     expect(screen.getByText(/Auth is handled by/)).toHaveTextContent(/Qavren Auth/);
     expect(screen.getAllByText(/Qavren Auth/).length).toBeGreaterThan(0);
@@ -28,5 +12,10 @@ describe("privacy page auth-processor copy", () => {
     expect(supabase).toHaveTextContent(/database/);
     expect(supabase).not.toHaveTextContent(/authentication/);
     expect(screen.queryByText(/refresh tokens from Supabase/)).toBeNull();
+  });
+
+  it("describes the session cookie without depending on QAVREN_AUTH_URL (the page is static)", () => {
+    render(PrivacyPage());
+    expect(screen.getByText(/encrypted session\s+cookie/)).toBeInTheDocument();
   });
 });

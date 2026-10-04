@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { getDataStore, type ProfileSettingsRow } from "./data";
 import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
-import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey, usesPostgresStore } from "./runtime-config";
+import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
   Tier,
@@ -147,7 +147,7 @@ export async function saveProfileSettings(
   }
 
   if (!hasDataStoreConfig()) {
-    return { status: "error", message: "Supabase server configuration is incomplete." };
+    return { status: "error", message: "Server database configuration is incomplete." };
   }
 
   const preferredModelValue = formData.get("preferredModel");
@@ -204,14 +204,14 @@ export async function saveProfileSettings(
 /* ─────────────────────────────────────────────────────────────────────────────
    submitSimpleGeneration
    Called when a user submits a natural-language prompt (Simple Mode).
-   1. Creates a `generation` row in Supabase with status=pending
+   1. Creates a `generation` row in the data store with status=pending
    2. Fires a request to the .NET Engine to kick off the pipeline
-   3. Returns the generation ID so the frontend can subscribe to updates
+   3. Returns the generation ID so the frontend can poll for updates
 ───────────────────────────────────────────────────────────────────────────── */
 const FREE_TIER_MONTHLY_LIMIT = 5;
 
 /** UTC start of the current calendar month — matches the quota trigger's
- *  date_trunc('month', now()) under Supabase's default UTC session. */
+ *  date_trunc('month', now(), 'UTC'). */
 function currentMonthStartUtc(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -247,10 +247,9 @@ async function countFreeGenerationsThisMonth(userId: string): Promise<number> {
 
 /**
  * qavren-db has no auth.users trigger creating profiles, and the generations FK
- * needs the row first. Supabase-store mode is untouched: handle_new_user made it.
+ * needs the row first.
  */
 async function ensureProfileRow(user: SessionUser): Promise<void> {
-  if (!usesPostgresStore()) return;
   await getDataStore().ensureProfile({ id: user.id, email: user.email ?? "" });
 }
 
@@ -289,7 +288,7 @@ export async function submitSimpleGeneration(
   }
 
   // Free-tier quota pre-check — a friendly message before the DB trigger's hard
-  // rejection. The trigger (migration 20260530000008) is the authoritative gate.
+  // rejection. The trigger (drizzle/0001_functions.sql) is the authoritative gate.
   if (tier === 0) {
     const used = await countFreeGenerationsThisMonth(user.id);
     if (used >= FREE_TIER_MONTHLY_LIMIT) {
@@ -313,7 +312,7 @@ export async function submitSimpleGeneration(
       user_id: user.id,
     });
   } catch (error) {
-    console.error("[submitSimpleGeneration] Supabase insert error:", error);
+    console.error("[submitSimpleGeneration] Insert error:", error);
     return { success: false, error: "Failed to create generation record. Please try again." };
   }
 
@@ -405,8 +404,8 @@ export async function extractSchema(
 /* ─────────────────────────────────────────────────────────────────────────────
    submitAdvancedGeneration
    Called from the Advanced Wizard when the user clicks "Proceed to Checkout".
-   Saves the full schema (entities, relationships, endpoints) to Supabase
-   and kicks off the Engine pipeline.
+   Saves the full schema (entities, relationships, endpoints) to the data
+   store and kicks off the Engine pipeline.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function submitAdvancedGeneration(
   schema: GenerationSchema,
@@ -454,7 +453,7 @@ export async function submitAdvancedGeneration(
   }
 
   // Free-tier quota pre-check — see submitSimpleGeneration. The DB trigger
-  // (migration 20260530000008) is the authoritative gate; this is UX-only.
+  // (drizzle/0001_functions.sql) is the authoritative gate; this is UX-only.
   if (tier === 0) {
     const used = await countFreeGenerationsThisMonth(user.id);
     if (used >= FREE_TIER_MONTHLY_LIMIT) {
@@ -478,7 +477,7 @@ export async function submitAdvancedGeneration(
       user_id: user.id,
     });
   } catch (error) {
-    console.error("[submitAdvancedGeneration] Supabase insert error:", error);
+    console.error("[submitAdvancedGeneration] Insert error:", error);
     return { success: false, error: "Failed to save your schema. Please try again." };
   }
 
@@ -521,7 +520,7 @@ export async function submitAdvancedGeneration(
    getFreeQuotaStatus
    How many of the 5 monthly free builds an account has left. Surfaced on the
    home page and dashboard. Falls back to a full quota when there's no account
-   / no Supabase (demo) — the UI just shows "5 of 5" and the real gate (the DB
+   / no data store (demo) — the UI just shows "5 of 5" and the real gate (the DB
    trigger) never fires for those paths anyway.
 ───────────────────────────────────────────────────────────────────────────── */
 export interface FreeQuotaStatus {
@@ -601,8 +600,8 @@ export async function retryGeneration(
   }
 
   // Require authentication + ownership: this action re-fires the Engine (real
-  // LLM spend) through the service-role client, which bypasses RLS — without
-  // this check anyone holding a generation UUID could retry another user's build.
+  // LLM spend), and the store has no row-level security — without this check
+  // anyone holding a generation UUID could retry another user's build.
   const user = await getSessionUser();
   if (!user) {
     return { success: false, error: "Please sign in to retry a build." };
@@ -675,7 +674,7 @@ export async function retryGeneration(
 
 /* ─────────────────────────────────────────────────────────────────────────────
    createPendingGeneration
-   Creates a generation row in Supabase with status=pending but does NOT fire
+   Creates a generation row in the data store with status=pending but does NOT fire
    the Engine.  Used by the paid-tier checkout flow — the Engine is triggered
    later by the Stripe webhook (checkout.session.completed).
 ───────────────────────────────────────────────────────────────────────────── */
@@ -827,7 +826,7 @@ export async function createCheckoutSession(
    getMyGenerations
    Returns all generations linked to the currently authenticated user, ordered
    newest-first.  Used by the /dashboard page.
-   Returns an empty array when the visitor is anonymous or Supabase is not
+   Returns an empty array when the visitor is anonymous or no data store is
    configured.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function getMyGenerations(

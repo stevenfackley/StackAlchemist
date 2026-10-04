@@ -2,12 +2,12 @@
  * actions.ts — demo-mode / missing-config short circuits.
  *
  * When `isDemoMode` is true (or required config is absent) the server actions
- * must never touch Supabase or the .NET Engine — they return a synthetic
+ * must never touch the data store or the .NET Engine — they return a synthetic
  * "demo-*" result instead. These tests assert both the returned shape *and*
- * that no network call or DB client was ever constructed.
+ * that no network call or data store was ever constructed.
  */
-import { getServerUser } from "@/lib/supabase-server";
-import { createServerClient } from "@/lib/supabase";
+import { getDataStore } from "@/lib/data";
+import { getSessionUser } from "@/lib/session";
 import {
   createCheckoutSession,
   createPendingGeneration,
@@ -24,16 +24,13 @@ import type { GenerationSchema } from "@/lib/types";
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: true,
   hasEngineConfig: () => false,
-  hasServerSupabaseConfig: () => false,
   hasDataStoreConfig: () => false,
-  usesPostgresStore: () => false,
-  usesQavrenAuth: () => false,
   hasStripeConfig: () => false,
   getEngineServiceKey: () => "",
 }));
 
-vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+vi.mock("@/lib/session", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/data", () => ({ getDataStore: vi.fn() }));
 
 const VALID_SCHEMA: GenerationSchema = {
   entities: [{ name: "Widget", fields: [{ name: "id", type: "UUID", pk: true }] }],
@@ -47,15 +44,15 @@ describe("actions.ts — demo mode short circuits", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
+    vi.mocked(getSessionUser).mockReset();
+    vi.mocked(getDataStore).mockReset();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("submitSimpleGeneration returns a demo generation id/redirect and never calls fetch or Supabase", async () => {
+  it("submitSimpleGeneration returns a demo generation id/redirect and never calls fetch or the data store", async () => {
     const result = await submitSimpleGeneration("Build me a task tracker app please", 0);
 
     expect(result.success).toBe(true);
@@ -65,8 +62,8 @@ describe("actions.ts — demo mode short circuits", () => {
       expect(result.redirectUrl).toContain("tier=0");
     }
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(getServerUser).not.toHaveBeenCalled();
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getSessionUser).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("submitSimpleGeneration still rejects a too-short prompt in demo mode", async () => {
@@ -78,7 +75,7 @@ describe("actions.ts — demo mode short circuits", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("submitAdvancedGeneration returns a demo generation id/redirect and never calls fetch or Supabase", async () => {
+  it("submitAdvancedGeneration returns a demo generation id/redirect and never calls fetch or the data store", async () => {
     const result = await submitAdvancedGeneration(VALID_SCHEMA, 2, "DotNetNextJs");
 
     expect(result.success).toBe(true);
@@ -88,7 +85,7 @@ describe("actions.ts — demo mode short circuits", () => {
       expect(result.redirectUrl).toContain("tier=2");
     }
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("submitAdvancedGeneration rejects an empty entity list before even checking demo mode", async () => {
@@ -112,19 +109,19 @@ describe("actions.ts — demo mode short circuits", () => {
     expect(result).toEqual({ success: false, error: "All entities must have a name." });
   });
 
-  it("createPendingGeneration returns a demo id without touching Supabase", async () => {
+  it("createPendingGeneration returns a demo id without touching the data store", async () => {
     const result = await createPendingGeneration("simple", 1, "a prompt");
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.generationId).toMatch(/^demo-pending-/);
     }
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
-  it("retryGeneration short-circuits to success without contacting Supabase or the engine", async () => {
+  it("retryGeneration short-circuits to success without contacting the data store or the engine", async () => {
     const result = await retryGeneration("demo-simple-123");
     expect(result).toEqual({ success: true });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -158,7 +155,7 @@ describe("actions.ts — demo mode short circuits", () => {
     const status = await getFreeQuotaStatus();
     expect(status.used).toBe(0);
     expect(status.remaining).toBe(status.limit);
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("getProfileSettings returns an anonymous fallback when there's no user and no config", async () => {
