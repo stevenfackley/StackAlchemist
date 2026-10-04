@@ -20,8 +20,8 @@ vi.mock("@/lib/actions", () => ({
   createCheckoutSession: vi.fn(),
   getFreeQuotaStatus: vi.fn().mockResolvedValue({ used: 0, limit: 3, remaining: 3 }),
 }));
-vi.mock("@/lib/hooks/use-generation-realtime", () => ({
-  useGenerationRealtime: () => ({ transport: "off" as const }),
+vi.mock("@/lib/hooks/use-generation-status", () => ({
+  useGenerationStatus: () => undefined,
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/runtime-config", () => ({ isDemoMode: false }));

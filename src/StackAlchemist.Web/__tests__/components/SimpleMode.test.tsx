@@ -6,15 +6,14 @@ vi.mock("@/lib/actions", () => ({
   submitSimpleGeneration: (...args: unknown[]) => submitMock(...args),
 }));
 
-// Capture the realtime watcher's onUpdate so tests can drive row updates.
+// Capture the status watcher's onUpdate so tests can drive row updates.
 const realtimeCalls: Array<{ generationId: string | null; onUpdate: (row: Generation) => void }> = [];
-vi.mock("@/lib/hooks/use-generation-realtime", () => ({
-  useGenerationRealtime: (opts: {
+vi.mock("@/lib/hooks/use-generation-status", () => ({
+  useGenerationStatus: (opts: {
     generationId: string | null;
     onUpdate: (row: Generation) => void;
   }) => {
     realtimeCalls.push(opts);
-    return { transport: "realtime" as const };
   },
 }));
 

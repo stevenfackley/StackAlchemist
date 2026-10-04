@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { retryGeneration } from "@/lib/actions";
-import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
+import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
 import type { Generation } from "@/lib/types";
 import { isDemoMode } from "@/lib/runtime-config";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
@@ -26,14 +26,12 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
   );
   const [isPending, startTransition] = useTransition();
 
-  // ── Realtime watcher ────────────────────────────────────────────────────────
-  // Resilient transport (catch-up fetch on subscribe, re-subscribe on channel
-  // errors, polling fallback while down) — replaces the old subscription that
-  // had no error handling AND the unconditional 5s poll that hammered the
-  // server action throughout every healthy build.
+  // ── Status watcher ──────────────────────────────────────────────────────────
+  // Polls getGeneration every 3s while the tab is visible (paused when hidden,
+  // never stacked) — see useGenerationStatus.
   // Terminal states: redirect/panels are handled by render, we just stop watching.
   const isTerminal = generation.status === "success" || generation.status === "failed";
-  useGenerationRealtime({
+  useGenerationStatus({
     generationId,
     enabled: !isDemoMode && !isTerminal,
     onUpdate: setGeneration,

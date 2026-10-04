@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { submitAdvancedGeneration, createPendingGeneration, createCheckoutSession } from "@/lib/actions";
-import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
+import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
 import { useFreeQuota } from "@/lib/hooks/use-free-quota";
 import { useLocalStorageDraft } from "@/lib/hooks/use-local-storage-draft";
 import { supabase } from "@/lib/supabase";
@@ -149,9 +149,8 @@ export default function AdvancedModePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Real-time subscription (resilient: catch-up fetch, re-subscribe, polling
-  // fallback — see useGenerationRealtime). The `done` ref guards against
-  // double-acting: the live event and the catch-up fetch can both report success.
+  // Status polling (see useGenerationStatus). The `done` ref guards against
+  // double-acting: the visibility catch-up fetch and a tick can both report success.
   const doneRef = useRef(false);
   const applyGenerationUpdate = useCallback(
     (row: Generation) => {
@@ -180,7 +179,7 @@ export default function AdvancedModePage() {
     [generationId, selectedTier, clearDraft]
   );
 
-  useGenerationRealtime({
+  useGenerationStatus({
     generationId,
     enabled: !!generationId,
     onUpdate: applyGenerationUpdate,

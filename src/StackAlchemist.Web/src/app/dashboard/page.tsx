@@ -246,10 +246,10 @@ export default async function DashboardPage({
         </div>
       </header>
 
-      {/* Null-rendering island: subscribes to Supabase Realtime and calls
-          router.refresh() (throttled 5s) so status badges update without a
-          manual reload. Server component stays the source of truth for rows. */}
-      <GenerationsLiveRefresher userId={user.id} />
+      {/* Null-rendering island: router.refresh() every 10s while any build is
+          in progress (and on return to the tab) so status badges update without
+          a manual reload. Server component stays the source of truth for rows. */}
+      <GenerationsLiveRefresher active={inProgress > 0} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-10 space-y-8">
         {/* ── Page title ──────────────────────────────────────────────────── */}
