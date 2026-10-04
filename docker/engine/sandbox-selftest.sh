@@ -95,10 +95,13 @@ as_builder sh -c 'mkdir -p py && cd py && python -m venv --system-site-packages 
 # ── Nothing outlives the build ────────────────────────────────────────────────
 as_builder sh -c 'setsid sleep 600 >/dev/null 2>&1 < /dev/null &' >/dev/null 2>&1
 sleep 1
-pgrep -u 10001 >/dev/null && pass "a detached build process was running" || bad "the detached test process never started"
+# Live processes only: a killed process stays a zombie until init reaps it, and compose runs
+# the Engine under an init (`init: true`) for exactly that.
+live_builder_processes() { ps -o stat= -u 10001 2>/dev/null | grep -qv '^Z'; }
+live_builder_processes && pass "a detached build process was running" || bad "the detached test process never started"
 "$W" kill -KILL -- -1 >/dev/null 2>&1 || true
 sleep 1
-pgrep -u 10001 >/dev/null && bad "build-user processes survived the purge" || pass "the purge kills every build-user process"
+live_builder_processes && bad "build-user processes survived the purge" || pass "the purge kills every build-user process"
 
 [ "$fail" = 0 ] && echo "sandbox selftest: all checks passed" || echo "sandbox selftest: FAILED"
 exit "$fail"

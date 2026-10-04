@@ -9,6 +9,9 @@ services:
     env_file:
       - ../.env
     restart: always
+    # Reaps the build user's killed processes (#455): without an init the Engine is PID 1
+    # and they stay zombies.
+    init: true
     # Same build sandbox as prod (#454): the entrypoint installs the build user's egress
     # firewall and refuses to start without it.
     cap_add:
