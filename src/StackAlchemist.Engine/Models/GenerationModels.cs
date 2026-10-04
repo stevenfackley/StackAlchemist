@@ -291,6 +291,13 @@ public sealed class BuildResult
     public bool IsSuccess => ExitCode == 0;
 
     /// <summary>
+    /// True when a step outlived its deadline (<see cref="BuildStrategyOptions.StepTimeout"/>) and
+    /// was killed. Still an ordinary build failure for the repair loop and the refund logic; only
+    /// a retry that would redo the same wait (the <c>npm install</c> fallback) checks it.
+    /// </summary>
+    public bool TimedOut { get; init; }
+
+    /// <summary>
     /// Per-command breakdown of everything the strategy ran, in execution order.
     ///
     /// <see cref="StandardOutput"/> is a flat transcript, which is fine for the LLM repair
