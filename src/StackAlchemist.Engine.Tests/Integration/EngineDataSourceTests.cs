@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using StackAlchemist.Engine.Services;
@@ -16,22 +18,25 @@ public sealed class ProcessEnvironmentCollection
 }
 
 /// <summary>
-/// Host-level check of the qavren-db wiring in Program.cs: DATABASE_URL selects the Postgres
-/// data source and stores, and its absence leaves the Supabase-only host untouched.
+/// Host-level check of the store wiring in Program.cs: DATABASE_URL selects the qavren-db data
+/// source and stores; without it, a non-Production host runs on <see cref="NoOpDeliveryService"/>
+/// with no billing store, and a Production host refuses to start.
 /// </summary>
 [Collection(ProcessEnvironmentCollection.Name)]
 public sealed class EngineDataSourceTests : IDisposable
 {
     private const string EnvVar = "DATABASE_URL";
-    private const string SupabaseUrlVar = "NEXT_PUBLIC_SUPABASE_URL";
-    private const string SupabaseKeyVar = "SUPABASE_SERVICE_ROLE_KEY";
+
+    // Production's other fail-fast secrets, set so the DATABASE_URL check is the one that fires.
+    private static readonly string[] ProductionSecrets =
+        ["ANTHROPIC_API_KEY", "R2_ACCESS_KEY_ID", "STRIPE_WEBHOOK_SECRET", "ENGINE_SERVICE_KEY"];
 
     // Blank rather than removed: Program.cs loads the nearest .env with NoClobber, which fills a
     // removed variable back in from a local stub, while Program's Ev() reads whitespace as unset.
     private const string Blank = " ";
 
     private readonly Dictionary<string, string?> _original =
-        new[] { EnvVar, SupabaseUrlVar, SupabaseKeyVar }.ToDictionary(v => v, Environment.GetEnvironmentVariable);
+        ProductionSecrets.Append(EnvVar).ToDictionary(v => v, Environment.GetEnvironmentVariable);
 
     public void Dispose()
     {
@@ -59,42 +64,38 @@ public sealed class EngineDataSourceTests : IDisposable
         factory.Services.GetService<IBillingStore>().Should().BeOfType<PostgresBillingStore>();
     }
 
-    // Assumes no .env up the tree sets DATABASE_URL: Program.cs loads the nearest one via DotNetEnv's TraversePath().
     [Fact]
-    public void Without_DatabaseUrl_no_data_source_is_registered()
+    public void Without_DatabaseUrl_the_no_op_store_is_registered_and_the_Stripe_paths_still_resolve()
     {
-        Environment.SetEnvironmentVariable(EnvVar, null);
+        Environment.SetEnvironmentVariable(EnvVar, Blank);
         using var factory = new EngineWebApplicationFactory();
 
         factory.Services.GetService<NpgsqlDataSource>().Should().BeNull();
-        factory.Services.GetRequiredService<IDeliveryService>().Should().BeOfType<SupabaseDeliveryService>();
-    }
-
-    [Fact]
-    public void Without_DatabaseUrl_the_Supabase_pair_registers_the_Supabase_billing_store()
-    {
-        Environment.SetEnvironmentVariable(EnvVar, null);
-        Environment.SetEnvironmentVariable(SupabaseUrlVar, "http://127.0.0.1:1");
-        Environment.SetEnvironmentVariable(SupabaseKeyVar, "service-role-key");
-        using var factory = new EngineWebApplicationFactory();
-
-        factory.Services.GetService<IBillingStore>().Should().BeOfType<SupabaseBillingStore>();
-    }
-
-    [Theory]
-    [InlineData(Blank, Blank)]
-    [InlineData(Blank, "service-role-key")]
-    [InlineData("http://127.0.0.1:1", Blank)]
-    public void Without_DatabaseUrl_or_the_whole_Supabase_pair_no_billing_store_is_registered(string url, string key)
-    {
-        Environment.SetEnvironmentVariable(EnvVar, null);
-        Environment.SetEnvironmentVariable(SupabaseUrlVar, url);
-        Environment.SetEnvironmentVariable(SupabaseKeyVar, key);
-        using var factory = new EngineWebApplicationFactory();
-
+        factory.Services.GetRequiredService<IDeliveryService>().Should().BeOfType<NoOpDeliveryService>();
         factory.Services.GetService<IBillingStore>().Should().BeNull();
+        // The reconciler's buffer is registered with the store, so it is there without one too.
+        factory.Services.GetRequiredService<IPendingWriteBuffer>().Should().BeOfType<PendingWriteBuffer>();
         // The Stripe paths still resolve: their factories pass the missing store as null.
         factory.Services.GetRequiredService<IStripeWebhookHandler>().Should().BeOfType<StripeWebhookHandler>();
         factory.Services.GetRequiredService<IRefundService>().Should().BeOfType<StripeRefundService>();
+    }
+
+    [Fact]
+    public void Production_without_DatabaseUrl_refuses_to_start()
+    {
+        foreach (var name in ProductionSecrets)
+            Environment.SetEnvironmentVariable(name, "set-for-the-test");
+        Environment.SetEnvironmentVariable(EnvVar, Blank);
+        using var factory = new ProductionEngineFactory();
+
+        var build = () => factory.Services;
+
+        build.Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().Contain("DATABASE_URL");
+    }
+
+    private sealed class ProductionEngineFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Production");
     }
 }
