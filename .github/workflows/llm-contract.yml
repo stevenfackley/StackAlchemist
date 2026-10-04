@@ -1,0 +1,37 @@
+name: LLM contract check
+
+# Runs the Engine's real AnthropicLlmClient against the real Anthropic API for the configured
+# model (vars.ANTHROPIC_MODEL) — the request shape (effort, server-side fallback, no thinking or
+# sampling fields) and the delimited file format the reconstructor parses. Run it after any
+# ANTHROPIC_MODEL change. Uses the Test environment's key; costs a few cents per run.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Live Anthropic contract
+    runs-on: ubuntu-latest
+    environment: test
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_LIVE_TEST: "1"
+      ANTHROPIC_LIVE_TEST_REQUIRED: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5-5' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Live contract tests
+        run: |
+          echo "Model under test: $ANTHROPIC_MODEL"
+          dotnet test src/StackAlchemist.Engine.Tests --filter "Category=LiveAnthropic" --logger "console;verbosity=normal"
