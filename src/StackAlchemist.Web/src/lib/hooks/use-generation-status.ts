@@ -23,8 +23,7 @@ interface UseGenerationStatusOptions {
  * fetch is never stacked under the next tick.
  *
  * Polling is the only transport (re-platform phase F): generation rows live in
- * qavren-db, which has no change feed, and the Supabase Realtime channel this
- * replaces stopped polling on SUBSCRIBED while nothing on that project changed.
+ * qavren-db, which has no change feed.
  */
 export function useGenerationStatus({
   generationId,

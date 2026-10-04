@@ -15,10 +15,9 @@ test.describe("Integration: Simple Mode Runtime Path", () => {
     await page.getByTestId("home-synthesize-button").click();
 
     // /simple auto-submits one Spark build and shows the friendly building phase.
-    // With no browser Supabase client (Postgres mode), it hard-navigates to the
-    // result as soon as the submit action returns (SimpleModePage:
-    // `isDemoMode || !supabase`), so that phase lives only for two server-action
-    // round trips and can be gone before this assertion runs. Accept either state.
+    // It hard-navigates to the result as soon as the submit action returns
+    // (SimpleModePage), so that phase lives only for two server-action round
+    // trips and can be gone before this assertion runs. Accept either state.
     await expect
       .poll(
         async () =>

@@ -34,7 +34,6 @@ export class DataStoreError extends Error {
 }
 
 export interface DataStore {
-  readonly kind: "drizzle" | "supabase";
   getProfile(userId: string): Promise<ProfileSettingsRow | null>;
   upsertProfile(profile: ProfileUpsert): Promise<void>;
   /**

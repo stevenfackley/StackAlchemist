@@ -35,8 +35,8 @@ const nextConfig: NextConfig = {
     const isTestSite = process.env.NEXT_PUBLIC_IS_TEST_SITE === "true";
 
     // CSP in Report-Only mode first so we see violations without blocking users.
-    // Allowlist: Stripe (JS + API), Supabase (auth + DB REST + realtime WS),
-    // Plausible analytics, Cloudflare Insights beacon, self for everything else.
+    // Allowlist: Stripe (JS + API), Plausible analytics, Cloudflare Insights
+    // beacon, self for everything else.
     // Flip to enforce in Batch C once reports are clean.
     const cspReportOnly = [
       "default-src 'self'",
@@ -51,7 +51,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://plausible.io https://cloudflareinsights.com",
+      "connect-src 'self' https://api.stripe.com https://plausible.io https://cloudflareinsights.com",
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://stackblitz.com",
       "worker-src 'self' blob:",
       "object-src 'none'",

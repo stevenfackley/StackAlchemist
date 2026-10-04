@@ -1,73 +1,38 @@
+// Demo mode is explicit (NEXT_PUBLIC_DEMO_MODE=true) or local: outside production
+// an unset NEXT_PUBLIC_DEMO_MODE means demo. Stays client-visible (a server-only
+// variable would make server and client render differently and break hydration).
 const _autoDemo =
   !process.env.NEXT_PUBLIC_DEMO_MODE &&
-  !process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NODE_ENV !== "production";
 
 if (_autoDemo && typeof window === "undefined") {
   console.warn(
-    "[runtime-config] Demo mode auto-enabled: NEXT_PUBLIC_SUPABASE_URL is not set. " +
-    "Set it, add NEXT_PUBLIC_DEMO_MODE=true to silence this warning, or set NEXT_PUBLIC_DEMO_MODE=false when running against Qavren Auth (QAVREN_AUTH_URL)."
+    "[runtime-config] Demo mode auto-enabled: NEXT_PUBLIC_DEMO_MODE is not set outside production. " +
+    "Set NEXT_PUBLIC_DEMO_MODE=true to silence this warning, or NEXT_PUBLIC_DEMO_MODE=false with " +
+    "DATABASE_URL and QAVREN_AUTH_URL to run against qavren-db and Qavren Auth."
   );
 }
 
 export const isDemoMode =
   process.env.NEXT_PUBLIC_DEMO_MODE === "true" || _autoDemo;
 
-// Real Supabase anon keys are either a legacy JWT ("eyJ…") or a modern
-// publishable key ("sb_publishable_…"). A stub secret like "placeholder_value"
-// is truthy but not a real key — accepting it builds a browser client that
-// can't authenticate Realtime or pass RLS, which fails *silently* in prod.
-function isLikelyValidAnonKey(key: string | undefined): key is string {
-  return !!key && (key.startsWith("eyJ") || key.startsWith("sb_publishable_"));
-}
-
-let _warnedInvalidAnonKey = false;
-
-export function hasPublicSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url) return false;
-  if (!isLikelyValidAnonKey(key)) {
-    // URL is set (Supabase is clearly intended) but the anon key is malformed —
-    // a real misconfiguration, not demo mode. Make it loud so a bad deploy
-    // surfaces in build/server logs instead of shipping a dead client.
-    if (key && !_warnedInvalidAnonKey) {
-      _warnedInvalidAnonKey = true;
-      console.error(
-        "[runtime-config] NEXT_PUBLIC_SUPABASE_URL is set but NEXT_PUBLIC_SUPABASE_ANON_KEY " +
-        "is not a valid Supabase key (expected 'eyJ…' JWT or 'sb_publishable_…'). " +
-        "Supabase client disabled — auth, Realtime, and RLS reads will not work. " +
-        "Fix the environment secret SUPABASE_ANON_KEY and redeploy."
-      );
-    }
-    return false;
-  }
-  return true;
-}
-
-export function hasServerSupabaseConfig() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-}
-
-/** Server data goes to qavren-db (Postgres) rather than Supabase. */
+/** Server data goes to qavren-db (Postgres, DATABASE_URL). */
 export function usesPostgresStore() {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
-/** A server-side store is reachable: qavren-db (DATABASE_URL) or the Supabase service role pair. */
+/** A server-side store is reachable: qavren-db (DATABASE_URL). */
 export function hasDataStoreConfig() {
-  return usesPostgresStore() || hasServerSupabaseConfig();
+  return usesPostgresStore();
 }
 
 export const QAVREN_AUTH_URL_DEFAULT = "https://auth.stackalchemist.app";
 export const QAVREN_REALM_DEFAULT = "stackalchemist";
 
 /**
- * Sign-in goes through the Qavren Auth realm (Keycloak, Auth.js) instead of
- * Supabase Auth. Server-only: the mode never reaches a client bundle, so every
- * page that branches on it must be dynamic (see docs/runbooks/qavren-auth.md).
+ * Sign-in through the Qavren Auth realm (Keycloak, Auth.js) is configured.
+ * Always true in production (assertProductionConfig); false only in demo mode,
+ * where nothing loads Auth.js. Server-only: never reaches a client bundle.
  */
 export function usesQavrenAuth() {
   return Boolean(process.env.QAVREN_AUTH_URL?.trim());
@@ -83,30 +48,36 @@ export function getQavrenRealm() {
 }
 
 /**
- * Qavren Auth identities are Keycloak `sub`s. On Supabase, `profiles.id`
- * references `auth.users`, so such an identity could never own a row; refuse
- * the combination at boot rather than on the first insert.
+ * Boot-time configuration check (src/instrumentation.ts). Production has one
+ * shape: DATABASE_URL, QAVREN_AUTH_URL (an absolute http(s) URL) and AUTH_SECRET,
+ * all three. Outside production every one may be unset (demo mode), but a
+ * QAVREN_AUTH_URL that is set must still come with the other two: a Keycloak
+ * `sub` can only own rows in the qavren-db store. Messages never echo a value.
  */
-export function assertAuthModeConsistent() {
+export function assertProductionConfig() {
+  const production = process.env.NODE_ENV === "production";
+  if (production && !usesPostgresStore()) {
+    throw new Error("DATABASE_URL is not set: production requires the qavren-db store.");
+  }
+  if (production && !usesQavrenAuth()) {
+    throw new Error("QAVREN_AUTH_URL is not set: production signs in through Qavren Auth.");
+  }
   if (usesQavrenAuth() && !usesPostgresStore()) {
     throw new Error(
       "QAVREN_AUTH_URL is set but DATABASE_URL is not: Qavren Auth requires the qavren-db store. " +
-        "Set both (phase E) or neither (Supabase mode)."
+        "Set both, or neither for demo mode."
     );
   }
-  // A malformed value (e.g. "/" or a bare hostname) must fail loudly here, not
-  // silently flip the mode. The message never echoes the value.
+  // A malformed value (e.g. "/" or a bare hostname) must fail loudly here.
   if (usesQavrenAuth() && !/^https?:\/\/[^/\s]+\S*$/i.test(getQavrenAuthUrl())) {
-    throw new Error(
-      "QAVREN_AUTH_URL must be an absolute http(s) URL (the configured value is not); unset it for Supabase mode."
-    );
+    throw new Error("QAVREN_AUTH_URL must be an absolute http(s) URL (the configured value is not).");
   }
   // Auth.js reads AUTH_SECRET itself; without it the first /api/auth request 500s
   // with MissingSecret. Fail at boot instead.
   if (usesQavrenAuth() && !process.env.AUTH_SECRET?.trim()) {
     throw new Error(
       "AUTH_SECRET is not set: Auth.js needs it to encrypt the session cookie (openssl rand -base64 32). " +
-        "Set it with QAVREN_AUTH_URL, or unset both for Supabase mode."
+        "Set it with QAVREN_AUTH_URL."
     );
   }
 }

@@ -10,10 +10,11 @@
  * check: a checkout acts on an existing generation row, so (like the result
  * page) only the signed-in owner of that row may start one.
  */
-import { getServerUser } from "@/lib/supabase-server";
-import { createServerClient } from "@/lib/supabase";
+import { getDataStore } from "@/lib/data";
+import { DataStoreError } from "@/lib/data/store";
+import { getSessionUser } from "@/lib/session";
 import { createCheckoutSession } from "@/lib/actions";
-import { fakeResponse, makeDb } from "./actions-test-helpers";
+import { fakeResponse, makeStore, type FakeStore } from "./actions-test-helpers";
 
 const hasStripeConfigMock = vi.fn(() => true);
 const hasEngineConfigMock = vi.fn(() => true);
@@ -21,38 +22,27 @@ const hasDataStoreConfigMock = vi.fn(() => true);
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
-  // `actions.ts` also imports `createServerClient` from "./supabase", and
-  // that module calls `hasPublicSupabaseConfig()` at import time to decide
-  // whether to build a *browser* Supabase client — it must be present on
-  // this mock even though createCheckoutSession itself never calls it.
-  // Keep it false so the real `createBrowserClient` (which needs real env
-  // vars) never actually runs in this test file.
-  hasPublicSupabaseConfig: vi.fn(() => false),
   hasEngineConfig: () => hasEngineConfigMock(),
-  hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: () => hasDataStoreConfigMock(),
-  usesPostgresStore: vi.fn(() => false),
-  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: () => hasStripeConfigMock(),
   getEngineServiceKey: vi.fn(() => ""),
 }));
 
 const headersMock = vi.fn();
 vi.mock("next/headers", () => ({ headers: () => headersMock() }));
-vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+vi.mock("@/lib/session", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/data", () => ({ getDataStore: vi.fn() }));
 
-// The store rejects malformed ids before querying, so fixtures need real UUIDs.
+// Session ids are Keycloak subs, and generation ids are UUIDs too.
 const GEN_ID = "0b5d3c1e-6f7a-4c2d-9e8f-1a2b3c4d5e6f";
 const OWNER_ID = "3f2b8c1a-5d4e-4f6a-9b7c-8d9e0f1a2b3c";
 const INTRUDER_ID = "9c8d7e6f-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
 
 /** The signed-in owner's row, as the scoped read returns it. */
-function ownedRow() {
-  return makeDb([{ data: { id: GEN_ID, user_id: OWNER_ID, tier: 0, status: "success" }, error: null }]);
-}
+const OWNED_ROW = { id: GEN_ID, user_id: OWNER_ID, tier: 0, status: "success" };
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let store: FakeStore;
 
 describe("actions.ts — createCheckoutSession", () => {
   const fetchMock = vi.fn();
@@ -67,10 +57,14 @@ describe("actions.ts — createCheckoutSession", () => {
     headersMock.mockReset();
     headersMock.mockResolvedValue(new Headers({ host: "app.stackalchemist.app" }));
     // Default: the signed-in caller owns GEN_ID.
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(getServerUser).mockResolvedValue({ id: OWNER_ID } as never);
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(createServerClient).mockImplementation(() => ownedRow() as never);
+    vi.mocked(getSessionUser).mockReset();
+    vi.mocked(getSessionUser).mockResolvedValue({ id: OWNER_ID, email: null });
+    store = makeStore();
+    store.getGenerationForUser.mockImplementation(async (id, userId) =>
+      id === GEN_ID && userId === OWNER_ID ? (OWNED_ROW as never) : null
+    );
+    vi.mocked(getDataStore).mockReset();
+    vi.mocked(getDataStore).mockReturnValue(store);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -107,41 +101,35 @@ describe("actions.ts — createCheckoutSession", () => {
   });
 
   it("rejects a signed-out caller before calling the Engine", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null as never);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
 
     const result = await createCheckoutSession(GEN_ID, 2);
     expect(result).toEqual({ success: false, error: "Please sign in to continue to checkout." });
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects someone else's generation with the not-found message, before calling the Engine", async () => {
-    vi.mocked(getServerUser).mockResolvedValue({ id: INTRUDER_ID } as never);
+    vi.mocked(getSessionUser).mockResolvedValue({ id: INTRUDER_ID, email: null });
     // The read is scoped to the caller in the query, so the intruder's lookup matches nothing.
-    const db = makeDb([{ data: null, error: null }]);
-    vi.mocked(createServerClient).mockImplementation(() => db as never);
 
     const result = await createCheckoutSession(GEN_ID, 2);
     expect(result).toEqual({ success: false, error: "Generation not found." });
-    const builder = db.from.mock.results[0]?.value as { eq: ReturnType<typeof vi.fn> };
-    expect(builder.eq.mock.calls).toContainEqual(["user_id", INTRUDER_ID]);
+    expect(store.getGenerationForUser).toHaveBeenCalledWith(GEN_ID, INTRUDER_ID);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("reads the generation scoped to the signed-in owner before calling the Engine", async () => {
-    const db = ownedRow();
-    vi.mocked(createServerClient).mockImplementation(() => db as never);
     fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/own" }));
 
     const result = await createCheckoutSession(GEN_ID, 2);
     expect(result).toEqual({ success: true, sessionUrl: "https://checkout.stripe.com/session/own" });
-    const builder = db.from.mock.results[0]?.value as { eq: ReturnType<typeof vi.fn> };
-    expect(builder.eq.mock.calls).toEqual(expect.arrayContaining([["id", GEN_ID], ["user_id", OWNER_ID]]));
+    expect(store.getGenerationForUser).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
+    expect(store.getGenerationForUser.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
   });
 
   it("refuses, without calling the Engine, when the ownership lookup itself fails", async () => {
-    const db = makeDb([{ data: null, error: { message: "boom", code: "XX000" } }]);
-    vi.mocked(createServerClient).mockImplementation(() => db as never);
+    store.getGenerationForUser.mockRejectedValue(new DataStoreError("generations select failed"));
 
     const result = await createCheckoutSession(GEN_ID, 2);
     expect(result).toEqual({ success: false, error: "Generation not found." });
@@ -157,7 +145,7 @@ describe("actions.ts — createCheckoutSession", () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining("[createCheckoutSession] No data store configured")
     );
-    expect(createServerClient).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

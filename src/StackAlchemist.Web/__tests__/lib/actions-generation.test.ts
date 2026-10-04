@@ -5,13 +5,10 @@
  * the free-tier quota pre-check, DB failure handling, and Engine-fetch
  * resilience.
  */
-import { getServerUser } from "@/lib/supabase-server";
-import { createServerClient } from "@/lib/supabase";
-import type { MockInstance } from "vitest";
-import { hasDataStoreConfig, hasServerSupabaseConfig, usesPostgresStore } from "@/lib/runtime-config";
+import { getDataStore } from "@/lib/data";
 import { DataStoreError } from "@/lib/data/store";
-import { DrizzleStore } from "@/lib/data/drizzle-store";
-import { SupabaseStore } from "@/lib/data/supabase-store";
+import { getSessionUser } from "@/lib/session";
+import { hasDataStoreConfig } from "@/lib/runtime-config";
 import {
   createPendingGeneration,
   extractSchema,
@@ -22,23 +19,21 @@ import {
   submitSimpleGeneration,
 } from "@/lib/actions";
 import type { GenerationSchema } from "@/lib/types";
-import { makeDb, fakeResponse } from "./actions-test-helpers";
+import { makeStore, fakeResponse, type FakeStore } from "./actions-test-helpers";
 
 vi.mock("@/lib/runtime-config", () => ({
   isDemoMode: false,
   hasEngineConfig: vi.fn(() => true),
-  hasServerSupabaseConfig: vi.fn(() => true),
   hasDataStoreConfig: vi.fn(() => true),
-  usesPostgresStore: vi.fn(() => false),
-  usesQavrenAuth: vi.fn(() => false),
   hasStripeConfig: vi.fn(() => true),
   getEngineServiceKey: vi.fn(() => "engine-service-key-test"),
 }));
 
-vi.mock("@/lib/supabase-server", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ createServerClient: vi.fn() }));
+vi.mock("@/lib/session", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/data", () => ({ getDataStore: vi.fn() }));
 
 const USER = { id: "user-123", email: "founder@example.com" };
+const PROMPT = "Build a recipe sharing app for home cooks";
 
 const VALID_SCHEMA: GenerationSchema = {
   entities: [{ name: "Widget", fields: [{ name: "id", type: "UUID", pk: true }] }],
@@ -46,11 +41,25 @@ const VALID_SCHEMA: GenerationSchema = {
   endpoints: [],
 };
 
+/** UTC midnight on the first of the current month: the quota window's start. */
+function monthStartUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
 // `console.error` is spied (never restored via `vi.restoreAllMocks`, which
 // would also wipe the persistent `() => true` defaults baked into the
 // `runtime-config` mock above) — just this one spy is created/torn down
 // explicitly in every describe block below.
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let store: FakeStore;
+
+/** Fresh fake store per test, returned by every getDataStore() call. */
+function resetStore() {
+  store = makeStore();
+  vi.mocked(getDataStore).mockReset();
+  vi.mocked(getDataStore).mockReturnValue(store);
+}
 
 describe("actions.ts — submitSimpleGeneration (configured)", () => {
   const fetchMock = vi.fn();
@@ -58,9 +67,8 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -71,44 +79,53 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
   });
 
   it("rejects when the caller is not authenticated", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null);
-    vi.mocked(createServerClient).mockReturnValue(makeDb([]) as never);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 1);
+    const result = await submitSimpleGeneration(PROMPT, 1);
 
     expect(result).toEqual({ success: false, error: "Please sign in to start a build." });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks tier-0 submission once the free quota is exhausted, with a friendly message", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(makeDb([{ count: 5, error: null }]) as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countFreeGenerationsThisMonth.mockResolvedValue(5);
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 0);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("You've used all 5 free builds this month");
     }
+    // Counted for the caller, over the current UTC calendar month.
+    expect(store.countFreeGenerationsThisMonth).toHaveBeenCalledWith(USER.id, monthStartUtc());
+    expect(store.insertGeneration).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("proceeds when the free quota still has room", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { count: 2, error: null }, // quota check
-        { data: { id: "gen-abc" }, error: null }, // insert
-      ]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countFreeGenerationsThisMonth.mockResolvedValue(2);
+    store.insertGeneration.mockResolvedValue({ id: "gen-abc" } as never);
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 0);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result).toEqual({
       success: true,
       generationId: "gen-abc",
       redirectUrl: "/generate/gen-abc",
+    });
+    // The row is written for the caller, as a simple-mode Spark build.
+    expect(store.insertGeneration).toHaveBeenCalledWith({
+      mode: "simple",
+      tier: 0,
+      prompt: PROMPT,
+      project_type: "DotNetNextJs",
+      schema_json: null,
+      personalization_json: null,
+      user_id: USER.id,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
@@ -116,40 +133,36 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     expect(init.headers["X-Engine-Key"]).toBe("engine-service-key-test");
   });
 
-  it("does not re-check the quota for paid tiers (only one Supabase query)", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: { id: "gen-paid" }, error: null }]) as never
-    );
+  it("does not re-check the quota for paid tiers", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-paid" } as never);
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 2);
+    const result = await submitSimpleGeneration(PROMPT, 2);
 
     expect(result.success).toBe(true);
+    expect(store.countFreeGenerationsThisMonth).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the insert fails", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: null, error: { message: "db down" } }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockRejectedValue(new DataStoreError("db down"));
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 2);
+    const result = await submitSimpleGeneration(PROMPT, 2);
 
     expect(result).toEqual({
       success: false,
       error: "Failed to create generation record. Please try again.",
     });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("still returns success when the Engine fetch rejects outright (row already exists)", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: { id: "gen-resilient" }, error: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-resilient" } as never);
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 3);
+    const result = await submitSimpleGeneration(PROMPT, 3);
 
     expect(result).toEqual({
       success: true,
@@ -159,13 +172,11 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
   });
 
   it("still returns success when the Engine responds non-2xx (logs but doesn't fail the user)", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: { id: "gen-engine-500" }, error: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-engine-500" } as never);
     fetchMock.mockResolvedValue(fakeResponse("engine exploded", { ok: false, status: 500 }));
 
-    const result = await submitSimpleGeneration("Build a recipe sharing app for home cooks", 1);
+    const result = await submitSimpleGeneration(PROMPT, 1);
 
     expect(result.success).toBe(true);
   });
@@ -177,9 +188,8 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -190,7 +200,7 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
   });
 
   it("rejects a schema with a blank entity name", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
     const badSchema: GenerationSchema = {
       entities: [{ name: "  ", fields: [] }],
       relationships: [],
@@ -202,28 +212,28 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
   });
 
   it("rejects when unauthenticated", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
 
     const result = await submitAdvancedGeneration(VALID_SCHEMA, 1);
     expect(result).toEqual({ success: false, error: "Please sign in to start a build." });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
   });
 
   it("blocks tier-0 submission once quota is exhausted", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(makeDb([{ count: 5, error: null }]) as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countFreeGenerationsThisMonth.mockResolvedValue(5);
 
     const result = await submitAdvancedGeneration(VALID_SCHEMA, 0);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("free builds this month");
     }
+    expect(store.insertGeneration).not.toHaveBeenCalled();
   });
 
   it("saves the full schema and fires the engine on success", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: { id: "gen-advanced-1" }, error: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-advanced-1" } as never);
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
     const result = await submitAdvancedGeneration(VALID_SCHEMA, 2);
@@ -233,6 +243,15 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
       generationId: "gen-advanced-1",
       redirectUrl: "/generate/gen-advanced-1",
     });
+    expect(store.insertGeneration).toHaveBeenCalledWith({
+      mode: "advanced",
+      tier: 2,
+      prompt: "Widget — 1 entities, 0 relationships, 0 endpoints",
+      project_type: "DotNetNextJs",
+      schema_json: VALID_SCHEMA,
+      personalization_json: null,
+      user_id: USER.id,
+    });
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
     expect(body.schema).toEqual(VALID_SCHEMA);
@@ -240,44 +259,48 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
 });
 
 describe("actions.ts — createPendingGeneration (configured)", () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     consoleErrorSpy.mockRestore();
   });
 
   it("rejects when unauthenticated", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(null);
+    vi.mocked(getSessionUser).mockResolvedValue(null);
     const result = await createPendingGeneration("simple", 1, "a prompt");
     expect(result).toEqual({ success: false, error: "Please sign in to start a build." });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
   });
 
   it("creates a pending row without ever calling the engine", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: { id: "gen-pending-1" }, error: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-pending-1" } as never);
 
     const result = await createPendingGeneration("simple", 2, "a prompt");
     expect(result).toEqual({ success: true, generationId: "gen-pending-1" });
+    expect(store.insertGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "simple", tier: 2, prompt: "a prompt", user_id: USER.id })
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
 describe("actions.ts — the caller's profile row exists before the first insert", () => {
   const fetchMock = vi.fn();
-  let ensureProfile: MockInstance<DrizzleStore["ensureProfile"]>;
-  let countFree: MockInstance<DrizzleStore["countFreeGenerationsThisMonth"]>;
-  let insertGeneration: MockInstance<DrizzleStore["insertGeneration"]>;
 
   // Each creating action, arranged to reach its insert, with the message its insert failure shows today.
   const creators = [
-    ["submitSimpleGeneration", () => submitSimpleGeneration("Build a recipe sharing app for home cooks", 0), "Failed to create generation record. Please try again."],
+    ["submitSimpleGeneration", () => submitSimpleGeneration(PROMPT, 0), "Failed to create generation record. Please try again."],
     ["submitAdvancedGeneration", () => submitAdvancedGeneration(VALID_SCHEMA, 0), "Failed to save your schema. Please try again."],
     ["createPendingGeneration", () => createPendingGeneration("simple", 2, "a prompt"), "Failed to create generation record. Please try again."],
   ] as const;
@@ -286,85 +309,54 @@ describe("actions.ts — the caller's profile row exists before the first insert
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
-    // DATABASE_URL set: getDataStore() builds a DrizzleStore. Its postgres-js
-    // client is lazy and every query method used here is stubbed, so nothing connects.
-    vi.mocked(usesPostgresStore).mockReturnValue(true);
-    vi.stubEnv("DATABASE_URL", "postgres://u:p@localhost:5432/db");
-    ensureProfile = vi.spyOn(DrizzleStore.prototype, "ensureProfile").mockResolvedValue(undefined);
-    countFree = vi.spyOn(DrizzleStore.prototype, "countFreeGenerationsThisMonth").mockResolvedValue(0);
-    insertGeneration = vi.spyOn(DrizzleStore.prototype, "insertGeneration").mockResolvedValue({ id: "gen-pg" } as never);
+    resetStore();
+    store.insertGeneration.mockResolvedValue({ id: "gen-pg" } as never);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    ensureProfile.mockRestore();
-    countFree.mockRestore();
-    insertGeneration.mockRestore();
-    vi.mocked(usesPostgresStore).mockReturnValue(false);
-    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     consoleErrorSpy.mockRestore();
   });
 
-  it.each(creators)("%s ensures the caller's profile (DATABASE_URL set) before the quota count and the insert", async (name, create) => {
+  it.each(creators)("%s ensures the caller's profile before the quota count and the insert", async (name, create) => {
     const result = await create();
 
     expect(result.success).toBe(true);
-    expect(ensureProfile).toHaveBeenCalledTimes(1);
-    expect(ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: USER.email });
-    const ensuredAt = ensureProfile.mock.invocationCallOrder[0];
-    expect(ensuredAt).toBeLessThan(insertGeneration.mock.invocationCallOrder[0]);
+    expect(store.ensureProfile).toHaveBeenCalledTimes(1);
+    expect(store.ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: USER.email });
+    const ensuredAt = store.ensureProfile.mock.invocationCallOrder[0];
+    expect(ensuredAt).toBeLessThan(store.insertGeneration.mock.invocationCallOrder[0]);
     // Free tiers count the quota exactly once; the paid checkout path never does.
     // Pinned so the ordering loop above cannot pass by iterating nothing.
-    expect(countFree).toHaveBeenCalledTimes(name === "createPendingGeneration" ? 0 : 1);
-    for (const countedAt of countFree.mock.invocationCallOrder) expect(ensuredAt).toBeLessThan(countedAt);
+    expect(store.countFreeGenerationsThisMonth).toHaveBeenCalledTimes(name === "createPendingGeneration" ? 0 : 1);
+    for (const countedAt of store.countFreeGenerationsThisMonth.mock.invocationCallOrder) expect(ensuredAt).toBeLessThan(countedAt);
   });
 
   it("stores an empty email for a caller the session has no email for, as saveProfileSettings does", async () => {
-    vi.mocked(getServerUser).mockResolvedValue({ id: USER.id } as never);
+    vi.mocked(getSessionUser).mockResolvedValue({ id: USER.id, email: null });
 
     await createPendingGeneration("simple", 2, "a prompt");
 
-    expect(ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: "" });
+    expect(store.ensureProfile).toHaveBeenCalledWith({ id: USER.id, email: "" });
   });
 
   it.each(creators)("%s surfaces a failed ensureProfile exactly like a failed insert, and inserts nothing", async (_name, create, message) => {
-    ensureProfile.mockRejectedValue(new DataStoreError("profiles insert failed"));
+    store.ensureProfile.mockRejectedValue(new DataStoreError("profiles insert failed"));
 
     await expect(create()).resolves.toEqual({ success: false, error: message });
-    expect(insertGeneration).not.toHaveBeenCalled();
+    expect(store.insertGeneration).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it.each(creators)("%s never calls ensureProfile with DATABASE_URL unset (Supabase store)", async (_name, create) => {
-    vi.mocked(usesPostgresStore).mockReturnValue(false);
-    vi.stubEnv("DATABASE_URL", "");
-    const supabaseEnsure = vi.spyOn(SupabaseStore.prototype, "ensureProfile");
-    // One result shape serves both the quota count and the insert.
-    const row = { data: { id: "gen-sb" }, count: 0, error: null };
-    vi.mocked(createServerClient).mockReturnValue(makeDb([row, row]) as never);
-    try {
-      const result = await create();
-
-      expect(result.success).toBe(true);
-      expect(supabaseEnsure).not.toHaveBeenCalled();
-      expect(ensureProfile).not.toHaveBeenCalled();
-    } finally {
-      supabaseEnsure.mockRestore();
-    }
   });
 });
 
 describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, not demo mode)", () => {
   beforeEach(() => {
-    vi.mocked(getServerUser).mockReset();
-    vi.mocked(createServerClient).mockReset();
-    vi.mocked(hasServerSupabaseConfig).mockReturnValue(true);
+    vi.mocked(getSessionUser).mockReset();
+    resetStore();
     vi.mocked(hasDataStoreConfig).mockReturnValue(true);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -373,111 +365,89 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
     consoleErrorSpy.mockRestore();
   });
 
-  it("getFreeQuotaStatus falls back to a full quota when Supabase config is missing, even though isDemoMode is false", async () => {
-    vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+  it("getFreeQuotaStatus falls back to a full quota when no data store is configured, even though isDemoMode is false", async () => {
     vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
 
     const status = await getFreeQuotaStatus();
     expect(status.remaining).toBe(status.limit);
-    expect(getServerUser).not.toHaveBeenCalled();
+    expect(getSessionUser).not.toHaveBeenCalled();
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("getFreeQuotaStatus reports usage for an authenticated user", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(makeDb([{ count: 3, error: null }]) as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countFreeGenerationsThisMonth.mockResolvedValue(3);
 
     const status = await getFreeQuotaStatus();
     expect(status.used).toBe(3);
     expect(status.remaining).toBe(status.limit - 3);
+    expect(store.countFreeGenerationsThisMonth).toHaveBeenCalledWith(USER.id, monthStartUtc());
   });
 
-  it("getMyGenerations returns an empty page when Supabase config is missing", async () => {
-    vi.mocked(hasServerSupabaseConfig).mockReturnValueOnce(false);
+  it("getMyGenerations returns an empty page when no data store is configured", async () => {
     vi.mocked(hasDataStoreConfig).mockReturnValueOnce(false);
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
 
     const result = await getMyGenerations();
     expect(result).toEqual({ generations: [], total: 0 });
+    expect(getDataStore).not.toHaveBeenCalled();
   });
 
   it("getMyGenerations returns the user's rows newest-first with the total count", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
     const rows = [{ id: "gen-2" }, { id: "gen-1" }];
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: rows, error: null, count: 57 }]) as never
-    );
+    store.listMyGenerations.mockResolvedValue({ generations: rows as never, total: 57 });
 
     const result = await getMyGenerations();
     expect(result.generations).toEqual(rows);
     expect(result.total).toBe(57);
+    // Scoped to the caller: first page, default size 20.
+    expect(store.listMyGenerations).toHaveBeenCalledWith(USER.id, 0, 20);
   });
 
-  it("getMyGenerations requests the correct range window for a later page", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    const chain = makeDb([{ data: [], error: null, count: 100 }]) as never as {
-      from: ReturnType<typeof vi.fn>;
-    };
-    vi.mocked(createServerClient).mockReturnValue(chain as never);
+  it("getMyGenerations requests the correct window for a later page", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.listMyGenerations.mockResolvedValue({ generations: [], total: 100 });
 
     await getMyGenerations(3, 20);
 
-    // Page 3 @ pageSize 20 → rows 40..59 (0-indexed range).
-    const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
-    expect(builder.range).toHaveBeenCalledWith(40, 59);
+    // Page 3 @ pageSize 20 → rows 40..59: offset 40, limit 20.
+    expect(store.listMyGenerations).toHaveBeenCalledWith(USER.id, 40, 20);
   });
 
   it.each([
-    ["10000", 10000, [0, 99]],
-    ["NaN", Number.NaN, [0, 19]],
-    ["0", 0, [0, 0]],
-    ["a fraction", 2.7, [0, 1]],
-  ])("getMyGenerations clamps pageSize %s to an integer in [1, 100] (default 20 for NaN)", async (_name, pageSize, range) => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    const chain = makeDb([{ data: [], error: null, count: 0 }]) as never as {
-      from: ReturnType<typeof vi.fn>;
-    };
-    vi.mocked(createServerClient).mockReturnValue(chain as never);
+    ["10000", 10000, 100],
+    ["NaN", Number.NaN, 20],
+    ["0", 0, 1],
+    ["a fraction", 2.7, 2],
+  ])("getMyGenerations clamps pageSize %s to an integer in [1, 100] (default 20 for NaN)", async (_name, pageSize, limit) => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
 
     await getMyGenerations(1, pageSize);
 
-    const builder = chain.from.mock.results[0].value as Record<string, ReturnType<typeof vi.fn>>;
-    expect(builder.range).toHaveBeenCalledWith(...range);
+    expect(store.listMyGenerations).toHaveBeenCalledWith(USER.id, 0, limit);
   });
 
   it("getMyGenerations returns an empty page when the query errors", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([{ data: null, error: { message: "boom" }, count: null }]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.listMyGenerations.mockRejectedValue(new DataStoreError("generations list failed"));
 
     const result = await getMyGenerations();
     expect(result).toEqual({ generations: [], total: 0 });
   });
 
   it("getGenerationStats aggregates total / completed / in-progress counts", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    // Three .from() calls: total, completed, in-progress.
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { count: 42, error: null },
-        { count: 30, error: null },
-        { count: 5, error: null },
-      ]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.generationStats.mockResolvedValue({ total: 42, completed: 30, inProgress: 5 });
 
     const stats = await getGenerationStats();
     expect(stats).toEqual({ total: 42, completed: 30, inProgress: 5 });
+    expect(store.generationStats).toHaveBeenCalledWith(USER.id);
   });
 
   it("getGenerationStats returns zeros when a count query errors", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(USER as never);
-    vi.mocked(createServerClient).mockReturnValue(
-      makeDb([
-        { count: 42, error: null },
-        { count: null, error: { message: "boom" } },
-        { count: 5, error: null },
-      ]) as never
-    );
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.generationStats.mockRejectedValue(new DataStoreError("generations stats failed"));
 
     const stats = await getGenerationStats();
     expect(stats).toEqual({ total: 0, completed: 0, inProgress: 0 });

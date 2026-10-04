@@ -26,7 +26,7 @@ const timestamptz = customType<{ data: string; driverData: string }>({
 });
 
 export const profiles = sa.table("profiles", {
-  // Supabase user id until phase C, then the Keycloak `sub`. Plain uuid, no FK.
+  // The Keycloak `sub` (Qavren Auth). Plain uuid, no FK: identities live in the realm.
   id: uuid("id").primaryKey(),
   email: text("email").notNull(),
   api_key_override: text("api_key_override"),

@@ -23,7 +23,6 @@ vi.mock("@/lib/actions", () => ({
 vi.mock("@/lib/hooks/use-generation-status", () => ({
   useGenerationStatus: () => undefined,
 }));
-vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/runtime-config", () => ({ isDemoMode: false }));
 
 const searchParamsMock = vi.hoisted(() => ({ value: new URLSearchParams() }));

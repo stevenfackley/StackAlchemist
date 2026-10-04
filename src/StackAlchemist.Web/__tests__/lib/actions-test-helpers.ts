@@ -6,56 +6,33 @@
  * skipped, matching the repo's `__tests__/mocks/*` convention for shared
  * fixtures.
  */
-import { vi } from "vitest";
+import { vi, type Mock } from "vitest";
+import type { DataStore } from "@/lib/data/store";
+
+/** A `DataStore` whose every method is a `vi.fn`, so a test can arrange results and assert calls. */
+export type FakeStore = { [K in keyof DataStore]: Mock<DataStore[K]> };
 
 /**
- * Builds a chainable, "thenable" Supabase query-builder stub. Every builder
- * method (`.select()`, `.eq()`, `.insert()`, ...) returns the same object so
- * calls can be chained in any order/length, and awaiting the chain at any
- * point resolves to `result` — mirroring how the real `@supabase/supabase-js`
- * query builder is itself a thenable.
+ * Builds a fake store. Defaults describe an empty store where every write
+ * succeeds: no profile, nothing counted, no rows, no retry claimed. Each test
+ * file mocks `@/lib/data` so `getDataStore()` returns one of these, which keeps
+ * actions.ts under test without a database (the real store has its own
+ * integration suite, `__tests__/data/drizzle-store.integration.test.ts`).
  */
-export function chainable<T>(result: T): Record<string, unknown> {
-  const handler: Record<string, unknown> = {};
-  const methods = [
-    "select",
-    "insert",
-    "update",
-    "upsert",
-    "delete",
-    "eq",
-    "neq",
-    "not",
-    "gte",
-    "lte",
-    "gt",
-    "lt",
-    "order",
-    "limit",
-    "range",
-    "single",
-    "maybeSingle",
-  ];
-  for (const name of methods) {
-    handler[name] = vi.fn(() => handler);
-  }
-  handler.then = (resolve: (value: T) => unknown, reject?: (reason: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve, reject);
-  handler.catch = (reject: (reason: unknown) => unknown) => Promise.resolve(result).catch(reject);
-  return handler;
-}
-
-/**
- * Builds a fake Supabase client whose `.from(table)` yields each entry of
- * `results`, in order, one per call — matching the fact that `actions.ts`
- * calls `.from(...)` once per logical query, even against the same table.
- */
-export function makeDb(results: unknown[]): { from: ReturnType<typeof vi.fn> } {
-  const from = vi.fn();
-  for (const result of results) {
-    from.mockReturnValueOnce(chainable(result));
-  }
-  return { from };
+export function makeStore(): FakeStore {
+  return {
+    getProfile: vi.fn(async () => null),
+    upsertProfile: vi.fn(async () => {}),
+    ensureProfile: vi.fn(async () => {}),
+    countFreeGenerationsThisMonth: vi.fn(async () => 0),
+    insertGeneration: vi.fn(async () => {
+      throw new Error("insertGeneration was not arranged by this test");
+    }),
+    getGenerationForUser: vi.fn(async () => null),
+    resetForRetry: vi.fn(async () => false),
+    listMyGenerations: vi.fn(async () => ({ generations: [], total: 0 })),
+    generationStats: vi.fn(async () => ({ total: 0, completed: 0, inProgress: 0 })),
+  };
 }
 
 /** Minimal `fetch` Response stub. */

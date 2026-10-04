@@ -17,7 +17,7 @@ const BOUNDARIES = [
   ["generate/[id]", GenerationError],
 ] as const;
 
-const INTERNAL_DETAIL = "ECONNREFUSED supabase.internal:5432 (service_role)";
+const INTERNAL_DETAIL = "ECONNREFUSED db.internal:6543 (stackalchemist_app)";
 
 describe.each(BOUNDARIES)("%s error boundary", (_name, Boundary) => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
