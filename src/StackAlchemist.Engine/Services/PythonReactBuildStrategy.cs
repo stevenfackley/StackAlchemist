@@ -19,8 +19,8 @@ namespace StackAlchemist.Engine.Services;
 /// drive the orchestration without a real Python/Node toolchain. Nothing in production
 /// subclasses it.
 /// </remarks>
-public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> logger)
-    : BuildStrategyBase(logger)
+public partial class PythonReactBuildStrategy(ILogger<PythonReactBuildStrategy> logger, BuildStrategyOptions? options = null)
+    : BuildStrategyBase(logger, options)
 {
     public override ProjectType SupportedProjectType => ProjectType.PythonReact;
 

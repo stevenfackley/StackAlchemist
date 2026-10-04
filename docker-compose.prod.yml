@@ -92,6 +92,7 @@ services:
       target: engine
     container_name: sa-engine
     restart: unless-stopped
+    init: true
     logging: *default-logging
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
