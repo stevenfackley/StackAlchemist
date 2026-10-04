@@ -1,31 +1,38 @@
 # CSP Rollout Plan
 
-**Status:** Report-Only (monitoring) · **Owner:** Steve Ackley · **Last reviewed:** 2026-04-18
+**Status:** Report-Only (monitoring) · **Owner:** Steve Ackley · **Last reviewed:** 2026-10-03
 
 We ship Content-Security-Policy as `Content-Security-Policy-Report-Only` first, collect violation reports from real traffic, then flip to enforce once the allowlist is stable. This doc is the runbook — monitor, tighten, flip, roll back.
 
 ## Current state
 
-- Header: `Content-Security-Policy-Report-Only` (see `src/StackAlchemist.Web/next.config.ts`)
-- Report endpoint: `POST /api/csp-report` (middleware-exempt, logs to stdout)
+- Header: `Content-Security-Policy-Report-Only` (see `src/StackAlchemist.Web/next.config.ts`). Enforcement has not happened yet.
+- Report endpoint: `POST /api/csp-report` (proxy-exempt, logs to stdout)
 - Coverage: all routes via `source: "/:path*"` in Next.js headers config
+- Also sent on every route: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. `/generate/[id]` additionally sends COOP + COEP (`credentialless`) so the StackBlitz Spark preview can use `SharedArrayBuffer`.
 
-## Allowlist (as of 2026-04-18)
+## Allowlist (as of 2026-10-03)
 
 ```
 default-src 'self'
-script-src  'self' 'unsafe-inline' 'unsafe-eval' js.stripe.com plausible.io static.cloudflareinsights.com
+base-uri    'self'
+frame-ancestors 'self'
+form-action 'self' https://stackblitz.com https://auth.stackalchemist.app
+script-src  'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://plausible.io https://static.cloudflareinsights.com
 style-src   'self' 'unsafe-inline'
 img-src     'self' data: blob: https:
 font-src    'self' data:
-connect-src 'self' *.supabase.co wss://*.supabase.co api.stripe.com plausible.io cloudflareinsights.com
-frame-src   'self' js.stripe.com hooks.stripe.com
+connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://plausible.io https://cloudflareinsights.com
+frame-src   'self' https://js.stripe.com https://hooks.stripe.com https://stackblitz.com
 worker-src  'self' blob:
 object-src  'none'
-frame-ancestors 'self'
 upgrade-insecure-requests
 report-uri  /api/csp-report
 ```
+
+Non-obvious entries: `stackblitz.com` is the Spark preview SDK (it POSTs project files to `stackblitz.com/run` through a form and frames the result). `auth.stackalchemist.app` in `form-action` is there because the sign-in Server Action answers with a redirect to the Keycloak realm, and `form-action` is enforced on redirects.
+
+**Pending removal (phase F):** the `https://*.supabase.co` and `wss://*.supabase.co` `connect-src` entries serve only the legacy Supabase mode, which prod no longer uses (it moved to qavren-db and Qavren Auth on 2026-10-01). Phase F (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`) removes them along with the Supabase code. They are still sent today. Flip to enforce after that, so the enforced policy carries no dead entries.
 
 `'unsafe-inline'` and `'unsafe-eval'` in `script-src` are transitional — Next.js App Router still injects inline bootstrap scripts. Plan is to adopt `strict-dynamic` + nonces in a follow-up once we confirm no third-party snippet relies on document-level inline execution.
 

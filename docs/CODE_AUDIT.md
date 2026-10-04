@@ -1,5 +1,7 @@
 # StackAlchemist Web — Code & Design-Pattern Audit
 
+> **Snapshot (2026-04-16).** Most findings below have since shipped: `jsonld.ts`, `SITE_URL`, error boundaries, manifest `satisfies` and FAQ anchors. The app is on Next.js 16 now. Treat this as history; current decisions are in `docs/DECISIONS.md`.
+
 **Date:** 2026-04-16
 **Scope:** `src/StackAlchemist.Web/` (Next.js 15 App Router frontend)
 **Auditor:** code review pass after Week 1–3 SEO + content scaffold shipped

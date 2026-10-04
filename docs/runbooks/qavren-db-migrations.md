@@ -1,11 +1,11 @@
 # qavren-db Migrations Runbook
 
-StackAlchemist is moving its data from Supabase to qavren-db (the shared
-Postgres). Schema changes are written with Drizzle and applied by the web app's
+StackAlchemist's data lives in qavren-db (the shared Qavren Postgres) since the
+phase E flip on 2026-10-01. Schema changes are written with Drizzle and applied by the web app's
 own migrator. This document covers where things live, the two connection URLs,
-the CI drift guard, the prod deploy step and the traps. The Supabase side is
-still documented in `ci-supabase-migrations.md` and stays authoritative until
-phase E flips prod to `DATABASE_URL`.
+the CI drift guard, the prod deploy step and the traps. The old Supabase side is
+documented in `ci-supabase-migrations.md`, a retired legacy file that is deleted
+in phase F.
 
 ## Where the schema lives
 
@@ -16,14 +16,15 @@ phase E flips prod to `DATABASE_URL`.
 - Source of truth: `src/StackAlchemist.Web/src/db/schema.ts`. Generated SQL and
   the journal live in `src/StackAlchemist.Web/drizzle/`. Hand-written pieces
   (triggers, functions such as `process_checkout_completed`) live in
-  `drizzle/0001_functions.sql`.
+  `drizzle/0001_functions.sql`. Migration `0002_model_defaults` (default-model
+  change, PR #467) follows them.
 - Migration ledger: `stackalchemist.__drizzle_migrations`.
 
 ## The two URLs
 
 | Secret (prod environment) | Port / mode | Used for |
 |---|---|---|
-| `DATABASE_URL` | `:6543`, Supavisor **transaction** pooler | Runtime: passed to `sa-web` and `sa-engine` through `.env` and `docker-compose.prod.yml`. Empty or unset = Supabase mode. |
+| `DATABASE_URL` | `:6543`, Supavisor **transaction** pooler | Runtime: passed to `sa-web` and `sa-engine` through `.env` and `docker-compose.prod.yml`. Empty or unset = Supabase mode (rollback only). |
 | `DATABASE_URL_MIGRATE` | `:5432`, **session** mode | DDL only: read by `npm run db:migrate` in the deploy step. Never given to a container. |
 
 Both are `postgres://...?sslmode=require`. Percent-encode the password: a raw
@@ -90,11 +91,14 @@ migration step and before the image build (so new code never goes live against
 an older schema, and a failed migration aborts the deploy while the old stack is
 still serving).
 
-The migrate step is gated on the `DATABASE_URL_MIGRATE` secret the same way the
-Supabase step is gated on `PROD_SUPABASE_DB_URL`:
+Prod has `DATABASE_URL_MIGRATE` set, so **migrations are applied on every
+deploy** (every push to `main` outside `paths-ignore`; already-applied files are a
+no-op). The step is still gated on the secret, like the legacy Supabase step is
+gated on `PROD_SUPABASE_DB_URL`:
 
 - **Secret absent:** warning, a "NOT applied" line in the job summary, exit 0.
-  This is the state until phase E; prod runs in Supabase mode. The Node setup
+  This was the state before phase E and is what a rollback to Supabase mode
+  would look like. The Node setup
   step is skipped too (job-level `QAVREN_DB_MIGRATE_ENABLED`, a boolean derived
   from the secret), so a toolcache or download failure cannot block a deploy.
 - **Secret present:** `npm ci --omit=dev --ignore-scripts` (the migrator needs

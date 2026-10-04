@@ -108,3 +108,11 @@ Production dependencies now audit clean (`npm audit --omit=dev` → 0 vulnerabil
 **Accepted, with a gate that keeps it honest:** GHSA-mh99-v99m-4gvg is patched *only* in `brace-expansion` 5.0.8 — the advisory covers the whole `<=5.0.7` range, so the 1.x line has no fixed release. Our remaining exposure is `minimatch@3.1.5`, which pins `brace-expansion@^1.1.7` and calls it as a bare function; `brace-expansion@5` is a named-export module (`{ expand }`), so forcing it there breaks ESLint at runtime rather than fixing anything. `minimatch@3` reaches us only via ESLint 9 and the `eslint-config-next` plugin set (`eslint-plugin-import` / `-jsx-a11y` / `-react`), whose latest releases still pin `minimatch@^3.1.2` and cap their `eslint` peer at 9. There is no upgrade path today. For the record, `npm audit fix --force` "resolves" this by downgrading `eslint-config-next` from `^16.2.10` to `^0.2.4` — verified, and not a fix.
 
 **CI Gap #1 revisited.** The `npm audit --audit-level=moderate` step recommended above turned out to be all-or-nothing: one unfixable advisory would have kept CI red indefinitely, and the usual workarounds (drop the step, or add `--omit=dev`) stop gating production dependencies too. The step now runs `npm run audit:ci` → `scripts/audit-gate.mjs`, which fails on every moderate-or-worse advisory except those listed in `audit-allowlist.json`, and fails on the exceptions themselves when an entry expires, starts affecting a production dependency, covers a different package than recorded, or stops matching anything (upstream shipped a fix — delete the entry). The `brace-expansion` exception is dev-only and expires **2026-10-31**.
+
+---
+
+### 2026-10-03 status
+
+- **`braces` GHSA-vfj7-8cjw-p6xm.** Dev-only advisory with no upstream fix. Added to `audit-allowlist.json` (PR #466), which gates `npm run audit:ci`. The entry expires **2026-12-31**; the gate fails when it expires or when upstream ships a fix. This is separate from the `brace-expansion` entry in the 2026-07-28 addendum.
+- **Open security issues:** #444 (generated ZIPs are also reachable through a public R2 custom domain, in addition to presigned URLs) and #454 (Compile Guarantee builds run unsandboxed on the build host).
+- **[I1] `.p8` key:** the owner is moving it into a password manager, so it no longer sits in a working directory.

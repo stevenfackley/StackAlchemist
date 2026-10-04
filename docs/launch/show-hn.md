@@ -26,9 +26,9 @@ v0 makes beautiful UI but stops at the component. Bolt.new gives you a runnable 
 So I built around two ideas:
 
 1. **The Swiss Cheese Method.** Static, deterministic Handlebars templates produce the scaffolding (project structure, auth, Stripe, Supabase wiring, CI). The LLM only fills in business-logic-shaped holes — entity classes, repository methods, route handlers. Templates can't hallucinate a missing import; the LLM can only see the holes, not the load-bearing structure.
-2. **Compile guarantee.** Every generation runs `dotnet build` and `next build` before the user sees it. If the build fails, the LLM sees the compiler error and patches. If it still fails after N retries, the run errors instead of shipping you broken code. You never download something that doesn't compile.
+2. **Compile guarantee.** Every generation runs `dotnet build` and `next build` (or the FastAPI/React equivalents) before the user sees it. If the build fails, the LLM sees the compiler error and patches. If it still fails after 3 retries, the run errors and a paid build is refunded automatically instead of shipping you broken code. You never download something that doesn't compile.
 
-Tech: Claude Sonnet 4.6 for generation, .NET 10 Web API + Next.js 15 (App Router) + Supabase + Stripe in the output, R2 for the artifact zip. One-time price, owned code, deploy anywhere — not a hosted runtime.
+Tech: Claude Sonnet 5.5 for generation, .NET 10 Web API + Next.js 16 (App Router) + Supabase client + Stripe in the output (or FastAPI + React), R2 for the artifact zip. The platform itself runs on Next.js 16, a .NET 10 Engine and Postgres with Keycloak sign-in. One-time price, owned code, deploy anywhere — not a hosted runtime.
 
 The output is opinionated about stack — if you don't want .NET, this isn't for you.
 

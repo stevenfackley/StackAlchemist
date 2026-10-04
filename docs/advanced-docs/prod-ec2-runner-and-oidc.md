@@ -7,7 +7,9 @@ This runbook documents the agreed production deployment approach for StackAlchem
 - **Cloudflare Tunnel** running in Docker
 - **nginx reverse proxy** in front of `sa-web` and `sa-engine`
 - **GitHub Actions self-hosted runner** on the EC2 host
-- **GitHub OIDC** enabled for future AWS-integrated automation
+- **GitHub OIDC** for AWS credentials (`aws-actions/configure-aws-credentials`, role in the `AWS_ROLE_TO_ASSUME` secret)
+
+This is the only deployed environment. There is no staging or test mirror; the old `test.stackalchemist.app` stack was retired on 2026-10-03.
 
 ---
 
@@ -23,7 +25,9 @@ Production runs these containers:
 Public routing:
 
 - `https://stackalchemist.app/` → `sa-web`
-- `https://stackalchemist.app/api/*` → `sa-engine`
+- `https://stackalchemist.app/api/auth/*` → `sa-web` (Auth.js)
+- `https://stackalchemist.app/api/*` (the rest) → `sa-engine`
+- `https://www.stackalchemist.app/*` → 301 redirect to the apex (a Cloudflare redirect rule; the tunnel does not serve `www`)
 
 ---
 
@@ -97,12 +101,11 @@ OIDC lets GitHub Actions obtain **temporary AWS credentials** without storing lo
 
 ### Why use it here
 
-Even though the deploy runs locally on the EC2 runner today, OIDC is still the best future-proof setup for:
+The deploy itself runs locally on the EC2 runner, but `deploy-prod.yml` still assumes the AWS role through OIDC (`permissions: id-token: write`) so any AWS API call in the workflow uses short-lived credentials. It is the right base for:
 
 - AWS Systems Manager access
-- ECR usage later if needed
+- ECR usage if it is ever needed
 - CloudWatch / infrastructure automation
-- any future AWS API calls added to the workflow
 
 ### What you create in AWS
 
@@ -149,7 +152,7 @@ Store the IAM role ARN as a repository or environment variable/secret, for examp
 
 - `AWS_ROLE_TO_ASSUME`
 
-Then future workflow steps can use `aws-actions/configure-aws-credentials`.
+The workflow's "Configure AWS credentials via GitHub OIDC" step reads it as `secrets.AWS_ROLE_TO_ASSUME`.
 
 ---
 
@@ -157,20 +160,30 @@ Then future workflow steps can use `aws-actions/configure-aws-credentials`.
 
 Environment: **`prod`**
 
-Expected values already discussed in this repo:
+The names below are read by `deploy-prod.yml`; a few have older fallback aliases in the workflow.
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_PUBLIC_URL`
-- `STRIPE_PUBLISHABLE_KEY`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `ANTHROPIC_API_KEY`
+Qavren (the live platform):
+
+- `DATABASE_URL`: qavren-db runtime URL (transaction pooler, `:6543`)
+- `DATABASE_URL_MIGRATE`: session-mode URL (`:5432`), used only by the migrate step, never given to a container
+- `QAVREN_AUTH_URL`: Keycloak base URL, `https://auth.stackalchemist.app`
+- `AUTH_SECRET`: Auth.js session-cookie secret (`openssl rand -base64 32`)
+- optional repository variable `QAVREN_REALM` (compose defaults to `stackalchemist`)
+
+The preflight step is first in the job. It refuses an inconsistent set (auth without a store or without `AUTH_SECRET`, a store without the migrate URL or auth, a malformed value) before the build and the maintenance window.
+
+Common:
+
+- `AWS_ROLE_TO_ASSUME`
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` (account id from `CF_ACCOUNT_ID`, falling back to `R2_ACCOUNT_ID`)
+- `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `ANTHROPIC_API_KEY`; the model comes from the repository variable `ANTHROPIC_MODEL` (default Claude Sonnet 5.5, `claude-sonnet-5-5`)
 - `CLOUDFLARE_TUNNEL_TOKEN`
-- optional: `ENGINE_SERVICE_KEY`
+- `ENGINE_SERVICE_KEY`, `BYOK_ENCRYPTION_KEY`
+- `RESEND_API_KEY`
+- optional: `PLAUSIBLE_DOMAIN`, `GOOGLE_SITE_VERIFICATION`
+
+Legacy until phase F removes them (rollback path to Supabase mode only; prod does not use them since 2026-10-01): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PROD_SUPABASE_DB_URL` (and the "Apply Supabase migrations" step that reads it).
 
 Repository-level:
 
@@ -182,14 +195,19 @@ Repository-level:
 
 The production workflow:
 
-- triggers on pushes to the `main` branch
-- can also be started manually with `workflow_dispatch`
-- automatically updates `CHANGELOG.md` and creates a GitHub Release record
+- triggers on every push to `main` except `paths-ignore` (docs, `README.md`, Engine tests, web e2e, and CI-only workflows), and can be started manually with `workflow_dispatch`
+- queues runs (`concurrency: deploy-prod`, no cancel-in-progress)
+- runs a secrets preflight, then assumes the AWS role through OIDC
 - generates a `.env` file from GitHub secrets
-- validates `docker-compose.prod.yml`
-- builds and replaces the production stack via `docker compose -f docker-compose.prod.yml up -d`
-- performs post-deploy health checks and site verification
-- prints container status after deploy
+- applies qavren-db migrations (`npm run db:migrate` with `DATABASE_URL_MIGRATE`) before the image build, so new code never goes live against an older schema
+- validates `docker-compose.prod.yml` and builds the images
+- starts a maintenance page for the swap window, then replaces the stack via `docker compose -f docker-compose.prod.yml up -d`
+- waits for container health, then probes `https://stackalchemist.app/api/healthz` through Cloudflare and checks the auth mode (`/api/auth/session` 200 and the Keycloak hand-off copy on `/login`)
+- captures diagnostics on failure and prints container status
+
+Changelog and GitHub Release records are produced separately by `release.yml` (git-cliff), not by the deploy.
+
+Every deploy swaps the stack behind a maintenance page, so expect a short outage on each push to `main`.
 
 This keeps the deployment fully Docker-based and avoids SSH-driven release steps.
 
@@ -203,7 +221,7 @@ Before the first real production deployment, complete these items:
 2. Make sure the runner user can run Docker commands.
 3. Verify the production Cloudflare Tunnel is configured to route `stackalchemist.app` to the nginx reverse proxy service.
 4. Confirm the production secrets in GitHub are correct.
-5. Optionally create the AWS OIDC provider + IAM role for future workflow AWS API access.
+5. Create the AWS OIDC provider + IAM role and store its ARN as `AWS_ROLE_TO_ASSUME`.
 
 ### Cloudflare Tunnel — long-lived standalone container (required one-time setup)
 
@@ -260,11 +278,7 @@ In the Cloudflare Zero Trust dashboard, the production tunnel should have a publ
 - **Service type:** `HTTP`
 - **URL / Service:** `http://sa-reverse-proxy:80` _(or `http://reverse-proxy:80` — both resolve)_
 
-Optional additional hostname:
-
-- **Hostname:** `www.stackalchemist.app`
-- **Service type:** `HTTP`
-- **URL / Service:** `http://sa-reverse-proxy:80`
+Do **not** add `www.stackalchemist.app` as a tunnel hostname. Auth sign-out and the Keycloak redirect lists pin exactly one origin (`https://stackalchemist.app`), so `www` must be a Cloudflare redirect rule that 301s to the apex.
 
 > **Why both hostnames work:** `docker-compose.prod.yml` attaches a network alias
 > `reverse-proxy` to the `sa-reverse-proxy` container on the `stackalchemist-prod`
@@ -284,7 +298,7 @@ After saving the hostname, verify all of the following:
 2. SSL mode is **Full (Strict)**.
 3. The tunnel token stored in GitHub `prod` secrets matches that exact production tunnel.
 4. The first production deploy brings up `reverse-proxy`, `sa-web`, `sa-engine`, and `sa-tunnel` (standalone) successfully.
-5. `https://stackalchemist.app/` loads the frontend and `https://stackalchemist.app/api/health` responds from the engine.
+5. `https://stackalchemist.app/` loads the frontend and `https://stackalchemist.app/api/healthz` responds (the Engine's own probe is `/healthz`).
 
 ---
 

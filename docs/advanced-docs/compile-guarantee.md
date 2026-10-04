@@ -8,8 +8,10 @@ The Compile Guarantee is the technical promise at the center of StackAlchemist: 
 
 For Tier 2 (Boilerplate) and Tier 3 (Infrastructure), before your archive is assembled and made available for download, the generated source code is physically run through the compiler:
 
-- `dotnet build` for the .NET 10 Web API
-- `npm run build` for the Next.js 16 frontend
+- `dotnet restore` + `dotnet build` for the .NET 10 Web API
+- `npm ci` → typecheck → `npm run build` for the Next.js 16 frontend
+
+(For the FastAPI + React stack the equivalent checks run instead; see below.)
 
 If either build fails, the Compile Guarantee triggers an automatic correction loop. If the code still fails after the maximum number of retries, a full refund is initiated automatically against your original payment method — no dispute, no questions asked, no email to send.
 
@@ -22,14 +24,14 @@ Generation Complete
         │
         ▼
 ┌─────────────────────────┐
-│  Stage Container Boot   │  ← Isolated Docker container with .NET 10 SDK
-│                         │     and Node.js 20 (not the user's machine)
+│  Build Workspace        │  ← Fresh per-generation temp directory on the
+│                         │     build host (not your machine)
 └───────────┬─────────────┘
             │
             ▼
 ┌─────────────────────────┐
 │  dotnet build           │  ← Attempt 1
-│  npm run build          │
+│  npm ci + npm run build │
 └───────────┬─────────────┘
             │
      PASS? ─┤
@@ -46,7 +48,8 @@ Generation Complete
             ▼
 ┌─────────────────────────┐
 │  LLM Correction         │  ← Feed compiler errors + affected source files
-│                         │     to Claude 3.5 Sonnet. Request targeted fixes.
+│                         │     to the configured Claude model
+│                         │     (Sonnet 5.5 by default). Request targeted fixes.
 └───────────┬─────────────┘
             │
             ▼
@@ -119,20 +122,23 @@ Common failure modes:
 If you chose the FastAPI + React/Vite stack, the same guarantee applies to *that* stack, and
 your report describes it — a **FastAPI** half and a **React** half, never .NET and Next.js.
 
-- FastAPI half: `pip install -r requirements.txt`, `flake8`, and `pytest --collect-only`
-  (every test module imports cleanly)
+- FastAPI half: a per-build virtualenv (`python -m venv .venv`, recreated on every attempt
+  and left out of your archive), `pip install -r requirements.txt` inside it, `flake8`, and
+  `pytest --collect-only` (every test module imports cleanly)
 - React half: `npm install`, `npm run lint`, and `tsc --noEmit`
 
 ---
 
-## Why an Isolated Container?
+## Why a Clean Build Workspace?
 
-The compile check runs in a clean, isolated Docker container — not the StackAlchemist server, not a shared environment. This isolation guarantees:
+The compile check runs on the StackAlchemist build host, inside a fresh temporary directory created for your generation. It is not your machine and it is not a shared project folder. That gives you:
 
-1. **No environmental contamination** — A package installed globally on a dev machine can't mask a missing dependency in the generated output
-2. **Reproducible builds** — The exact same .NET 10 SDK and Node.js version every time
-3. **Security** — User-generated code doesn't execute in a privileged context
-4. **Parallelism** — Multiple generations can be compiled simultaneously
+1. **No leaked local state** — dependencies are installed from your archive's own files (`npm ci` against the lockfile, `pip install -r requirements.txt` into a new virtualenv recreated on every attempt), so a package that happens to be installed globally cannot mask a missing dependency
+2. **Reproducible toolchains** — the same .NET 10 SDK and Node.js on the build host every time
+3. **Build residue stays out** — the `.venv` directory and similar by-products are excluded from your archive
+4. **Parallelism** — multiple generations can be compiled at the same time, each in its own directory
+
+The build runs as ordinary processes inside the Engine's compile worker, not in a per-build container.
 
 ---
 
@@ -194,7 +200,7 @@ Generated code is a starting point — a foundation that's architecturally corre
 
 A refund is initiated automatically when:
 
-1. The generated code fails `dotnet build` or `npm run build`
+1. The generated code fails the build for your stack (`dotnet build` or `npm run build`; for FastAPI + React the lint, import-check or type-check steps)
 2. The auto-correction loop has been executed 3 times
 3. The build is still failing after all 3 correction attempts
 

@@ -76,11 +76,11 @@ Define the REST API surface for each entity. StackAlchemist generates controller
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/{entity}` | List all (with pagination) |
-| `GET` | `/api/{entity}/{id}` | Get single by ID |
-| `POST` | `/api/{entity}` | Create new |
-| `PUT` | `/api/{entity}/{id}` | Update existing |
-| `DELETE` | `/api/{entity}/{id}` | Delete by ID |
+| `GET` | `/api/v1/{entity}s` | List all (with pagination) |
+| `GET` | `/api/v1/{entity}s/{id}` | Get single by ID |
+| `POST` | `/api/v1/{entity}s` | Create new |
+| `PUT` | `/api/v1/{entity}s/{id}` | Update existing |
+| `DELETE` | `/api/v1/{entity}s/{id}` | Delete by ID |
 
 **Custom endpoints:**
 You can also define custom action endpoints:
@@ -89,7 +89,7 @@ You can also define custom action endpoints:
 - `GET /api/projects/{id}/tasks` — Nested resource list
 - `POST /api/users/{id}/invite` — Business action
 
-For each custom endpoint, specify the HTTP method, path, and a brief description of its intent. The LLM uses this description to generate the method body.
+For each custom endpoint, specify the HTTP method, path, and a brief description of its intent. The model (Claude Sonnet 5.5 by default) uses this description to generate the method body.
 
 ---
 
@@ -98,7 +98,7 @@ For each custom endpoint, specify the HTTP method, path, and a brief description
 Before generation, review your complete schema:
 
 - All entities and fields are shown in a summary table
-- All relationships are visualized as an ER diagram
+- All relationships are visualized as an ER diagram (the same canvas is available on a free Spark build, which saves your schema so you can come back and buy a paid run against it)
 - All API endpoints are listed
 
 If anything needs adjusting, navigate back to the relevant step. Once you're satisfied, select a tier and proceed to checkout.

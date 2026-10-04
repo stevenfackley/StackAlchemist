@@ -2,26 +2,30 @@
 
 The V2 "Swiss Cheese" generation path (per-zone parallel LLM dispatch) is
 gated behind `Generation:UseSwissCheese`. This doc captures the staged
-rollout from dev → test → prod and how to roll back.
+rollout from dev to prod and how to roll back.
 
-## Current state (2026-05-06)
+## Current state (2026-10-03)
 
 | Env | Setting | Source | Effective value |
 |---|---|---|---|
-| Dev (local + Docker dev) | `Generation:UseSwissCheese` | `src/StackAlchemist.Engine/appsettings.Development.json` | **`true`** (post-PR #82) |
-| Test (`https://test.stackalchemist.app`) | not set | — | **`false`** (default) |
-| Prod (`https://stackalchemist.app`) | not set | — | **`false`** (default) |
+| Dev (local + Docker dev) | `Generation:UseSwissCheese` | `src/StackAlchemist.Engine/appsettings.Development.json` | **`true`** |
+| Prod (`https://stackalchemist.app`) | not set | the code default in `GenerationOrchestrator` is `false` | **`false`** |
 
-Local dev exercises V2 templates (V2-DotNet-NextJs, V2-Python-React)
-end-to-end with the InjectionEngine; test and prod still take the V1
+There is no Test row: the test environment (`test.stackalchemist.app`,
+`deploy-test.yml`) was retired on 2026-10-03 (#211, PR #468), and no staging
+environment replaced it. Dev is the only place V2 runs; prod takes the V1
 one-shot path.
+
+Local dev exercises the V2 templates (V2-DotNet-NextJs, V2-Python-React)
+end-to-end with the InjectionEngine. Each V2 template set has a CI compile
+gate in `StackAlchemist.Engine.Tests`.
 
 ## Rollout sequence
 
-### Phase 1 — Dev (this PR)
+### Phase 1 - Dev (done)
 
-Flip `Generation:UseSwissCheese=true` in `appsettings.Development.json`.
-No env-var override needed locally; everything runs against
+`Generation:UseSwissCheese=true` is set in `appsettings.Development.json`.
+No env-var override is needed locally; everything runs against
 `MockLlmClient` unless `ANTHROPIC_API_KEY` is set in the local `.env`.
 
 **Verification:**
@@ -36,55 +40,59 @@ No env-var override needed locally; everything runs against
             {"name":"Id","type":"uuid","pk":true},
             {"name":"Name","type":"string"}]}]}}'
    ```
-3. Inspect `%TEMP%/stackalchemist/local-smoke/` — should contain
+   If the Engine requires the `X-Engine-Key` header in your local config,
+   add it to the request.
+3. Inspect `%TEMP%/stackalchemist/local-smoke/` - it should contain
    per-entity files (`ProductRepository.cs`, `ProductEndpoints.cs`,
    `nextjs/src/app/products/page.tsx`) and no `[[LLM_INJECTION_*]]`
    markers in any output file.
-4. With `ANTHROPIC_API_KEY` set: same test against real Claude. Expect
-   `~6 LLM calls` per entity for DotNetNextJs (5 repository zones + 1
-   migration FK zone) plus `~1` schema-wide call (TypeRefinements).
+4. With `ANTHROPIC_API_KEY` set: same test against the real model. Expect
+   `5 x N + 1` LLM calls for DotNetNextJs (5 repository zones per entity plus
+   one schema-wide migration FK zone; see the zone inventory in
+   [`swiss-cheese-tuning.md`](./swiss-cheese-tuning.md)).
 
-### Phase 2 — Test (separate PR after Phase 1 smoke passes)
+### Phase 2 - Prod (next step)
 
-Set `Generation__UseSwissCheese=true` in the test deployment. Two options:
+There is no intermediate environment, so the next step after dev is prod,
+behind an environment variable. Prod deploys on every push to `main`
+(`deploy-prod.yml`), so treat the flip as a production change with its own
+PR and watch the first generations.
 
-**Option A — env var on the runner** (preferred, lowest blast radius):
-add to `.github/workflows/deploy-test.yml` env block at the job level:
-```yaml
-env:
-  COMPOSE_PROJECT_NAME: stackalchemist-test
-  Generation__UseSwissCheese: "true"
-```
-ASP.NET Core's default env-var binding picks up the double-underscore
-form and maps it to `Generation:UseSwissCheese`.
+Mechanism: ASP.NET Core's default env-var binding maps the double-underscore
+form `Generation__UseSwissCheese` to `Generation:UseSwissCheese`. Pass it
+through to the `sa-engine` container:
 
-**Option B — appsettings.Staging.json**: add a new file
-`src/StackAlchemist.Engine/appsettings.Staging.json` with the flag set.
-The test deploy uses `ASPNETCORE_ENVIRONMENT=Staging` so this layers on
-top of `appsettings.json`.
+1. In `docker-compose.prod.yml`, add to the `sa-engine` `environment` block
+   (not present today):
+   ```yaml
+   Generation__UseSwissCheese: ${GENERATION_USE_SWISS_CHEESE:-false}
+   ```
+2. In `deploy-prod.yml`, set `GENERATION_USE_SWISS_CHEESE: "true"` in the env
+   that feeds the compose step (or via a repo variable, as is done for
+   `ANTHROPIC_MODEL`).
 
-Option A wins because the rollback is removing one line; option B
-requires a code change to roll back.
+The compose default stays `false`, so the file change alone changes nothing;
+rollback is setting the variable back (or removing the line).
 
-**Verification:** monitor `test.stackalchemist.app` for one full
-generation cycle. Confirm via Engine logs that the Swiss Cheese path
-ran (`Generation {Id} Swiss Cheese: filled {Zones} zones` log line
-with EventId 201). Inspect at least one delivered project's R2 bundle
-to confirm clean output (no markers, all per-entity files present).
+**Before flipping:**
+- Price the change. V2 makes at least 6x the LLM calls of V1 per generation,
+  and Claude Sonnet 5.5 runs adaptive thinking at effort `medium`, which adds
+  output tokens to every call. Update spend alerts first.
+- Decide the concurrency setting (`Generation__Injection__MaxConcurrency`,
+  default 4) against your Anthropic account limits; see the tuning doc.
 
-### Phase 3 — Prod (after ≥1 week of test running clean)
-
-Same mechanism as test (env var on prod deploy workflow). Watch for:
-
-- LLM cost increase: V2 makes ≥6× the API calls of V1 per generation.
-  Expect Anthropic spend to roughly multiply by that factor on the
-  per-zone-prompt path. Update budget alerts before flipping.
-- Per-zone failure rate: track `InjectionFailedException` in logs. If
-  >2% of generations fail at the injection step (vs the current ≈0% V1
-  baseline), pause and dig.
-- Latency: V2 generations are slower wall-clock when zones run sequentially
-  but faster when parallel headroom (`MaxConcurrency=4`) is available.
-  Track p95 generation time before/after.
+**After flipping, watch for:**
+- Per-zone failure rate: `InjectionFailedException` in the Engine logs. If
+  more than 2% of generations fail at the injection step (V1 baseline is
+  roughly 0%), roll back and investigate.
+- Confirm the V2 path ran: the log line `Generation {Id} Swiss Cheese: filled
+  {Zones} zones` (EventId 201). Inspect at least one delivered R2 bundle for
+  clean output (no markers, all per-entity files present).
+- Latency: V2 is slower wall-clock when zones run sequentially and faster
+  when parallel headroom (`MaxConcurrency`, default 4) is available. Compare
+  p95 generation time before and after.
+- Paid-tier refunds: a V2 failure on a paid tier is a Compile Guarantee
+  refund, so a regression costs money directly.
 
 ## Rollback
 
@@ -92,19 +100,22 @@ Each phase rolls back by reverting the single config change:
 
 | Phase | Rollback |
 |---|---|
-| Dev | revert `appsettings.Development.json` to remove `Generation` block |
-| Test | remove `Generation__UseSwissCheese` from deploy-test.yml env |
-| Prod | remove `Generation__UseSwissCheese` from deploy-prod.yml env |
+| Dev | remove the `Generation` block's `UseSwissCheese` from `appsettings.Development.json` |
+| Prod | set `GENERATION_USE_SWISS_CHEESE` back to `false` (or remove `Generation__UseSwissCheese` from `docker-compose.prod.yml`) and let the push to `main` deploy |
 
-No data migration, no template changes, no version bumps. The flag is
-a pure runtime branch in `GenerationOrchestrator.EnqueueAsync`.
+No data migration, no template changes, no version bumps. The flag is a pure
+runtime branch in `GenerationOrchestrator` (read via
+`configuration.GetValue("Generation:UseSwissCheese", false)`).
 
 ## After rollout completes
 
-Once prod has been on V2 for a stable period (≥30 days, no incidents):
+Once prod has been on V2 for a stable period (30 days or more, no incidents):
 
-1. Delete the V1 one-shot path in `GenerationOrchestrator.EnqueueAsync`.
-2. Remove `IReconstructionService` and the V1 `BuildGenerationPrompt`.
+1. Delete the V1 one-shot path in `GenerationOrchestrator`.
+2. Remove `IReconstructionService` usage for first-pass generation and the V1
+   `BuildGenerationPrompt`. Check first: the compile worker's repair loop
+   also calls `ReconstructionService` (`Parse`, `ResolveRepairWrites`), so the
+   service itself stays unless the repair path changes too.
 3. Delete V1 template directories (`V1-DotNet-NextJs`, `V1-Python-React`).
 4. Drop the `UseSwissCheese` flag itself.
 
@@ -112,7 +123,7 @@ Track this as one cleanup PR; don't bundle with feature work.
 
 ## Related
 
-- [`swiss-cheese-tuning.md`](./swiss-cheese-tuning.md) — concurrency settings,
-  call-count math, Anthropic rate-limit collision analysis.
-- [`swiss-cheese-method.md`](../advanced-docs/swiss-cheese-method.md) —
+- [`swiss-cheese-tuning.md`](./swiss-cheese-tuning.md) - concurrency settings,
+  call-count math, rate-limit considerations.
+- [`swiss-cheese-method.md`](../advanced-docs/swiss-cheese-method.md) -
   customer-facing explanation of the architecture.

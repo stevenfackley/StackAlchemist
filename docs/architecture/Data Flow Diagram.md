@@ -1,5 +1,7 @@
 # StackAlchemist: Architecture & Data Flow Diagram
 
+> Updated 2026-10-03. Data lives in qavren-db (Postgres); there is no Supabase, WebSocket or Realtime path in the live system.
+
 ```mermaid
 graph TD
     %% Styling
@@ -13,24 +15,28 @@ graph TD
     %% Entities
     User((User)):::user
     Stripe((Stripe API)):::external
-    Claude((Claude 3.5 Sonnet)):::external
+    Claude((Claude Sonnet 5.5)):::external
+    Keycloak((Keycloak - Qavren Auth)):::external
 
     %% Next.js Gateway
-    subgraph Frontend ["Next.js 15 (Web & API Gateway)"]
+    subgraph Frontend ["Next.js 16 (Web & Server Actions)"]
         UI[Simple/Advanced UI]:::gateway
-        Checkout[Checkout Service]:::gateway
-        Orchestrator[Orchestration API]:::gateway
+        Actions[Server Actions]:::gateway
     end
 
     %% Database
-    subgraph Supabase ["Supabase PostgreSQL"]
+    subgraph PG ["qavren-db Postgres (schema stackalchemist)"]
         Profiles[(profiles)]:::db
         Transactions[(transactions)]:::db
         Generations[(generations)]:::db
+        Events[(stripe_events)]:::db
     end
 
-    %% Core Engine & Worker
-    subgraph Backend [".NET 10 Generation Platform"]
+    %% Core Engine
+    subgraph Backend [".NET 10 Engine"]
+        Checkout[Checkout Session Endpoint]:::engine
+        Webhook[Stripe Webhook Handler]:::engine
+        Orchestrator[Generation Orchestrator]:::engine
         Templates[Template Provider]:::engine
         Reconstruction[Reconstruction Engine]:::engine
         Worker[Compile Guarantee Worker]:::engine
@@ -39,39 +45,48 @@ graph TD
     %% Storage
     R2[(Cloudflare R2)]:::storage
 
-    %% Workflows
-    User -->|1. Prompts / Schema UI| UI
-    UI -->|2. Validates & Sends| Orchestrator
-    Orchestrator -->|3. Save Initial State| Generations
+    %% Auth
+    User -->|0. Sign in| Keycloak
+    Keycloak -->|JWT session via Auth.js| UI
+
+    %% Intake
+    User -->|1. Prompt / Schema UI| UI
+    UI --> Actions
+    Actions -->|2. Insert pending row| Generations
 
     %% Payment Flow
-    UI -->|4. Selects Tier| Checkout
-    Checkout -->|5. Payment Intent| Stripe
-    Stripe -->|6. Webhook Status| Transactions
+    Actions -->|3. POST /api/stripe/create-session| Checkout
+    Checkout -->|4. Create Checkout Session| Stripe
+    Stripe -->|5. Webhook /api/webhooks/stripe| Webhook
+    Webhook -->|6. process_checkout_completed| Transactions
+    Webhook --> Events
+    Webhook -->|7. Enqueue| Orchestrator
 
     %% Generation Flow
-    Orchestrator -->|7. Trigger Generation| Reconstruction
-    Reconstruction -->|8. Fetch Base Handlebars| Templates
-    Reconstruction -->|9. Send Schema & RAG Context| Claude
-    Claude -->|10. Delimited C#/TS Code Blocks| Reconstruction
-    
+    Orchestrator -->|8. Fetch templates| Templates
+    Orchestrator --> Reconstruction
+    Reconstruction -->|9. Schema + context| Claude
+    Claude -->|10. Delimited code blocks| Reconstruction
+
     %% Compile Guarantee Flow
-    Reconstruction -->|11. Output Reconstructed Dir| Worker
-    Worker -->|12. Run dotnet build & npm build| Worker
-    Worker -.->|12a. ERROR: Capture stderr| Claude
-    Claude -.->|12b. Surgical Fixes| Worker
-    
+    Reconstruction -->|11. Reconstructed dir| Worker
+    Worker -->|12. dotnet build / npm build| Worker
+    Worker -.->|12a. ERROR: capture output| Claude
+    Claude -.->|12b. Repairs| Worker
+
     %% Delivery Flow
-    Worker -->|13. SUCCESS: Zip Directory| R2
-    R2 -->|14. Return Presigned URL| Orchestrator
-    Orchestrator -->|15. Broadcast Success| UI
+    Worker -->|13. SUCCESS: zip| R2
+    Worker -->|14. Status + presigned URL| Generations
+
+    %% Status by polling
+    Actions -->|15. getGeneration poll, owner-scoped| Generations
     UI -->|16. Download .zip| User
 ```
 
 ### Flow Breakdown
-1. **Intake:** The user submits a prompt or visual schema via the Next.js UI.
-2. **Checkout:** The user selects a tier. Stripe processes the payment and a webhook updates the Supabase `transactions` table.
-3. **Generation:** The .NET Engine loads static Master Templates, sends the database schema to Claude 3.5, and receives delimited code blocks in return.
-4. **Reconstruction:** The engine merges the static Handlebars templates with the dynamic LLM code and writes it to a temporary directory.
-5. **Compile Guarantee:** The worker executes CLI build commands. If it fails, it loops back to Claude for automated fixes.
-6. **Delivery:** Upon a successful exit code (0), the directory is zipped, uploaded to Cloudflare R2, and a presigned URL is streamed back to the user via WebSockets.
+1. **Intake:** the user signs in through Keycloak, then submits a prompt or visual schema in the Next.js UI. Server Actions insert a `pending` generation row owned by the session user.
+2. **Checkout:** for paid tiers, a Server Action asks the Engine to create the Stripe Checkout session. Stripe posts the signed `checkout.session.completed` webhook to the Engine, which runs `process_checkout_completed` (idempotency event, tier update, transaction upsert in one transaction) and enqueues the build. Spark (Tier 0) skips payment: the action posts to the Engine's `/api/generate` directly.
+3. **Generation:** the Engine loads the template set, sends the schema to Claude, and receives delimited code blocks.
+4. **Reconstruction:** the Engine merges the template with the generated code in a temporary directory.
+5. **Compile Guarantee:** the worker runs the real build. On failure it loops back to Claude for repairs, up to 3 times. A paid build that still fails is refunded automatically.
+6. **Delivery:** on success the directory is zipped, uploaded to Cloudflare R2, and the presigned URL is written to the generation row. The status page picks it up by polling `getGeneration` every 3 s while the tab is visible. Spark builds store `preview_files_json` instead of a ZIP.

@@ -41,7 +41,7 @@ The quality of your output is directly tied to the clarity of your description. 
 
 ### Be Specific About Entities
 
-Name the core "things" in your system. The LLM maps these to database tables and API controllers.
+Name the core "things" in your system. The model maps these to database tables and API controllers.
 
 **Vague:**
 > "A todo app"
@@ -73,7 +73,7 @@ If there's a meaningful business process, describe it:
 
 > "When an order is placed, inventory is decremented. If inventory reaches zero, the product is marked as out-of-stock."
 
-The LLM uses this context to generate service logic in the appropriate layer.
+The model uses this context to generate service logic in the appropriate layer.
 
 ---
 
@@ -115,19 +115,19 @@ Both parties can leave reviews after contract completion.
 
 ## After Submission
 
-After you submit a Simple Mode prompt, StackAlchemist will:
+After you submit a Simple Mode prompt:
 
-1. **Parse** — Extract entities, relationships, and field hints from your text
-2. **Structure** — Build a normalized entity schema in JSON format
-3. **Preview** — Show you the interpreted schema for review
+1. A free Spark build runs immediately (fixed demo app, no AI call, counts against your 5 builds per month)
+2. You land on the delivery page and pick a tier
+3. After checkout, the model (Claude Sonnet 5.5 by default) reads your prompt and generates the project
 
-At the review step you can see exactly what was extracted from your description before purchasing. If the interpretation is off, you can either refine your prompt or switch to Advanced Mode for manual correction.
+There is no interpreted-schema preview in Simple Mode. If you want to see and correct the entity model before paying, use Advanced Mode instead. Your progress shows on a status page that refreshes itself every few seconds.
 
 ---
 
 ## Limitations
 
-- Simple Mode relies on LLM interpretation — ambiguous prompts may produce schemas you need to adjust
+- Simple Mode relies on LLM interpretation — ambiguous prompts may produce a model of your domain that you need to adjust in the code afterwards
 - Very complex systems with 15+ entities work better in Advanced Mode
 - Domain-specific logic (complex validation rules, multi-step workflows) is better modeled explicitly in Advanced Mode
 

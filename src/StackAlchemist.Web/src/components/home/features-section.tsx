@@ -11,7 +11,7 @@ const FEATURES = [
     icon: Zap,
     title: "Real-Time Progress",
     description:
-      "Watch your architecture materialize with live WebSocket updates. See each phase: Handlebars template injection, LLM generation, and build verification.",
+      "Watch your architecture materialize with live status updates every few seconds. See each phase: Handlebars template injection, LLM generation, and build verification.",
   },
   {
     icon: Code2,

@@ -4,7 +4,7 @@
 
 ### Build Failure During Generation
 If the "Compile Guarantee" log shows a persistent build failure after 3 retries:
-- **Possible Cause:** The schema you defined is too complex for a single generation pass or contains circular dependencies.
+- **Possible Cause:** The schema you defined is too complex for a single generation pass or contains circular dependencies. A full refund is issued automatically on a paid tier.
 - **Resolution:** Try simplifying your entity relationships in the Advanced Mode editor and re-running the generation.
 
 ### Missing API Endpoints
@@ -19,8 +19,16 @@ If you expected an endpoint that wasn't generated:
 - **Resolution:** Please contact support@stackalchemist.app with your Stripe Session ID, and we will manually trigger the generation for you.
 
 ### Download Link Expired
-- **Possible Cause:** For security reasons, Cloudflare R2 presigned URLs expire after 7 days.
-- **Resolution:** Go to your **Profile > History** and click "Regenerate Download Link." This will not cost any additional credits.
+- **Possible Cause:** Cloudflare R2 presigned URLs expire after 7 days.
+- **Resolution:** Email support@stackalchemist.app with your generation ID and we will issue a fresh link. It costs nothing extra. Save the ZIP somewhere safe once it downloads.
+
+### Status Page Looks Stuck
+- **Possible Cause:** The page refreshes every few seconds, but only while its browser tab is visible.
+- **Resolution:** Bring the tab to the foreground, or reload it. If the build has failed, the page offers a retry (up to 3 per generation).
+
+### Sign-in Problems
+- Sign-in runs on `auth.stackalchemist.app`. Use **Forgot password** on that page to reset a password, and check spam for the verification email.
+- Sessions last 7 days; after that you sign in again.
 
 ## Local Development Issues
 

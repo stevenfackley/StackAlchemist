@@ -16,7 +16,7 @@ This document provides a visual representation of the StackAlchemist user interf
 |                                                                                  |
 |                     [ Built for fast handoffs summary panel ]                    |
 |                                                                                  |
-|               [.NET 10] [Next.js 15] [PostgreSQL] [Supabase] [Dapper]           |
+|               [.NET 10] [Next.js 16] [PostgreSQL] [Supabase] [Dapper]           |
 +----------------------------------------------------------------------------------+
 |                                                                                  |
 |  LAUNCH CONSOLE                                                                  |

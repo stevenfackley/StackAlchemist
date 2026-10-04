@@ -14,7 +14,7 @@ No. StackAlchemist generates real source code that you own and modify. It's a **
 
 ### What stack does StackAlchemist generate?
 
-V1 generates:
+V1 generates (a FastAPI + React variant also exists, built and tested with its own Python toolchain):
 - **Backend:** .NET 10 minimal API with Dapper and PostgreSQL (one project, not a solution)
 - **Frontend:** Next.js 16 (App Router, TypeScript, Tailwind CSS) with a typed API client
 - **Database:** PostgreSQL migration with UUID keys and row-level security enabled
@@ -27,7 +27,8 @@ wiring is yours. Additional stacks are planned for V2.
 
 Yes, for anything past reading. The marketing pages, this FAQ, and the docs are public, but both
 build modes are gated: `/simple` and `/advanced` redirect a signed-out visitor to sign-in, so the
-account comes before the schema wizard, not after it. Starting a build needs one too — including
+account comes before the schema wizard, not after it. Accounts are Qavren Auth: email and password,
+or Google, hosted at `auth.stackalchemist.app` (verification and password reset included). Starting a build needs one too — including
 a free Spark build, which is limited to 5 per calendar month.
 
 ---
@@ -40,7 +41,7 @@ a free Spark build, which is limited to 5 per calendar month.
 - **Medium schemas** (6–10 entities): ~60 seconds
 - **Complex schemas** (10+ entities): ~90 seconds
 
-You'll see real-time progress updates throughout.
+The status page refreshes itself every few seconds while the tab is open, so you see progress without reloading.
 
 ### What is the Compile Guarantee?
 
@@ -90,7 +91,7 @@ See [Tiers and Pricing](./tiers-and-pricing) for full details.
 ### Do you offer refunds?
 
 - **Compile Guarantee failure:** A full refund is initiated automatically the moment the 3rd retry fails — no request needed. It reaches your original payment method in 5–10 business days.
-- **Other refunds:** Contact us within 24 hours of purchase if you have a legitimate issue.
+- **A refund you expected but did not get:** write to billing@stackalchemist.app. Per our Terms of Service, a Compile Guarantee refund can be requested within 14 days.
 
 ### Are there agency or volume discounts?
 
@@ -121,7 +122,7 @@ Yes. The Boilerplate tier generates a Docker Compose setup that runs on any mach
 
 ### What database does it use?
 
-PostgreSQL for the primary data store, reached with raw SQL via Dapper — not Entity Framework — so the database layer is lightweight and explicit. Supabase is the intended home for auth, real-time, and storage on top of that PostgreSQL: the client library and the env slots ship in the archive, but no auth code is generated for you.
+PostgreSQL for the primary data store, reached with raw SQL via Dapper — not Entity Framework — so the database layer is lightweight and explicit. The Supabase client library and its env slots ship preinstalled in the frontend, but nothing uses them until you wire up auth yourself, and no auth code is generated. You can swap in any auth provider.
 
 ---
 
@@ -129,7 +130,7 @@ PostgreSQL for the primary data store, reached with raw SQL via Dapper — not E
 
 ### What AI model does StackAlchemist use?
 
-The generation engine uses Claude 3.5 Sonnet for business logic injection. The structural scaffolding (file layout, class skeletons, import paths) is handled by deterministic Handlebars templates — not the LLM.
+Generation uses Claude Sonnet 5.5 by default. You can bring your own key and pick Claude Opus 5.5 (your own Anthropic key), Claude Haiku 4.5, OpenAI `gpt-6.1-sol` or OpenRouter `anthropic/claude-sonnet-5.5` in the dashboard API settings. File layout, class skeletons and import paths come from deterministic Handlebars templates, not the model.
 
 ### Does my data stay private?
 

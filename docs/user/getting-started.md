@@ -8,7 +8,7 @@ StackAlchemist turns a natural language description of your SaaS into a fully co
 
 - A browser. That's it.
 - No local tooling required to generate an architecture.
-- An account is required only at the point of purchase/download.
+- A free account. Both input modes sit behind sign-in, so create one first: email and password, or Google. Sign-in, registration, email verification and password reset all happen on `auth.stackalchemist.app` (Qavren Auth), and you land back in the app afterwards. Sessions last 7 days.
 
 ---
 
@@ -83,22 +83,22 @@ What Spark is genuinely good for:
 - Modelling your entities on the Advanced Mode ER canvas — that schema is saved with the
   build, so you can come back and buy a paid run against it
 
-You get **5 free builds per calendar month** per account.
+You get **5 free builds per calendar month** per account, and each Spark build counts against that quota.
 
 ---
 
 ## Step 4: Generate
 
-Click **Synthesize** (or press `Ctrl + Enter` in Simple Mode). Watch real-time progress as StackAlchemist:
+Click **Synthesize** (or press `Ctrl + Enter` in Simple Mode). Watch live progress as StackAlchemist:
 
 1. Renders the template tree for your stack and substitutes your project name
-2. Sends your description or schema to the model and reconstructs the returned files into that tree
+2. Sends your description or schema to the model (Claude Sonnet 5.5 by default) and reconstructs the returned files into that tree
 3. Runs `dotnet restore` and `dotnet build` against the API half
 4. Runs `npm ci`, `npm run typecheck`, and `next build` against the frontend half
 5. Auto-corrects any build errors and retries (up to 3 retries)
 6. Writes `build-report.json` and packages everything into a ZIP archive
 
-Generation typically takes **30–90 seconds** depending on schema complexity.
+Generation typically takes **30–90 seconds** depending on schema complexity. The status page refreshes itself every few seconds while the tab is open (it pauses when the tab is in the background), so you do not need to reload it.
 
 A free Spark build skips all of that: it renders the fixed demo template and hands it to the
 in-browser runtime, which is why it returns almost immediately.
@@ -112,14 +112,14 @@ Extract the ZIP archive. The root of a Boilerplate or Infrastructure package hol
 (the record of the builds that were run against your code). The two halves live in
 `dotnet/` and `nextjs/`.
 
-> **Prerequisite — configure `.env` before starting the stack.** The API will not
-> boot with an empty `.env`: after copying `.env.example`, open `.env` and fill in
-> the required values — at minimum `DATABASE_URL` /
-> `ConnectionStrings__DefaultConnection`. The Supabase entries are placeholders for
-> the client library that ships preinstalled in the frontend; no auth flow is
-> generated, so leave them alone until you wire one up. Skipping the database
-> values is the #1 cause of "the frontend loads but every API call fails" on a
-> fresh download.
+> **Prerequisite — check `.env` before starting the stack.** After copying
+> `.env.example`, open `.env` and confirm the database values —
+> `DATABASE_URL` / `ConnectionStrings__DefaultConnection`. The Compose file brings its own
+> Postgres with fixed credentials for the containerised stack, but `.env` is what the API reads
+> when you run it on the host. The Supabase entries are placeholders for the client
+> library that ships preinstalled in the frontend; no auth flow is generated, so leave
+> them alone until you wire one up. A wrong or missing database value is the #1 cause of
+> "the frontend loads but every API call fails" on a fresh download.
 
 ```bash
 # 1. Unzip and navigate

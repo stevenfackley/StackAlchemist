@@ -1,75 +1,85 @@
 # StackAlchemist: Generation Sequence Diagram
 
-This diagram illustrates the chronological execution of a StackAlchemist generation, including asynchronous Stripe webhooks and real-time WebSocket communication.
+> Updated 2026-10-03. This shows a paid (Boilerplate, $599) generation. Status reaches the browser by polling; there are no WebSockets or Realtime channels.
+
+This diagram illustrates the chronological execution of a StackAlchemist generation, including the asynchronous Stripe webhook and the polling status loop. Spark (Tier 0) skips the Stripe steps: the server action posts straight to the Engine's `/api/generate`.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    
+
     actor User
-    participant Web as Next.js (Frontend)
+    participant Web as Next.js (Browser)
     participant API as Next.js (Server Actions)
-    participant DB as Supabase DB
+    participant DB as qavren-db (Postgres)
     participant Stripe as Stripe API
-    participant Engine as .NET Generation Engine
-    participant LLM as Claude 3.5 API
-    participant Worker as Build Worker (IBuildStrategy)
+    participant Engine as .NET Engine
+    participant LLM as Claude Sonnet 5.5 API
+    participant Worker as Compile worker (IBuildStrategy)
     participant R2 as Cloudflare R2
-    
+
     %% INTAKE & CHECKOUT
-    User->>Web: Submits Prompt / Schema
-    Web->>API: GenerateSchemaFromPrompt()
-    API->>LLM: Request JSON Schema
-    LLM-->>API: Return JSON Schema
+    User->>Web: Submits Prompt / Schema (signed in via Keycloak)
+    Web->>API: extractSchema()
+    API->>Engine: POST /api/extract-schema (X-Engine-Key)
+    Engine->>LLM: Request JSON Schema
+    LLM-->>Engine: JSON Schema
+    Engine-->>API: Schema
     API-->>Web: Render Node UI
     User->>Web: Confirms Schema
     User->>Web: Completes Personalization Wizard (optional)
     User->>Web: Selects Platform & Tier ($599)
-    Web->>Engine: POST /api/stripe/create-session
+    Web->>API: createPendingGeneration() then createCheckoutSession()
+    API->>DB: Insert generation (status: pending, owned by session user)
+    API->>Engine: POST /api/stripe/create-session
     Engine->>Stripe: Create Checkout Session
     Stripe-->>Engine: Session URL
-    Engine-->>Web: Return Checkout URL
-    Stripe-->>Web: Return Checkout URL
+    Engine-->>API: Checkout URL
+    API-->>Web: Redirect to Stripe
     User->>Stripe: Completes Payment
-    
+
     %% ASYNC WEBHOOK & INITIALIZATION
-    Stripe-)API: Webhook (checkout.session.completed)
-    API->>DB: Insert Transaction & Init Generation (Status: PENDING)
-    API->>Engine: Trigger SynthesizeArchitecture(gen_id)
-    
-    %% GENERATION PROCESS (With WebSockets)
-    par Real-time Updates
-        DB-)Web: Broadcast Status via WebSockets
-    and Engine Execution
-        Engine->>DB: Update Status (Status: GENERATING)
-        Engine->>Engine: Load Master Handlebars Templates
-        Engine->>LLM: Send Context + Schema
-        LLM-->>Engine: Delimited Code Blocks
-        Engine->>Engine: Parse & Hydrate Files
-        Engine->>Worker: Dispatch to Compile Guarantee
+    Stripe-)Engine: Webhook checkout.session.completed (POST /api/webhooks/stripe)
+    Engine->>DB: process_checkout_completed (event id, tier, transaction) in one transaction
+    Engine->>Engine: Enqueue generation job
+
+    %% GENERATION PROCESS
+    Engine->>DB: Update status (generating)
+    Engine->>Engine: Load master templates
+    Engine->>LLM: Send context + schema
+    LLM-->>Engine: Delimited code blocks
+    Engine->>Engine: Parse and reconstruct files
+    Engine->>Worker: Dispatch to Compile Guarantee
+
+    %% STATUS BY POLLING (runs for the whole job)
+    loop Every 3 s while the tab is visible
+        Web->>API: getGeneration(id) (owner-scoped)
+        API->>DB: Select where id and user_id
+        DB-->>API: Row (status, build_log, download_url)
+        API-->>Web: Latest status
     end
-    
+
     %% COMPILE GUARANTEE LOOP
-    Worker->>DB: Update Status (Status: BUILDING)
-    loop Max 3 Retries
-        Worker->>Worker: Run build via IBuildStrategy (dotnet or pip+npm)
-        alt Exit Code 1 (Error)
-            Worker->>LLM: Send `stderr` for correction
-            LLM-->>Worker: Return patched code blocks
-        else Exit Code 0 (Success)
-            Worker->>Worker: Break Loop
+    Worker->>DB: Update status (building)
+    loop Up to 3 repair attempts
+        Worker->>Worker: Run build via IBuildStrategy (dotnet + npm, or pip + npm)
+        alt Build fails
+            Worker->>LLM: Send error output for repair
+            LLM-->>Worker: Patched code blocks
+        else Build passes
+            Worker->>Worker: Break loop
         end
     end
-    
+
     %% PACKING & DELIVERY
-    Worker->>DB: Update Status (Status: PACKING)
+    Worker->>DB: Update status (packing)
     Worker->>R2: Upload zipped directory
-    R2-->>Worker: Return Object Key
-    Worker->>DB: Update Generation Record (Status: SUCCESS, R2_Key)
-    DB-)Web: Broadcast Success & UI Refresh
-    Web->>API: Request Presigned URL
-    API->>R2: Generate Presigned URL (168hr prod / 24hr dev)
-    R2-->>API: URL
-    API-->>Web: URL
+    R2-->>Worker: Object key
+    Worker->>R2: Create presigned URL (default 168 h)
+    Worker->>DB: Update status (success) + download_url
+    Web->>API: Next poll sees success
+    API-->>Web: Row with download_url
     Web-->>User: Display Download Button
 ```
+
+On a terminal build failure of a paid tier, the worker marks the generation `failed`, issues a full Stripe refund and sends the refund email instead of the packing steps.

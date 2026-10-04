@@ -2,18 +2,22 @@
 
 The V2 "Swiss Cheese" generation path dispatches one LLM call per injection
 zone, in parallel, throttled by `InjectionEngine`'s semaphore. This doc
-captures the math you need to size that semaphore and to predict generation
-latency against Anthropic's rate limits.
+captures the math you need to size that semaphore and to reason about
+generation latency against your Anthropic account's rate limits.
+
+V2 runs in Development only today; prod takes the V1 one-shot path (see
+[`swiss-cheese-rollout.md`](./swiss-cheese-rollout.md)). The default model is
+Claude Sonnet 5.5 (`claude-sonnet-5-5`, set by `ANTHROPIC_MODEL`).
 
 ## Where the call count comes from
 
 Each generation produces three classes of LLM calls:
 
-1. **Per-entity, per-zone** — for every entity in the schema, every per-entity
+1. **Per-entity, per-zone** - for every entity in the schema, every per-entity
    template file (path contains `{{EntityName...}}`) contributes its zones.
-2. **Schema-wide zones** — files without `{{EntityName...}}` in path each
+2. **Schema-wide zones** - files without `{{EntityName...}}` in path each
    contribute their zone count once, regardless of entity count.
-3. **No call** — files with no `[[LLM_INJECTION_START]]` markers (pure
+3. **No call** - files with no `[[LLM_INJECTION_START]]` markers (pure
    Handlebars scaffolds) contribute nothing.
 
 ### V2-DotNet-NextJs zone inventory
@@ -30,7 +34,7 @@ Each generation produces three classes of LLM calls:
 | `dotnet/Controllers/{{EntityName}}Endpoints.cs` | yes | 0 |
 | `dotnet/Migrations/001_initial_schema.sql` | no | **1** (ForeignKeyConstraints) |
 
-**Total per generation:** `5 × N + 1` where `N` = entity count.
+**Total per generation:** `5 x N + 1` where `N` = entity count.
 
 ### V2-Python-React zone inventory
 
@@ -47,7 +51,7 @@ Each generation produces three classes of LLM calls:
 | `frontend/src/lib/api.ts` | no | **1** (ApiRouteHandlers) |
 | `frontend/src/types/index.ts` | no | **1** (TypeDefinitions) |
 
-**Total per generation:** `7 × N + 4` where `N` = entity count.
+**Total per generation:** `7 x N + 4` where `N` = entity count.
 
 ### Sample call counts
 
@@ -60,41 +64,59 @@ Each generation produces three classes of LLM calls:
 
 ## Latency model
 
-Total generation time ≈ `ceil(callCount / maxConcurrency) × p95LatencyPerCall`.
+Total generation time is about `ceil(callCount / maxConcurrency) x latencyPerCall`,
+where `latencyPerCall` is the slow end (p95) of per-zone call latency.
 
-For Claude 3.5 Sonnet on a ~1k-token per-zone prompt:
-- p50 latency: ~2s
-- p95 latency: ~5s
-- p99 latency: ~10s
+Measure `latencyPerCall` for the current model rather than assuming it.
+Claude Sonnet 5.5 runs **adaptive thinking at effort `medium`** by default
+(`ANTHROPIC_EFFORT`), so each call can spend extra output tokens on thinking
+before it emits the zone's code. That adds latency and output-token cost per
+call, and it multiplies across the `5 x N + 1` zone calls. Expect per-zone
+latency to depend on effort and on how hard the zone is; lowering effort for
+small, mechanical zones is a tuning option to test, not something this doc
+promises.
 
-Worst-case latency for a 5-entity DotNet generation at concurrency=4 with p95
-calls: `ceil(26 / 4) × 5s = 7 × 5s = 35s`. p99 doubles it.
+The estimates this doc used to carry (p50 about 2 s, p95 about 5 s, p99 about
+10 s per call) were **historical Claude 3.5 Sonnet figures** and are not facts
+about the current model. As an illustration of the formula only: at
+concurrency 4, a 5-entity DotNet generation has 26 calls, so 7 serial windows;
+at an assumed 5 s p95 per call that is about 35 s. Substitute a measured value.
 
-## Anthropic rate limits (Tier 1)
+## Rate limits
 
-As of 2026, the **Tier 1 (free)** limits for Claude 3.5 Sonnet are:
-- **50 RPM** (requests per minute)
-- **40k input TPM** (tokens per minute)
-- **8k output TPM**
+Anthropic rate limits (requests per minute, input and output tokens per
+minute) depend on your account's usage tier and on the model, and they change.
+Read the current numbers from the Anthropic console or the response headers
+instead of relying on a figure written here. The older figures in this doc
+(50 RPM, 40k input TPM, 8k output TPM for a free tier on Claude 3.5 Sonnet)
+were historical and no longer describe the current model or tier.
 
-A 5-entity .NET generation = 26 requests. At concurrency=4 they finish in
-~30s — well under the 50 RPM window. But two concurrent generations at
-concurrency=4 each = 8 in-flight, **52 calls in ~60s** — over the limit.
+What stays true regardless of the numbers:
 
-**Practical implication:** if you scale beyond a single concurrent generation
-in production, drop `MaxConcurrency` to 2 per generation to leave headroom.
+- One generation is `5 x N + 1` (or `7 x N + 4`) requests, issued in
+  windows of `MaxConcurrency`. Several generations at once multiply the
+  in-flight requests, and in-flight requests times the call rate must stay
+  under your requests-per-minute limit.
+- Thinking tokens count as output tokens, so output-tokens-per-minute is the
+  limit most likely to bind on Sonnet 5.5, ahead of requests per minute.
+- If you run more than one concurrent generation in production, lower
+  `MaxConcurrency` per generation to leave headroom.
+- Higher purchased tiers raise limits and usually make the latency math the
+  bottleneck instead.
 
-For higher tiers (purchased), limits are usage-based and rarely the bottleneck;
-the latency math dominates instead.
+BYOK builds use the customer's own key and limits, not the platform's.
 
 ## Recommended `MaxConcurrency` settings
 
 | Scenario | Setting | Rationale |
 |---|---|---|
 | Local dev / single user | 4 (default) | Fastest single-generation latency, no contention. |
-| Tier 1 production, ≤2 concurrent generations | 2 | Stays under 50 RPM with overhead. |
-| Tier 2+ production | 4–8 | Latency wins; rate limits are not the bottleneck. |
-| Very large schemas (≥10 entities) | 6–8 | Amortizes the slow ones; watch p99. |
+| Low account limits, 2 or more concurrent generations | 2 | Leaves headroom under requests-per-minute and output-token limits. |
+| High account limits | 4-8 | Latency wins; rate limits are not the bottleneck. |
+| Very large schemas (10 or more entities) | 6-8 | Amortizes the slow calls; watch the tail latency. |
+
+These are starting points to confirm against measured latency and your own
+limits.
 
 Set via config:
 
@@ -109,22 +131,23 @@ Set via config:
 }
 ```
 
-Or env var: `Generation__Injection__MaxConcurrency=2`.
+Or env var: `Generation__Injection__MaxConcurrency=2`. Defaults in code:
+`MaxConcurrency` = 4, `MaxAttemptsPerZone` = 2.
 
 ## Retry budget
 
-Each zone has `MaxAttemptsPerZone` retries before `InjectionFailedException`
-is thrown. Default = 2. Real LLM transient failures are rare (~1%), so the
-practical retry rate is low. **Don't raise this above 3** — at 3 attempts ×
-26 zones = 78 worst-case calls per generation, blowing through Tier 1 rate
-limits even on a single generation.
+Each zone gets up to `MaxAttemptsPerZone` attempts before
+`InjectionFailedException` is thrown. Default = 2. Transient LLM failures
+are rare, so the practical retry rate is low. **Don't raise this above 3**:
+at 3 attempts x 26 zones = 78 worst-case calls per generation, which can
+exhaust rate limits and token spend even for a single generation.
 
 ## Failure modes by zone count
 
-- **N = 0 entities:** 1 schema-wide call (.NET) or 4 (Python). Subsecond.
-- **N = 1 entity:** ≤11 calls. Single-window finish at concurrency 4.
-- **N = 10 entities:** ≤74 calls. Two windows at concurrency 4. Watch for
-  p99 stragglers — one slow call holds up the whole batch.
+- **N = 0 entities:** 1 schema-wide call (.NET) or 4 (Python). Subsecond to a few seconds.
+- **N = 1 entity:** at most 11 calls. Single-window finish at concurrency 4 for DotNet.
+- **N = 10 entities:** at most 74 calls. Many windows at concurrency 4. Watch
+  for tail-latency stragglers; one slow call holds up the batch.
 - **N > 10:** consider splitting generation into entity-batched LLM calls
   (not currently implemented). Track this in capacity planning before
   customers ship 20-entity schemas.
