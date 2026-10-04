@@ -10,6 +10,13 @@
 
 Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record: `docs/runbooks/qavren-cutover-phase-e.md` (§6 lists the F inputs). Tracking issue: #431.
 
+> **Progress (2026-10-03):**
+> - Task 1 merged as PR #465 (`ece9467d`) and deployed green. The prod bundle no longer opens the dashboard's Realtime channel.
+> - Decision 6 is done: PR #468 deleted `deploy-test.yml`, closing #211.
+> - The default model moved to Claude Sonnet 5.5 (PR #467). That doesn't affect this plan.
+>
+> Still gated: Tasks 2–6 (G2: on or after 2026-10-08, plus the §3.4 money path) and Task 7 (owner).
+
 ---
 
 ## State on 2026-10-03
@@ -40,7 +47,7 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
    - Status pages poll every **3 s** while the page is visible and the status is not terminal. They pause while hidden and fetch once when the page becomes visible again.
    - The dashboard calls `router.refresh()` every **10 s** while it is visible and at least one listed row is not terminal.
    - Cost: one owner-scoped primary-key select per open status page every 3 s, which is negligible at today's volume. Revisit with SSE only if load ever proves otherwise.
-   - **Why this ships ahead of the gate:** today the hook calls `stopPolling()` on `SUBSCRIBED` and waits for events. In prod the channel joins the old project, where no row ever changes, so after the single catch-up fetch a status page may not update again until reload. This is **unverified**. Checking it needs a browser watching a build that outlasts the WebSocket handshake. Tier 0 finishes fast enough that the catch-up fetch can hide the problem, and phase E only ran Tier 0.
+   - **Why this ships ahead of the gate:** today the hook calls `stopPolling()` on `SUBSCRIBED` and waits for events. In prod the channel joins the old project, where no row ever changes, so after the single catch-up fetch a status page may not update again until reload. This is **unverified**. Checking it needs a browser watching a build that outlasts the WebSocket handshake. Tier 0 finishes fast enough that the catch-up fetch can hide the problem, and phase E only ran Tier 0. **Confirmed later on 2026-10-03:** an anonymous `postgres_changes` join on `ctqhwykryoglhdwatljt` returned `phx_reply` `ok` and "Subscribed to PostgreSQL", so the freeze was real until #465 deployed.
    - `GenerationsLiveRefresher` refreshes only when a channel event arrives, so in Qavren mode it **never** refreshes. The dashboard's live status badges are dead in prod today. That part is certain from the code.
 3. **Demo mode becomes explicit-or-local.** Today `_autoDemo` keys off `NEXT_PUBLIC_SUPABASE_URL`, and it has to stay client-visible (phase C decision 3: a server-only variable breaks hydration). The new rule is `_autoDemo = !NEXT_PUBLIC_DEMO_MODE && NODE_ENV !== "production"`. For everyone who runs without `NEXT_PUBLIC_SUPABASE_URL`, which includes every Qavren-mode developer, this is identical, because phase C already requires `NEXT_PUBLIC_DEMO_MODE=false` for local Qavren-mode dev.
 4. **Production boot asserts one shape.** `assertAuthModeConsistent()` becomes `assertProductionConfig()`. In production, `DATABASE_URL`, `QAVREN_AUTH_URL` (URL-shaped) and `AUTH_SECRET` are all required. Outside production, `QAVREN_AUTH_URL` without `DATABASE_URL` is still refused. The Engine's production check requires `DATABASE_URL`; the `SUPABASE_SERVICE_ROLE_KEY` alternative goes away.

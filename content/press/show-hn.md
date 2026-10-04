@@ -108,7 +108,7 @@ Happy to answer anything — I'll be here all day.
 > Yes — we publish a handful of example generations at /docs. Also: if you're considering this seriously, DM me and I'll share a live generation recording.
 
 **"What LLM do you use?"**
-> Claude 3.5 Sonnet for business logic generation. The scaffolding is Handlebars templates, no LLM.
+> Claude Sonnet 5.5 for business logic generation (or your own key: Anthropic, OpenAI, OpenRouter). The scaffolding is Handlebars templates, no LLM.
 
 **"Is the code open source?"**
 > The generated code is yours, with your LICENSE. The engine (how we generate it) is proprietary. The templates are proprietary but can be inspected by paying customers.

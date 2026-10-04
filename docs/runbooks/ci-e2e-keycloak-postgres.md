@@ -63,11 +63,11 @@ The job runs on push to `main`, on the nightly schedule and on
 
 `postgres`, `keycloak` and the Engine's `DATABASE_URL`/`depends_on: postgres` live
 in `docker/docker-compose.ci.yml`, not in `docker-compose.test.yml`. The base file
-is also what `deploy-test.yml` starts on the test mirror host, bare (`up -d
---force-recreate --wait`, no service list); anything added to it would start
-there too, with `admin`/`admin` and `sslRequired: none`, and would
-repoint the mirror Engine at an unmigrated local Postgres. The overlay is never
-used by `deploy-test.yml`.
+is now used only by CI, always together with the overlay. (It used to be what
+`deploy-test.yml` started on the test mirror host; that mirror and workflow were
+retired on 2026-10-03, PR #468, so nothing deploys from the base file any more.)
+Keeping the split still pays off: the base file stays free of the throwaway
+`admin`/`admin` Keycloak and `sslRequired: none`.
 
 Always pass both files, base first: `-f docker/docker-compose.test.yml -f
 docker/docker-compose.ci.yml`. The overlay does not declare the
@@ -323,11 +323,13 @@ job is green and useless until both exist; read the warnings. Both URLs must be 
   "Apply Supabase migrations to CI project" step, and the old
   `e2e/integration/dashboard.spec.ts` (replaced by `auth.spec.ts`). Nothing in
   the repo reads `CI_SUPABASE_DB_URL` any more.
-- **Owner action:** delete `CI_SUPABASE_DB_URL` from the Test environment. **Keep
-  the other Supabase secrets there:** `deploy-test.yml` still uses them.
-- **Untouched until phase E:** `deploy-prod.yml` still applies Supabase
-  migrations to prod and still links to `ci-supabase-migrations.md`. That runbook
-  stays; only its CI section is superseded.
+- **Owner action:** delete `CI_SUPABASE_DB_URL` from the Test environment. The other
+  Supabase secrets there were only used by `deploy-test.yml`, which is gone
+  (retired 2026-10-03, PR #468); nothing in the repo reads them, so they can be
+  deleted too.
+- **Phase E (2026-10-01) moved prod off Supabase:** `deploy-prod.yml` now applies the
+  qavren-db migrations (see `qavren-db-migrations.md`). `ci-supabase-migrations.md`
+  is a retired legacy file and is deleted in phase F.
 - **The CI Supabase project** (`cdlefpvsvyepofsboepc`) is now unused. It is on the
   free tier and may auto-pause, which no longer breaks anything. It is retired in
   phase F.

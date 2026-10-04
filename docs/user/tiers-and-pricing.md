@@ -19,7 +19,7 @@ StackAlchemist has three paid tiers plus a free one. All prices are **one-time p
 
 ## Tier 0 — Spark
 
-**Free · 5 builds per calendar month**
+**Free · 5 builds per calendar month per account** (enforced in the database, so it cannot be bypassed from the UI)
 
 Spark runs the whole workflow so you can watch it work before paying. It renders one fixed
 template — a small task tracker — with your project name substituted in, and makes **no AI
@@ -146,6 +146,14 @@ For Tier 2 and Tier 3, every generated package goes through the following before
 
 This is a hard technical guarantee — not a marketing claim. Code that doesn't compile doesn't get delivered.
 
+If it comes to a refund, it is a full refund to your original payment method, and you get an email when it is issued. The Python (FastAPI) + React stack gets the same treatment with its own toolchain: a per-build virtualenv install, lint, and `pytest` on the API half, then the frontend build.
+
+---
+
+## Which model writes your code
+
+By default generation uses Claude Sonnet 5.5, paid for by us as part of the tier price. If you would rather use your own key, open the dashboard API settings and add one (bring your own key). The options are Claude Sonnet 5.5 (default), Claude Opus 5.5 (needs your own Anthropic key), Claude Haiku 4.5, OpenAI `gpt-6.1-sol`, and OpenRouter `anthropic/claude-sonnet-5.5`. Your key is encrypted at rest and used only for your own builds, and it is never sent to a vendor other than the one it belongs to. The tier price does not change with the model.
+
 ---
 
 ## Pricing FAQ
@@ -160,7 +168,7 @@ The generated code is standard .NET and Next.js. You own it completely. Modify i
 Yes. The generated output has no licensing restrictions. Build your product, sell it, scale it.
 
 ### What if the Compile Guarantee fails?
-If the generated code doesn't compile after 3 auto-correction attempts, you receive a full refund automatically. No dispute process required.
+If the generated code doesn't compile after 3 auto-correction attempts, you receive a full refund automatically, with a confirmation email. No dispute process required. If you think a refund is owed and none arrived, write to billing@stackalchemist.app.
 
 ### Are there bulk or agency discounts?
 Contact us at [stackalchemist.app](https://stackalchemist.app) to discuss volume pricing for agencies or teams.

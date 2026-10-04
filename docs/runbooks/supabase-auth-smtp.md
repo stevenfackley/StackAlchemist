@@ -1,5 +1,7 @@
 # Supabase Auth Custom SMTP Runbook
 
+> **LEGACY - RETIRED (2026-10-03).** Prod no longer uses Supabase Auth: sign-in moved to Qavren Auth (Keycloak at `auth.stackalchemist.app`) in phase E on 2026-10-01, and auth emails (verification, password reset) now come from Keycloak, not Supabase. See `qavren-auth.md`. This SMTP setup applies only to the Supabase rollback path. This file is deleted in phase F (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`).
+
 How to move Supabase Auth off the built-in mailer and onto Resend SMTP, and
 how to tell whether it worked.
 

@@ -847,3 +847,22 @@ recorded response through the real services and builds both halves in CI.
 - Per-token cost falls about 33%, while the same text costs about 30% more tokens. Medium-effort thinking adds output tokens. Expected cost per generation is roughly flat against 4.6 and stays far under the $0.50 target. Re-baseline from `generations.input_tokens/output_tokens` after a week of traffic before touching effort.
 - Sonnet 5.5 has its own rate-limit pool. Check the tier's limits before raising Swiss Cheese concurrency.
 - Prompts were not retuned. The migration guide says Sonnet-era prompts carry over. An effort sweep against real generations is the open tuning item.
+
+---
+
+## 2026-10-03 — Live status is polling only; test mirror retired; docs truth-up
+
+**Status:** accepted
+**Polling (PR #465).** Generation rows have lived in qavren-db, which has no change feed, since the 2026-10-01 flip. The browser bundle still opened Supabase Realtime channels to the old project. A probe showed that an anonymous `postgres_changes` join there succeeds ("Subscribed to PostgreSQL"). The old hook stopped polling on `SUBSCRIBED`, so any status page whose build outlasted the WebSocket handshake froze until reloaded. The dashboard never live-refreshed. Now:
+- `useGenerationStatus` polls the owner-scoped `getGeneration` action every 3 s while the tab is visible. It pauses when the tab is hidden and never stacks requests.
+- `GenerationsLiveRefresher` calls `router.refresh()` every 10 s while any build is in progress.
+- No WebSocket transport remains. Revisit (SSE) only if poll load ever shows up.
+
+**Test mirror (PR #468, #211).** `deploy-test.yml` targeted a `[self-hosted, Linux, X64]` runner the fleet no longer has. It had not deployed since 2026-06-01. It was deleted rather than revived. There is now **no staging environment**: every push to `main` outside `paths-ignore` deploys prod, and CI's E2E lane (Postgres + Keycloak containers) is the pre-merge integration check. `docker/docker-compose.test.yml` remains only as the base file of that lane.
+
+**Docs truth-up (this PR).**
+- Architecture, advanced, product, user and runbook docs now describe the post-cutover system: qavren-db, Qavren Auth, polling, Claude Sonnet 5.5, no staging. Supabase is described as rollback-only until phase F.
+- Dated records (plans, execution records, audits) were left as history, with status notes at most.
+- `conductor/` was deleted: eight executed or obsolete April plans, with history in git.
+- The local `docker-compose.yml` now reads the repo-root `.env` (the file `scripts/setup-env.mjs` writes). It used to read a `.env.development` nothing created, and its web healthcheck now uses `/api/healthz`.
+- The Dockerfile's `NEXT_PUBLIC_APP_URL` default is the prod origin instead of the retired test site.

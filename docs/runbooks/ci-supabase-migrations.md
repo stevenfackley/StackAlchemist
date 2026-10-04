@@ -1,5 +1,7 @@
 # CI Supabase Migrations Runbook
 
+> **LEGACY - RETIRED (2026-10-03).** CI stopped using Supabase in phase D (2026-09-30; the lane now runs on Postgres + Keycloak containers, see `ci-e2e-keycloak-postgres.md`) and prod stopped using Supabase in phase E (2026-10-01; prod migrations are applied to qavren-db, see `qavren-db-migrations.md`). Kept only for the rollback window. This file is deleted in phase F (`docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`). Do not follow it for anything new.
+
 > **CI section superseded (phase D, 2026-09-30):** the `E2E Integration` lane no longer uses a Supabase project; see `ci-e2e-keycloak-postgres.md`. The `CI_SUPABASE_DB_URL` secret is unused. The **prod deploy** section below still applies until phase E (deploy-prod.yml's `Apply Supabase migrations (prod)` step).
 
 The E2E Integration job (`.github/workflows/ci.yml`, job `e2e-integration`)

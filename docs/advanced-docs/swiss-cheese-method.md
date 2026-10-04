@@ -42,7 +42,7 @@ User Schema Input
          │ renders "cheese" with pre-punched holes
          ▼
 ┌───────────────────┐
-│   LLM Injection   │  ← Claude 3.5 Sonnet: fills the holes
+│   LLM Injection   │  ← Claude Sonnet 5.5: fills the holes
 │   (Inner Layer)   │     SQL query bodies, domain validation logic,
 │                   │     custom endpoint implementations
 └────────┬──────────┘

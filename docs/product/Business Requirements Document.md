@@ -13,14 +13,14 @@ The initial phase of software development is highly repetitive.
 **3. Business Objectives & Goals**
 * **Accelerate Time to Market:** Reduce the time required to stand up a scalable software architecture from weeks to minutes.
 * **Generate High Margin Revenue:** Utilize a high ticket, one time generation fee model ($299, $599, $999) over low ticket monthly subscriptions.
-* **Minimize Operational Overhead:** Utilize zero egress storage via Cloudflare R2 and serverless databases via Supabase. Implement a "Swiss Cheese" generation method using Handlebars templates to minimize LLM token usage and API costs.
+* **Minimize Operational Overhead:** Utilize zero egress storage via Cloudflare R2 and a shared managed Postgres (qavren-db). Implement a "Swiss Cheese" generation method using Handlebars templates to minimize LLM token usage and API costs.
 * **De risk Tier 3 Deployments:** Sell Infrastructure as Code (AWS CDK, Terraform) and runbooks rather than assuming the liability of executing code on customer AWS accounts.
 
 **4. Solution Overview**
 StackAlchemist functions as an intelligent compiler. It features a dual mode intake UX: a "Simple Mode" where users submit a natural language prompt that generates a visual, editable schema, and an "Advanced Mode" for granular manual definition. The system uses a strict Retrieval Augmented Generation (RAG) pipeline to inject LLM generated business logic into a proven master template. A mandatory "Compile Guarantee" step ensures the generated code builds successfully before delivery.
 
 **5. Return on Investment (ROI) & Financial Projections**
-* **Cost Structure:** Platform database (Supabase), temporary storage (Cloudflare R2), and LLM API usage (Claude 3.5 Sonnet). The hybrid templating approach reduces LLM API costs per generation to under $0.50.
+* **Cost Structure:** Platform database (qavren-db Postgres), temporary storage (Cloudflare R2), and LLM API usage (Claude Sonnet 5.5). The hybrid templating approach reduces LLM API costs per generation to under $0.50.
 * **Revenue Model:** * Tier 1 (Blueprint): $299
     * Tier 2 (Boilerplate): $599
     * Tier 3 (Infrastructure & Runbooks): $999

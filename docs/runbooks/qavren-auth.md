@@ -1,11 +1,18 @@
 # Qavren Auth Runbook
 
-StackAlchemist is moving sign-in from Supabase Auth to Qavren Auth (Keycloak,
+> **Status (2026-10-03):** prod has run in **Qavren mode** since 2026-10-01 (phase E
+> flip). Supabase mode is still compiled in as a **rollback-only** path and is
+> deleted in phase F; see
+> `docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`. Read the
+> "Supabase mode" statements below as describing that rollback path, not a live
+> alternative.
+
+StackAlchemist moved sign-in from Supabase Auth to Qavren Auth (Keycloak,
 realm `stackalchemist`) through Auth.js. The switch is a runtime flag, so one
 image serves both modes. This document covers what the flag does, the env
 contract, the realm facts, a local recipe, the phase E flip, the traps and what
 is deliberately left for phase F. Data moves separately; see
-`qavren-db-migrations.md`. Supabase Auth stays the live mode until phase E.
+`qavren-db-migrations.md`. Qavren Auth is the live mode since the phase E flip (2026-10-01).
 
 ## What the flag does
 
@@ -187,7 +194,7 @@ The owner-run checklist (measured state, exact commands, verification, the
 Supabase pause, rollback) is `docs/runbooks/qavren-cutover-phase-e.md`; this
 section keeps only the invariant the code enforces.
 
-- Prod has two legitimate shapes: **Supabase mode** (neither `DATABASE_URL`
+- Prod has two legitimate shapes: **Supabase mode** (rollback only since 2026-10-01) (neither `DATABASE_URL`
   nor `QAVREN_AUTH_URL`) and **Qavren mode** (both, plus `DATABASE_URL_MIGRATE`
   and `AUTH_SECRET`). `DATABASE_URL` and `QAVREN_AUTH_URL` flip **together in
   one deploy**; the other two may exist earlier (`AUTH_SECRET` is inert alone,
@@ -254,13 +261,17 @@ section keeps only the invariant the code enforces.
 
 ## Known gaps and phase F
 
+Phase F is planned in `docs/superpowers/plans/2026-10-03-qavren-replatform-F-retire.md`
+(retire Supabase mode and delete the old Supabase project, no earlier than
+2026-10-08). The list below is a summary; the plan is authoritative.
+
 - The Qavren gate in `src/proxy.ts` decodes the path before the protected-prefix
   check (so `/%73imple` is guarded). The Supabase branch keeps its pre-existing
   gap for that encoding. Both are redirect conveniences: `getSessionUser()` in
   each action and page is the authorization boundary.
 - In Supabase mode `returnTo` is unsanitised (pre-existing). Qavren mode runs it
   through `safeReturnTo`.
-- Phase F, once prod has run on Qavren Auth, deletes: `LoginPageClient`,
+- Phase F (prod has now run on Qavren Auth since 2026-10-01) deletes: `LoginPageClient`,
   `RegisterPageClient`, `ForgotPasswordClient`, `ResetPasswordClient`,
   `oauth-buttons.tsx`, the Supabase branches of `proxy.ts`, `/auth/signout` and
   `/auth/callback`, `@supabase/ssr` and `@supabase/supabase-js`, the Supabase

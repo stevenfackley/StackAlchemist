@@ -3,6 +3,8 @@
 When a **paid** generation completes, you receive a ZIP archive containing your project. This
 page explains what's inside, how it's organized, and how to get it running.
 
+> Your download link is a presigned Cloudflare R2 URL that stays valid for 7 days.
+
 > The free Spark tier produces no archive. It renders a fixed demo project into your browser
 > and nothing is downloadable at that tier — see [Getting Started](./getting-started#about-the-free-tier).
 
