@@ -913,6 +913,8 @@ Phase F's gate G2(2) becomes "this hardening merged, plus one of those two check
 
 **Consequences:** `V2PythonReactCompileTests.RenderedBackend_CompilesAndPassesItsOwnTests` is unskipped and passes (flake8 plus the archive's pytest). The template defects it then found are fixed: `pass` in the comment-only `BaseFields` placeholder, `# noqa: F401` on the registration imports in `models/__init__.py` and on the speculative column-type imports, and a placeholder comment over 100 columns (E501).
 
+---
+
 ## 2026-10-04 — Phase F: Supabase retired; one store, one identity provider
 
 **Status:** accepted (merges on or after 2026-10-08, gate G2)
