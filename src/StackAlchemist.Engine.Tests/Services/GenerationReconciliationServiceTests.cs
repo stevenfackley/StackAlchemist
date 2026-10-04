@@ -435,7 +435,7 @@ public sealed class GenerationReconciliationServiceTests
     {
         var (sut, delivery, _, _, _) = BuildSut();
         delivery.GetStaleNonTerminalAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns<Task<IReadOnlyList<GenerationSnapshot>>>(_ => throw new HttpRequestException("supabase down"));
+            .Returns<Task<IReadOnlyList<GenerationSnapshot>>>(_ => throw new HttpRequestException("store down"));
 
         // RunOnceAsync itself propagates (so tests see real failures); the service's
         // periodic loop wraps it in RunOnceSafeAsync. Verify the raw call throws —

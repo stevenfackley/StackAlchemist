@@ -51,8 +51,8 @@ public sealed record CheckoutOutcome(
 /// <summary>
 /// The billing tables (stripe_events, transactions, and the tier/cancel writes on
 /// generations) behind the Stripe webhook and the compile-guarantee refund.
-/// Unregistered when no store is configured; callers treat a null store as
-/// "no idempotency log, proceed" exactly as they treated a null SupabaseAdmin.
+/// Unregistered when no store is configured (DATABASE_URL unset outside Production); callers
+/// treat a null store as "no idempotency log, proceed".
 /// </summary>
 public interface IBillingStore
 {
@@ -64,10 +64,8 @@ public interface IBillingStore
 
     /// <summary>
     /// process_checkout_completed: one atomic call. Throws on transport failure so the caller can ask Stripe to retry.
-    /// On Postgres the atomicity includes reading the row back: the event, tier and transaction writes commit only
-    /// once the outcome has been mapped, so a throw of any kind leaves nothing recorded. On Supabase (legacy path)
-    /// the RPC commits server-side before the client maps the response, so a mapping failure there leaves the event
-    /// recorded and Stripe's redelivery reports a duplicate.
+    /// The atomicity includes reading the row back: the event, tier and transaction writes commit only once the
+    /// outcome has been mapped, so a throw of any kind leaves nothing recorded.
     /// </summary>
     Task<CheckoutOutcome> ProcessCheckoutCompletedAsync(
         string eventId, string eventType, string sessionId, string? paymentIntentId,

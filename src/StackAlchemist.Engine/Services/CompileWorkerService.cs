@@ -8,7 +8,7 @@ namespace StackAlchemist.Engine.Services;
 /// <summary>
 /// Background service that consumes <see cref="GenerationContext"/> jobs from the in-process
 /// channel, runs <c>dotnet build</c>, zips and uploads to Cloudflare R2 on success, and
-/// updates Supabase with real-time status after every state transition.
+/// writes the generation's status to the store after every state transition.
 /// </summary>
 public sealed partial class CompileWorkerService(
     ChannelReader<GenerationContext> jobQueue,
@@ -105,7 +105,7 @@ public sealed partial class CompileWorkerService(
                 return;
             }
 
-            // ── Notify Supabase: building ─────────────────────────────────────
+            // ── Record status: building ───────────────────────────────────────
             await deliveryService.UpdateStatusAsync(
                 job.GenerationId, GenerationState.Building, ct: ct);
 
@@ -129,7 +129,7 @@ public sealed partial class CompileWorkerService(
             attempt.Steps = buildResult.Steps;
             attempt.Output = buildResult.StandardOutput;
 
-            // Stream build output to Supabase
+            // Stream build output to the generation's build log
             if (!string.IsNullOrWhiteSpace(buildResult.StandardOutput))
             {
                 await deliveryService.AppendBuildLogAsync(
@@ -392,7 +392,7 @@ public sealed partial class CompileWorkerService(
     /// Attempts the Compile Guarantee refund for a paid-tier generation that just
     /// exhausted all build-correction retries, then emails the customer once the
     /// refund is actually initiated. Deliberately swallows every exception: a
-    /// refund (or Supabase/Stripe) failure here must never crash the worker loop
+    /// refund (or store/Stripe) failure here must never crash the worker loop
     /// or reverse the generation's already-persisted Failed status — the
     /// charge.refunded webhook remains the eventual source of truth regardless of
     /// whether this call succeeds.

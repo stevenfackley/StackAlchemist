@@ -1,7 +1,4 @@
-using System.Net;
-using System.Text;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackAlchemist.Engine.Models;
@@ -12,42 +9,44 @@ using Stripe.Checkout;
 namespace StackAlchemist.Engine.Tests.Webhooks;
 
 /// <summary>
-/// Unit tests for <see cref="StripeWebhookHandler"/>. HTTP calls to Supabase are
-/// intercepted via a fake message handler — no real network calls.
+/// Unit tests for <see cref="StripeWebhookHandler"/> against a substituted <see cref="IBillingStore"/>:
+/// which store calls each event makes, in what order, and how the handler answers Stripe.
+/// The store's own SQL (one transaction per replayed checkout, the refund CAS) is covered against
+/// a real Postgres in <c>PostgresBillingStoreTests</c>.
 /// </summary>
 public sealed class StripeWebhookTests
 {
-    private static IConfiguration Config() =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Supabase:Url"]            = "https://proj.supabase.co",
-                ["Supabase:ServiceRoleKey"] = "service-role-key",
-            })
-            .Build();
+    private static readonly CheckoutOutcome NewAdvancedCheckout =
+        new(IsNew: true, Mode: "advanced", Prompt: null, ProjectType: ProjectType.DotNetNextJs, Schema: null, Personalization: null);
 
-    private static (StripeWebhookHandler Sut, RecordingHttpHandler Http, IGenerationOrchestrator Orchestrator, IEmailService Email)
-        BuildSut(params (HttpStatusCode Status, string Body)[] responses)
+    private static readonly CheckoutOutcome Redelivered =
+        new(IsNew: false, Mode: null, Prompt: null, ProjectType: null, Schema: null, Personalization: null);
+
+    private static (StripeWebhookHandler Sut, IBillingStore Billing, IGenerationOrchestrator Orchestrator) BuildSut()
     {
-        var http = new RecordingHttpHandler(responses);
-        var httpClient = new HttpClient(http);
-        var factory = Substitute.For<IHttpClientFactory>();
-        factory.CreateClient(SupabaseBillingStore.HttpClientName).Returns(httpClient);
+        var billing = Substitute.For<IBillingStore>();
+        billing.TryRecordEventAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(EventRecord.New);
 
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
         var email = Substitute.For<IEmailService>();
-        var billing = new SupabaseBillingStore(factory, Config(), NullLogger<SupabaseBillingStore>.Instance);
         var sut = new StripeWebhookHandler(orchestrator, billing, email, NullLogger<StripeWebhookHandler>.Instance);
-        return (sut, http, orchestrator, email);
+        return (sut, billing, orchestrator);
     }
+
+    private static void CheckoutReturns(IBillingStore billing, CheckoutOutcome outcome) =>
+        billing.ProcessCheckoutCompletedAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(outcome);
 
     [Fact]
     public async Task ChargeRefunded_MarksTransactionRefundedAndCancelsGeneration()
     {
-        var (sut, http, _, _) = BuildSut(
-            (HttpStatusCode.Created, ""),
-            (HttpStatusCode.OK, "[{\"generation_id\":\"gen-42\"}]"),
-            (HttpStatusCode.NoContent, ""));
+        var (sut, billing, _) = BuildSut();
+        billing.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, "pi_42", "refunded", "evt_refund_1", true, Arg.Any<CancellationToken>())
+            .Returns("gen-42");
 
         var stripeEvent = new Event
         {
@@ -62,20 +61,19 @@ public sealed class StripeWebhookTests
         var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
 
         result.Processed.Should().BeTrue();
-        http.Requests.Should().HaveCount(3);
-        http.Requests[1].Method.Should().Be(HttpMethod.Patch);
-        http.Requests[1].Url.Should().Contain("transactions");
-        http.Requests[1].Url.Should().Contain("stripe_payment_intent=eq.pi_42");
-        http.Requests[1].Body.Should().Contain("\"refunded\"");
-        http.Requests[2].Url.Should().Contain("generations?id=eq.gen-42");
+        Received.InOrder(() =>
+        {
+            billing.TryRecordEventAsync("evt_refund_1", "charge.refunded", Arg.Any<CancellationToken>());
+            billing.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, "pi_42", "refunded", "evt_refund_1", true, Arg.Any<CancellationToken>());
+            billing.CancelUndeliveredGenerationAsync("gen-42", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        });
     }
 
     [Fact]
     public async Task CheckoutAsyncPaymentFailed_MarksTransactionFailed()
     {
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.Created, ""),
-            (HttpStatusCode.NoContent, ""));
+        var (sut, billing, orchestrator) = BuildSut();
 
         var stripeEvent = new Event
         {
@@ -87,10 +85,8 @@ public sealed class StripeWebhookTests
         var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
 
         result.Processed.Should().BeTrue();
-        http.Requests.Should().HaveCount(2);
-        http.Requests[1].Method.Should().Be(HttpMethod.Patch);
-        http.Requests[1].Url.Should().Contain("stripe_session_id=eq.cs_1");
-        http.Requests[1].Body.Should().Contain("\"failed\"");
+        await billing.Received(1).UpdateTransactionsAsync(
+            TransactionKey.StripeSessionId, "cs_1", "failed", "evt_failed_1", false, Arg.Any<CancellationToken>());
         await orchestrator.DidNotReceive().EnqueueAsync(
             Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
     }
@@ -98,9 +94,7 @@ public sealed class StripeWebhookTests
     [Fact]
     public async Task DisputeCreated_MarksTransactionDisputed()
     {
-        var (sut, http, _, _) = BuildSut(
-            (HttpStatusCode.Created, ""),
-            (HttpStatusCode.NoContent, ""));
+        var (sut, billing, _) = BuildSut();
 
         var stripeEvent = new Event
         {
@@ -112,16 +106,16 @@ public sealed class StripeWebhookTests
         var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
 
         result.Processed.Should().BeTrue();
-        http.Requests[1].Url.Should().Contain("stripe_charge_id=eq.ch_99");
-        http.Requests[1].Body.Should().Contain("\"disputed\"");
+        await billing.Received(1).UpdateTransactionsAsync(
+            TransactionKey.StripeChargeId, "ch_99", "disputed", "evt_dispute_1", false, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DuplicateCheckoutEvent_IsSkipped()
     {
-        // The RPC reports is_new=false → handler short-circuits without enqueueing.
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.OK, "[{\"is_new\":false}]"));
+        // The checkout call reports is_new=false → handler short-circuits without enqueueing.
+        var (sut, billing, orchestrator) = BuildSut();
+        CheckoutReturns(billing, Redelivered);
 
         var stripeEvent = new Event
         {
@@ -135,7 +129,10 @@ public sealed class StripeWebhookTests
         result.Processed.Should().BeFalse();
         result.Reason.Should().Be("duplicate");
         result.Retry.Should().BeFalse();
-        http.Requests.Should().HaveCount(1);
+        await billing.Received(1).ProcessCheckoutCompletedAsync(
+            "evt_dup_1", "checkout.session.completed", "cs_dup", Arg.Any<string?>(),
+            Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await billing.DidNotReceiveWithAnyArgs().DeleteEventAsync(default!, default);
         await orchestrator.DidNotReceive().EnqueueAsync(
             Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
     }
@@ -143,9 +140,10 @@ public sealed class StripeWebhookTests
     [Fact]
     public async Task DuplicateNonCheckoutEvent_IsSkipped()
     {
-        // 409 Conflict on stripe_events insert → handler short-circuits.
-        var (sut, http, _, _) = BuildSut(
-            (HttpStatusCode.Conflict, ""));
+        // The event is already in stripe_events → handler short-circuits.
+        var (sut, billing, _) = BuildSut();
+        billing.TryRecordEventAsync("evt_dup_2", "charge.refunded", Arg.Any<CancellationToken>())
+            .Returns(EventRecord.Duplicate);
 
         var stripeEvent = new Event
         {
@@ -161,16 +159,18 @@ public sealed class StripeWebhookTests
 
         result.Processed.Should().BeFalse();
         result.Reason.Should().Be("duplicate");
-        http.Requests.Should().HaveCount(1);
+        await billing.DidNotReceiveWithAnyArgs().UpdateTransactionsAsync(default, default!, default!, default!, default, default);
+        await billing.DidNotReceiveWithAnyArgs().CancelUndeliveredGenerationAsync(default!, default!, default);
     }
 
     [Fact]
     public async Task NonCheckoutEvent_IdempotencyUnavailable_RequestsRetry()
     {
-        // stripe_events insert fails (5xx) → no fail-open: ask Stripe to redeliver
+        // stripe_events cannot be reached → no fail-open: ask Stripe to redeliver
         // instead of processing unlogged (concurrent duplicates double-processed before).
-        var (sut, http, _, _) = BuildSut(
-            (HttpStatusCode.ServiceUnavailable, ""));
+        var (sut, billing, _) = BuildSut();
+        billing.TryRecordEventAsync("evt_unavail_1", "charge.refunded", Arg.Any<CancellationToken>())
+            .Returns(EventRecord.Unavailable);
 
         var stripeEvent = new Event
         {
@@ -186,13 +186,14 @@ public sealed class StripeWebhookTests
 
         result.Processed.Should().BeFalse();
         result.Retry.Should().BeTrue();
-        http.Requests.Should().HaveCount(1, "the transaction PATCH must not run unlogged");
+        // The transaction update must not run unlogged.
+        await billing.DidNotReceiveWithAnyArgs().UpdateTransactionsAsync(default, default!, default!, default!, default, default);
     }
 
     [Fact]
     public async Task UnhandledEventType_ReturnsNotProcessed()
     {
-        var (sut, _, _, _) = BuildSut((HttpStatusCode.Created, ""));
+        var (sut, _, _) = BuildSut();
 
         var stripeEvent = new Event
         {
@@ -230,28 +231,23 @@ public sealed class StripeWebhookTests
     [Fact]
     public async Task CheckoutCompleted_RunsAtomicRpcThenEnqueues()
     {
-        // The single RPC call replaces the old insert→load→tier-PATCH→upsert sequence:
-        // event recording, tier update, and transaction upsert are one Postgres
-        // transaction, so a partial failure can no longer strand a paid generation.
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.OK,
-             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
-             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"));
+        // One store call replaces the old insert→load→tier-update→upsert sequence: event
+        // recording, tier update, and transaction upsert are one Postgres transaction, so a
+        // partial failure can no longer strand a paid generation.
+        var (sut, billing, orchestrator) = BuildSut();
+        CheckoutReturns(billing, NewAdvancedCheckout);
 
         var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
 
         result.Processed.Should().BeTrue();
         result.Retry.Should().BeFalse();
 
-        http.Requests.Should().HaveCount(1);
-        var rpc = http.Requests[0];
-        rpc.Method.Should().Be(HttpMethod.Post);
-        rpc.Url.Should().Contain("/rest/v1/rpc/process_checkout_completed");
-        rpc.Body.Should().Contain("\"p_event_id\":\"evt_completed_1\"");
-        rpc.Body.Should().Contain("\"p_session_id\":\"cs_77\"");
-        rpc.Body.Should().Contain("\"p_generation_id\":\"gen-77\"");
-        rpc.Body.Should().Contain("\"p_tier\":2");
-        rpc.Body.Should().Contain("\"p_amount\":59900");
+        await billing.Received(1).ProcessCheckoutCompletedAsync(
+            "evt_completed_1", "checkout.session.completed", "cs_77", "pi_77",
+            "gen-77", 2, 59_900, Arg.Any<CancellationToken>());
+        // checkout.session.completed owns its idempotency inside that call; the separate event
+        // log is never written first.
+        await billing.DidNotReceiveWithAnyArgs().TryRecordEventAsync(default!, default!, default);
 
         await orchestrator.Received(1).EnqueueAsync(
             Arg.Is<GenerateRequest>(r =>
@@ -262,14 +258,17 @@ public sealed class StripeWebhookTests
     [Fact]
     public async Task CheckoutCompleted_RpcFailure_RequestsRetryWithoutEnqueue()
     {
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.InternalServerError, ""));
+        var (sut, billing, orchestrator) = BuildSut();
+        billing.ProcessCheckoutCompletedAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns<Task<CheckoutOutcome>>(_ => throw new InvalidOperationException("process_checkout_completed failed (08006)"));
 
         var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
 
         result.Processed.Should().BeFalse();
-        result.Retry.Should().BeTrue("the RPC rolled back, so Stripe's redelivery re-processes cleanly");
-        http.Requests.Should().HaveCount(1);
+        result.Retry.Should().BeTrue("the checkout call rolled back, so Stripe's redelivery re-processes cleanly");
+        await billing.DidNotReceiveWithAnyArgs().DeleteEventAsync(default!, default);
         await orchestrator.DidNotReceive().EnqueueAsync(
             Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
     }
@@ -277,11 +276,8 @@ public sealed class StripeWebhookTests
     [Fact]
     public async Task CheckoutCompleted_EnqueueThrows_CompensatesEventAndRetries()
     {
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.OK,
-             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
-             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"),
-            (HttpStatusCode.NoContent, ""));
+        var (sut, billing, orchestrator) = BuildSut();
+        CheckoutReturns(billing, NewAdvancedCheckout);
 
         orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
             .Returns<Task<GenerateResponse>>(_ => throw new InvalidOperationException("queue full"));
@@ -291,11 +287,16 @@ public sealed class StripeWebhookTests
         result.Processed.Should().BeFalse();
         result.Retry.Should().BeTrue();
 
-        // Compensation: the event row is deleted so the RPC sees a fresh insert on
+        // Compensation: the event row is deleted so the checkout call sees a fresh insert on
         // Stripe's redelivery instead of short-circuiting as a duplicate.
-        http.Requests.Should().HaveCount(2);
-        http.Requests[1].Method.Should().Be(HttpMethod.Delete);
-        http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_2");
+        Received.InOrder(() =>
+        {
+            billing.ProcessCheckoutCompletedAsync(
+                "evt_comp_2", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+            billing.DeleteEventAsync("evt_comp_2", Arg.Any<CancellationToken>());
+        });
+        await billing.Received(1).DeleteEventAsync("evt_comp_2", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -304,14 +305,10 @@ public sealed class StripeWebhookTests
         // The enqueue can fail because the request was aborted. The compensation must not ride
         // that token: a delete skipped on an already-cancelled token would leave the event
         // recorded, and Stripe's redelivery would then report "duplicate" for a paid checkout.
-        // The abort happens inside the enqueue (the RPC ran on a live token), and the fake
-        // transport honours cancellation the way a real one does, so a compensation sent on the
-        // request token would never be recorded.
-        var (sut, http, orchestrator, _) = BuildSut(
-            (HttpStatusCode.OK,
-             "[{\"is_new\":true,\"mode\":\"advanced\",\"prompt\":null," +
-             "\"project_type\":\"DotNetNextJs\",\"schema_json\":null,\"personalization_json\":null}]"),
-            (HttpStatusCode.NoContent, ""));
+        // The abort happens inside the enqueue (the checkout call ran on a live token), so the
+        // delete must arrive on a token that is not cancelled.
+        var (sut, billing, orchestrator) = BuildSut();
+        CheckoutReturns(billing, NewAdvancedCheckout);
 
         using var requestAborted = new CancellationTokenSource();
         orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
@@ -327,11 +324,11 @@ public sealed class StripeWebhookTests
         result.Processed.Should().BeFalse();
         result.Retry.Should().BeTrue();
 
-        http.Requests.Should().HaveCount(2);
-        http.Requests[0].Method.Should().Be(HttpMethod.Post);
-        http.Requests[0].Url.Should().Contain("/rest/v1/rpc/process_checkout_completed");
-        http.Requests[1].Method.Should().Be(HttpMethod.Delete);
-        http.Requests[1].Url.Should().Contain("stripe_events?id=eq.evt_comp_3");
+        await billing.Received(1).ProcessCheckoutCompletedAsync(
+            "evt_comp_3", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+            Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await billing.Received(1).DeleteEventAsync(
+            "evt_comp_3", Arg.Is<CancellationToken>(t => !t.IsCancellationRequested));
     }
 
     [Fact]
@@ -352,42 +349,5 @@ public sealed class StripeWebhookTests
                 r.GenerationId == "gen-77" && r.Tier == 2 && r.Mode == "advanced" &&
                 r.ProjectType == ProjectType.DotNetNextJs),
             Arg.Any<CancellationToken>());
-    }
-
-    public sealed record CapturedRequest(HttpMethod Method, string Url, string Body);
-
-    private sealed class RecordingHttpHandler : HttpMessageHandler
-    {
-        private readonly Queue<(HttpStatusCode Status, string Body)> _responses;
-        public List<CapturedRequest> Requests { get; } = [];
-
-        public RecordingHttpHandler(IEnumerable<(HttpStatusCode, string)> responses)
-        {
-            _responses = new Queue<(HttpStatusCode, string)>(responses);
-        }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var body = request.Content is null
-                ? string.Empty
-                : await request.Content.ReadAsStringAsync(cancellationToken);
-
-            Requests.Add(new CapturedRequest(
-                request.Method,
-                request.RequestUri?.ToString() ?? string.Empty,
-                body));
-
-            var (status, responseBody) = _responses.Count > 0
-                ? _responses.Dequeue()
-                : (HttpStatusCode.OK, "");
-
-            return new HttpResponseMessage(status)
-            {
-                Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
-            };
-        }
     }
 }

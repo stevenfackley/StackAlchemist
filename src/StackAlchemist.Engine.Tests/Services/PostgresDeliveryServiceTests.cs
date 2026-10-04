@@ -447,7 +447,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1), "a CHECK violation cannot succeed on retry, so there is no backoff sleep");
         log.Count(503).Should().Be(1);
         log.Count(504).Should().Be(0);
-        buffer.Count.Should().Be(1, "parity with the Supabase 4xx path: terminal writes are buffered whatever the failure");
+        buffer.Count.Should().Be(1, "terminal writes are buffered whatever the failure");
         (await Column<string>(id, "status")).Should().Be("building");
     }
 }

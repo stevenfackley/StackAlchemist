@@ -67,12 +67,6 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
     }
 });
 
-// qavren-db (phase B of the re-platform). Presence of DATABASE_URL selects the Postgres
-// implementations below; absence keeps every Supabase path exactly as-is. Computed once and used
-// directly (not read back from IConfiguration) so a stray ConnectionStrings__Db env var or
-// appsettings entry cannot select the Postgres path while bypassing the pooler options.
-var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Ev("DATABASE_URL"));
-
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     // LLM
@@ -84,9 +78,6 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     ["CloudflareR2:AccessKeyId"]      = Ev("R2_ACCESS_KEY_ID"),
     ["CloudflareR2:SecretAccessKey"]  = Ev("R2_SECRET_ACCESS_KEY"),
     ["CloudflareR2:BucketName"]       = Ev("R2_BUCKET_NAME"),
-    // Supabase
-    ["Supabase:Url"]                  = Ev("NEXT_PUBLIC_SUPABASE_URL"),
-    ["Supabase:ServiceRoleKey"]       = Ev("SUPABASE_SERVICE_ROLE_KEY"),
     // Stripe
     ["Stripe:PublishableKey"]         = Ev("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
     ["Stripe:SecretKey"]              = Ev("STRIPE_SECRET_KEY"),
@@ -105,6 +96,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 
 // ── Production startup validation ────────────────────────────────────────────
 // Fail-fast on missing critical secrets so misconfigured deployments surface immediately.
+// DATABASE_URL is required too; AddGenerationStore (below, shared with the Worker) enforces it.
 if (builder.Environment.IsProduction())
 {
     var required = new[]
@@ -121,11 +113,6 @@ if (builder.Environment.IsProduction())
                 $"Required environment variable '{name}' is not set. " +
                 "Set it via user-secrets or environment before starting in Production.");
     }
-
-    if (dbConnectionString is null &&
-        string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]))
-        throw new InvalidOperationException(
-            "Set DATABASE_URL (qavren-db) or SUPABASE_SERVICE_ROLE_KEY before starting in Production; the Engine has no store otherwise.");
 }
 
 builder.Services.AddProblemDetails();
@@ -237,8 +224,6 @@ builder.Services.AddHttpClient(OpenAiCompatibleLlmClient.OpenRouterHttpClientNam
     client.Timeout = TimeSpan.FromMinutes(5);
 });
 
-builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
-builder.Services.AddHttpClient(SupabaseBillingStore.HttpClientName);
 builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
 
 // ── File system abstraction ──────────────────────────────────────────────────
@@ -286,24 +271,10 @@ if (string.IsNullOrWhiteSpace(anthropicApiKey))
 
 // ── Phase 4 delivery services ─────────────────────────────────────────────────
 builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-// qavren-db when DATABASE_URL is set; Supabase otherwise. The billing store (Stripe webhook +
-// compile-guarantee refund) is left unregistered when neither is configured: its callers then run
-// without an idempotency log, as they did before the store existed.
-if (dbConnectionString is not null)
-{
-    builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
-    builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
-    builder.Services.AddSingleton<IBillingStore, PostgresBillingStore>();
-}
-else
-{
-    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
-    // Both halves, as SupabaseBillingStore itself requires: a key without a URL would register a
-    // store that cannot run the checkout RPC, turning every paid checkout into a Stripe retry.
-    if (!string.IsNullOrWhiteSpace(builder.Configuration["Supabase:Url"]) &&
-        !string.IsNullOrWhiteSpace(builder.Configuration["Supabase:ServiceRoleKey"]))
-        builder.Services.AddSingleton<IBillingStore, SupabaseBillingStore>();
-}
+// The store: qavren-db when DATABASE_URL is set; outside Production without it, a no-op delivery
+// service and no billing store (the Stripe webhook and compile-guarantee refund then run without an
+// idempotency log). Production without it fails here. Also registers the pending-write buffer.
+builder.Services.AddGenerationStore(Ev("DATABASE_URL"), builder.Environment);
 
 // ── Compile service ───────────────────────────────────────────────────────────
 // Compile Guarantee builds run LLM-generated code. In the engine image they run as the
@@ -343,10 +314,9 @@ builder.Services.AddSingleton(channel.Reader);
 // Register the compile worker as an in-process background service.
 builder.Services.AddHostedService<CompileWorkerService>();
 
-// Reconciliation support: the in-flight registry shields live jobs from the sweep,
-// and the pending-write buffer holds critical writes that exhausted their retries.
+// Reconciliation support: the in-flight registry shields live jobs from the sweep. The
+// pending-write buffer it flushes is registered with the store (AddGenerationStore above).
 builder.Services.AddSingleton<IInFlightGenerationRegistry, InFlightGenerationRegistry>();
-builder.Services.AddSingleton<IPendingWriteBuffer, PendingWriteBuffer>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 // Periodic reconciler: re-enqueues rows orphaned by a restart (the Channel above is
@@ -478,8 +448,8 @@ app.MapPost("/api/generate", async (
     // Dispatch codegen to the background on the app-lifetime token — NOT the request's
     // CancellationToken (which binds to HttpContext.RequestAborted). A client or CF-tunnel
     // disconnect must not cancel an in-flight generation: a one-shot whole-app LLM call can
-    // outlast the ~100s proxy timeout, and the frontend tracks progress via Supabase Realtime,
-    // not this HTTP response. So we fire-and-forget and return Accepted immediately. Safe
+    // outlast the ~100s proxy timeout, and the frontend tracks progress by polling the generation
+    // row, not this HTTP response. So we fire-and-forget and return Accepted immediately. Safe
     // because every engine service is registered AddSingleton (no scoped disposal at request
     // end). EnqueueAsync owns its own failure handling (marks the row failed); the catch here
     // only guards against an unexpected throw before that runs.
@@ -491,7 +461,7 @@ app.MapPost("/api/generate", async (
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Background generation dispatch failed for {GenerationId}", request.GenerationId);
+            logger.GenerationDispatchFailed(ex, request.GenerationId);
         }
     });
 
@@ -577,7 +547,7 @@ app.MapPost("/api/extract-schema", async (
 
         var schema = schemaExtractor.ParseExtractionResponse(llmResponse.Text);
 
-        // Persist extracted schema to Supabase
+        // Persist the extracted schema to the generation row
         await delivery.UpdateSchemaAsync(request.GenerationId, schema, ct);
 
         logger.SchemaExtracted(request.GenerationId, schema.Entities.Count);

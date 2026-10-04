@@ -3,15 +3,16 @@ using StackAlchemist.Engine.Models;
 namespace StackAlchemist.Engine.Services;
 
 /// <summary>
-/// Persists generation pipeline state transitions back to the Supabase
-/// <c>generations</c> table so the frontend can display real-time progress.
+/// Persists generation pipeline state transitions to the store's <c>generations</c> table,
+/// which the frontend polls to display progress. <see cref="PostgresDeliveryService"/> writes to
+/// qavren-db; <see cref="NoOpDeliveryService"/> stands in when no store is configured.
 /// </summary>
 public interface IDeliveryService
 {
     /// <summary>
     /// Updates the <c>generations</c> row for <paramref name="generationId"/> with the
     /// current <paramref name="state"/> and optional <paramref name="downloadUrl"/> /
-    /// <paramref name="errorMessage"/>.  Silently no-ops when Supabase is not configured.
+    /// <paramref name="errorMessage"/>.  Silently no-ops when no store is configured.
     /// </summary>
     Task UpdateStatusAsync(
         string generationId,
@@ -35,16 +36,16 @@ public interface IDeliveryService
     /// <summary>
     /// Reads the current generations row for re-checking authoritative state
     /// (e.g. the tier after a concurrent Stripe webhook upgrade). Returns null
-    /// when Supabase is not configured, the row is missing, or the read fails.
+    /// when no store is configured, the row is missing, or the read fails.
     /// </summary>
     Task<GenerationSnapshot?> GetGenerationSnapshotAsync(string generationId, CancellationToken ct);
 
     /// <summary>
     /// Tier-0 (free Spark preview) terminal write: stores the generated file map in
     /// <c>preview_files_json</c> and flips the row to <c>success</c> in a single atomic
-    /// PATCH. No build, pack, R2 upload, or <c>download_url</c> — the frontend renders the
-    /// files inline in an in-browser editor. Critical write (retried once); the UI blocks
-    /// on it via Realtime.
+    /// write. No build, pack, R2 upload, or <c>download_url</c> — the frontend renders the
+    /// files inline in an in-browser editor. Critical write (retried, then buffered); the UI
+    /// polls the row until it lands.
     /// </summary>
     Task CompletePreviewAsync(
         string generationId,
@@ -80,15 +81,15 @@ public interface IDeliveryService
     /// <summary>
     /// Looks up the email address of the user who owns the given generation, by
     /// joining the generations row to its profile. Returns null when the user is
-    /// anonymous, the generation does not exist, or Supabase is not configured.
+    /// anonymous, the generation does not exist, or no store is configured.
     /// </summary>
     Task<string?> GetGenerationOwnerEmailAsync(string generationId, CancellationToken ct);
 
     /// <summary>
     /// Reads the owning user's BYOK credential for a generation: the encrypted
     /// <c>api_key_override</c> ciphertext and the <c>preferred_model</c>, joined through the row's
-    /// profile. Returns null when the user is anonymous, the generation does not exist, or Supabase
-    /// is not configured. NEVER returns or logs plaintext — decryption happens in
+    /// profile. Returns null when the user is anonymous, the generation does not exist, or no store
+    /// is configured. NEVER returns or logs plaintext — decryption happens in
     /// <see cref="ByokKeyProtector"/>.
     /// </summary>
     Task<ProfileCredential?> GetGenerationCredentialAsync(string generationId, CancellationToken ct);
@@ -96,7 +97,7 @@ public interface IDeliveryService
     /// <summary>
     /// Lists generation rows still in a non-terminal state whose last update predates
     /// <paramref name="olderThan"/>. Used by the periodic reconciler to find jobs
-    /// orphaned by a restart or stalled in flight. Empty when Supabase is not
+    /// orphaned by a restart or stalled in flight. Empty when no store is
     /// configured or the read fails. A row whose stored JSON does not parse is still
     /// listed, as a <see cref="GenerationSnapshot.IsUnreadable"/> snapshot, so the
     /// reconciler can fail it instead of never seeing it (#425).
@@ -104,7 +105,7 @@ public interface IDeliveryService
     Task<IReadOnlyList<GenerationSnapshot>> GetStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct);
 
     /// <summary>
-    /// Atomically claims a stale row for re-enqueue via a conditional PATCH on
+    /// Atomically claims a stale row for re-enqueue via a conditional update on
     /// (id, status, attempt_count, updated_at &lt; cutoff): sets status=pending and
     /// increments attempt_count. Returns true only when this caller won the claim —
     /// a concurrent claimer's filter no longer matches after the first one commits.
@@ -126,7 +127,7 @@ public interface IDeliveryService
     /// <summary>
     /// Atomically transitions a row from pending/failed to extracting_schema. Returns
     /// false when the row is already mid-extraction or terminal — the double-submit
-    /// guard for /api/extract-schema. Returns true when Supabase is not configured so
+    /// guard for /api/extract-schema. Returns true when no store is configured so
     /// local dev keeps working.
     /// </summary>
     Task<bool> TryBeginExtractionAsync(string generationId, CancellationToken ct);

@@ -7,52 +7,15 @@
 // This host is preserved as a deployment option for future scale-out:
 //   • Replace Channel with Redis Streams or RabbitMQ
 //   • Deploy Worker separately from Engine
-//   • Register ICompileService, IR2UploadService, IDeliveryService here
+//
+// Its registrations live in WorkerServices.AddWorkerServices, which Worker.Tests also builds.
 
-using System.Threading.Channels;
-using StackAlchemist.Engine.Data;
-using StackAlchemist.Engine.Models;
-using StackAlchemist.Engine.Services;
+using StackAlchemist.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Compile pipeline (mirrors Engine registration for standalone mode)
-var channel = Channel.CreateUnbounded<GenerationContext>();
-builder.Services.AddSingleton(channel.Reader);
-builder.Services.AddSingleton(channel.Writer);
-
-builder.Services.AddSingleton<ICompileService, CompileService>();
-builder.Services.AddSingleton<ILlmClient, MockLlmClient>();
-builder.Services.AddSingleton<IReconstructionService, ReconstructionService>();
-builder.Services.AddSingleton<IR2UploadService, CloudflareR2UploadService>();
-
-// Same selection as the Engine host: qavren-db when DATABASE_URL is set.
-var dbConnectionString = PostgresUrl.ToNpgsqlConnectionString(Environment.GetEnvironmentVariable("DATABASE_URL"));
-if (dbConnectionString is not null)
-{
-    builder.Services.AddNpgsqlDataSource(dbConnectionString, dsb => dsb.ConnectionStringBuilder.MaxPoolSize = 10);
-    builder.Services.AddSingleton<IDeliveryService, PostgresDeliveryService>();
-}
-else
-{
-    builder.Services.AddSingleton<IDeliveryService, SupabaseDeliveryService>();
-}
-
-builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
-{
-    client.BaseAddress = new Uri("https://api.anthropic.com");
-    client.Timeout = TimeSpan.FromMinutes(5);
-});
-builder.Services.AddHttpClient(SupabaseDeliveryService.HttpClientName);
-builder.Services.AddHttpClient(ResendEmailService.HttpClientName);
-
-// CompileWorkerService depends on IEmailService — Resend when configured, NoOp otherwise.
-if (!string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))
-    builder.Services.AddSingleton<IEmailService, ResendEmailService>();
-else
-    builder.Services.AddSingleton<IEmailService, NoOpEmailService>();
-
-builder.Services.AddHostedService<CompileWorkerService>();
+// Read from the environment, not IConfiguration, exactly as the Engine host reads it.
+builder.AddWorkerServices(Environment.GetEnvironmentVariable("DATABASE_URL"));
 
 var host = builder.Build();
 host.Run();
