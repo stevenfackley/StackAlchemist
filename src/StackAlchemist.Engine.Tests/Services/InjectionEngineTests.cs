@@ -146,6 +146,231 @@ public class InjectionEngineTests
         output.Should().NotContain("LLM_INJECTION_");
     }
 
+    // ── Indentation (StackAlchemist#450) ─────────────────────────────────────
+    // A fill keeps its relative indentation; its absolute indentation is the START marker's.
+
+    private static async Task<string> FillOneFileAsync(
+        string path, string template, Func<string, string> fillForZone, ProjectType projectType = ProjectType.PythonReact)
+    {
+        var engine = BuildEngine(prompt =>
+        {
+            var zone = System.Text.RegularExpressions.Regex.Match(prompt, "Zone name: `(?<z>[^`]+)`").Groups["z"].Value;
+            return Task.FromResult(new LlmResponse(fillForZone(zone), 0, 0, "stub"));
+        });
+
+        var result = await engine.FillZonesAsync(
+            new Dictionary<string, string> { [path] = template },
+            OneEntitySchema(), OneEntityVars(), projectType, null);
+
+        return result.FilledTemplates[path];
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_Python_FirstLineOfAFlushFillLandsAtTheDefBodyIndentation()
+    {
+        var template = """
+            def get_all(db):
+                [[LLM_INJECTION_START: GetAllImpl]]
+                raise NotImplementedError()
+                [[LLM_INJECTION_END: GetAllImpl]]
+
+
+            def other():
+                pass
+            """;
+
+        var output = await FillOneFileAsync("app/repositories/product.py", template,
+            _ => "return db.query(Product).all()");
+
+        output.Should().Be("""
+            def get_all(db):
+                return db.query(Product).all()
+
+
+            def other():
+                pass
+            """);
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_Python_AlreadyIndentedMultiLineFillIsNotDoubleIndented()
+    {
+        // The prompt tells the model to match the file's indentation, so a well-behaved model
+        // answers at the def body's column. Line 1 used to lose those four spaces to Trim().
+        var template = """
+            def delete(db, id):
+                [[LLM_INJECTION_START: DeleteImpl]]
+                [[LLM_INJECTION_END: DeleteImpl]]
+
+            """;
+
+        var output = await FillOneFileAsync("app/repositories/product.py", template, _ => """
+                rows = db.query(Product).filter(Product.id == id).delete()
+                db.commit()
+                return rows > 0
+            """);
+
+        output.Should().Be("""
+            def delete(db, id):
+                rows = db.query(Product).filter(Product.id == id).delete()
+                db.commit()
+                return rows > 0
+
+            """);
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_Python_NestedBlocksKeepTheirRelativeIndentation()
+    {
+        var template = """
+            class ProductRepository:
+                def update(self, db, id, payload):
+                    [[LLM_INJECTION_START: UpdateImpl]]
+                    [[LLM_INJECTION_END: UpdateImpl]]
+
+            """;
+
+        // Model answered flush-left; the nesting inside the fill is what must survive.
+        var output = await FillOneFileAsync("app/repositories/product.py", template, _ => """
+            item = db.get(Product, id)
+            if item is None:
+                return None
+
+            for key, value in payload.model_dump().items():
+                setattr(item, key, value)
+            db.commit()
+            return item
+            """);
+
+        output.Should().Be("""
+            class ProductRepository:
+                def update(self, db, id, payload):
+                    item = db.get(Product, id)
+                    if item is None:
+                        return None
+
+                    for key, value in payload.model_dump().items():
+                        setattr(item, key, value)
+                    db.commit()
+                    return item
+
+            """);
+        output.Should().NotMatchRegex(@"(?m)^[ \t]+$", "a whitespace-only line is flake8 W293");
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_TabIndentedTemplate_GetsTabsNotSpaces()
+    {
+        var template = "def get(db, id):\n\t[[LLM_INJECTION_START: GetByIdImpl]]\n\t[[LLM_INJECTION_END: GetByIdImpl]]\n";
+
+        var output = await FillOneFileAsync("app/repositories/product.py", template,
+            _ => "\titem = db.get(Product, id)\n\tif item is None:\n\t\treturn None\n\treturn item");
+
+        output.Should().Be("def get(db, id):\n\titem = db.get(Product, id)\n\tif item is None:\n\t\treturn None\n\treturn item\n");
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_SpaceIndentedTemplate_TabFlushFillGetsTheMarkersSpaces()
+    {
+        // Absolute indentation always comes from the template; the fill only contributes nesting.
+        var template = "class Product:\n    [[LLM_INJECTION_START: Fields]]\n    [[LLM_INJECTION_END: Fields]]\n";
+
+        var output = await FillOneFileAsync("app/schemas/product.py", template, _ => "\tname: str\n\tprice: float");
+
+        output.Should().Be("class Product:\n    name: str\n    price: float\n");
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_FencedIndentedFill_KeepsTheFirstLinesIndentation()
+    {
+        // The old fence regex's `\s*` after "```python" also swallowed line 1's indentation.
+        var template = """
+            def get_all(db):
+                [[LLM_INJECTION_START: GetAllImpl]]
+                [[LLM_INJECTION_END: GetAllImpl]]
+
+            """;
+
+        var output = await FillOneFileAsync("app/repositories/product.py", template, _ => """
+            ```python
+            [[FILE:app/repositories/product.py]]
+                items = db.query(Product).all()
+                return items
+            [[END_FILE]]
+            ```
+            """);
+
+        output.Should().Be("""
+            def get_all(db):
+                items = db.query(Product).all()
+                return items
+
+            """);
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_CSharpMethodBody_EveryLineAtTheMarkersIndentation()
+    {
+        // Brace languages don't need this to compile, but the rule is the same for every file.
+        var template = """
+            public class ProductRepository
+            {
+                public async Task<Product?> GetByIdAsync(Guid id)
+                {
+                    [[LLM_INJECTION_START: GetByIdImpl]]
+                    [[LLM_INJECTION_END: GetByIdImpl]]
+                }
+            }
+            """;
+
+        var output = await FillOneFileAsync("Repositories/ProductRepository.cs", template, _ => """
+            await using var conn = await _db.OpenConnectionAsync();
+            return await conn.QuerySingleOrDefaultAsync<Product>(
+                "SELECT * FROM products WHERE id = @id", new { id });
+            """, ProjectType.DotNetNextJs);
+
+        output.Should().Be("""
+            public class ProductRepository
+            {
+                public async Task<Product?> GetByIdAsync(Guid id)
+                {
+                    await using var conn = await _db.OpenConnectionAsync();
+                    return await conn.QuerySingleOrDefaultAsync<Product>(
+                        "SELECT * FROM products WHERE id = @id", new { id });
+                }
+            }
+            """);
+    }
+
+    [Fact]
+    public async Task FillZonesAsync_TwoZonesInOneFile_EachIndentedToItsOwnMarker()
+    {
+        var template = """
+            [[LLM_INJECTION_START: Imports]]
+            [[LLM_INJECTION_END: Imports]]
+
+
+            class Product(Base):
+                [[LLM_INJECTION_START: Columns]]
+                [[LLM_INJECTION_END: Columns]]
+
+            """;
+
+        var output = await FillOneFileAsync("app/models/product.py", template, zone => zone == "Imports"
+            ? "    from sqlalchemy import String"
+            : "name = Column(String, nullable=False)\nprice = Column(Numeric(10, 2))");
+
+        output.Should().Be("""
+            from sqlalchemy import String
+
+
+            class Product(Base):
+                name = Column(String, nullable=False)
+                price = Column(Numeric(10, 2))
+
+            """);
+    }
+
     [Fact]
     public async Task FillZonesAsync_RetriesOnEmptyResponseThenSucceeds()
     {

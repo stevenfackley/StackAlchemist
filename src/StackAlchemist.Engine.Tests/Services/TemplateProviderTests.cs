@@ -115,6 +115,47 @@ public class TemplateProviderTests
     }
 
     [Fact]
+    public void InjectIntoZone_IndentsTheFillToTheStartMarker_AndKeepsTheEndMarkersIndentation()
+    {
+        // #450: the END marker's indentation used to be swallowed and line 1 left at column 0.
+        var template = "def get_all(db):\n    [[LLM_INJECTION_START: GetAllImpl]]\n    [[LLM_INJECTION_END: GetAllImpl]]\n";
+
+        var result = _sut.InjectIntoZone(template, "GetAllImpl", "items = db.all()\nif not items:\n    return []\nreturn items");
+
+        result.Should().Be(
+            "def get_all(db):\n"
+            + "    [[LLM_INJECTION_START: GetAllImpl]]\n"
+            + "    items = db.all()\n"
+            + "    if not items:\n"
+            + "        return []\n"
+            + "    return items\n"
+            + "    [[LLM_INJECTION_END: GetAllImpl]]\n");
+    }
+
+    [Fact]
+    public void InjectIntoZone_RefillingAZone_ReplacesThePreviousFillAtTheSameIndentation()
+    {
+        var template = "class A:\n    [[LLM_INJECTION_START: Body]]\n    [[LLM_INJECTION_END: Body]]\n";
+
+        var once = _sut.InjectIntoZone(template, "Body", "x = 1");
+        var twice = _sut.InjectIntoZone(once, "Body", "y = 2");
+
+        twice.Should().Be("class A:\n    [[LLM_INJECTION_START: Body]]\n    y = 2\n    [[LLM_INJECTION_END: Body]]\n");
+    }
+
+    [Fact]
+    public void InjectIntoZone_InsertsDollarSignsLiterally()
+    {
+        // The fill used to be spliced into a Regex replacement pattern, where $1, $_ and $& are tokens.
+        var template = "[[LLM_INJECTION_START: Body]]\n[[LLM_INJECTION_END: Body]]";
+        const string fill = "const url = `/items/${id}`; // $1 $_ $& $$";
+
+        var result = _sut.InjectIntoZone(template, "Body", fill);
+
+        result.Should().Be($"[[LLM_INJECTION_START: Body]]\n{fill}\n[[LLM_INJECTION_END: Body]]");
+    }
+
+    [Fact]
     public void Render_WithIfBlock_HonorsConditional()
     {
         var templates = new Dictionary<string, string>

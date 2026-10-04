@@ -170,12 +170,17 @@ public sealed partial class InjectionEngine(
             lastException);
     }
 
+    /// <summary>
+    /// Strips what a model wraps a fill in (markdown fences, stray <c>[[FILE:]]</c> markers) and
+    /// the blank lines around it. Never <c>Trim()</c>: that removed line 1's indentation, which is
+    /// what made every Python zone inside a <c>def</c>/<c>class</c> an IndentationError (#450).
+    /// <see cref="TemplateProvider.InjectIntoZone"/> owns the final indentation.
+    /// </summary>
     private static string CleanZoneContent(string raw)
     {
-        var trimmed = raw.Trim();
-        trimmed = MarkdownFenceRegex().Replace(trimmed, string.Empty);
-        trimmed = StrayFileMarkerRegex().Replace(trimmed, string.Empty);
-        return trimmed.Trim();
+        var cleaned = MarkdownFenceLineRegex().Replace(raw, string.Empty);
+        cleaned = StrayFileMarkerRegex().Replace(cleaned, string.Empty);
+        return ZoneIndentation.TrimBlankLines(cleaned);
     }
 
     private static TemplateEntity? FindEntityForFile(string filePath, List<TemplateEntity> entities)
@@ -190,10 +195,14 @@ public sealed partial class InjectionEngine(
             .FirstOrDefault();
     }
 
-    [GeneratedRegex(@"^```\w*\s*\n?|\n?```\s*$", RegexOptions.Multiline)]
-    private static partial Regex MarkdownFenceRegex();
+    // Whole fence lines only. The old `\s*` after the info string also ate the next line's
+    // leading whitespace.
+    [GeneratedRegex(@"^[ \t]*```[^`\r\n]*(?:\r?\n|\z)", RegexOptions.Multiline)]
+    private static partial Regex MarkdownFenceLineRegex();
 
-    [GeneratedRegex(@"\[\[(FILE:[^\]]*|END_FILE)\]\]\s*\n?")]
+    // A marker on its own line goes with its line; one sharing a line with code goes alone.
+    // Same `\s*` hazard as the fence regex: never consume the following line's indentation.
+    [GeneratedRegex(@"^[ \t]*\[\[(?:FILE:[^\]]*|END_FILE)\]\][ \t]*(?:\r?\n|\z)|\[\[(?:FILE:[^\]]*|END_FILE)\]\]", RegexOptions.Multiline)]
     private static partial Regex StrayFileMarkerRegex();
 
     // ── LoggerMessage source-gen ──────────────────────────────────────────────

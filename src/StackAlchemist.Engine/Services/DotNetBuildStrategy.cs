@@ -25,8 +25,8 @@ namespace StackAlchemist.Engine.Services;
 /// and drive the dual-build orchestration without a real toolchain. Nothing in production
 /// subclasses it.
 /// </remarks>
-public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
-    : BuildStrategyBase(logger)
+public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, BuildStrategyOptions? options = null)
+    : BuildStrategyBase(logger, options)
 {
     /// <summary>
     /// npm script the frontend is type-checked with when the template defines it. Optional
@@ -108,6 +108,11 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger)
         var installResult = await RunStepAsync(
             BuildHalf.NextJs, "npm ci", NpmExecutable, "ci --no-audit --no-fund",
             nextDir, transcript, steps, ct);
+
+        // A timed-out `npm ci` is a stall, not a lockfile desync: `npm install` would wait on the
+        // same registry for another full step deadline.
+        if (installResult.TimedOut)
+            return installResult;
 
         if (!installResult.IsSuccess)
         {

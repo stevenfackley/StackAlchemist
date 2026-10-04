@@ -97,7 +97,9 @@ public interface IDeliveryService
     /// Lists generation rows still in a non-terminal state whose last update predates
     /// <paramref name="olderThan"/>. Used by the periodic reconciler to find jobs
     /// orphaned by a restart or stalled in flight. Empty when Supabase is not
-    /// configured or the read fails.
+    /// configured or the read fails. A row whose stored JSON does not parse is still
+    /// listed, as a <see cref="GenerationSnapshot.IsUnreadable"/> snapshot, so the
+    /// reconciler can fail it instead of never seeing it (#425).
     /// </summary>
     Task<IReadOnlyList<GenerationSnapshot>> GetStaleNonTerminalAsync(TimeSpan olderThan, CancellationToken ct);
 

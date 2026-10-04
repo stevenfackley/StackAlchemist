@@ -35,6 +35,32 @@ public static class SnapshotMapper
             attemptCount ?? 0,
             updatedAt ?? DateTimeOffset.MinValue);
 
+    /// <summary>
+    /// What a stale-row sweep returns for a row whose jsonb did not parse: the plain columns only,
+    /// flagged <see cref="GenerationSnapshot.IsUnreadable"/>. Dropping the row instead (as the sweep
+    /// used to) left it non-terminal and stale, so it was skipped again on every tick, forever.
+    /// </summary>
+    public static GenerationSnapshot Unreadable(
+        string id,
+        string? status,
+        int? tier,
+        int? attemptCount,
+        DateTimeOffset? updatedAt) =>
+        new(
+            id,
+            status ?? "pending",
+            tier ?? 0,
+            Mode: null,
+            Prompt: null,
+            ProjectType: null,
+            Schema: null,
+            Personalization: null,
+            attemptCount ?? 0,
+            updatedAt ?? DateTimeOffset.MinValue)
+        {
+            IsUnreadable = true,
+        };
+
     // DeliveryJson.Read, not the default options: schema_json arrives lowercase from the Engine (its
     // keys are all single words, so snake_case is lowercase) and camelCase from the web, and a
     // case-sensitive read of either silently yields an empty model.

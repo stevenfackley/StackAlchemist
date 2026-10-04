@@ -57,6 +57,110 @@ public sealed class GenerationReconciliationServiceTests
             new GenerationSchema(), null, attemptCount,
             updatedAt ?? DateTimeOffset.UtcNow.AddMinutes(-30));
 
+    // ── #425: a row whose stored JSON no longer parses is failed, not skipped forever ──
+
+    private static GenerationSnapshot UnreadableRow(
+        string id = "gen-unreadable",
+        string status = "generating_code",
+        int attemptCount = 0,
+        DateTimeOffset? updatedAt = null,
+        int tier = 0) =>
+        new(id, status, tier, null, null, null, null, null, attemptCount,
+            updatedAt ?? DateTimeOffset.UtcNow.AddMinutes(-30))
+        {
+            IsUnreadable = true,
+        };
+
+    [Theory]
+    [InlineData("pending")]
+    [InlineData("generating_code")]
+    [InlineData("building")]
+    public async Task RunOnce_UnreadableRow_IsFailedWithASchemaCategory_NeverRequeued(string status)
+    {
+        var (sut, delivery, orchestrator, _, _) = BuildSut();
+        var row = UnreadableRow(status: status);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow,
+            Arg.Is<string>(m => m.Contains("could not be read")),
+            ErrorCategorizer.Schema,
+            Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_UnreadableRow_DoesNotStopTheSweepForOtherRows()
+    {
+        var (sut, delivery, orchestrator, _, _) = BuildSut();
+        var unreadable = UnreadableRow();
+        var healthy = StaleRow(id: "gen-healthy");
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([unreadable, healthy]);
+        delivery.TryClaimForRequeueAsync(healthy, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.Received(1).TryFailStaleRowAsync(
+            unreadable, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Schema, Arg.Any<CancellationToken>());
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-healthy"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_UnreadableRowInFlightInThisProcess_IsLeftAlone()
+    {
+        var (sut, delivery, _, registry, _) = BuildSut();
+        var row = UnreadableRow();
+        registry.Add(row.Id);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_UnreadableUnpaidPaidTierRow_StillWaitsOnItsCheckout()
+    {
+        // The payment gate runs first: failing an unpaid row would leave a checkout the user can
+        // still complete pointing at a failed generation.
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unreadable", Arg.Any<CancellationToken>())
+            .Returns((EligibleTransaction?)null);
+        var (sut, delivery, _, _, _) = BuildSut(billing: billing);
+        var row = UnreadableRow(status: "pending", tier: 2, updatedAt: DateTimeOffset.UtcNow.AddHours(-2));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_UnreadablePaidTierRow_IsFailedOncePaid()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unreadable", Arg.Any<CancellationToken>())
+            .Returns(new EligibleTransaction("tx-1", "pi_1"));
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = UnreadableRow(status: "pending", tier: 2);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Schema, Arg.Any<CancellationToken>());
+    }
+
     // ── #421: unpaid paid-tier checkouts are never built ─────────────────────────
 
     [Fact]
