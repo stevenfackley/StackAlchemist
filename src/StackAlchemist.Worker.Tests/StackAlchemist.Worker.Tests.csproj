@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StackAlchemist.Engine\StackAlchemist.Engine.csproj" />
+    <ProjectReference Include="..\StackAlchemist.Worker\StackAlchemist.Worker.csproj" />
   </ItemGroup>
 
 </Project>

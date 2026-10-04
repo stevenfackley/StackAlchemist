@@ -577,6 +577,12 @@
           "Stripe.net": "[53.0.0, )",
           "System.IO.Abstractions": "[22.*, )"
         }
+      },
+      "stackalchemist.worker": {
+        "type": "Project",
+        "dependencies": {
+          "StackAlchemist.Engine": "[1.0.0, )"
+        }
       }
     }
   }
