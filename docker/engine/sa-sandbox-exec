@@ -1,0 +1,20 @@
+#!/bin/sh
+# Runs one Compile Guarantee build command as the unprivileged build user (StackAlchemist#454).
+#
+#   sa-sandbox-exec <command> [args...]
+#
+# The Engine (root) calls this for every build command (BuildSandbox.Apply) and to kill the
+# build user's leftover processes. The caller sets the environment: an allowlist, plus HOME and
+# TMPDIR inside the job's private HOME.
+#
+# - setpriv: uid/gid 10001 (sa-builder, created in the Dockerfile), no supplementary groups,
+#   no-new-privs (a setuid binary cannot raise it back), empty inheritable set and bounding set.
+#   Root's /proc/<pid>/environ, which holds the Engine's secrets, is unreadable from here.
+# - prlimit: a process ceiling against fork bombs and no core dumps. One build runs at a time,
+#   so the per-uid process count is this build's.
+set -eu
+exec setpriv \
+    --reuid=10001 --regid=10001 --clear-groups \
+    --no-new-privs --inh-caps=-all --bounding-set=-all \
+    -- prlimit --nproc=4096 --core=0 \
+    -- "$@"

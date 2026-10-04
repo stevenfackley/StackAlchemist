@@ -86,6 +86,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-pip \
         python3-venv \
+        iptables \
+        procps \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 # Node.js — PythonReactBuildStrategy runs `npm install`, `npm run lint`, and `npx tsc`
@@ -97,6 +99,21 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install
 # --system-site-packages, so the flake8/pytest below stay reachable as a fallback for
 # generated projects whose requirements.txt omits them.
 RUN python3 -m pip install --no-cache-dir --break-system-packages flake8 pytest
+# Build sandbox (#454). Compile Guarantee builds run LLM-generated code, so they run as
+# sa-builder (uid 10001, no login, no home) through sa-sandbox-exec, in a per-job copy under
+# /var/lib/stackalchemist/build (0711: enterable, not listable). The Engine's own temp tree,
+# where it keeps every job's source and archive, is /var/lib/stackalchemist/tmp (0700 root).
+# entrypoint.sh installs the build user's egress firewall, then starts the Engine.
+RUN groupadd --system --gid 10001 sa-builder \
+    && useradd --system --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent \
+        --shell /usr/sbin/nologin sa-builder \
+    && install -d -m 0711 /var/lib/stackalchemist /var/lib/stackalchemist/build \
+    && install -d -m 0700 /var/lib/stackalchemist/tmp
+COPY --chmod=0755 docker/engine/ /usr/local/lib/stackalchemist/
+ENV SA_BUILD_UID=10001 \
+    SA_BUILD_GID=10001 \
+    SA_BUILD_ROOT=/var/lib/stackalchemist/build \
+    TMPDIR=/var/lib/stackalchemist/tmp
 ENV ASPNETCORE_URLS=http://+:80
 WORKDIR /app
 COPY --from=engine-builder /app/publish .
@@ -107,7 +124,7 @@ COPY --from=engine-builder /app/publish .
 COPY src/StackAlchemist.Templates/ ./StackAlchemist.Templates/
 EXPOSE 80
 EXPOSE 443
-ENTRYPOINT ["dotnet", "StackAlchemist.Engine.dll"]
+ENTRYPOINT ["/usr/local/lib/stackalchemist/entrypoint.sh"]
 
 # ==========================================
 # STAGE 3: .NET WORKER (COMPILE GUARANTEE)

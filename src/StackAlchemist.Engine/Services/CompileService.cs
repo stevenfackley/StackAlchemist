@@ -8,7 +8,8 @@ namespace StackAlchemist.Engine.Services;
 /// </summary>
 public sealed partial class CompileService(
     IEnumerable<IBuildStrategy> strategies,
-    ILogger<CompileService> logger) : ICompileService
+    ILogger<CompileService> logger,
+    BuildSandbox? sandbox = null) : ICompileService
 {
     private const int MaxContextChars = 8_000;
 
@@ -19,12 +20,25 @@ public sealed partial class CompileService(
         .GroupBy(strategy => strategy.SupportedProjectType)
         .ToDictionary(group => group.Key, group => group.Last());
 
-    public Task<BuildResult> ExecuteBuildAsync(
+    public async Task<BuildResult> ExecuteBuildAsync(
         string projectDirectory,
         ProjectType projectType,
         CancellationToken ct = default)
     {
-        return ResolveStrategy(projectType).ExecuteBuildAsync(projectDirectory, ct);
+        var strategy = ResolveStrategy(projectType);
+        if (sandbox is null)
+            return await strategy.ExecuteBuildAsync(projectDirectory, ct);
+
+        // The build runs in a copy the build user owns; this tree stays the Engine's (#454).
+        var buildDirectory = await sandbox.PrepareAsync(projectDirectory, ct);
+        try
+        {
+            return await strategy.ExecuteBuildAsync(buildDirectory, ct);
+        }
+        finally
+        {
+            await sandbox.FinishAsync(projectDirectory, buildDirectory, CancellationToken.None);
+        }
     }
 
     public List<string> ExtractBuildErrors(string buildOutput, ProjectType projectType)
