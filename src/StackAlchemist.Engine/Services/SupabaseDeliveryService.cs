@@ -289,7 +289,8 @@ public sealed partial class SupabaseDeliveryService(
             foreach (var row in doc.RootElement.EnumerateArray())
             {
                 // Per row: schema_json can be client-supplied, so one row that does not fit the model
-                // must cost only that row, not blind the whole sweep for every other user.
+                // must cost only that row, not blind the whole sweep for every other user. It is still
+                // returned, flagged unreadable, so the reconciler can fail it (#425).
                 try
                 {
                     if (ParseSnapshot(row) is { } snapshot)
@@ -297,10 +298,9 @@ public sealed partial class SupabaseDeliveryService(
                 }
                 catch (JsonException ex)
                 {
-                    var id = row.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String
-                        ? idEl.GetString()!
-                        : "(no id)";
-                    LogSnapshotReadFailed(logger, ex, id);
+                    LogSnapshotReadFailed(logger, ex, JsonText(row, "id") ?? "(no id)");
+                    if (ParseUnreadableSnapshot(row) is { } unreadable)
+                        rows.Add(unreadable);
                 }
             }
             return rows;
@@ -494,34 +494,46 @@ public sealed partial class SupabaseDeliveryService(
 
     private static GenerationSnapshot? ParseSnapshot(JsonElement row)
     {
-        var id = Text(row, "id");
+        var id = JsonText(row, "id");
         if (id is null) return null;
 
         return SnapshotMapper.Map(
             id,
-            status: Text(row, "status"),
-            tier: Int(row, "tier"),
-            mode: Text(row, "mode"),
-            prompt: Text(row, "prompt"),
-            projectType: Text(row, "project_type"),
+            status: JsonText(row, "status"),
+            tier: JsonInt(row, "tier"),
+            mode: JsonText(row, "mode"),
+            prompt: JsonText(row, "prompt"),
+            projectType: JsonText(row, "project_type"),
             schemaJson: RawJson(row, "schema_json"),
             personalizationJson: RawJson(row, "personalization_json"),
-            attemptCount: Int(row, "attempt_count"),
-            updatedAt: Text(row, "updated_at") is { } ua && DateTimeOffset.TryParse(ua, out var parsedUa)
-                ? parsedUa
-                : null);
-
-        static string? Text(JsonElement row, string name) =>
-            row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
-
-        static int? Int(JsonElement row, string name) =>
-            row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number ? el.GetInt32() : null;
+            attemptCount: JsonInt(row, "attempt_count"),
+            updatedAt: JsonUpdatedAt(row));
 
         static string? RawJson(JsonElement row, string name) =>
             row.TryGetProperty(name, out var el) && el.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined
                 ? el.GetRawText()
                 : null;
     }
+
+    // Same row, none of the jsonb columns: what the reconciler needs to fail it and nothing more.
+    private static GenerationSnapshot? ParseUnreadableSnapshot(JsonElement row) =>
+        JsonText(row, "id") is { } id
+            ? SnapshotMapper.Unreadable(
+                id,
+                status: JsonText(row, "status"),
+                tier: JsonInt(row, "tier"),
+                attemptCount: JsonInt(row, "attempt_count"),
+                updatedAt: JsonUpdatedAt(row))
+            : null;
+
+    private static string? JsonText(JsonElement row, string name) =>
+        row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+
+    private static int? JsonInt(JsonElement row, string name) =>
+        row.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number ? el.GetInt32() : null;
+
+    private static DateTimeOffset? JsonUpdatedAt(JsonElement row) =>
+        JsonText(row, "updated_at") is { } ua && DateTimeOffset.TryParse(ua, out var parsed) ? parsed : null;
 
     // ── Shared PATCH helper ─────────────────────────────────────────────────
 

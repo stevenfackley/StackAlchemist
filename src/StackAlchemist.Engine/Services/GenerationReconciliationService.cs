@@ -14,7 +14,8 @@ namespace StackAlchemist.Engine.Services;
 /// actively processing, (4) leave unpaid paid-tier checkouts alone (and fail them once
 /// their Checkout Session can no longer be paid), (5) re-enqueue pending/generating_code
 /// rows under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
-/// message.
+/// message. A row whose stored schema no longer parses is failed at step (5) instead: it can
+/// never be rebuilt, and skipping it left it stale on every tick, forever (#425).
 ///
 /// Step (4) closes #421: the web inserts a paid-tier row as `pending` before the user pays,
 /// and the Stripe webhook is what starts it. Without the payment check an abandoned checkout
@@ -47,6 +48,10 @@ public sealed partial class GenerationReconciliationService(
     // that died with the old process, and extracting_schema is driven by a frontend
     // HTTP call we cannot replay — those fail with a clear message instead.
     private static readonly HashSet<string> RequeueableStatuses = ["pending", "generating_code", "generating"];
+
+    internal const string UnreadableRowMessage =
+        "This generation could not be resumed: its saved schema or settings could not be read. "
+        + "Please start a new generation.";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -114,6 +119,15 @@ public sealed partial class GenerationReconciliationService(
                     await deliveryService.TryFailStaleRowAsync(
                         row, staleWindow, "Checkout was not completed.", ErrorCategorizer.Internal, ct);
                 }
+                continue;
+            }
+
+            // After the payment gate on purpose: an unpaid row waits on its checkout like any other.
+            if (row.IsUnreadable)
+            {
+                LogFailingUnreadableRow(logger, row.Id, row.Status);
+                await deliveryService.TryFailStaleRowAsync(
+                    row, staleWindow, UnreadableRowMessage, ErrorCategorizer.Schema, ct);
                 continue;
             }
 
@@ -214,4 +228,7 @@ public sealed partial class GenerationReconciliationService(
 
     [LoggerMessage(EventId = 705, Level = LogLevel.Warning, Message = "Could not check payment for pending generation {Id} — skipping it this tick")]
     private static partial void LogPaymentLookupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 706, Level = LogLevel.Warning, Message = "Failing generation {Id} (was {Status}): its stored schema/personalization JSON could not be read")]
+    private static partial void LogFailingUnreadableRow(ILogger logger, string id, string status);
 }
