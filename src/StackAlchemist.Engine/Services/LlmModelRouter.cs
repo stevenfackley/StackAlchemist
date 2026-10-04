@@ -5,7 +5,7 @@ namespace StackAlchemist.Engine.Services;
 /// <summary>
 /// Derives the provider + real model id from a stored <c>preferred_model</c> string. The web app
 /// (ByokSettingsForm / ALLOWED_PROFILE_MODELS) stores provider-prefixed values for BYOK-only
-/// providers ("openai/gpt-4o-mini", "openrouter/anthropic/claude-3.5-sonnet"); an unprefixed value
+/// providers ("openai/gpt-6.1-sol", "openrouter/anthropic/claude-sonnet-5.5"); an unprefixed value
 /// is an Anthropic model sent verbatim to the Messages API.
 /// </summary>
 public static class LlmModelRouter
@@ -14,8 +14,8 @@ public static class LlmModelRouter
     private const string OpenRouterPrefix = "openrouter/";
 
     /// <summary>
-    /// Maps e.g. "openai/gpt-4o-mini" → (OpenAi, "gpt-4o-mini") and
-    /// "openrouter/anthropic/claude-3.5-sonnet" → (OpenRouter, "anthropic/claude-3.5-sonnet").
+    /// Maps e.g. "openai/gpt-6.1-sol" → (OpenAi, "gpt-6.1-sol") and
+    /// "openrouter/anthropic/claude-sonnet-5.5" → (OpenRouter, "anthropic/claude-sonnet-5.5").
     /// Any other value is treated as an Anthropic model id. Prefix matching is case-insensitive so a
     /// mis-cased "OpenAI/…" cannot silently fall through to the Anthropic path.
     /// </summary>

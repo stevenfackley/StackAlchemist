@@ -126,15 +126,15 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
   });
 
   it("profile upsert: undefined leaves the key, null clears it", async () => {
-    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-4-6", api_key_override: "v1:cipher" });
-    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-3-5-haiku-20241022" });
+    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-5-5", api_key_override: "v1:cipher" });
+    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-haiku-4-5" });
     expect((await store.getProfile(alice))?.api_key_override).toBe("v1:cipher");
-    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-4-6", api_key_override: null });
+    await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-5-5", api_key_override: null });
     expect((await store.getProfile(alice))?.api_key_override).toBeNull();
   });
 
   it("getProfile returns only the settings columns, and null for an unknown or malformed id", async () => {
-    expect(await store.getProfile(bob)).toEqual({ email: "bob@example.test", api_key_override: null, preferred_model: "claude-sonnet-4-6" });
+    expect(await store.getProfile(bob)).toEqual({ email: "bob@example.test", api_key_override: null, preferred_model: "claude-sonnet-5-5" });
     expect(await store.getProfile(randomUUID())).toBeNull();
     expect(await store.getProfile("not-a-uuid")).toBeNull();
   });
@@ -142,8 +142,8 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
   it("profile upsert inserts an unseen id, storing an omitted key as null", async () => {
     const carol = randomUUID();
     try {
-      await store.upsertProfile({ id: carol, email: "carol@example.test", preferred_model: "claude-3-5-haiku-20241022", api_key_override: undefined });
-      expect(await store.getProfile(carol)).toEqual({ email: "carol@example.test", api_key_override: null, preferred_model: "claude-3-5-haiku-20241022" });
+      await store.upsertProfile({ id: carol, email: "carol@example.test", preferred_model: "claude-haiku-4-5", api_key_override: undefined });
+      expect(await store.getProfile(carol)).toEqual({ email: "carol@example.test", api_key_override: null, preferred_model: "claude-haiku-4-5" });
     } finally {
       await sql`delete from stackalchemist.profiles where id = ${carol}`;
     }

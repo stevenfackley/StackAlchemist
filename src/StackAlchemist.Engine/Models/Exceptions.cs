@@ -95,6 +95,27 @@ public class LlmRateLimitException : Exception
     public LlmRateLimitException(string message) : base(message) { }
 }
 
+/// <summary>
+/// Thrown when the model declines a request (<c>stop_reason: "refusal"</c>) and no server-side
+/// fallback model completed it. <see cref="Category"/> carries the API's <c>stop_details.category</c>
+/// (e.g. <c>"cyber"</c>, <c>"general_harms"</c>) when present. Categorized as "internal": the
+/// error_category CHECK enum has no dedicated value, and the message itself is user-safe.
+/// </summary>
+public class LlmRefusalException : Exception
+{
+    public LlmRefusalException(string model, string? category)
+        : base($"The model ({model}) declined this request" +
+               (string.IsNullOrWhiteSpace(category) ? "" : $" (safety category: {category})") +
+               ". Rephrase the project description and try again.")
+    {
+        Model = model;
+        Category = category;
+    }
+
+    public string Model { get; }
+    public string? Category { get; }
+}
+
 /// <summary>Thrown when a tier value outside the range 1–3 is supplied.</summary>
 public class InvalidTierException : Exception
 {

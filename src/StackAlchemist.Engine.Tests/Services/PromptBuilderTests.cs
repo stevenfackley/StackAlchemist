@@ -5,7 +5,7 @@ using StackAlchemist.Engine.Services;
 namespace StackAlchemist.Engine.Tests.Services;
 
 /// <summary>
-/// Tests for PromptBuilderService — constructs the system/user prompts sent to Claude 3.5 Sonnet.
+/// Tests for PromptBuilderService — constructs the system/user prompts sent to the generation model.
 /// </summary>
 public class PromptBuilderTests
 {
@@ -113,7 +113,7 @@ public class PromptBuilderTests
 
         var estimatedTokens = prompt.Length / 4;  // rough estimate: 4 chars per token
         estimatedTokens.Should().BeLessThan(50_000,
-            "prompt should stay well under Claude 3.5's context limit");
+            "prompt should stay well under the model's context limit");
     }
 
     // ── BuildInjectionPrompt (Swiss Cheese, per-zone) ─────────────────────────

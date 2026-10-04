@@ -22,7 +22,7 @@ public class AnthropicLlmClientTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Anthropic:ApiKey"]    = apiKey,
-                ["Anthropic:Model"]     = "claude-sonnet-4-6",
+                ["Anthropic:Model"]     = "claude-sonnet-5-5",
                 ["Anthropic:MaxTokens"] = "100",
             })
             .Build();
@@ -71,7 +71,7 @@ public class AnthropicLlmClientTests
         result.Text.Should().Be("[[FILE:test.cs]]content[[END_FILE]]");
         result.InputTokens.Should().Be(10);
         result.OutputTokens.Should().Be(5);
-        result.Model.Should().Be("claude-sonnet-4-6");
+        result.Model.Should().Be("claude-sonnet-5-5");
     }
 
     [Fact]
@@ -247,6 +247,154 @@ public class AnthropicLlmClientTests
             .Should().ContainSingle().Which.Should().Be("2023-06-01");
     }
 
+    // ── Request shape per model (Claude Sonnet 5.5 default) ──────────────────
+
+    private static IConfiguration ConfigFor(string model, string? effort = null, string? maxTokens = "100") =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Anthropic:ApiKey"]    = "test-key",
+                ["Anthropic:Model"]     = model,
+                ["Anthropic:MaxTokens"] = maxTokens,
+                ["Anthropic:Effort"]    = effort,
+            })
+            .Build();
+
+    private static async Task<(JsonElement Body, BodyCapturingHttpHandler Handler)> SendAndCapture(IConfiguration config)
+    {
+        var handler = new BodyCapturingHttpHandler(JsonSerializer.Serialize(new
+        {
+            content = new[] { new { type = "text", text = "ok" } },
+            stop_reason = "end_turn",
+        }));
+        await BuildClient(config, handler).GenerateAsync("system", "user");
+        return (JsonDocument.Parse(handler.LastBody!).RootElement, handler);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SonnetFiveFive_SendsMediumEffortAndDefaultFallbacks()
+    {
+        var (body, handler) = await SendAndCapture(ConfigFor("claude-sonnet-5-5"));
+
+        body.GetProperty("model").GetString().Should().Be("claude-sonnet-5-5");
+        body.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
+        body.GetProperty("fallbacks").GetString().Should().Be("default");
+        body.TryGetProperty("thinking", out _).Should().BeFalse("adaptive thinking is the default; disabled is a 400");
+        body.TryGetProperty("temperature", out _).Should().BeFalse("non-default sampling params are a 400");
+        handler.LastBetaHeader.Should().Be("server-side-fallback-2026-07-01");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_EffortComesFromConfig()
+    {
+        var (body, _) = await SendAndCapture(ConfigFor("claude-opus-5-5", effort: "high"));
+
+        body.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("high");
+        body.GetProperty("fallbacks").GetString().Should().Be("default");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_UnknownEffortValue_FallsBackToMedium()
+    {
+        var (body, _) = await SendAndCapture(ConfigFor("claude-sonnet-5-5", effort: "turbo"));
+
+        body.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_HaikuFourFive_SendsNeitherEffortNorFallbacks()
+    {
+        // Effort errors on Haiku 4.5, and it has no server-side fallback.
+        var (body, handler) = await SendAndCapture(ConfigFor("claude-haiku-4-5"));
+
+        body.TryGetProperty("output_config", out _).Should().BeFalse();
+        body.TryGetProperty("fallbacks", out _).Should().BeFalse();
+        handler.LastBetaHeader.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SonnetFourSix_SendsEffortButNoFallbacks()
+    {
+        var (body, handler) = await SendAndCapture(ConfigFor("claude-sonnet-4-6"));
+
+        body.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
+        body.TryGetProperty("fallbacks", out _).Should().BeFalse();
+        handler.LastBetaHeader.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_NoMaxTokensConfigured_DefaultsToTwentyThousand()
+    {
+        var (body, _) = await SendAndCapture(ConfigFor("claude-sonnet-5-5", maxTokens: null));
+
+        body.GetProperty("max_tokens").GetInt32().Should().Be(20_000);
+    }
+
+    // ── Response parsing ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GenerateAsync_ReadsTextBlocksByType_SkippingThinking()
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            content = new object[]
+            {
+                new { type = "thinking", thinking = "", signature = "sig" },
+                new { type = "text", text = "[[FILE:a.cs]]a" },
+                new { type = "text", text = "[[END_FILE]]" },
+            },
+            stop_reason = "end_turn",
+            usage = new { input_tokens = 1, output_tokens = 2 },
+        });
+        var client = BuildClient(BuildConfig(), new FakeHttpHandler(HttpStatusCode.OK, payload));
+
+        var result = await client.GenerateAsync("system", "user");
+
+        result.Text.Should().Be("[[FILE:a.cs]]a[[END_FILE]]");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AfterServerSideFallback_UsesOnlyTheFallbackModelsTextAndModel()
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            model = "claude-sonnet-5",
+            content = new object[]
+            {
+                new { type = "text", text = "declined partial" },
+                new { type = "fallback", from = new { model = "claude-sonnet-5-5" }, to = new { model = "claude-sonnet-5" } },
+                new { type = "text", text = "fallback answer" },
+            },
+            stop_reason = "end_turn",
+            usage = new { input_tokens = 3, output_tokens = 4 },
+        });
+        var client = BuildClient(BuildConfig(), new FakeHttpHandler(HttpStatusCode.OK, payload));
+
+        var result = await client.GenerateAsync("system", "user");
+
+        result.Text.Should().Be("fallback answer");
+        result.Model.Should().Be("claude-sonnet-5", "token accounting records the model that served the turn");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_Refusal_ThrowsLlmRefusalExceptionWithCategory()
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            content = Array.Empty<object>(),
+            stop_reason = "refusal",
+            stop_details = new { type = "refusal", category = "general_harms", explanation = "x" },
+            usage = new { input_tokens = 3, output_tokens = 0 },
+        });
+        var client = BuildClient(BuildConfig(), new FakeHttpHandler(HttpStatusCode.OK, payload));
+
+        var act = () => client.GenerateAsync("system", "user");
+
+        var ex = (await act.Should().ThrowAsync<StackAlchemist.Engine.Models.LlmRefusalException>()).Which;
+        ex.Category.Should().Be("general_harms");
+        ex.Message.Should().Contain("declined");
+    }
+
     // ── Test doubles ─────────────────────────────────────────────────────────
 
     private sealed class FakeHttpHandler(HttpStatusCode status, string body)
@@ -273,6 +421,23 @@ public class AnthropicLlmClientTests
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
+        }
+    }
+
+    private sealed class BodyCapturingHttpHandler(string body) : HttpMessageHandler
+    {
+        public string? LastBody { get; private set; }
+        public string? LastBetaHeader { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            LastBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            LastBetaHeader = request.Headers.TryGetValues("anthropic-beta", out var v) ? string.Join(",", v) : null;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            };
         }
     }
 

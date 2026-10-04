@@ -7,10 +7,10 @@ namespace StackAlchemist.Engine.Tests.Services;
 public class LlmModelRouterTests
 {
     [Theory]
-    [InlineData("claude-sonnet-4-6", LlmProvider.Anthropic, "claude-sonnet-4-6")]
-    [InlineData("claude-3-5-haiku-20241022", LlmProvider.Anthropic, "claude-3-5-haiku-20241022")]
-    [InlineData("openai/gpt-4o-mini", LlmProvider.OpenAi, "gpt-4o-mini")]
-    [InlineData("openrouter/anthropic/claude-3.5-sonnet", LlmProvider.OpenRouter, "anthropic/claude-3.5-sonnet")]
+    [InlineData("claude-sonnet-5-5", LlmProvider.Anthropic, "claude-sonnet-5-5")]
+    [InlineData("claude-haiku-4-5", LlmProvider.Anthropic, "claude-haiku-4-5")]
+    [InlineData("openai/gpt-6.1-sol", LlmProvider.OpenAi, "gpt-6.1-sol")]
+    [InlineData("openrouter/anthropic/claude-sonnet-5.5", LlmProvider.OpenRouter, "anthropic/claude-sonnet-5.5")]
     public void Resolve_MapsPrefixToProviderAndStripsIt(string model, LlmProvider expectedProvider, string expectedModel)
     {
         var (provider, realModel) = LlmModelRouter.Resolve(model);
@@ -29,8 +29,8 @@ public class LlmModelRouterTests
     }
 
     [Theory]
-    [InlineData("OpenAI/gpt-4o-mini", LlmProvider.OpenAi, "gpt-4o-mini")]
-    [InlineData("OPENROUTER/anthropic/claude-3.5-sonnet", LlmProvider.OpenRouter, "anthropic/claude-3.5-sonnet")]
+    [InlineData("OpenAI/gpt-6.1-sol", LlmProvider.OpenAi, "gpt-6.1-sol")]
+    [InlineData("OPENROUTER/anthropic/claude-sonnet-5.5", LlmProvider.OpenRouter, "anthropic/claude-sonnet-5.5")]
     public void Resolve_PrefixMatchingIsCaseInsensitive(string model, LlmProvider expectedProvider, string expectedModel)
     {
         // L1: a mis-cased prefix must not silently fall through to the Anthropic path (which, pre-fix,

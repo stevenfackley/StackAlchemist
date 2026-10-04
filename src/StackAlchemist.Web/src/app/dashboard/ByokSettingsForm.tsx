@@ -17,27 +17,27 @@ type ModelOption = {
   disabled?: boolean;
 };
 
+// Mirrors ALLOWED_PROFILE_MODELS in lib/actions.ts.
 const MODEL_OPTIONS: ModelOption[] = [
   {
-    value: "claude-sonnet-4-6",
-    label: "Claude Sonnet 4.6 (default)",
+    value: "claude-sonnet-5-5",
+    label: "Claude Sonnet 5.5 (default)",
   },
   {
-    value: "claude-3-5-sonnet-20241022",
-    label: "Claude 3.5 Sonnet (retired by Anthropic — do not select)",
-    disabled: true,
+    value: "claude-opus-5-5",
+    label: "Claude Opus 5.5 (needs your Anthropic key)",
   },
   {
-    value: "claude-3-5-haiku-20241022",
-    label: "Claude 3.5 Haiku",
+    value: "claude-haiku-4-5",
+    label: "Claude Haiku 4.5 (fastest)",
   },
   {
-    value: "openai/gpt-4o-mini",
-    label: "OpenAI GPT-4o mini (BYOK)",
+    value: "openai/gpt-6.1-sol",
+    label: "OpenAI GPT-6.1 Sol (BYOK)",
   },
   {
-    value: "openrouter/anthropic/claude-3.5-sonnet",
-    label: "OpenRouter Claude 3.5 Sonnet (BYOK)",
+    value: "openrouter/anthropic/claude-sonnet-5.5",
+    label: "OpenRouter Claude Sonnet 5.5 (BYOK)",
   },
 ];
 

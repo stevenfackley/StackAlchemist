@@ -78,6 +78,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     // LLM
     ["Anthropic:ApiKey"]              = Ev("ANTHROPIC_API_KEY"),
     ["Anthropic:Model"]               = Ev("ANTHROPIC_MODEL"),
+    ["Anthropic:Effort"]              = Ev("ANTHROPIC_EFFORT"),
     // Cloudflare R2
     ["CloudflareR2:AccountId"]        = Ev("R2_ACCOUNT_ID"),
     ["CloudflareR2:AccessKeyId"]      = Ev("R2_ACCESS_KEY_ID"),
@@ -219,7 +220,8 @@ builder.Services.AddRateLimiter(rl =>
 builder.Services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
 {
     client.BaseAddress = new Uri("https://api.anthropic.com");
-    client.Timeout = TimeSpan.FromMinutes(5); // LLM calls can be long
+    // Non-streaming calls with up to 20K output tokens (thinking included) on Sonnet 5.5.
+    client.Timeout = TimeSpan.FromMinutes(10);
 });
 
 // BYOK providers (OpenAI-compatible Chat Completions). Base addresses end in "/v1/" so the

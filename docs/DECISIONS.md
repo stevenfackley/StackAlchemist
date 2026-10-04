@@ -813,3 +813,37 @@ recorded response through the real services and builds both halves in CI.
   - V2-DotNet pages are styled for the first time.
   - `npm run lint` runs in both Next templates, and those templates' `tsc` is TS 6.0.
   - The Tier-3 CDK app compiles with `tsc` instead of running through ts-node.
+
+---
+
+## 2026-10-03 — Default model → Claude Sonnet 5.5; BYOK list refreshed
+
+**Status:** accepted
+**Context:** `claude-sonnet-4-6` ($3/$15 per MTok) has two newer, cheaper successors in the Sonnet line. `claude-sonnet-5-5` costs $2/$10 per MTok. Under the standing rule ("at equal price use the latest; a cheaper Sonnet may be revisited"), the cheaper and newer model wins. The BYOK list still offered two retired Anthropic ids and `gpt-4o-mini`.
+**Decision:**
+- **Default:** engine, web and DB default → `claude-sonnet-5-5`. `vars.ANTHROPIC_MODEL` is flipped in the same change.
+- **Request shape.**
+  - No `thinking` field: adaptive thinking is the default, and `disabled` is a 400 on this model.
+  - No sampling parameters: non-default values are a 400.
+  - `output_config.effort` defaults to `medium`, Anthropic's starting point for code generation on 5.5. The levels were recalibrated, so it is configurable through `ANTHROPIC_EFFORT`. It is sent only to models that accept it; Haiku 4.5 rejects it.
+  - `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) goes to the models that accept it, so a safety-classifier decline is retried server-side.
+- **Response parsing.**
+  - Content is read by block type.
+  - Text before a `fallback` block is the declining model's partial output and is dropped.
+  - `model_used` records the model that actually served the turn.
+  - `stop_reason: "refusal"` throws `LlmRefusalException`, which records the category; the error category is `internal`.
+- **Budget:**
+  - `Anthropic:MaxTokens` goes 8,192 → 20,000. The Sonnet 5.x tokenizer uses about 30% more tokens than 4.6 for the same text, and thinking counts toward the limit.
+  - The Anthropic HTTP timeout goes 5 → 10 minutes for these non-streaming calls.
+- **Global-key allowlist:** the Engine allowlist is `claude-sonnet-5-5` and `claude-haiku-4-5`. Opus 5.5 is offered only with the user's own Anthropic key, as Opus was before.
+- **BYOK options:**
+  - Claude Sonnet 5.5 (default)
+  - Claude Opus 5.5
+  - Claude Haiku 4.5
+  - OpenAI `gpt-6.1-sol`. OpenAI requests now send `max_completion_tokens`; GPT-5-era models reject `max_tokens`.
+  - OpenRouter `anthropic/claude-sonnet-5.5`
+- **Stored choices:** Drizzle migration `0002_model_defaults` remaps each retired stored id to the current model from the same provider, so a BYOK user keeps routing to the key they stored.
+**Consequences:**
+- Per-token cost falls about 33%, while the same text costs about 30% more tokens. Medium-effort thinking adds output tokens. Expected cost per generation is roughly flat against 4.6 and stays far under the $0.50 target. Re-baseline from `generations.input_tokens/output_tokens` after a week of traffic before touching effort.
+- Sonnet 5.5 has its own rate-limit pool. Check the tier's limits before raising Swiss Cheese concurrency.
+- Prompts were not retuned. The migration guide says Sonnet-era prompts carry over. An effort sweep against real generations is the open tuning item.

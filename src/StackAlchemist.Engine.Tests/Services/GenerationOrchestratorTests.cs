@@ -56,7 +56,7 @@ public class GenerationOrchestratorTests
                 "[[FILE:dotnet/Program.cs]]\nvar builder = WebApplication.CreateBuilder(args);\n[[END_FILE]]",
                 10,
                 20,
-                "claude-sonnet-4-6"));
+                "claude-sonnet-5-5"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
@@ -150,7 +150,7 @@ public class GenerationOrchestratorTests
 
         var llm = Substitute.For<ILlmClient>();
         llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
-            .Returns(new LlmResponse("", 10, 20, "claude-sonnet-4-6"));
+            .Returns(new LlmResponse("", 10, 20, "claude-sonnet-5-5"));
 
         var promptBuilder = Substitute.For<IPromptBuilderService>();
         promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
@@ -288,7 +288,7 @@ public class GenerationOrchestratorTests
                 },
                 TotalInputTokens: 500,
                 TotalOutputTokens: 1200,
-                Model: "claude-sonnet-4-6",
+                Model: "claude-sonnet-5-5",
                 ZonesFilled: 5));
 
         var sut = new GenerationOrchestrator(
@@ -329,7 +329,7 @@ public class GenerationOrchestratorTests
             Arg.Any<CancellationToken>());
         await llm.DidNotReceive().GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).UpdateTokenUsageAsync(
-            Arg.Any<string>(), 500, 1200, "claude-sonnet-4-6", Arg.Any<CancellationToken>());
+            Arg.Any<string>(), 500, 1200, "claude-sonnet-5-5", Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -464,7 +464,7 @@ public class GenerationOrchestratorTests
     {
         // The resolver's options must reach both the codegen LLM call AND the queued context
         // (so the compile worker's build-repair reuses the same provider/model/key).
-        var options = new LlmCallOptions(LlmProvider.OpenAi, "gpt-4o-mini", "sk-byok-test-key");
+        var options = new LlmCallOptions(LlmProvider.OpenAi, "gpt-6.1-sol", "sk-byok-test-key");
         var resolver = Substitute.For<ILlmCredentialResolver>();
         resolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(options);
 

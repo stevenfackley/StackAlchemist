@@ -9,7 +9,7 @@ public sealed class LlmResponseGuardTests
     [Fact]
     public void ThrowIfTruncated_MaxTokens_Throws()
     {
-        var response = new LlmResponse("partial", 10, 8192, "claude-sonnet-4-6", "max_tokens");
+        var response = new LlmResponse("partial", 10, 8192, "claude-sonnet-5-5", "max_tokens");
 
         var act = () => LlmResponseGuard.ThrowIfTruncated(response, "generating the application code");
 
@@ -23,7 +23,7 @@ public sealed class LlmResponseGuardTests
     [InlineData(null)]
     public void ThrowIfTruncated_OtherStopReasons_DoesNotThrow(string? stopReason)
     {
-        var response = new LlmResponse("complete", 10, 100, "claude-sonnet-4-6", stopReason);
+        var response = new LlmResponse("complete", 10, 100, "claude-sonnet-5-5", stopReason);
 
         var act = () => LlmResponseGuard.ThrowIfTruncated(response, "anything");
 

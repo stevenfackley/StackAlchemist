@@ -42,7 +42,7 @@ public sealed partial class OpenAiCompatibleLlmClient(
                 "Add a valid key under Bring Your Own Key in dashboard API settings (or switch back to the default Claude model) and try again.");
         }
 
-        var maxTokens = int.TryParse(config["Anthropic:MaxTokens"], out var mt) ? mt : 8_192;
+        var maxTokens = int.TryParse(config["Anthropic:MaxTokens"], out var mt) ? mt : AnthropicLlmClient.DefaultMaxTokens;
         var clientName = options.Provider == LlmProvider.OpenRouter ? OpenRouterHttpClientName : OpenAiHttpClientName;
         var client = httpClientFactory.CreateClient(clientName);
 
@@ -87,10 +87,14 @@ public sealed partial class OpenAiCompatibleLlmClient(
             messages.Add(new ChatMessage { Role = "system", Content = systemPrompt });
         messages.Add(new ChatMessage { Role = "user", Content = userPrompt });
 
+        // OpenAI's reasoning-era models (GPT-5 onward) reject max_tokens and take
+        // max_completion_tokens, which also covers their reasoning tokens. OpenRouter normalizes
+        // max_tokens across providers, so it keeps the classic field.
         var requestBody = new ChatCompletionRequest
         {
             Model = options.Model,
-            MaxTokens = maxTokens,
+            MaxTokens = options.Provider == LlmProvider.OpenAi ? null : maxTokens,
+            MaxCompletionTokens = options.Provider == LlmProvider.OpenAi ? maxTokens : null,
             Messages = messages,
         };
 
@@ -118,7 +122,10 @@ public sealed partial class OpenAiCompatibleLlmClient(
         public required string Model { get; init; }
 
         [JsonPropertyName("max_tokens")]
-        public required int MaxTokens { get; init; }
+        public int? MaxTokens { get; init; }
+
+        [JsonPropertyName("max_completion_tokens")]
+        public int? MaxCompletionTokens { get; init; }
 
         [JsonPropertyName("messages")]
         public required List<ChatMessage> Messages { get; init; }

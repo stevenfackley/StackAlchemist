@@ -53,7 +53,7 @@ export function FeaturesSection() {
             The Swiss Cheese Method
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-slate-400 leading-relaxed">
-            Deterministic Handlebars templates carry the structure. Claude 3.5 Sonnet fills the holes with
+            Deterministic Handlebars templates carry the structure. Claude Sonnet 5.5 fills the holes with
             your business logic. Predictable scaffolding — dynamic domain code.
           </p>
         </div>

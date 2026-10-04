@@ -30,7 +30,7 @@ export const profiles = sa.table("profiles", {
   id: uuid("id").primaryKey(),
   email: text("email").notNull(),
   api_key_override: text("api_key_override"),
-  preferred_model: text("preferred_model").notNull().default("claude-sonnet-4-6"),
+  preferred_model: text("preferred_model").notNull().default("claude-sonnet-5-5"),
   created_at: timestamptz("created_at").notNull().default(sql`now()`),
 });
 
