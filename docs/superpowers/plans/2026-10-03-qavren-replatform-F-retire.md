@@ -36,7 +36,11 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
 - **G1, Task 1 only: none.** Task 1 fixes a bug, behaves the same in both modes, and is the F end state anyway. Ship it now.
 - **G2, merging Tasks 2–6.** All three must hold:
   1. The date is **2026-10-08 or later**: seven clean days since the flip, which closes the rollback window.
-  2. The **§3.4 money path is proven on qavren-db**. The owner buys the cheapest paid tier and refunds it. `select count(*) from stackalchemist.transactions` returns 1, the Engine logs one `Stripe event received`, and a replay from the Stripe dashboard logs `skipped: duplicate` without adding a second row. Reason: the cutover runbook names a double charge as the one reason to roll back to Supabase mode. After Tasks 2–5 merge, a rollback means reverting them, and that works only while `ctqhwykryoglhdwatljt` exists.
+  2. The **money path is verified without a paid checkout** (owner decision, 2026-10-03: no real purchase). This needs:
+     - the money-path hardening PR (#421, #419, #423, #424, the 500-character metadata clip, delayed payment methods) merged; and
+     - Stripe delivery confirmed by one of the checks in `docs/runbooks/stripe-webhooks.md` (the dashboard's recent deliveries showing 200s, or the owner-approved zero-charge probe).
+
+     Rollback to Supabase mode stays possible until G2 holds.
   3. No open rollback-class incident.
 - **G3, Task 7:** the merged F deploy is green and its mode check passes in the single remaining mode.
 

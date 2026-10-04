@@ -29,7 +29,7 @@ public sealed class GenerationReconciliationServiceTests
         IGenerationOrchestrator Orchestrator,
         InFlightGenerationRegistry Registry,
         PendingWriteBuffer Buffer)
-        BuildSut(DateTimeOffset? processStart = null, int maxAttempts = 3)
+        BuildSut(DateTimeOffset? processStart = null, int maxAttempts = 3, IBillingStore? billing = null)
     {
         var delivery = Substitute.For<IDeliveryService>();
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
@@ -42,7 +42,8 @@ public sealed class GenerationReconciliationServiceTests
             buffer,
             Config(maxAttempts),
             new FixedTimeProvider(processStart ?? DateTimeOffset.UtcNow),
-            NullLogger<GenerationReconciliationService>.Instance);
+            NullLogger<GenerationReconciliationService>.Instance,
+            billing);
         return (sut, delivery, orchestrator, registry, buffer);
     }
 
@@ -50,10 +51,110 @@ public sealed class GenerationReconciliationServiceTests
         string id = "gen-stale",
         string status = "generating_code",
         int attemptCount = 0,
-        DateTimeOffset? updatedAt = null) =>
-        new(id, status, 2, "advanced", "build an app", ProjectType.DotNetNextJs,
+        DateTimeOffset? updatedAt = null,
+        int tier = 2) =>
+        new(id, status, tier, "advanced", "build an app", ProjectType.DotNetNextJs,
             new GenerationSchema(), null, attemptCount,
             updatedAt ?? DateTimeOffset.UtcNow.AddMinutes(-30));
+
+    // ── #421: unpaid paid-tier checkouts are never built ─────────────────────────
+
+    [Fact]
+    public async Task RunOnce_UnpaidPaidTierPendingRow_IsLeftAloneWhileTheCheckoutCanStillComplete()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unpaid", Arg.Any<CancellationToken>())
+            .Returns((EligibleTransaction?)null);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-unpaid", status: "pending", updatedAt: DateTimeOffset.UtcNow.AddHours(-2));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_UnpaidPaidTierPendingRow_FailsOnceItsCheckoutCanNoLongerBePaid()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-abandoned", status: "pending", updatedAt: DateTimeOffset.UtcNow.AddHours(-26));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, "Checkout was not completed.", ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_PaidPaidTierPendingRow_IsRequeued()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-paid", Arg.Any<CancellationToken>())
+            .Returns(new EligibleTransaction("tx-1", "pi_1"));
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-paid", status: "pending");
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-paid" && r.Tier == 2), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_PendingSparkRow_NeedsNoPayment()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-spark", status: "pending", tier: 0);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await billing.DidNotReceive().FindCompletedTransactionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-spark" && r.Tier == 0), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_PaymentLookupThrows_SkipsTheRowRatherThanBuildingItUnpaid()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unknown", Arg.Any<CancellationToken>())
+            .Returns<EligibleTransaction?>(_ => throw new InvalidOperationException("db down"));
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-unknown", status: "pending");
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_PaidTierPendingRowWithoutABillingStore_IsNeverBuilt()
+    {
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: null);
+        var row = StaleRow(id: "gen-nostore", status: "pending");
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task RunOnce_RequeueableRowUnderBudget_ClaimsAndReenqueues()

@@ -866,3 +866,27 @@ recorded response through the real services and builds both halves in CI.
 - `conductor/` was deleted: eight executed or obsolete April plans, with history in git.
 - The local `docker-compose.yml` now reads the repo-root `.env` (the file `scripts/setup-env.mjs` writes). It used to read a `.env.development` nothing created, and its web healthcheck now uses `/api/healthz`.
 - The Dockerfile's `NEXT_PUBLIC_APP_URL` default is the prod origin instead of the retired test site.
+
+---
+
+## 2026-10-03 — Money-path hardening; no paid checkout in the cutover proof
+
+**Status:** accepted
+**Context:** The owner will not run a real paid checkout to prove phase E §3.4. The webhook path was instead reviewed against the code and probed live. Probing showed:
+- prod's `/api/webhooks/stripe` answers an unsigned request with the Engine's signature 401;
+- prod has every function and trigger the path needs;
+- `stripe_events` was empty, because no live event had arrived since the cutover.
+
+The review found six defects, all fixed in this change:
+- **Checkout failed for long prompts.** The Engine copied the prompt into Stripe metadata, which Stripe caps at 500 characters, while the web allows 2,000. The prompt is now clipped (`StripeMetadata.Clip`), and the webhook builds from the full prompt on the generations row.
+- **#421: unpaid paid-tier rows were built for free.** The reconciler re-fired stale `pending` rows without a payment check. Paid tiers now need a completed transaction. Unpaid rows are left alone while their checkout can complete, then failed after 25 h.
+- **Delayed payment methods were built before the money cleared.** A `checkout.session.completed` with `payment_status = unpaid` is now deferred. `checkout.session.async_payment_succeeded` is handled as the paid moment.
+- **#419: a checkout for a missing generation caused a retry storm.** Drizzle `0003` records the payment (NULL `generation_id`) and the event instead of failing the FK. The Engine logs MANUAL RECOVERY and does not enqueue.
+- **#423: disputes never matched a transaction.** They are now matched by payment intent; `stripe_charge_id` is never written.
+- **#424: an ambiguous refund claim could strand a row.** The claim is now reverted (guarded on `refund_pending`) and a MANUAL RECOVERY line is logged.
+
+**Not proven:** that Stripe delivers to the endpoint with the signing secret the Engine holds. Only a real delivery shows that. `docs/runbooks/stripe-webhooks.md` lists two ways to check it without paying:
+- the dashboard's recent deliveries;
+- an owner-approved zero-charge probe workflow, which creates and immediately expires a $1 session.
+
+Phase F's gate G2(2) becomes "this hardening merged, plus one of those two checks green" instead of "a paid checkout and refund".

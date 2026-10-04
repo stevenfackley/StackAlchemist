@@ -35,7 +35,9 @@ public sealed partial class StripeWebhookHandler(
         // checkout.session.completed owns its idempotency inside the RPC — recording the
         // event here, before the side effects, is exactly the bug this design replaces
         // (event marked processed, downstream failure, Stripe retry short-circuits).
-        if (stripeEvent.Type == "checkout.session.completed")
+        // async_payment_succeeded is the paid moment for delayed payment methods (bank debits),
+        // whose checkout.session.completed arrives with payment_status = "unpaid".
+        if (stripeEvent.Type is "checkout.session.completed" or "checkout.session.async_payment_succeeded")
             return await HandleCheckoutCompletedAsync(stripeEvent, ct);
 
         if (billing is not null)
@@ -66,6 +68,15 @@ public sealed partial class StripeWebhookHandler(
     {
         if (stripeEvent.Data.Object is not Session session)
             return new StripeWebhookResult(false, "not_a_session");
+
+        // A delayed payment method completes the session before the money moves. Building now
+        // would deliver a paid tier for a payment that can still fail; the
+        // checkout.session.async_payment_succeeded event (same handler) is the go signal.
+        if (session.PaymentStatus == "unpaid")
+        {
+            LogCheckoutAwaitingAsyncPayment(logger, session.Id);
+            return new StripeWebhookResult(false, "awaiting_async_payment");
+        }
 
         var meta = session.Metadata ?? new Dictionary<string, string>();
         var tier = int.TryParse(meta.GetValueOrDefault("tier"), out var t) ? t : 2;
@@ -101,8 +112,19 @@ public sealed partial class StripeWebhookHandler(
             if (!outcome.IsNew)
                 return new StripeWebhookResult(false, "duplicate");
 
-            mode = outcome.Mode ?? mode;
-            prompt = string.IsNullOrWhiteSpace(prompt) ? outcome.Prompt : prompt;
+            // generations.mode is NOT NULL, so a null mode on a new event means the row does not
+            // exist: the payment and the event are recorded (generation_id NULL), but there is
+            // nothing to build. Not a retry — redelivery would change nothing.
+            if (outcome.Mode is null)
+            {
+                LogPaidCheckoutForMissingGeneration(logger, stripeEvent.Id, session.Id, generationId);
+                return new StripeWebhookResult(false, "generation_missing");
+            }
+
+            mode = outcome.Mode;
+            // The stored prompt is the full text; the metadata copy is clipped to Stripe's
+            // 500-character metadata limit.
+            prompt = string.IsNullOrWhiteSpace(outcome.Prompt) ? prompt : outcome.Prompt;
             projectType = outcome.ProjectType ?? projectType;
             schema = outcome.Schema;
             personalization = outcome.Personalization;
@@ -235,8 +257,13 @@ public sealed partial class StripeWebhookHandler(
 
         if (billing is not null)
         {
+            // transactions.stripe_payment_intent is written at checkout; stripe_charge_id never is,
+            // so the payment intent is the key that matches (#423). The charge id is the fallback
+            // for a dispute that carries no payment intent.
+            var byIntent = !string.IsNullOrWhiteSpace(dispute.PaymentIntentId);
             await billing.UpdateTransactionsAsync(
-                TransactionKey.StripeChargeId, dispute.ChargeId,
+                byIntent ? TransactionKey.StripePaymentIntent : TransactionKey.StripeChargeId,
+                byIntent ? dispute.PaymentIntentId : dispute.ChargeId,
                 status: "disputed",
                 eventId: stripeEvent.Id,
                 returnGenerationId: false,
@@ -248,6 +275,12 @@ public sealed partial class StripeWebhookHandler(
     }
 
     // ── LoggerMessage source-gen ──────────────────────────────────────────────
+
+    [LoggerMessage(EventId = 304, Level = LogLevel.Information, Message = "Stripe checkout {SessionId} completed unpaid (delayed payment method) — waiting for checkout.session.async_payment_succeeded")]
+    private static partial void LogCheckoutAwaitingAsyncPayment(ILogger logger, string sessionId);
+
+    [LoggerMessage(EventId = 305, Level = LogLevel.Error, Message = "MANUAL RECOVERY: paid checkout {SessionId} (event {EventId}) references generation {GenerationId}, which does not exist. The payment is recorded with no generation; refund it or recreate the generation by hand.")]
+    private static partial void LogPaidCheckoutForMissingGeneration(ILogger logger, string eventId, string sessionId, string generationId);
 
     [LoggerMessage(EventId = 300, Level = LogLevel.Warning, Message = "Stripe checkout async payment failed for session {SessionId}")]
     private static partial void LogStripeAsyncPaymentFailed(ILogger logger, string sessionId);

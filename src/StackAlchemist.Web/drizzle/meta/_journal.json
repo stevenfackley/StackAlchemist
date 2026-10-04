@@ -22,6 +22,13 @@
       "when": 1791077519393,
       "tag": "0002_model_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791080575323,
+      "tag": "0003_checkout_missing_generation",
+      "breakpoints": true
     }
   ]
 }

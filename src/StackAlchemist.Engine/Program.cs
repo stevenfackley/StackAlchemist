@@ -655,7 +655,8 @@ app.MapPost("/api/stripe/create-session", async (
                 ["generationId"] = req.GenerationId,
                 ["tier"]         = req.Tier.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["projectType"]  = req.ProjectType.ToString(),
-                ["prompt"]       = req.Prompt ?? "",
+                // Stripe caps metadata values at 500 chars; the webhook reads the full prompt from the row.
+                ["prompt"]       = StripeMetadata.Clip(req.Prompt),
             },
         };
 
