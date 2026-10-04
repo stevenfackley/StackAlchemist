@@ -896,3 +896,19 @@ Phase F's gate G2(2) becomes "this hardening merged, plus one of those two check
 - Stripe returns the signing secret only once. The workflow printed it only RSA-OAEP-encrypted to a one-time operator key, and it was decrypted locally into the Prod secret.
 - Prod was redeployed. The zero-charge probe then proved Stripe → Engine → qavren-db end to end.
 - **Lesson:** a paid path that has never processed a payment is unverified, whatever its tests say. Run the wiring check after any Stripe account, key or URL change.
+
+---
+
+## 2026-10-04 — Zone fills keep their indentation (#450)
+
+**Status:** accepted
+**Context:** `InjectionEngine.CleanZoneContent` called `Trim()` on every zone fill, and `TemplateProvider.InjectIntoZone` re-inserted the fill at column 0. Line 1 of every zone therefore lost its indentation. C# and TSX still compiled. Python did not: every V2-Python-React zone sits inside a `def` or `class`, so the Swiss-Cheese path could never produce valid Python, and the V2-Python-React backend compile gate was skipped.
+**Decision:** one indentation rule for every zone fill, in `ZoneIndentation`:
+- The fill keeps its **relative** indentation: its common leading whitespace is removed, so nested blocks stay nested.
+- Its **absolute** indentation is the START marker line's whitespace, used verbatim. A tab-indented template gets tabs, a space-indented one spaces. The fill's own nesting is never re-tabbed, because there is no reliable tab width to convert with.
+- Whitespace-only lines become empty (flake8 W293). The END marker keeps its indentation.
+- `CleanZoneContent` strips only fence lines, stray `[[FILE:]]` markers and surrounding blank lines. Both old regexes used `\s*`, which also ate the next line's indentation.
+- The rule lives in `InjectIntoZone`, so the V1 `Reconstruct` path gets it too. V1's Python zones are all at column 0, where only the dedent can change anything.
+- The fill is now inserted with a match evaluator. It used to be spliced into a regex replacement string, where `$1`, `$_` or `$&` in generated code were substitution tokens.
+
+**Consequences:** `V2PythonReactCompileTests.RenderedBackend_CompilesAndPassesItsOwnTests` is unskipped and passes (flake8 plus the archive's pytest). The template defects it then found are fixed: `pass` in the comment-only `BaseFields` placeholder, `# noqa: F401` on the registration imports in `models/__init__.py` and on the speculative column-type imports, and a placeholder comment over 100 columns (E501).

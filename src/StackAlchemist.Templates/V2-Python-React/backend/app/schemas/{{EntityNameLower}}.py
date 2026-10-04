@@ -7,6 +7,7 @@ class {{EntityName}}Base(BaseModel):
     [[LLM_INJECTION_START: BaseFields]]
     # LLM fills: Pydantic field declarations for non-pk fields based on Schema.
     # Type-annotate everything (str, int, float, bool, datetime).
+    pass
     [[LLM_INJECTION_END: BaseFields]]
 
 
