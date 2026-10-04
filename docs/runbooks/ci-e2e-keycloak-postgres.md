@@ -218,9 +218,9 @@ one worker. Closing a browser context leaves its SSO session alive on the server
 so earlier tests and earlier runs against the same stack leave sessions behind;
 `endUserSessions()` starts each counting test from zero.
 
-**The nightly specs sign in first.** `e2e/nightly/simple-mode-flow.spec.ts` and
-`realtime-fallback.spec.ts` call `signInViaKeycloak(page)` in `beforeEach`,
-because `/simple` and `/generate` are gated. They use the same fixture user.
+**The nightly spec signs in first.** `e2e/nightly/simple-mode-flow.spec.ts`
+calls `signInViaKeycloak(page)` in `beforeEach`
+because `/simple` and `/generate` are gated. It uses the same fixture user.
 
 **The fixture user is shared.** The integration suite and the nightly specs both
 sign in as `e2e@stackalchemist.test`, and the integration suite ends that user's

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { submitSimpleGeneration, getFreeQuotaStatus } from "@/lib/actions";
 import { GenerationErrorPanel } from "@/components/generation-error-panel";
-import { useGenerationRealtime } from "@/lib/hooks/use-generation-realtime";
+import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
 import { supabase } from "@/lib/supabase";
 import { isDemoMode } from "@/lib/runtime-config";
 import { Logo } from "@/components/logo";
@@ -118,7 +118,7 @@ export default function SimpleModePage() {
     [generationId]
   );
 
-  useGenerationRealtime({
+  useGenerationStatus({
     generationId,
     enabled: !!generationId,
     onUpdate: applyGenerationUpdate,
