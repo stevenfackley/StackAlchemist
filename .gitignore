@@ -77,3 +77,8 @@ squirrel-audit-*.html
 
 # OAuth/API credential payloads — never commit (a payload_fixed.json leaked a Google client_secret on 2026-06-11)
 payload*.json
+
+# Local build/test diagnostics and scratch output
+*-diag*.log
+.dotnet-test.log
+/tmp/
