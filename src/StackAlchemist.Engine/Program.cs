@@ -439,7 +439,7 @@ app.MapPost("/api/generate", async (
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Background generation dispatch failed for {GenerationId}", request.GenerationId);
+            logger.GenerationDispatchFailed(ex, request.GenerationId);
         }
     });
 
