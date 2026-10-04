@@ -11,7 +11,7 @@ vi.mock("@/lib/actions", () => ({
 const SETTINGS: ProfileSettings = {
   email: "user@example.com",
   hasApiKeyOverride: false,
-  preferredModel: "claude-sonnet-4-6",
+  preferredModel: "claude-sonnet-5-5",
 };
 
 describe("ByokSettingsForm", () => {

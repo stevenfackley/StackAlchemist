@@ -22,15 +22,17 @@ import { DEFAULT_PERSONALIZATION } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+const DEFAULT_MODEL = "claude-sonnet-5-5";
+// Mirrors MODEL_OPTIONS in dashboard/ByokSettingsForm.tsx. The Engine re-checks: on OUR Anthropic
+// key only claude-sonnet-5-5 and claude-haiku-4-5 run (LlmCredentialResolver); Opus needs the
+// user's own Anthropic key. Retired ids stored before a bump are remapped by a Drizzle migration
+// (0002) and normalize to DEFAULT_MODEL on read.
 const ALLOWED_PROFILE_MODELS = new Set([
   DEFAULT_MODEL,
-  "claude-3-5-sonnet-20241022",  // retired by Anthropic 2026-04; kept so existing
-                                 // user profiles (set as default before bump) aren't
-                                 // silently rewritten by normalizePreferredModel
-  "claude-3-5-haiku-20241022",
-  "openai/gpt-4o-mini",
-  "openrouter/anthropic/claude-3.5-sonnet",
+  "claude-opus-5-5",
+  "claude-haiku-4-5",
+  "openai/gpt-6.1-sol",
+  "openrouter/anthropic/claude-sonnet-5.5",
 ]);
 
 /** Returns headers for all Engine API calls, including the service key when set. */
@@ -355,7 +357,7 @@ export async function submitSimpleGeneration(
 /* ─────────────────────────────────────────────────────────────────────────────
    extractSchema
    Called in Simple Mode before generation. Sends the prompt to the Engine
-   which calls Claude 3.5 to extract a structured JSON schema.
+   which calls the generation model to extract a structured JSON schema.
    Returns the schema so the user can review/edit on the React Flow canvas.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function extractSchema(

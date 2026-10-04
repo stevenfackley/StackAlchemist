@@ -113,7 +113,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       ENGINE_SERVICE_KEY: ${ENGINE_SERVICE_KEY:-}
       # BYOK: engine decrypts stored per-user API keys with this secret (falls
       # back to ENGINE_SERVICE_KEY for keys saved before the distinct-key rule).

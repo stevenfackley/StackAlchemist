@@ -84,7 +84,7 @@ describe("actions.ts — saveProfileSettings", () => {
   it("rejects when the caller isn't authenticated", async () => {
     vi.mocked(getServerUser).mockResolvedValue(null);
 
-    const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-4-6" }));
+    const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-5-5" }));
     expect(result).toEqual({ status: "error", message: "Sign in before saving API settings." });
   });
 
@@ -93,7 +93,7 @@ describe("actions.ts — saveProfileSettings", () => {
     vi.mocked(hasServerSupabaseConfig).mockReturnValue(false);
     vi.mocked(hasDataStoreConfig).mockReturnValue(false);
 
-    const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-4-6" }));
+    const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: "claude-sonnet-5-5" }));
     expect(result).toEqual({ status: "error", message: "Supabase server configuration is incomplete." });
   });
 
@@ -104,13 +104,23 @@ describe("actions.ts — saveProfileSettings", () => {
     expect(result).toEqual({ status: "error", message: "Choose a supported model before saving." });
   });
 
+  it.each(["claude-sonnet-4-6", "claude-3-5-sonnet-20241022", "openai/gpt-4o-mini"])(
+    "rejects the superseded model id %s",
+    async (retired) => {
+      vi.mocked(getServerUser).mockResolvedValue(USER as never);
+
+      const result = await saveProfileSettings(IDLE, makeFormData({ preferredModel: retired }));
+      expect(result).toEqual({ status: "error", message: "Choose a supported model before saving." });
+    },
+  );
+
   it("rejects an API key that's obviously too short", async () => {
     vi.mocked(getServerUser).mockResolvedValue(USER as never);
     vi.stubEnv("BYOK_ENCRYPTION_KEY", "a".repeat(32));
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: "short-key" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "short-key" })
     );
     expect(result).toEqual({
       status: "error",
@@ -126,7 +136,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: "sk-ant-fake-key-1234567890" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-fake-key-1234567890" })
     );
     expect(result).toEqual({
       status: "error",
@@ -142,7 +152,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: "sk-ant-fake-key-1234567890" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-fake-key-1234567890" })
     );
     expect(result.status).toBe("error");
   });
@@ -157,7 +167,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: "sk-ant-super-secret-real-looking-key-000111" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-super-secret-real-looking-key-000111" })
     );
 
     expect(result).toEqual({
@@ -178,7 +188,7 @@ describe("actions.ts — saveProfileSettings", () => {
     const plaintext = "sk-ant-super-secret-real-looking-key-000111";
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: plaintext })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: plaintext })
     );
 
     expect(result).toEqual({
@@ -213,7 +223,7 @@ describe("actions.ts — saveProfileSettings", () => {
     const plaintext = "sk-ant-another-realistic-looking-secret-key";
     await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", apiKeyOverride: plaintext })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: plaintext })
     );
 
     const upsertCall = (dbMock.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn> }).upsert;
@@ -231,7 +241,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-3-5-haiku-20241022" })
+      makeFormData({ preferredModel: "claude-haiku-4-5" })
     );
 
     expect(result).toEqual({ status: "success", message: "Preferred model saved." });
@@ -248,7 +258,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6", clearApiKey: "true" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", clearApiKey: "true" })
     );
 
     expect(result).toEqual({
@@ -268,7 +278,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-4-6" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5" })
     );
     expect(result).toEqual({ status: "error", message: "Failed to save API settings." });
     expect(revalidatePath).not.toHaveBeenCalled();
@@ -294,7 +304,7 @@ describe("actions.ts — getProfileSettings", () => {
     expect(settings).toEqual({
       email: "",
       hasApiKeyOverride: false,
-      preferredModel: "claude-sonnet-4-6",
+      preferredModel: "claude-sonnet-5-5",
     });
   });
 
@@ -307,7 +317,7 @@ describe("actions.ts — getProfileSettings", () => {
     expect(settings).toEqual({
       email: USER.email,
       hasApiKeyOverride: false,
-      preferredModel: "claude-sonnet-4-6",
+      preferredModel: "claude-sonnet-5-5",
     });
   });
 
@@ -316,7 +326,7 @@ describe("actions.ts — getProfileSettings", () => {
     vi.mocked(createServerClient).mockReturnValue(
       makeDb([
         {
-          data: { email: "db@example.com", api_key_override: "v1:aa:bb:cc", preferred_model: "claude-3-5-haiku-20241022" },
+          data: { email: "db@example.com", api_key_override: "v1:aa:bb:cc", preferred_model: "claude-haiku-4-5" },
           error: null,
         },
       ]) as never
@@ -326,7 +336,7 @@ describe("actions.ts — getProfileSettings", () => {
     expect(settings).toEqual({
       email: "db@example.com",
       hasApiKeyOverride: true,
-      preferredModel: "claude-3-5-haiku-20241022",
+      preferredModel: "claude-haiku-4-5",
     });
   });
 
@@ -339,7 +349,7 @@ describe("actions.ts — getProfileSettings", () => {
     );
 
     const settings = await getProfileSettings();
-    expect(settings.preferredModel).toBe("claude-sonnet-4-6");
+    expect(settings.preferredModel).toBe("claude-sonnet-5-5");
     expect(settings.hasApiKeyOverride).toBe(false);
   });
 
@@ -353,7 +363,7 @@ describe("actions.ts — getProfileSettings", () => {
     expect(settings).toEqual({
       email: USER.email,
       hasApiKeyOverride: false,
-      preferredModel: "claude-sonnet-4-6",
+      preferredModel: "claude-sonnet-5-5",
     });
   });
 });

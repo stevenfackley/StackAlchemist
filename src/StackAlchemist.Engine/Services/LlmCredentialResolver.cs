@@ -32,9 +32,8 @@ public sealed partial class LlmCredentialResolver(
     // their own Anthropic key is not constrained by this — they pay for whatever model they pick.
     private static readonly HashSet<string> AnthropicGlobalKeyModelAllowList = new(StringComparer.Ordinal)
     {
-        "claude-sonnet-4-6",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
+        "claude-sonnet-5-5",
+        "claude-haiku-4-5",
     };
 
     public async Task<LlmCallOptions?> ResolveAsync(string generationId, CancellationToken ct)

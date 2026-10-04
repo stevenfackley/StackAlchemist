@@ -166,7 +166,7 @@ describe("actions.ts — demo mode short circuits", () => {
     expect(settings).toEqual({
       email: "",
       hasApiKeyOverride: false,
-      preferredModel: "claude-sonnet-4-6",
+      preferredModel: "claude-sonnet-5-5",
     });
   });
 

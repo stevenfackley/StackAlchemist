@@ -112,7 +112,7 @@ inputs:
     required: true
 
   anthropic_model:
-    description: 'Anthropic model id (e.g. claude-sonnet-4-6). Empty → engine default applies.'
+    description: 'Anthropic model id (e.g. claude-sonnet-5-5). Empty → engine default applies.'
     required: false
     default: ''
 

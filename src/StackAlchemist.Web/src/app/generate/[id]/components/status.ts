@@ -13,7 +13,7 @@ export const STATUS_STEPS: Generation["status"][] = [
 export const STATUS_LABELS: Record<Generation["status"], string> = {
   pending: "Queued — waiting to start",
   extracting_schema: "Extracting schema from prompt",
-  generating_code: "Synthesizing code with Claude Sonnet 4.6",
+  generating_code: "Synthesizing code with Claude Sonnet 5.5",
   generating: "Regenerating with compiler feedback",
   building: "Compile Guarantee — running dotnet build",
   packing: "Packaging your codebase",

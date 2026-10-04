@@ -184,7 +184,7 @@ jobs:
           stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
           stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_API_KEY }}
-          anthropic_model: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-4-6' }}
+          anthropic_model: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5-5' }}
           engine_service_key: ${{ secrets.ENGINE_SERVICE_KEY }}
           byok_encryption_key: ${{ secrets.BYOK_ENCRYPTION_KEY }}
           # Only prod reports to Plausible / advertises Search Console verification.

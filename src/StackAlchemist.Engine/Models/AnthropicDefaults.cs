@@ -7,6 +7,6 @@ namespace StackAlchemist.Engine.Models;
 /// </summary>
 public static class AnthropicDefaults
 {
-    public const string ModelId = "claude-sonnet-4-6";
-    public const string ModelDisplayName = "Claude Sonnet 4.6";
+    public const string ModelId = "claude-sonnet-5-5";
+    public const string ModelDisplayName = "Claude Sonnet 5.5";
 }
