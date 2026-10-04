@@ -67,6 +67,11 @@ Recommended application path:
 
 ---
 
+
+### Host hardening applied by every deploy
+
+- **needrestart exclusion (#463).** Ubuntu's `apt-daily-upgrade` (06:00–07:00 UTC) installs security updates. `needrestart` used to restart the runner service whenever a library it links was patched, which killed an in-flight deploy job (run 36825103434). The deploy now writes `/etc/needrestart/conf.d/50-actions-runner.conf` with `$nrconf{override_rc}{qr(^actions\.runner\..+\.service$)} = 0;` on every run. The step is idempotent and never fails the deploy. The runner picks up patched libraries on its next self-update or reboot.
+
 ## 4. Install the GitHub Actions runner on EC2
 
 On the EC2 host:
