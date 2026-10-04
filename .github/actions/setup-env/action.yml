@@ -83,10 +83,6 @@ inputs:
     description: 'R2 bucket name for this environment'
     required: true
 
-  r2_public_url:
-    description: 'R2 public download URL'
-    required: true
-
   # ─── Cloudflare Tunnel ───────────────────────────────────────────────────────
   cloudflare_tunnel_token:
     description: 'Cloudflare Tunnel token for the target environment'
@@ -183,7 +179,6 @@ runs:
         R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
         R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
         R2_BUCKET_NAME: ${{ inputs.r2_bucket_name }}
-        R2_PUBLIC_URL: ${{ inputs.r2_public_url }}
         CF_TUNNEL_TOKEN: ${{ inputs.cloudflare_tunnel_token }}
         STRIPE_PUBLISHABLE_KEY: ${{ inputs.stripe_publishable_key }}
         STRIPE_SECRET_KEY: ${{ inputs.stripe_secret_key }}
@@ -228,7 +223,6 @@ runs:
         R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
         R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
         R2_BUCKET_NAME=${R2_BUCKET_NAME}
-        R2_PUBLIC_URL=${R2_PUBLIC_URL}
         R2_S3_URL=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com
         R2_ENDPOINT=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com
 
