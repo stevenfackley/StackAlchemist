@@ -24,6 +24,7 @@ on:
       - '.github/workflows/dependabot-auto-merge.yml'
       - '.github/workflows/prod-healthwatch.yml'
       - '.github/workflows/stripe-wiring-check.yml'
+      - '.github/workflows/llm-contract.yml'
   workflow_dispatch:
 
 concurrency:
