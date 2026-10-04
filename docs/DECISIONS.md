@@ -896,3 +896,21 @@ Phase F's gate G2(2) becomes "this hardening merged, plus one of those two check
 - Stripe returns the signing secret only once. The workflow printed it only RSA-OAEP-encrypted to a one-time operator key, and it was decrypted locally into the Prod secret.
 - Prod was redeployed. The zero-charge probe then proved Stripe → Engine → qavren-db end to end.
 - **Lesson:** a paid path that has never processed a payment is unverified, whatever its tests say. Run the wiring check after any Stripe account, key or URL change.
+
+## 2026-10-04 — Phase F: Supabase retired; one store, one identity provider
+
+**Status:** accepted (merges on or after 2026-10-08, gate G2)
+**Context:** Prod has run on qavren-db and Qavren Auth since the phase E flip (2026-10-01). Supabase mode stayed compiled in only as a rollback path. G2 sets the conditions for removing it: seven clean days after the flip, and the money path verified. The money path was met on 2026-10-04 (#471, the live webhook endpoint, and the zero-charge probe). Keeping two modes doubled every auth, data and deploy path, and the browser bundle still carried the old project's URL and anon key.
+
+**Decision:**
+- **One shape in production.** sa-web refuses to boot without `DATABASE_URL`, `QAVREN_AUTH_URL` and `AUTH_SECRET`. The deploy preflight requires those plus `DATABASE_URL_MIGRATE` and shape-checks the three URLs before the build, while the old stack still serves. The end-of-run mode check knows only Qavren Auth.
+- **Demo mode is explicit or local.** Outside production the web is in demo mode unless `NEXT_PUBLIC_DEMO_MODE=false`. It no longer infers demo mode from a missing Supabase URL. The Engine outside production runs on the no-op store when `DATABASE_URL` is unset.
+- **Polling replaces Realtime.** Status pages poll every 3 s while visible and pause while hidden. The dashboard refreshes every 10 s while a build is active. This shipped early as Task 1 (#465), because the Realtime channel had nothing writing to it after the flip.
+- **Isolation is enforced in code, not RLS.** Every query is scoped to the session user, and the two-user integration suite proves it.
+- **Deleted:** the Supabase Auth pages and branches, `@supabase/*`, the Supabase stores in web and Engine, `supabase/` (migrations), the Supabase CSP entries, the Supabase deploy step and its secrets wiring, and the two Supabase runbooks.
+
+**Consequences:**
+- There is no rollback to Supabase. Recovery is a forward fix, or a revert of the F PRs plus re-adding the deleted secrets, against a project the owner deletes after 2026-10-08.
+- Existing Supabase users did not carry over (parent plan decision 3).
+- Owner steps (Task 7): delete the Prod `SUPABASE_*` secrets, delete projects `ctqhwykryoglhdwatljt` and `cdlefpvsvyepofsboepc`, then rescan the prod bundle for `supabase.co`.
+- The CSP can be enforced once a monitoring window passes without the Supabase entries (`docs/architecture/CSP Rollout Plan.md`).

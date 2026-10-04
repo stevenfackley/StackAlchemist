@@ -3,13 +3,11 @@
 Since phase D the `E2E Integration` lane (`.github/workflows/ci.yml`, job
 `e2e-integration`) runs the web app in Qavren mode against a Postgres and a
 Keycloak that the job starts itself from the `docker/docker-compose.ci.yml`
-overlay. No Supabase project and no Test-environment database secret is
-involved. This
-document covers what the lane does, the CI realm, the Playwright suite, a local
-recipe, the nightly pooler smoke, the traps and what changed against the
-Supabase-era lane. The flag and env contract live in `qavren-auth.md`; the
-schema and migrator live in `qavren-db-migrations.md`. The old CI Supabase
-runbook, `ci-supabase-migrations.md`, is superseded for CI only.
+overlay. No hosted database and no Test-environment database secret is
+involved. This document covers what the lane does, the CI realm, the Playwright
+suite, a local recipe, the nightly pooler smoke, the traps and what changed
+against the Supabase-era lane. The env contract lives in `qavren-auth.md`; the
+schema and migrator live in `qavren-db-migrations.md`.
 
 ## What the lane does
 
@@ -87,9 +85,7 @@ The same database is reached by two names:
 
 The copied `src/StackAlchemist.Web/.env` carries the container name, which the
 runner cannot resolve. `next dev` lets a variable already in the process
-environment beat the env file, so the host view in the step `env` wins. The
-blank `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY` in the same blocks keep the app out of Supabase mode.
+environment beat the env file, so the host view in the step `env` wins.
 The URL carries `sslmode=disable` because the CI Postgres has no TLS. Both
 values are throwaway CI constants, not secrets.
 
@@ -244,8 +240,8 @@ suite (Postgres + Keycloak)". Do not copy it here. What bit:
   it.
 - **`NEXT_PUBLIC_DEMO_MODE=false` comes from the npm script** (`e2e:integration`
   and `e2e:nightly`). Running `npx playwright test` directly loses it, and demo
-  mode (auto-enabled when the Supabase URL is blank outside production) switches
-  the proxy gate off, so nothing redirects to sign-in.
+  mode (on by default outside production) switches the proxy gate off, so
+  nothing redirects to sign-in.
 - **Kill the dev server afterwards.** Playwright stops the server it started, but
   one you started yourself, or an orphan from an aborted run, keeps port 3000.
 - **`down -v` also drops the registration leftovers.** The registration test
@@ -323,15 +319,12 @@ job is green and useless until both exist; read the warnings. Both URLs must be 
   "Apply Supabase migrations to CI project" step, and the old
   `e2e/integration/dashboard.spec.ts` (replaced by `auth.spec.ts`). Nothing in
   the repo reads `CI_SUPABASE_DB_URL` any more.
-- **Owner action:** delete `CI_SUPABASE_DB_URL` from the Test environment. The other
-  Supabase secrets there were only used by `deploy-test.yml`, which is gone
-  (retired 2026-10-03, PR #468); nothing in the repo reads them, so they can be
-  deleted too.
+- **Test-environment Supabase secrets:** deleted, `CI_SUPABASE_DB_URL` included.
+  The rest were only read by `deploy-test.yml`, retired 2026-10-03 (PR #468).
 - **Phase E (2026-10-01) moved prod off Supabase:** `deploy-prod.yml` now applies the
-  qavren-db migrations (see `qavren-db-migrations.md`). `ci-supabase-migrations.md`
-  is a retired legacy file and is deleted in phase F.
-- **The CI Supabase project** (`cdlefpvsvyepofsboepc`) is now unused. It is on the
-  free tier and may auto-pause, which no longer breaks anything. It is retired in
-  phase F.
+  qavren-db migrations (see `qavren-db-migrations.md`). Phase F deleted the
+  Supabase mode, the `supabase/` migrations and `ci-supabase-migrations.md`.
+- **The CI Supabase project** (`cdlefpvsvyepofsboepc`) is unused; nothing in the
+  repo points at it. The owner deletes it in the Supabase dashboard (phase F).
 - **`skip_e2e`** narrowed from "skip the lane" to "skip the nightly real-API
   specs" (first section).

@@ -3,9 +3,7 @@
 StackAlchemist's data lives in qavren-db (the shared Qavren Postgres) since the
 phase E flip on 2026-10-01. Schema changes are written with Drizzle and applied by the web app's
 own migrator. This document covers where things live, the two connection URLs,
-the CI drift guard, the prod deploy step and the traps. The old Supabase side is
-documented in `ci-supabase-migrations.md`, a retired legacy file that is deleted
-in phase F.
+the CI drift guard, the prod deploy step and the traps.
 
 ## Where the schema lives
 
@@ -24,7 +22,7 @@ in phase F.
 
 | Secret (prod environment) | Port / mode | Used for |
 |---|---|---|
-| `DATABASE_URL` | `:6543`, Supavisor **transaction** pooler | Runtime: passed to `sa-web` and `sa-engine` through `.env` and `docker-compose.prod.yml`. Empty or unset = Supabase mode (rollback only). |
+| `DATABASE_URL` | `:6543`, Supavisor **transaction** pooler | Runtime: passed to `sa-web` and `sa-engine` through `.env` and `docker-compose.prod.yml`. Required in prod (the deploy preflight refuses to run without it). |
 | `DATABASE_URL_MIGRATE` | `:5432`, **session** mode | DDL only: read by `npm run db:migrate` in the deploy step. Never given to a container. |
 
 Both are `postgres://...?sslmode=require`. Percent-encode the password: a raw
@@ -33,8 +31,7 @@ Both are `postgres://...?sslmode=require`. Percent-encode the password: a raw
 percent-encode `$` as `%24`, `#` as `%23` and `@` as `%40` in the password. The
 migrator prints "not a valid postgres URL (percent-encode the password)" when a
 raw one slips through. The same `$` hazard already applies to every other value
-`setup-env` writes into `.env` (the Supabase-style lines and the rest); that is
-pre-existing.
+`setup-env` writes into `.env`.
 
 Transaction pooling rules for the runtime URL:
 
@@ -86,40 +83,23 @@ commit the result.
 ## Prod deploy step
 
 `deploy-prod.yml` has a `Set up Node.js (qavren-db migrator)` step and an
-`Apply qavren-db migrations (prod)` step, placed right after the Supabase
-migration step and before the image build (so new code never goes live against
-an older schema, and a failed migration aborts the deploy while the old stack is
-still serving).
+`Apply qavren-db migrations (prod)` step, placed before the image build (so new
+code never goes live against an older schema, and a failed migration aborts the
+deploy while the old stack is still serving).
 
-Prod has `DATABASE_URL_MIGRATE` set, so **migrations are applied on every
-deploy** (every push to `main` outside `paths-ignore`; already-applied files are a
-no-op). The step is still gated on the secret, like the legacy Supabase step is
-gated on `PROD_SUPABASE_DB_URL`:
+**Migrations are applied on every deploy** (every push to `main` outside
+`paths-ignore`; already-applied files are a no-op). The step runs
+`npm ci --omit=dev --ignore-scripts` (the migrator needs only `drizzle-orm` and
+`postgres`), then `npm run db:migrate`. Any failure fails the deploy.
 
-- **Secret absent:** warning, a "NOT applied" line in the job summary, exit 0.
-  This was the state before phase E and is what a rollback to Supabase mode
-  would look like. The Node setup
-  step is skipped too (job-level `QAVREN_DB_MIGRATE_ENABLED`, a boolean derived
-  from the secret), so a toolcache or download failure cannot block a deploy.
-- **Secret present:** `npm ci --omit=dev --ignore-scripts` (the migrator needs
-  only `drizzle-orm` and `postgres`), then `npm run db:migrate`. Any failure
-  fails the deploy.
-
-Since phase E (2026-09-30) the deploy's first step is a **preflight** that
-refuses `DATABASE_URL` without `DATABASE_URL_MIGRATE` (and without
-`QAVREN_AUTH_URL`), so a live store with no migrate target cannot deploy. That
-makes a hard drift guard on this step pointless: with the secret unset no
-container reads the Drizzle schema, and the flip's run applies every pending
-file. The step therefore only **names** a Drizzle change in a `push` that
-lands while prod has no qavren-db target (`::warning` plus a summary line),
-so it is not forgotten. `DATABASE_URL_MIGRATE` set on its own is allowed and
-pre-applies migrations; the preflight warns. The preflight, its shape checks
-on the three URLs, and the end-of-run mode check are described in
-`docs/runbooks/qavren-cutover-phase-e.md`.
+The deploy's first step is a **preflight** that requires `DATABASE_URL`,
+`DATABASE_URL_MIGRATE`, `QAVREN_AUTH_URL` and `AUTH_SECRET`, and shape-checks
+the three URLs, so the migrate step never runs without a target. Before phase F
+the step was gated on the secret, to keep a Supabase-mode rollback deployable;
+phase F removed that mode and the gate with it.
 
 `DATABASE_URL` (runtime) flows through the `setup-env` action's `database_url`
-input into `.env`, then into both containers. Nothing reads it until the secret
-exists.
+input into `.env`, then into both containers.
 
 ## Local database recipe
 

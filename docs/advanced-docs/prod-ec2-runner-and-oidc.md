@@ -188,8 +188,6 @@ Common:
 - `RESEND_API_KEY`
 - optional: `PLAUSIBLE_DOMAIN`, `GOOGLE_SITE_VERIFICATION`
 
-Legacy until phase F removes them (rollback path to Supabase mode only; prod does not use them since 2026-10-01): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PROD_SUPABASE_DB_URL` (and the "Apply Supabase migrations" step that reads it).
-
 Repository-level:
 
 - `CF_ACCOUNT_ID`
