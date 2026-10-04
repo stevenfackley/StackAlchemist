@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { usesQavrenAuth } from "@/lib/runtime-config";
-import RegisterPageClient from "./RegisterPageClient";
 import { QavrenRegisterPage } from "./QavrenRegisterPage";
 
 export const metadata: Metadata = {
@@ -10,13 +8,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-// The auth mode is a runtime secret (QAVREN_AUTH_URL) that `next build` never
-// sees; a prerendered page would freeze Supabase mode in at build time.
+// The page shows the sign-in host from QAVREN_AUTH_URL, a runtime secret that
+// `next build` never sees; a prerendered page would freeze the build's value in.
 export const dynamic = "force-dynamic";
 
 export default async function RegisterPage(props: {
   searchParams: Promise<{ error?: string; returnTo?: string }>;
 }) {
-  if (!usesQavrenAuth()) return <RegisterPageClient />;
   return <QavrenRegisterPage params={await props.searchParams} />;
 }

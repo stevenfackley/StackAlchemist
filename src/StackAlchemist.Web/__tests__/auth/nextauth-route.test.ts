@@ -27,7 +27,7 @@ describe("/api/auth/[...nextauth]", () => {
     AUTHJS_SPY.mockClear();
   });
 
-  it.each(["GET", "POST"] as const)("%s 404s in Supabase mode without loading Auth.js", async (method) => {
+  it.each(["GET", "POST"] as const)("%s 404s in demo mode (no QAVREN_AUTH_URL) without loading Auth.js", async (method) => {
     mockAuth();
     vi.stubEnv("QAVREN_AUTH_URL", "");
     const route = await import("@/app/api/auth/[...nextauth]/route");

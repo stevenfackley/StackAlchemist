@@ -7,20 +7,11 @@ import { NextRequest } from "next/server";
 // Registered per test with doMock so the "never loaded" assertion is order-independent
 // (vi.mock factories are cached across vi.resetModules()).
 const loaded = vi.hoisted(() => vi.fn());
-// Stands in for @supabase/ssr's createServerClient: a signed-out client.
-const createServerClient = vi.hoisted(() =>
-  vi.fn(() => ({ auth: { getUser: async () => ({ data: { user: null } }) } })),
-);
 type Authed = NextRequest & { auth?: { user?: { id?: string } } | null };
 const SUB = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
 function mockAuth() {
   vi.doMock("@/auth", () => { loaded(); return { auth: (handler: unknown) => handler }; });
-}
-function mockSupabase() {
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.co");
-  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_stub");
-  vi.doMock("@supabase/ssr", () => ({ createServerClient }));
 }
 const req = (url: string, session: { user?: { id?: string } } | null | undefined = undefined, init?: ConstructorParameters<typeof NextRequest>[1]) => {
   const r = new NextRequest(url, init) as Authed;
@@ -63,27 +54,15 @@ describe("proxy", () => {
 
 
   afterEach(() => {
-    vi.unstubAllEnvs(); vi.doUnmock("@/auth"); vi.doUnmock("@supabase/ssr"); vi.resetModules();
-    loaded.mockClear(); createServerClient.mockClear();
+    vi.unstubAllEnvs(); vi.doUnmock("@/auth"); vi.resetModules();
+    loaded.mockClear();
   });
 
-  it("Supabase mode with no Supabase env passes through and never loads @/auth", async () => {
-    vi.stubEnv("QAVREN_AUTH_URL", ""); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", ""); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
-    mockAuth();
-    const res = await run(req("http://localhost:3000/generate/abc"));
-    expect(res.status).toBe(200);
-    expect(loaded).not.toHaveBeenCalled();
-  });
-
-  it("Supabase mode: Auth.js routes pass through without the Supabase refresh", async () => {
+  it("the gate is the only mode outside demo mode: it runs even without QAVREN_AUTH_URL", async () => {
     vi.stubEnv("QAVREN_AUTH_URL", ""); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
-    mockAuth(); mockSupabase();
-    expect((await run(req("http://localhost:3000/api/auth/session"))).status).toBe(200);
-    expect(createServerClient).not.toHaveBeenCalled();
-    expect(loaded).not.toHaveBeenCalled();
-    // Control: any other route does run the refresh.
-    expect((await run(req("http://localhost:3000/pricing"))).status).toBe(200);
-    expect(createServerClient).toHaveBeenCalledTimes(1);
+    mockAuth();
+    expect((await run(req("http://localhost:3000/generate/abc", null))).status).toBe(307);
+    expect(loaded).toHaveBeenCalledTimes(1);
   });
 
   it("Qavren mode: an anonymous protected request redirects to /login with returnTo", async () => {
@@ -148,29 +127,17 @@ describe("proxy", () => {
     expect(loaded).not.toHaveBeenCalled();
   });
 
-  it("Supabase mode: POST /auth/signout passes through without the Supabase refresh", async () => {
-    vi.stubEnv("QAVREN_AUTH_URL", ""); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "");
-    mockAuth(); mockSupabase();
-    expect((await run(req("http://localhost:3000/auth/signout", null, { method: "POST" }))).status).toBe(200);
-    expect(createServerClient).not.toHaveBeenCalled();
-    expect(loaded).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["Supabase", ""],
-    ["Qavren", "http://localhost:8090"],
-  ])("test-mirror Basic Auth runs before the auth mode (%s mode)", async (_mode, qavrenAuthUrl) => {
-    vi.stubEnv("QAVREN_AUTH_URL", qavrenAuthUrl); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
+  it("test-mirror Basic Auth runs before the gate", async () => {
+    vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090"); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
     vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "true");
     vi.stubEnv("TEST_SITE_BASIC_AUTH_USER", "u"); vi.stubEnv("TEST_SITE_BASIC_AUTH_PASS", "p");
-    mockAuth(); mockSupabase();
+    mockAuth();
     const denied = await run(req("http://localhost:3000/", null));
     expect(denied.status).toBe(401);
     expect(denied.headers.get("www-authenticate")).toContain("Basic");
     // Auth.js routes are exempt from the gate, not from the mirror's Basic Auth.
     expect((await run(req("http://localhost:3000/api/auth/session", null))).status).toBe(401);
-    // Unauthenticated traffic touches neither Supabase nor Auth.js.
-    expect(createServerClient).not.toHaveBeenCalled();
+    // Unauthenticated traffic never touches Auth.js.
     expect(loaded).not.toHaveBeenCalled();
     const ok = req("http://localhost:3000/", null, { headers: { authorization: `Basic ${Buffer.from("u:p").toString("base64")}` } });
     expect((await run(ok)).status).toBe(200);
@@ -179,9 +146,10 @@ describe("proxy", () => {
   });
 
   it("test-mirror Basic Auth fails open, with a warning, when its credentials are missing in production", async () => {
-    vi.stubEnv("QAVREN_AUTH_URL", ""); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("QAVREN_AUTH_URL", "http://localhost:8090"); vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
     vi.stubEnv("NEXT_PUBLIC_IS_TEST_SITE", "true"); vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("TEST_SITE_BASIC_AUTH_USER", ""); vi.stubEnv("TEST_SITE_BASIC_AUTH_PASS", "");
+    mockAuth();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect((await run(req("http://localhost:3000/"))).status).toBe(200);

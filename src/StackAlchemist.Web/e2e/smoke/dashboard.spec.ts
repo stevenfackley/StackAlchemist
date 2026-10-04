@@ -8,13 +8,14 @@ test.describe("Smoke: Auth and Demo Generation Contract", () => {
   });
 
   test("login and register entry points render", async ({ page }) => {
+    // Both pages hand off to the Qavren Auth realm; demo mode renders them unchanged.
     await page.goto("/login");
     await expect(page.getByRole("heading", { level: 1, name: /sign in/i })).toBeAttached();
-    await expect(page.getByRole("button", { name: /sign in|send magic link/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
 
     await page.goto("/register");
-    await expect(page.getByRole("heading", { level: 1, name: /create your stackalchemist account/i })).toBeAttached();
-    await expect(page.getByRole("button", { name: /create account/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /create your account/i })).toBeAttached();
+    await expect(page.getByRole("button", { name: /create your account/i })).toBeVisible();
   });
 
   test("explicit demo generation follows demo-mode smoke contract", async ({ page }) => {

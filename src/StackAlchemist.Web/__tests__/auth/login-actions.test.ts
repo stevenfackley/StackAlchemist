@@ -33,7 +33,7 @@ describe("Qavren sign-in actions", () => {
     expect(signIn).toHaveBeenCalledWith("keycloak", { redirectTo: "/simple" }, { prompt: "create" });
   });
 
-  it("both actions are inert in Supabase mode (a server action is reachable in every mode)", async () => {
+  it("both actions are inert in demo mode, without QAVREN_AUTH_URL (a server action is reachable in every mode)", async () => {
     vi.stubEnv("QAVREN_AUTH_URL", "");
     const { loginAction } = await import("@/app/login/actions");
     const { signupAction } = await import("@/app/register/actions");
