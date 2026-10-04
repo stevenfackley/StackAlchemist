@@ -915,6 +915,42 @@ Phase F's gate G2(2) becomes "this hardening merged, plus one of those two check
 
 ---
 
+## 2026-10-04 — Compile Guarantee builds run sandboxed (#454)
+
+**Status:** accepted
+**Context:** Compile Guarantee builds execute LLM-generated code. A `.csproj` can declare MSBuild `Exec` targets, `npm install` runs package scripts, and a FastAPI app runs under pytest. The input is a customer prompt, so this was a prompt-injection-to-code-execution path. #453 already stopped build children from inheriting the Engine's secrets. They still ran as root inside the Engine's container:
+- the Engine's `/proc/<pid>/environ`, which holds every secret, was one `cat` away;
+- every other job's tree and archive was readable;
+- the network was open, including the instance-metadata endpoint.
+
+**Decision:** option 1 from the issue: a separate unprivileged user plus an egress firewall. The in-process worker stays.
+- **Another uid.** Every build command runs through `docker/engine/sa-sandbox-exec`: `setpriv` to `sa-builder` (uid 10001), no supplementary groups, no-new-privs, empty capability sets, and `prlimit` against fork bombs.
+- **A copy, never the source tree.** `BuildSandbox` copies the generated tree to `/var/lib/stackalchemist/build/<job>` for each attempt and runs the build there.
+  - The Engine keeps writing repair files, the build report and the archive in its own tree, under `/var/lib/stackalchemist/tmp` (0700 root). A symlink planted by a build can never redirect a root write or read.
+  - Only `package-lock.json` is copied back, because `npm install` legitimately rewrites it.
+  - The archiver also skips symlinks as a backstop.
+- **A private HOME per job.** HOME is kept across one job's attempts for warm caches and deleted when the next job starts. One job's build cannot poison another's NuGet or npm cache.
+- **Nothing outlives a build.** After every build, every uid-10001 process is killed (`kill -KILL -1` as that uid). A daemonized leftover cannot watch later jobs.
+- **Egress firewall for that uid only.** The entrypoint installs it, using cap NET_ADMIN.
+  - It rejects loopback, RFC 1918, CGNAT, link-local (metadata), multicast and reserved ranges. The resolvers in `/etc/resolv.conf` stay open on port 53.
+  - NET_ADMIN is then dropped from the Engine's bounding set.
+  - `SA_BUILD_EGRESS=required` (prod and CI compose) refuses to start the container without the firewall.
+- **Production refuses to start without the sandbox.**
+
+**Consequences:**
+- Proven in the container by `docker/engine/sandbox-selftest.sh`, which runs in the E2E Integration lane:
+  - the uid is 10001, with no capabilities and no-new-privs;
+  - the Engine's environment and other jobs' trees are unreadable;
+  - metadata, loopback and the compose Postgres are unreachable, while the npm registry stays reachable;
+  - dotnet, npm and pip work as the build user;
+  - the purge leaves no process behind.
+- Builds now start with cold package caches for every job, because sharing a cache across jobs is exactly the poisoning risk. That adds roughly a cold `npm ci` per job. Revisit with a root-owned, read-only pre-warmed cache (NuGet fallback folders, an npm offline mirror) if build time matters.
+- Accepted risks:
+  - Public egress stays open, because builds need the registries, and DNS to the configured resolver is open. A build can still send its own job's code out, but that is the customer's own data.
+  - There is no memory cap per build: the container's limit applies.
+
+---
+
 ## 2026-10-04 — Phase F: Supabase retired; one store, one identity provider
 
 **Status:** accepted (merges on or after 2026-10-08, gate G2)

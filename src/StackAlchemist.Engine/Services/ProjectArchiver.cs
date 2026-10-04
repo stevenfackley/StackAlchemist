@@ -84,13 +84,20 @@ internal static class ProjectArchiver
             ? root
             : Path.Combine(root, relativeDirectory.Replace('/', Path.DirectorySeparatorChar));
 
+        // Symlinks are never packed: the archiver runs as root, so a link would put whatever it
+        // points at (another job's files, the Engine's /proc/<pid>/environ) in the customer's zip.
+        // The Engine's own tree has none (builds run in a copy, #454); this is the backstop.
         foreach (var file in Directory.EnumerateFiles(absoluteDirectory))
+        {
+            if (BuildSandbox.IsLink(file))
+                continue;
             entries.Add(Join(relativeDirectory, Path.GetFileName(file)));
+        }
 
         foreach (var directory in Directory.EnumerateDirectories(absoluteDirectory))
         {
             var childRelative = Join(relativeDirectory, Path.GetFileName(directory));
-            if (BuildResiduePaths.IsResidueDirectory(childRelative))
+            if (BuildSandbox.IsLink(directory) || BuildResiduePaths.IsResidueDirectory(childRelative))
                 continue;
 
             Walk(root, childRelative, entries);

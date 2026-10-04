@@ -487,6 +487,16 @@ jobs:
           docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml logs sa-engine --tail 30
           exit 1
 
+      - name: Build sandbox selftest (#454)
+        # Inside the running engine container, through the same wrapper the Engine uses:
+        # builds run as uid 10001 with no capabilities, cannot read the Engine's environment
+        # or other jobs' trees, cannot reach metadata, loopback or a private peer (the compose
+        # Postgres), can still reach the public registries, and leave no process behind.
+        run: |
+          docker compose -f docker/docker-compose.test.yml -f docker/docker-compose.ci.yml exec -T \
+            -e SELFTEST_PRIVATE_TARGET=postgres:5432 \
+            sa-engine /usr/local/lib/stackalchemist/sandbox-selftest.sh
+
       - name: Run Playwright Integration Tests
         working-directory: src/StackAlchemist.Web
         run: npm run e2e:integration

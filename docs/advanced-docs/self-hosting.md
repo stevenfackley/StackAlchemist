@@ -153,7 +153,9 @@ The repository ships a multi-stage `Dockerfile` with `web`, `engine` and `worker
 docker compose up sa-web sa-engine
 ```
 
-For a production-style layout, `docker-compose.prod.yml` shows the shape the hosted platform uses: an nginx `reverse-proxy`, `sa-web` and `sa-engine` on one network, with the Cloudflare Tunnel run separately. It is written for that specific host (env names, the `stackalchemist-prod` network, a Cloudflare Tunnel in front), so treat it as a reference rather than a drop-in file. Build the images through compose so `NEXT_PUBLIC_APP_URL` is passed as a build argument; a bare `docker build` bakes in a default URL that is wrong for your site.
+For a production-style layout, `docker-compose.prod.yml` shows the shape the hosted platform uses: an nginx `reverse-proxy`, `sa-web` and `sa-engine` on one network, with the Cloudflare Tunnel run separately. It is written for that specific host (env names, the `stackalchemist-prod` network, a Cloudflare Tunnel in front), so treat it as a reference rather than a drop-in file.
+
+The engine image runs Compile Guarantee builds in a sandbox: a separate unprivileged user, a per-job copy of the tree, and an egress firewall for that user that blocks private networks and cloud metadata (`docs/DECISIONS.md`, 2026-10-04). The firewall needs `cap_add: [NET_ADMIN]` on `sa-engine`, as in `docker-compose.prod.yml`. With `SA_BUILD_EGRESS: required` the container refuses to start without it. The image default, `optional`, starts anyway with a warning. To check a running container, run `docker compose exec sa-engine /usr/local/lib/stackalchemist/sandbox-selftest.sh`. Build the images through compose so `NEXT_PUBLIC_APP_URL` is passed as a build argument; a bare `docker build` bakes in a default URL that is wrong for your site.
 
 ### Reverse proxy
 
