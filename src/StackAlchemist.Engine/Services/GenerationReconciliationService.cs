@@ -11,8 +11,14 @@ namespace StackAlchemist.Engine.Services;
 ///
 /// Each tick: (1) flush buffered critical writes (a rescued terminal write beats
 /// failing the row), (2) list stale non-terminal rows, (3) skip rows this instance is
-/// actively processing, (4) re-enqueue pending/generating_code rows under budget via a
-/// CAS claim, (5) conditionally fail the rest with a cause-specific message.
+/// actively processing, (4) leave unpaid paid-tier checkouts alone (and fail them once
+/// their Checkout Session can no longer be paid), (5) re-enqueue pending/generating_code
+/// rows under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
+/// message.
+///
+/// Step (4) closes #421: the web inserts a paid-tier row as `pending` before the user pays,
+/// and the Stripe webhook is what starts it. Without the payment check an abandoned checkout
+/// went stale after 15 minutes and was built for free, up to three times.
 /// </summary>
 public sealed partial class GenerationReconciliationService(
     IDeliveryService deliveryService,
@@ -21,12 +27,17 @@ public sealed partial class GenerationReconciliationService(
     IPendingWriteBuffer pendingWrites,
     IConfiguration configuration,
     TimeProvider timeProvider,
-    ILogger<GenerationReconciliationService> logger) : BackgroundService
+    ILogger<GenerationReconciliationService> logger,
+    IBillingStore? billing = null) : BackgroundService
 {
     private const int DefaultStaleMinutes = 15;
     private const int DefaultIntervalMinutes = 5;
     private const int DefaultMaxAttempts = 3; // matches the frontend's attempt_count < 3 retry gate
     private static readonly TimeSpan MaxBufferedWriteAge = TimeSpan.FromHours(1);
+
+    // A Checkout Session can be paid for at most 24 hours after creation; an hour of slack covers
+    // the webhook's own retries. Past this, an unpaid paid-tier row can never be paid.
+    private static readonly TimeSpan UnpaidCheckoutLifetime = TimeSpan.FromHours(25);
 
     // Construction time ≈ process start (singleton hosted service, built at host boot).
     private readonly DateTimeOffset _processStartedUtc = timeProvider.GetUtcNow();
@@ -94,6 +105,18 @@ public sealed partial class GenerationReconciliationService(
             if (inFlight.Contains(row.Id))
                 continue;
 
+            // A paid tier that is still pending has not started; only a completed payment may
+            // start it. Unpaid: wait while the checkout can still complete, then fail the row.
+            if (row.Status == "pending" && row.Tier > 0 && !await IsPaidAsync(row.Id, ct))
+            {
+                if (timeProvider.GetUtcNow() - row.UpdatedAt > UnpaidCheckoutLifetime)
+                {
+                    await deliveryService.TryFailStaleRowAsync(
+                        row, staleWindow, "Checkout was not completed.", ErrorCategorizer.Internal, ct);
+                }
+                continue;
+            }
+
             if (RequeueableStatuses.Contains(row.Status) && row.AttemptCount < maxAttempts)
             {
                 if (!await deliveryService.TryClaimForRequeueAsync(row, staleWindow, ct))
@@ -120,6 +143,27 @@ public sealed partial class GenerationReconciliationService(
                     : $"Generation stalled and timed out after {staleWindow.TotalMinutes:0} minutes without progress.";
 
             await deliveryService.TryFailStaleRowAsync(row, staleWindow, message, ErrorCategorizer.Internal, ct);
+        }
+    }
+
+    /// <summary>
+    /// True when a completed Stripe transaction backs the generation. No billing store (local dev)
+    /// means nothing can ever be paid; a lookup failure skips the row this tick rather than risk
+    /// building it unpaid.
+    /// </summary>
+    private async Task<bool> IsPaidAsync(string generationId, CancellationToken ct)
+    {
+        if (billing is null)
+            return false;
+
+        try
+        {
+            return await billing.FindCompletedTransactionAsync(generationId, ct) is not null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogPaymentLookupFailed(logger, ex, generationId);
+            return false;
         }
     }
 
@@ -167,4 +211,7 @@ public sealed partial class GenerationReconciliationService(
 
     [LoggerMessage(EventId = 704, Level = LogLevel.Error, Message = "Dropped buffered critical write for generation {Id} (older than the age cap) — stale sweep owns the row now")]
     private static partial void LogBufferedWriteDropped(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 705, Level = LogLevel.Warning, Message = "Could not check payment for pending generation {Id} — skipping it this tick")]
+    private static partial void LogPaymentLookupFailed(ILogger logger, Exception ex, string id);
 }

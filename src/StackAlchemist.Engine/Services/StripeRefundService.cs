@@ -90,7 +90,13 @@ public sealed partial class StripeRefundService(
         }
         catch (Exception ex)
         {
-            LogRefundLookupFailed(logger, ex, generationId);
+            // Ambiguous (#424): the claim's UPDATE may have committed before the failure (a
+            // connection lost after COMMIT), which would strand the row in refund_pending with no
+            // Stripe refund behind it and no future claim able to take it. The revert is guarded
+            // on status = 'refund_pending' and this service is the only writer of that status, so
+            // it undoes a committed claim and is a no-op otherwise. Not on ct, as below.
+            LogRefundClaimAmbiguous(logger, ex, generationId, transaction.Id);
+            await billing.RevertRefundClaimAsync(transaction.Id, CancellationToken.None);
             return RefundOutcome.Failed;
         }
 
@@ -153,4 +159,7 @@ public sealed partial class StripeRefundService(
 
     [LoggerMessage(EventId = 806, Level = LogLevel.Error, Message = "Failed to look up/claim the transaction for generation {Id}")]
     private static partial void LogRefundLookupFailed(ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(EventId = 807, Level = LogLevel.Error, Message = "MANUAL RECOVERY: refund claim for transaction {TransactionId} (generation {Id}) failed mid-flight. No Stripe refund was issued; the claim was reverted if it had committed. Re-run the refund or refund from the Stripe dashboard.")]
+    private static partial void LogRefundClaimAmbiguous(ILogger logger, Exception ex, string id, string transactionId);
 }

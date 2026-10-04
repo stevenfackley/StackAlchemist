@@ -172,6 +172,30 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
     }
 
     [Fact]
+    public async Task ProcessCheckoutCompletedAsync_records_a_checkout_for_a_missing_generation_without_a_retry_storm()
+    {
+        // #419: this used to violate transactions.generation_id's FK, roll back the event insert, and
+        // make Stripe redeliver for days. Now the payment and the event are recorded and the caller
+        // gets a null mode (generations.mode is NOT NULL) instead of an exception.
+        if (!fx.Available) return;
+        var missing = Guid.NewGuid();
+        var (evt, cs, pi) = (Unique("evt_c"), Unique("cs"), Unique("pi"));
+
+        var outcome = await Sut().ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, pi, missing.ToString(), 2, 59900, Ct);
+
+        outcome.IsNew.Should().BeTrue();
+        outcome.Mode.Should().BeNull();
+        (await EventCount(evt)).Should().Be(1, "the event is recorded, so Stripe stops redelivering");
+        (await fx.ReadAsync<string>(
+                "select status || '|' || coalesce(generation_id::text, 'null') from stackalchemist.transactions where stripe_session_id = $1", cs))
+            .Should().Be("completed|null", "the payment is kept on record for manual recovery");
+
+        (await Sut().ProcessCheckoutCompletedAsync(evt, CheckoutCompleted, cs, pi, missing.ToString(), 2, 59900, Ct))
+            .IsNew.Should().BeFalse("a redelivery is a duplicate");
+        (await TransactionCount(cs)).Should().Be(1);
+    }
+
+    [Fact]
     public async Task ProcessCheckoutCompletedAsync_rolls_everything_back_when_the_row_does_not_map()
     {
         if (!fx.Available) return;
