@@ -36,6 +36,9 @@ public abstract partial class BuildStrategyBase(ILogger logger, BuildStrategyOpt
     /// </summary>
     internal TimeSpan StepTimeout { get; } = (options ?? new BuildStrategyOptions()).StepTimeout;
 
+    /// <summary>When set, every build command runs as the unprivileged build user (#454).</summary>
+    private readonly BuildSandbox? _sandbox = options?.Sandbox;
+
     /// <inheritdoc cref="ProcessCommandResolver"/>
     protected static string NpmExecutable => ProcessCommandResolver.Npm;
 
@@ -70,6 +73,9 @@ public abstract partial class BuildStrategyBase(ILogger logger, BuildStrategyOpt
         // Children run LLM-generated code: they get a toolchain allowlist, never the Engine's
         // secrets (DATABASE_URL, Stripe/Anthropic/R2 keys, …). See BuildProcessEnvironment.
         BuildProcessEnvironment.Apply(psi.Environment);
+        // In the container they also run as another uid, so the secrets in the Engine's own
+        // /proc/<pid>/environ are out of reach too. See BuildSandbox.
+        _sandbox?.Apply(psi, fileName, arguments, workingDirectory);
 
         using var process = new Process { StartInfo = psi };
         process.Start();
@@ -288,4 +294,10 @@ public sealed class BuildStrategyOptions
     /// registry fails the attempt instead of holding the compile worker indefinitely.
     /// </summary>
     public TimeSpan StepTimeout { get; init; } = DefaultStepTimeout;
+
+    /// <summary>
+    /// The build sandbox, or null to run build commands as the Engine's own user (local runs and
+    /// unit hosts; Production refuses to start without it).
+    /// </summary>
+    public BuildSandbox? Sandbox { get; init; }
 }
