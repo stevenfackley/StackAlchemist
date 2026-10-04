@@ -122,8 +122,8 @@ jobs:
   backend:
     name: Backend (.NET Build & Test)
     runs-on: ubuntu-latest
-    # No service containers: the test suites talk to Supabase over HTTP and
-    # mock everything else — the old postgres:16 service was never used.
+    # No service containers: the unit suites mock the store, and the Postgres
+    # integration suites start their own container through Testcontainers.
 
     steps:
       - name: Checkout
@@ -316,8 +316,8 @@ jobs:
         working-directory: src/StackAlchemist.Web
         run: npx playwright install --with-deps chromium
 
-      # Postgres + Keycloak mode (phase D): no Supabase secret is needed for the
-      # integration suite; the remaining secrets gate only the nightly real-API specs.
+      # Postgres + Keycloak: the integration suite needs no external store; the
+      # remaining secrets gate only the nightly real-API specs.
       - name: Setup .env (test)
         uses: ./.github/actions/setup-env
         with:
@@ -498,9 +498,6 @@ jobs:
           AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable
-          NEXT_PUBLIC_SUPABASE_URL: ""
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
-          SUPABASE_SERVICE_ROLE_KEY: ""
           ENGINE_API_URL: http://127.0.0.1:5000
           E2E_KEYCLOAK_URL: http://localhost:8080
 
@@ -523,9 +520,6 @@ jobs:
           AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/stackalchemist?sslmode=disable
-          NEXT_PUBLIC_SUPABASE_URL: ""
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
-          SUPABASE_SERVICE_ROLE_KEY: ""
           ENGINE_API_URL: http://127.0.0.1:5000
           E2E_KEYCLOAK_URL: http://localhost:8080
 

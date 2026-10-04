@@ -132,6 +132,6 @@ if (existsSync(TARGET_PATH)) {
   }
 
   console.log('');
-  console.log(dim('  Keys already set to sensible local defaults (Supabase local,'));
+  console.log(dim('  Keys already set to sensible local defaults (demo mode,'));
   console.log(dim('  localhost ports, etc.) do not need to be changed for basic dev.\n'));
 }

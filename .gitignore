@@ -55,10 +55,6 @@ reconstruction/
 logs/
 generated_repos/
 
-# Supabase Local Development
-supabase/.temp/
-supabase/functions/.env
-
 # AI Agent Specific
 AGENTS.md
 claude.md

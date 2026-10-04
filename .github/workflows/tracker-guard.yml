@@ -1,6 +1,6 @@
 name: Tracker Guard
 
-# Guards this site's banner-free status: only the Supabase PKCE auth cookie
+# Guards this site's banner-free status: only the Auth.js session cookie
 # ships (strictly-necessary exemption; fleet audit 2026-08-05), so no
 # cookie-consent dialog is required. If this gate fails, switch to a
 # cookieless alternative or add consent gating before merging — see
