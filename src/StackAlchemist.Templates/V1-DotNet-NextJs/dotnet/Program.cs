@@ -51,6 +51,10 @@ try
     app.UseCors();
     app.UseSerilogRequestLogging();
 
+    // Liveness for load balancers and Kubernetes probes: the Infrastructure tier's CDK,
+    // Terraform and Helm all health-check this path.
+    app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+
     // API Routes
     [[LLM_INJECTION_START: RouteRegistrations]]
     [[LLM_INJECTION_END: RouteRegistrations]]
