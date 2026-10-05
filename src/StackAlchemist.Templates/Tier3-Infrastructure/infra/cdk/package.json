@@ -10,12 +10,12 @@
     "destroy": "cdk destroy"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.271.0",
+    "aws-cdk-lib": "^2.272.0",
     "constructs": "^10.4.2"
   },
   "devDependencies": {
-    "@types/node": "^26.6.3",
-    "aws-cdk": "^2.1143.0",
+    "@types/node": "^26.6.4",
+    "aws-cdk": "^2.1144.0",
     "typescript": "^7.0.2"
   }
 }
