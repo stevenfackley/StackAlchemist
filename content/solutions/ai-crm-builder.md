@@ -6,18 +6,20 @@ You describe the kind of CRM your team actually needs. StackAlchemist generates 
 
 A production-shaped AI CRM with:
 
-- **Contacts and accounts** with custom fields, tagging, and deduplication
-- **Deal pipelines** with configurable stages, drag-and-drop kanban, and forecasting
-- **Activities and tasks** with reminders, assignees, and due dates
-- **Email integration scaffolding** for Gmail and Outlook (OAuth-based, two-way sync ready)
-- **Notes and call logs** attached to contacts, accounts, or deals
-- **Reports and dashboards** for pipeline coverage, win rate, and rep performance
-- **Role-based access control** so reps see their book, managers see the team, admins see everything
-- **Audit trail** on every contact, deal, and stage change — required for any serious sales org
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Contacts and accounts** — `Contact` and `Account` entities with owner, industry and the fields you describe, plus `CustomField` and `Tag`
+- **Deal pipelines** — `Deal`, `Pipeline` and `Stage` entities with amounts, stage probabilities and expected close dates
+- **Activities and tasks** — `Activity` and `Task` entities with type, assignee, due date and completion
+- **Notes and logs** — `Note`, `EmailLog` and `CallLog` entities attached to contacts, accounts, or deals
+- **Users, roles and teams** — `User`, `Role` and `Team` entities, the data your access rules are built on
+- **Audit events** — an `AuditEvent` entity to record contact, deal, and stage changes
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** Gmail and Outlook sync (OAuth), sign-in and server-side role enforcement (the Supabase client is preinstalled; the auth flows are yours to write), writing an audit event on every change, the kanban board and forecast reports, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of buying a CRM
 
@@ -62,33 +64,33 @@ StackAlchemist generates:
 - `Pipeline` and `Stage` entities — Pipeline owns ordered Stages with probabilities
 - `Activity` entity polymorphic over Deal / Contact / Account — type (call, email, meeting), notes, completed_at
 - `Quota` entity per User per period (monthly or quarterly)
-- `User` and `Role` entities with RBAC enforced server-side, not just hidden in the UI
-- API endpoints: `POST /deals`, `PATCH /deals/:id/stage`, `POST /activities`, plus reporting endpoints for pipeline coverage and forecast
-- A Next.js dashboard with kanban pipeline view, deal-detail page with activity timeline, and manager forecasting view
+- `User` and `Role` entities — the data you enforce access with, server-side, once you write the checks
+- CRUD endpoints for every entity (`/api/v1/deals`, `/api/v1/contacts`, `/api/v1/activities`, …). Endpoints like `PATCH /deals/:id/stage` or a pipeline-coverage report can be declared in Advanced Mode; the logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages to build the kanban and forecast views on
 
-All wired into a Next.js frontend and a .NET backend with audit logging on every state change. The generated CI/CD pipeline compiles and tests on every push. Docker-compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
+That is your CRM's data model and CRUD layer, compile-verified. Audit logging on state changes, the kanban pipeline view, the deal timeline and the forecast math are code you add on top. Docker Compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Wire the email integration.** The generated repo includes OAuth scaffolding for Gmail and Outlook plus a `EmailLog` entity with provider-agnostic fields. Drop in your client ID and secret, point the OAuth callback at your domain, and reps can log emails directly against deals. This is the single highest-impact thing you can finish in the first hour.
+1. **Wire the email integration.** The repo gives you an `EmailLog` entity with provider-agnostic fields; the Gmail and Outlook OAuth flow and the sync job are yours to write. Register an OAuth app with Google or Microsoft, point the callback at your domain, and write the sync that stores messages as `EmailLog` rows against deals. Reps logging emails directly against deals is the single highest-impact feature you can build first.
 
-2. **Add your first custom field type.** Maybe your reps need a "champion strength" rating on every deal — 1-5 scale, custom UI affordance. The generated `CustomField` entity supports adding new types in code without DB migrations for every new field. Add a `RatingField` subtype, render it in the deal-detail React page, and you are doing the kind of customization that costs $500/seat/month on enterprise CRMs.
+2. **Add your first custom field type.** Maybe your reps need a "champion strength" rating on every deal — 1-5 scale, custom UI affordance. The generated `CustomField` entity is a plain table you own: add a rating type, render it in the deal-detail React page, and you are doing the kind of customization that costs $500/seat/month on enterprise CRMs.
 
 ## What is not included
 
 StackAlchemist is not Salesforce. We do not host your CRM, do not provide an enterprise app marketplace, and do not ship a managed mobile app. We generate you the code. You deploy and operate it.
 
-We do not include forecasting AI, sales-call transcription, or chatbots out of the box — adding them is a feature for a later generation or hand-coded after delivery. The CRM you get is the data layer, the operations layer, and the dashboards. The fancy AI sales-coach features are yours to bolt on once you own the foundation.
+We do not include forecasting AI, sales-call transcription, or chatbots out of the box — adding them is a feature for a later generation or hand-coded after delivery. The CRM you get is the data layer and the CRUD surface. The dashboards and the fancy AI sales-coach features are yours to bolt on once you own the foundation.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode CRM** — $299. Single team, single pipeline, contacts/deals/activities, basic reporting.
-- **Blueprint-tier** — $599. Multi-team, multiple pipelines, custom fields, email integration scaffolding, RBAC.
-- **Boilerplate-tier** — $999. Forecasting, advanced reporting, audit trail UI, multi-currency, custom field types extensible in code.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No per-seat tax. You own what you generate.
 

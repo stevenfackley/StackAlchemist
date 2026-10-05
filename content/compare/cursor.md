@@ -1,6 +1,6 @@
 # StackAlchemist vs Cursor
 
-**Last updated: April 20, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 I want to be upfront: Cursor and StackAlchemist are not the same category. Cursor is an AI-native IDE — you open it, open a repo, and pair with a model on your existing code. StackAlchemist is a SaaS generator — you type a prompt, you get a repo. The "versus" question is worth answering anyway, because both land on the same shelf in people's heads: "AI helps me write software." Here is where each actually fits.
 
@@ -11,7 +11,7 @@ I want to be upfront: Cursor and StackAlchemist are not the same category. Curso
 | Category | AI-native IDE | Full-stack SaaS generator |
 | Input | Existing repo + prompts | A prompt |
 | Output | Edits to your repo | A new repo |
-| Scope | File-level and repo-level edits | Whole compiled SaaS (frontend + backend + DB + auth + payments) |
+| Scope | File-level and repo-level edits | Whole compiled repo (frontend + backend + DB schema + Docker) |
 | Best use | Iterating on software you already have | Starting software from zero |
 | Pricing | Subscription (seat-based) | One-time per generation |
 | Ownership | You already own the repo | You own the generated repo |
@@ -28,11 +28,11 @@ I want to be upfront: Cursor and StackAlchemist are not the same category. Curso
 
 ## Where StackAlchemist is the right call
 
-**You do not have a repo yet.** This is the simplest cut. Cursor is incredible once you have code. If you are at "I have an idea, I need the code to exist," Cursor asks you to start typing — through chat, sure, but still file by file. StackAlchemist ships the whole thing — frontend, backend, database schema, auth, Stripe, Docker, CI — in one generation.
+**You do not have a repo yet.** This is the simplest cut. Cursor is incredible once you have code. If you are at "I have an idea, I need the code to exist," Cursor asks you to start typing — through chat, sure, but still file by file. StackAlchemist ships the starting repo — frontend, backend, database schema and migrations, Docker — in one generation. Auth and payments are not in it; you add those, and Cursor is a good place to do it.
 
-**You want the full stack from a prompt, not file-level edits from chat.** Cursor's agent can scaffold, but scaffolding a full Next.js + .NET + Postgres + Supabase + Stripe stack by chatting your way through it is slow and error-prone compared to a purpose-built generator with templates the authors wrote and verified.
+**You want the full stack from a prompt, not file-level edits from chat.** Cursor's agent can scaffold, but scaffolding a full Next.js + .NET + Postgres stack with CRUD for every entity by chatting your way through it is slow and error-prone compared to a purpose-built generator with templates the authors wrote and verified.
 
-**You want compile-verified output, not "here is a diff, apply it."** Cursor's output is a diff against your repo. You review it. You test it. StackAlchemist refuses to hand you a repo at all if `dotnet build` or `pnpm build` fails. That is a different guarantee, and it only makes sense for the "generate from zero" case.
+**You want compile-verified output, not "here is a diff, apply it."** Cursor's output is a diff against your repo. You review it. You test it. StackAlchemist refuses to hand you a repo at all if `dotnet build` or `next build` fails. That is a different guarantee, and it only makes sense for the "generate from zero" case.
 
 **You want to own a finished artifact, not an IDE subscription.** Cursor is a tool you rent per month, per seat. StackAlchemist is one payment for one repo — the repo is yours, deploy it anywhere, sell the company. The pricing models target different outcomes.
 
@@ -60,7 +60,7 @@ Be honest with yourself. You do not need StackAlchemist if:
 You should not default to Cursor if:
 
 - You do not have a repo yet and need one that compiles on day zero.
-- You want the backend, database schema, migrations, auth flows, Stripe wiring, Docker, and CI generated in one shot, not prompted into existence file by file.
+- You want the backend, database schema, migrations, typed API client, pages, and Docker generated in one shot, not prompted into existence file by file.
 - You want a one-time payment for the artifact you are taking home, not a monthly seat for the tool that helps you type.
 
 ## Verdict

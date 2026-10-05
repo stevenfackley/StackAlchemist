@@ -1,8 +1,8 @@
 # StackAlchemist vs Retool
 
-**Last updated: May 9, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
-Retool and StackAlchemist solve different problems and the comparison only comes up because both involve "AI-ish app building." Retool is the leading internal-tools platform — it sits on top of your existing databases and APIs and gives your ops team an admin UI fast. StackAlchemist generates the SaaS itself: the customer-facing product, the backend, the database, the auth, the billing. Here is when each is the right answer.
+Retool and StackAlchemist solve different problems and the comparison only comes up because both involve "AI-ish app building." Retool is the leading internal-tools platform — it sits on top of your existing databases and APIs and gives your ops team an admin UI fast. StackAlchemist generates the SaaS itself: the customer-facing frontend, the backend, the database. Auth and billing are not generated; you wire those. Here is when each is the right answer.
 
 ## TL;DR
 
@@ -12,7 +12,7 @@ Retool and StackAlchemist solve different problems and the comparison only comes
 | Output | A hosted Retool app | A real customer-facing SaaS repo (.NET + Next.js + Postgres) |
 | Sits on top of | Your existing DB / API / SaaS | Nothing — generates the whole stack |
 | Customer-facing? | Rarely (mostly internal users) | Yes |
-| Code ownership | None — Retool config in Retool | Full repo, your LICENSE, deploy anywhere |
+| Code ownership | None — Retool config in Retool | Full repo, yours outright, deploy anywhere |
 | Pricing | Per-user / per-seat subscription | One-time per generation |
 | Best for | Ops dashboards, admin panels, support tools | The product your customers actually use |
 
@@ -28,11 +28,11 @@ Retool and StackAlchemist solve different problems and the comparison only comes
 
 ## Where StackAlchemist is the right call
 
-**You do not have a SaaS yet.** This is the simplest cut. Retool sits on top of a stack. If you do not have the stack, Retool has nothing to sit on. StackAlchemist is what produces the stack — the customer-facing SaaS, the database, the auth, the billing. You generate the SaaS with StackAlchemist, then if you later need an admin dashboard for internal use, that is when Retool enters the picture.
+**You do not have a SaaS yet.** This is the simplest cut. Retool sits on top of a stack. If you do not have the stack, Retool has nothing to sit on. StackAlchemist is what produces the stack — the customer-facing app, the API, the database. You generate the SaaS with StackAlchemist, then if you later need an admin dashboard for internal use, that is when Retool enters the picture.
 
 **The product is for paying customers, not internal staff.** Retool apps are perfect for an ops team of 30. They are not what you put in front of 30,000 paying users. The pricing model assumes internal seat counts, the runtime is not optimized for public-internet workloads, and the UX vocabulary is admin-flavored. StackAlchemist generates a customer-facing SaaS designed to be the product itself.
 
-**You want code ownership.** Retool's value is the platform — but the trade is that the "app" you build lives inside Retool. You cannot export it as code, deploy it elsewhere, or sell it as an asset. StackAlchemist hands you a repo and the LICENSE has your name on it. The output of a StackAlchemist generation is something you can take to a new infra provider, a new hosting setup, or a new owner.
+**You want code ownership.** Retool's value is the platform — but the trade is that the "app" you build lives inside Retool. You cannot export it as code, deploy it elsewhere, or sell it as an asset. StackAlchemist hands you a repo, and the code is yours. The output of a StackAlchemist generation is something you can take to a new infra provider, a new hosting setup, or a new owner.
 
 **You want a one-time price tied to the artifact, not a per-seat subscription tied to the platform.** Retool's economics scale with team size, which is correct for an ops tool. StackAlchemist's economics tie price to one generation, which is correct for a customer-facing product where seat counts are revenue, not cost.
 
@@ -40,7 +40,7 @@ Retool and StackAlchemist solve different problems and the comparison only comes
 
 This is the cleanest framing. Retool and StackAlchemist do not compete; they live in different layers of the stack.
 
-- Use StackAlchemist to generate the customer-facing SaaS — frontend, backend, database, auth, billing — as a real repo you own and deploy.
+- Use StackAlchemist to generate the customer-facing SaaS — frontend, backend, database — as a real repo you own and deploy.
 - Use Retool to build the internal admin UI on top of that SaaS's database — refunds, support overrides, account inspection, ops dashboards.
 
 This is the standard mature setup at most SaaS companies: real code for the product, an internal-tools platform for the admin layer. StackAlchemist gives you the first half of that. Retool is great for the second.

@@ -1,12 +1,12 @@
 # StackAlchemist
 
-> StackAlchemist is an AI SaaS generator with a 100% compile guarantee. It turns plain-English specifications into fully compiled, downloadable full-stack code repositories — .NET 10 Web API, Next.js 16 frontend, PostgreSQL schema, Supabase auth, Docker Compose, and AWS CDK infrastructure — that the buyer owns outright for a one-time price (no subscription).
+> StackAlchemist is an AI SaaS generator with a Compile Guarantee. It turns a plain-English description or an entity schema into a downloadable full-stack code repository: a .NET 10 minimal API (Dapper) + Next.js 16 frontend, or FastAPI + React, with a PostgreSQL migration and Docker Compose. The Infrastructure tier adds AWS CDK, Terraform and a Helm chart. Every repository is built with its real compilers before delivery. The buyer owns it outright for a one-time price (no subscription). The generated code is the domain model and CRUD layer around your entities; authentication and payment integration are not generated (the .NET frontend ships the Supabase client preinstalled for you to wire).
 
-The platform uses the **Swiss Cheese Method**: deterministic Handlebars templates define the skeleton of the codebase, an LLM fills in the business logic holes, and the .NET compiler validates every generation. A 3-retry auto-correction loop re-prompts the LLM with compiler errors until the project builds, guaranteeing shippable output.
+The platform uses the **Swiss Cheese Method**: deterministic Handlebars templates define the skeleton of the codebase, and an LLM fills in the entity-specific holes. Before delivery, each half goes through its real toolchain: `dotnet build` and `next build` for .NET + Next.js, or flake8/pytest and ESLint/tsc for FastAPI + React. Build errors are fed back to the LLM for up to 3 repair attempts. If a paid build still does not compile, it is refunded.
 
 ## Core concepts
 
-- [Compile Guarantee](https://stackalchemist.app/docs/compile-guarantee): every generated repository is verified to build before handoff; failed builds are auto-corrected up to 3 times.
+- [Compile Guarantee](https://stackalchemist.app/docs/compile-guarantee): every paid repository is built before handoff; failed builds are auto-corrected up to 3 times, and refunded if they never compile.
 - [Swiss Cheese Method](https://stackalchemist.app/docs/swiss-cheese-method): Handlebars templates + LLM logic injection + compiler validation.
 - [Architecture Overview](https://stackalchemist.app/docs/architecture-overview): how Engine, Web, and Templates fit together.
 
@@ -42,6 +42,7 @@ The platform uses the **Swiss Cheese Method**: deterministic Handlebars template
 - Category: AI code generator / AI SaaS builder / AI scaffolder
 - Target user: solo founders, indie hackers, product teams, and agencies who want AI speed with compile-guaranteed output and full source ownership
 - Pricing model: one-time payment (not subscription)
-- Output stack: .NET 10, Next.js 16, PostgreSQL, Supabase, Docker, AWS CDK
-- Guarantees: 100% compile guarantee via auto-correction loop
+- Output stacks: .NET 10 + Next.js 16 + PostgreSQL (default), or FastAPI + React + PostgreSQL; Docker Compose; AWS CDK / Terraform / Helm on the Infrastructure tier
+- Not generated: authentication flows, payment (Stripe) integration, CI/CD pipelines
+- Guarantee: Compile Guarantee. The repository is built before delivery, with up to 3 auto-corrections, and refunded if it never compiles
 - Open Source: GitHub — https://github.com/stevenfackley/StackAlchemist

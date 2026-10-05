@@ -1,23 +1,26 @@
 # Generate a full AI Fitness Subscription Platform from a prompt
 
-You describe the kind of studio or fitness business you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, wires up Stripe Subscriptions, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the kind of studio or fitness business you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 
 A production-shaped AI fitness subscription platform with:
 
-- **Member accounts** with profiles, emergency contacts, waivers, and progress tracking
-- **Subscription plans** (monthly, annual, class-packs, drop-ins) billed via Stripe Subscriptions with webhook handling
-- **Class schedules** with recurring sessions, capacity limits, waitlists, and instructor assignment
-- **Check-in flow** for the front desk or self-serve QR code, with no-show tracking
-- **Instructor profiles** with bios, certifications, schedules, and class assignments
-- **Workout programs** with exercises, sets, reps, progressions, and member assignment
-- **Admin dashboard** for members, classes, billing, attendance, and instructor payouts
-- **Member portal** for booking, cancellations, waitlist position, and billing history
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Members** — a `Member` entity with profile, emergency contact and waiver fields
+- **Plans and subscriptions** — `MembershipPlan` and `Subscription` entities for monthly, annual, class-pack and drop-in plans, with a `stripe_subscription_id` column ready for your Stripe integration
+- **Classes and bookings** — `Class`, `ClassSession`, `Booking` and `WaitlistEntry` entities with capacity, instructor and status
+- **Check-ins** — `CheckIn` and `Attendance` entities with no-show tracking fields
+- **Instructors** — `Instructor`, `Certification` and `InstructorSchedule` entities with bios and payout rates
+- **Workout programs** — `WorkoutProgram`, `Exercise` and `WorkoutLog` entities with sets, reps and progressions
+- **Locations** — `Location`, `Room` and `Equipment` entities
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** Stripe Subscriptions and their webhooks, capacity checks and waitlist promotion, the QR check-in flow, the member portal and admin dashboard, member and staff sign-in (the Supabase client is preinstalled; the auth flows are yours to write), instructor payouts, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of paying Mindbody
 
@@ -32,7 +35,7 @@ All of this is generated in about 12 minutes from a single prompt. Every build i
 - **Boutique studio owners** running yoga, pilates, barre, or spin who are sick of paying Mindbody $300+/month and want to own their member relationships.
 - **CrossFit affiliate gyms** that need class capacity, workout-of-the-day programming, and member progress tracking without the $215/month box-management fee.
 - **Multi-location martial arts and boxing chains** that need shared member rosters, location-specific schedules, and consolidated billing across gyms.
-- **Virtual-fitness startups** launching a subscription service who need the platform stack — auth, billing, content delivery, member dashboards — without 4 months of engineering.
+- **Virtual-fitness startups** launching a subscription service who want the member, plan and class model generated, so their engineering months go into auth, billing, content delivery and member dashboards instead of plumbing.
 
 ## Example entities generated
 
@@ -66,34 +69,34 @@ StackAlchemist generates:
 - `WaitlistEntry` entity with session_id, member_id, position, joined_at, promoted_at
 - `Instructor` entity with name, bio, certifications, payout_rate, profile_photo, stripe_connect_id
 - `CheckIn` entity with booking_id, checked_in_at, checked_in_by (front_desk or self)
-- API endpoints: `POST /classes/:id/book`, `DELETE /bookings/:id`, `POST /classes/:id/waitlist`, `POST /check-ins`, `GET /members/:id/attendance`, plus admin endpoints for revenue per instructor and no-show reports
-- Stripe webhook handlers for `customer.subscription.updated`, `invoice.paid`, `invoice.payment_failed`
+- CRUD endpoints for every entity (`/api/v1/members`, `/api/v1/bookings`, `/api/v1/checkins`, …). Endpoints like `POST /classes/:id/book`, `POST /classes/:id/waitlist` or a revenue-per-instructor report can be declared in Advanced Mode; the capacity, waitlist and reporting logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js member portal and a .NET backend, with the booking flow handling capacity checks and waitlist promotion atomically. The Stripe Subscriptions integration manages recurring billing, dunning, and pack-credit accounting. Docker-compose spins up PostgreSQL, the .NET API, and the Next.js frontend so you can boot the stack in one command on a dev laptop.
+That is the studio's data model and CRUD layer, compile-verified. The member portal, capacity checks, atomic waitlist promotion, Stripe Subscriptions (recurring billing, dunning, pack-credit accounting) and the webhook handlers for `customer.subscription.updated`, `invoice.paid` and `invoice.payment_failed` are code you write on top. Docker Compose spins up PostgreSQL, the .NET API, and the Next.js frontend so you can boot the stack in one command on a dev laptop.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Connect Stripe and run a test subscription.** The generated repo includes the Stripe Subscriptions integration, webhook handlers, and the pack-credit accounting logic. Drop your Stripe test keys into `.env.local`, run the generated migrations, and sign up as a test member. You will see the subscription create, the first invoice paid, and the credits land in the member's account — without writing any payment code yourself. From there, you wire your production Stripe account and you are billing real members.
+1. **Wire Stripe and run a test subscription.** The generated repo does not include Stripe; `MembershipPlan` and `Subscription` hold the plan, the `stripe_subscription_id` and the billing status. Create your plans as Stripe Prices, add a checkout endpoint that starts a subscription, and write a webhook handler for `customer.subscription.updated`, `invoice.paid` and `invoice.payment_failed` that updates `Subscription` and adds class credits. Drop your Stripe test keys into `.env.local` and sign up as a test member. You should see the subscription create, the first invoice paid, and the credits land in the member's account. From there, you switch to your production Stripe account and you are billing real members.
 
-2. **Build the policy that makes your studio yours.** Maybe you want late-cancel fees ($10 if a member cancels within 4 hours of class). Maybe you want a no-show policy that auto-deducts a credit after the third no-show in a month. Maybe you want priority booking for annual members (they can book 14 days out, monthly members 7 days out). These are business rules — not template features — and the generated code is yours to extend. You add a `LateCancelPolicy` service, a background job that processes no-shows, or a `BookingWindow` rule in the class controller. This is the product working as designed.
+2. **Build the policy that makes your studio yours.** Maybe you want late-cancel fees ($10 if a member cancels within 4 hours of class). Maybe you want a no-show policy that auto-deducts a credit after the third no-show in a month. Maybe you want priority booking for annual members (they can book 14 days out, monthly members 7 days out). These are business rules — not template features — and the generated code is yours to extend. You add a `LateCancelPolicy` service, a background job that processes no-shows, or a `BookingWindow` rule in the class endpoints. This is the product working as designed.
 
 ## What is not included
 
-StackAlchemist is not Mindbody. We do not host your booking site, do not provide a mobile app out of the box (the Next.js frontend is mobile-responsive but not native), and do not provide ongoing platform operations. We generate the code. You deploy and run it.
+StackAlchemist is not Mindbody. We do not host your booking site, do not provide a mobile app out of the box (the frontend is a Next.js web app, not native), and do not provide ongoing platform operations. We generate the code. You deploy and run it.
 
-We do not include native iOS/Android apps unless your prompt specifically asks for an Expo or React Native scaffold — and even then, App Store submission is on you. Wearable integrations (Apple Health, Fitbit, Whoop) are not included by default — wire them in once you own the code. PCI compliance is offloaded to Stripe Checkout, but tax handling, waiver storage, and HIPAA considerations (if you collect health data) are your responsibility once the code is yours.
+We do not include native iOS/Android apps; if you want one, you build it against the generated API, and App Store submission is on you. Wearable integrations (Apple Health, Fitbit, Whoop) are not included — wire them in once you own the code. PCI compliance is offloaded to Stripe Checkout once you wire it in, but tax handling, waiver storage, and HIPAA considerations (if you collect health data) are your responsibility once the code is yours.
 
 For most studios and gyms, this is the correct trade. You stop renting Mindbody, you own the member relationship, and you keep 30 percent of revenue that used to go to ClassPass.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode fitness platform** — $299. Single location, standard plans (monthly + class-pack), booking, check-in, Stripe billing, admin dashboard.
-- **Blueprint-tier** — $599. Multi-location, waitlists, workout programs, instructor payouts via Stripe Connect, member progress tracking.
-- **Boilerplate-tier** — $999. Virtual class delivery, multi-brand support, custom membership rules, advanced reporting, white-label member apps.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No revenue share — keep 100 percent of subscription revenue minus Stripe fees. You own what you generate.
 

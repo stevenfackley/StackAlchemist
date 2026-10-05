@@ -1,6 +1,6 @@
 # StackAlchemist vs base44
 
-**Last updated: May 26, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 base44 and StackAlchemist are the closest comparison in the "AI generates the whole app" category outside of Bolt and Lovable. Both turn a prompt into a working full-stack app. We split on what happens after the app exists. Here is the honest breakdown.
 
@@ -19,7 +19,7 @@ base44 and StackAlchemist are the closest comparison in the "AI generates the wh
 
 ## Where base44 wins, honestly
 
-**Best-in-class for internal tools that live forever on their platform.** If your goal is "I need a CRM-shaped tool for my team, built and operated on someone else's infra," base44 is the cleanest way to get there. Zero infra decisions, real auth wired, real database wired. For internal-tool use cases this is exactly the right shape.
+**Best-in-class for internal tools that live forever on their platform.** If your goal is "I need a CRM-shaped tool for my team, built and operated on someone else's infra," base44 is the cleanest way to get there. Zero infra decisions, real auth wired, real database wired. For internal-tool use cases this is exactly the right shape. Our repo ships with no auth at all, so on that point base44 is simply ahead.
 
 **The iteration loop is genuinely fast.** Prompt, see the change, prompt again. No build cycle to wait through, no local dev server to manage. For exploring the shape of an idea, base44's loop is one of the best in the category — closer to Bolt's speed but with a more polished output.
 
@@ -33,7 +33,7 @@ base44 and StackAlchemist are the closest comparison in the "AI generates the wh
 
 **Your output needs a real backend, not a framework you cannot extend.** base44 generates apps in their own framework. That framework is well-designed for the shapes base44 anticipates. The moment your app needs a custom background worker, a non-trivial integration with a third-party API, or a domain-specific service layer, you are extending inside their walls or migrating out. StackAlchemist generates a .NET 10 API — same one any senior backend engineer can read, hire against, and extend without permission.
 
-**The compile gate is real, not implicit.** "It runs in our sandbox" is not the same as "it compiles cleanly under your CI." base44's output works in base44. StackAlchemist runs `dotnet build` and `pnpm build` on the actual artifact before letting you download it. The first thing your team's CI does on Monday is run the same builds — they pass.
+**The compile gate is real, not implicit.** "It runs in our sandbox" is not the same as "it compiles cleanly under your CI." base44's output works in base44. StackAlchemist runs `dotnet build` and `next build` on the actual artifact before letting you download it. The first thing your team's CI does on Monday is run the same builds — they pass.
 
 **One-time pricing, not monthly subscription.** base44 charges monthly plus usage credits. That works for users who are actively iterating in their environment. For users who generate a SaaS and then operate it for years, you keep paying every month for the right to log back in. StackAlchemist is one-time — you pay per generation, you keep the code, we're done.
 
@@ -55,7 +55,7 @@ Say the prompt is: "Build an inventory tracking SaaS for warehouses to sell to l
 
 **On base44:** you have a working app in their cloud in about 5 minutes. UI, auth, database, deploy URL. You can show it to a warehouse manager today. If they sign up as a customer, their data goes into base44's database, their users log in through base44's auth, and your business is now operationally a base44 customer with end-customers attached. Migrating off is a re-platforming project that you have to do before you can pass a SOC 2 audit, raise a Series A, or sell the business.
 
-**On StackAlchemist:** 12 minutes, downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, Supabase auth, Stripe billing, Docker compose — all wired. `docker compose up` and it's running. Deploy to AWS, deploy to Fly, deploy to a customer's on-prem cluster. The warehouse manager's data goes into your Postgres on your infra. You can pass SOC 2 because you control the stack.
+**On StackAlchemist:** 12 minutes, downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, CRUD endpoints and pages for your inventory entities, Docker Compose. `docker compose up` and it's running. Auth and billing are not in it: the Supabase client is preinstalled and the sign-in flow is yours to write, and so is Stripe. Deploy to AWS, deploy to Fly, deploy to a customer's on-prem cluster. The warehouse manager's data goes into your Postgres on your infra. You control the stack, which is what a SOC 2 audit needs; passing it is still your program to run.
 
 For internal MVP: base44 ships sooner.
 For customer-facing SaaS: StackAlchemist ships once, and it ships for keeps.
@@ -65,7 +65,8 @@ For customer-facing SaaS: StackAlchemist ships once, and it ships for keeps.
 - You are building an internal tool you do not plan to migrate. Use base44.
 - You need zero infrastructure setup and are committed to a hosted runtime forever. Use base44.
 - You want a fast visual iteration loop on the design — prompting until the UI feels right. Use base44 for the design phase, then come to us when the shape is settled.
-- Your team has no .NET experience and you have no appetite for hiring on it. Use base44 (or wait for our V2 stacks).
+- Your team has no .NET experience and you have no appetite for hiring on it. Use base44, or look at our FastAPI + React stack.
+- You need sign-in and user accounts working on day one without writing them. base44 has them; our repo leaves auth to you.
 
 ## When NOT to choose base44
 

@@ -2,6 +2,8 @@
 
 **By Steve Ackley · June 1, 2026 · 10 min read**
 
+*Corrected October 4, 2026: earlier versions said our gate runs `pnpm build` and that generated repos ship CI; the gate runs `dotnet build` and `next build`, and generated repos ship Docker Compose but no CI or sign-up flow.*
+
 People keep asking me for a leaderboard: "What percentage of the time does each AI codegen tool produce code that compiles?" I understand the instinct — it feels like the obvious benchmark. It's also a category error, and if I published a clean table of percentages across the field, I'd be lying to you with decimal places.
 
 So here's the honest version: why "compile rate" is the wrong metric, what the right one is, and an open test harness you can run yourself — so you don't have to trust anyone's marketing, including mine.
@@ -70,7 +72,7 @@ I'm not going to publish invented percentages for competitors. I haven't run a c
 - **No-code platforms skip the code entirely.** [Bubble](/compare/bubble) and [Retool](/compare/retool) never hand you an artifact to deploy, so "deployable rate" doesn't apply — you simply never leave their runtime. That's a real trade-off I cover honestly on each page, not a score.
 - **Boilerplates start at a 100% deployable template — because they're static and hand-maintained.** [OpenSaaS](/compare/wasp-opensaas) builds cleanly because a human keeps it building. But it isn't generating *your* domain, so the relevant question shifts from "did it compile" to "how much of my product did I still have to build by hand."
 
-For StackAlchemist specifically, I'll tell you exactly what our gate does — because it's a fact about our own pipeline, not a claim about anyone else's. We run `dotnet build` and `pnpm build` on the generated artifact, retry up to three times feeding the compiler errors back to the model, and refund you if it still can't pass. That makes step 1 deterministic. Steps 2 through 5 are what the generated Docker config and CI exist to protect — and they're exactly what I'd want you to verify with the harness above, on *us* included. Hold us to the same bar I'm asking you to hold everyone to.
+For StackAlchemist specifically, I'll tell you exactly what our gate does — because it's a fact about our own pipeline, not a claim about anyone else's. We run `dotnet build` and `next build` on the generated artifact, retry up to three times feeding the compiler errors back to the model, and refund you if it still can't pass. That makes step 1 deterministic. Steps 2 through 4 are what the generated Docker Compose setup exists for. Step 5 as I wrote it starts with sign-up, and our repos ship no auth, so on that step we only cover the create-and-persist half; sign-up is yours to wire. There's no CI in the repo either. All of it is exactly what I'd want you to verify with the harness above, on *us* included. Hold us to the same bar I'm asking you to hold everyone to.
 
 ## How to use this when you're evaluating tools
 
@@ -86,6 +88,6 @@ For StackAlchemist specifically, I'll tell you exactly what our gate does — be
 - **Don't trust the numbers — mine included.** Run the open harness on a trial generation yourself. Objective criteria, your own machine.
 - **Most tools that fail, fail at "won't come up on your infra," not "won't compile."** Test step 2, because that's where the category quietly breaks.
 
-Want to run it on us? [Start a generation](/simple), then point the harness at the repo. If we fall off at any of the five steps, that's a bug I want to hear about — by name.
+Want to run it on us? [Start a generation](/simple), then point the harness at the repo. If we fall off anywhere other than the sign-up I told you about above, that's a bug I want to hear about — by name.
 
 — Steve

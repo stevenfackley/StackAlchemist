@@ -1,6 +1,6 @@
 # StackAlchemist vs Replit Agent
 
-**Last updated: April 20, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 Replit Agent is the AI generation layer on top of Replit's hosted IDE and deployment platform. The promise is similar to StackAlchemist — describe an app, get a working app — but the execution model is completely different. Replit runs the app on Replit; StackAlchemist hands you the repo. That single difference drives almost every other trade-off below.
 
@@ -9,7 +9,7 @@ Replit Agent is the AI generation layer on top of Replit's hosted IDE and deploy
 | | **Replit Agent** | **StackAlchemist** |
 |---|---|---|
 | Runtime | Replit's hosted infra | Your own infra |
-| Default stack | Node / Python / pick your template | Next.js 16 + .NET 10 + Postgres, fixed |
+| Default stack | Node / Python / pick your template | Next.js 16 + .NET 10 + Postgres (or FastAPI + React) |
 | Deployment | One-click on Replit | `docker compose up` on your machine or cloud |
 | Compile-verified output | No | **Yes** |
 | Ownership | Live on Replit, export available | Native repo, your GitHub, your license |
@@ -28,11 +28,11 @@ Replit Agent is the AI generation layer on top of Replit's hosted IDE and deploy
 
 ## Where StackAlchemist is the right call
 
-**You need a real, owned repo — not a Replit workspace.** Replit Agent output lives on Replit. You can export, but the export is a tarball, not a clean repo with its own CI pipeline, its own Dockerfile, its own migration story. StackAlchemist hands you a GitHub-ready repo. Push it, clone it, deploy it anywhere. Your CI, your infra, your license.
+**You need a real, owned repo — not a Replit workspace.** Replit Agent output lives on Replit. You can export, but the export is a tarball, not a clean repo with its own Dockerfile and its own migration story. StackAlchemist hands you a GitHub-ready repo. Push it, clone it, deploy it anywhere. Your CI, your infra, your license.
 
-**You want a specific, production-grade stack — not "pick a template."** Replit Agent gives you breadth. StackAlchemist gives you depth in one stack: Next.js 16 (App Router), .NET 10 Web API, Postgres, Supabase, Stripe. If that stack is what you want, we generate it better because we are not trying to handle everything. The templates are tuned, the integrations are wired, the compile gate enforces that the output is real.
+**You want a specific, production-grade stack — not "pick a template."** Replit Agent gives you breadth. StackAlchemist gives you depth in two fixed stacks: Next.js 16 (App Router) + .NET 10 Web API + Postgres, or FastAPI + React. If one of those is what you want, we generate it better because we are not trying to handle everything. The templates are tuned and the compile gate enforces that the output is real.
 
-**You want the build to pass every single time.** Replit Agent will happily let you iterate into a broken state in the IDE and keep going. StackAlchemist refuses to hand you a repo that does not pass `dotnet build` and `pnpm build`. For a generator targeting "I want to sell this," that guarantee matters.
+**You want the build to pass every single time.** Replit Agent will happily let you iterate into a broken state in the IDE and keep going. StackAlchemist refuses to hand you a repo that does not pass `dotnet build` and `next build`. For a generator targeting "I want to sell this," that guarantee matters.
 
 **You want to charge money and own the business.** Replit is fine for shipping a product inside Replit. If your plan is "build on Replit, run on Replit forever," that is a coherent path. If your plan is "own a SaaS I can run on my own infra, sell on my own terms, and eventually sell as a company," you want the repo on your GitHub, not a Replit workspace you need to unwind.
 
@@ -53,7 +53,7 @@ Be honest with yourself. You do not need StackAlchemist if:
 
 - You want the app to live on Replit forever and never leave. The whole Replit value prop is that — use it.
 - You are teaching or learning. Replit is a better learning environment than a generated repo.
-- Your stack is not Next.js + .NET. If you want Python/Django or Ruby/Rails or Go, StackAlchemist is not for you.
+- Your stack is not Next.js + .NET or FastAPI + React. If you want Django or Ruby/Rails or Go, StackAlchemist is not for you.
 - Your product is a hobbyist script, a Discord bot, a scheduled task. We generate SaaS. Replit fits the script-and-bot world better.
 
 ## When NOT to choose Replit Agent
@@ -61,7 +61,7 @@ Be honest with yourself. You do not need StackAlchemist if:
 You should not use Replit Agent if:
 
 - You need a real repo you own, on your GitHub, under your license.
-- You want the specific production-grade stack we ship — Next.js 16 + .NET 10 + Postgres + Supabase + Stripe — wired correctly without file-by-file prompting.
+- You want the specific production-grade stack we ship — Next.js 16 + .NET 10 + Postgres — generated and compile-checked without file-by-file prompting.
 - You want compile-gated output. Every generation builds before you see it, every time.
 - You plan to sell the company, and the diligence question "where does the code live?" needs to answer "in our GitHub, on our infra," not "on Replit."
 

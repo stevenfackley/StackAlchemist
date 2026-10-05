@@ -35,7 +35,7 @@
                 </p>
               </div>
               <div className="flex flex-wrap content-start gap-2 lg:justify-end">
-                {[".NET 10", "Next.js 16", "PostgreSQL", "Supabase", "Dapper", "Compile Guarantee"].map((tech) => (
+                {[".NET 10", "Next.js 16", "PostgreSQL", "Dapper", "Docker", "Compile Guarantee"].map((tech) => (
                   <span
                     key={tech}
                     className="rounded-full border border-slate-600/40 bg-slate-800/50 px-3 py-1 text-[11px] text-slate-400 font-mono"

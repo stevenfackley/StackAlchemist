@@ -6,18 +6,21 @@ You describe the kind of ticketing platform you want. StackAlchemist generates t
 
 A production-shaped AI event ticketing platform with:
 
-- **Event creation** with multi-event series, recurring shows, venue assignment, and draft/published states
-- **Ticket inventory** for general admission and reserved seating with capacity controls and waitlist support
-- **Seat-map editor scaffolding** with section/row/seat hierarchy, hold timers, and per-seat pricing tiers
-- **QR-code tickets** generated server-side with signed payloads, delivered by email and downloadable PDF
-- **Scanner check-in flow** with a mobile-friendly web scanner, duplicate-scan detection, and offline queue
-- **Attendee data ownership** — full email list, order history, and CSV export, all on your database
-- **Organizer dashboard** with sales-by-event, scan rates, attendee lookup, and refund tooling
-- **Payouts** wired to Stripe Connect (or your processor) — funds land in your account, not a middleman's
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Events and series** — `Event`, `EventSeries` and `Venue` entities with dates, venue assignment and status (draft, on sale, sold out, completed)
+- **Ticket inventory** — `TicketType` and `TicketInventory` entities with price, quantity and sales windows
+- **Reserved seating data** — `Section`, `Row` and `Seat` entities with seat status (available, held, sold)
+- **Orders and tickets** — `Order` and `Ticket` entities with buyer email, a `stripe_payment_intent_id` column, a QR payload field and a check-in timestamp
+- **Check-in records** — `ScanLog` and `CheckInDevice` entities recording each scan and its result
+- **Attendee data ownership** — `Attendee` and `EmailSubscription` records in your own database, so the email list is yours
+- **Payouts and refunds** — `Payout` and `RefundRequest` entities
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** Stripe Checkout (and Stripe Connect if you split payouts), QR signing and ticket emails, the scanner page and its duplicate-scan logic, the seat-map editor and hold timers, the organizer dashboard, organizer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of using Eventbrite
 
@@ -62,34 +65,33 @@ StackAlchemist generates:
 - `Order` entity with buyer email, total, stripe_payment_intent_id, created_at
 - `Ticket` entity with order_id, ticket_type_id, seat_id (nullable for GA), qr_payload, checked_in_at
 - `ScanLog` entity with ticket_id, device_id, scanned_at, result (valid, duplicate, void)
-- `Attendee` entity aggregating purchase history across all events for a given email
-- API endpoints: `POST /events`, `POST /orders/checkout`, `GET /tickets/:id/qr`, `POST /scan`, `GET /organizer/events/:id/sales`, plus admin endpoints for seat-map editing and refunds
-- A Next.js scanner page that opens the device camera, decodes QR codes, and POSTs to `/scan` with optimistic UI and an offline IndexedDB queue
-- A seat-map editor scaffold using SVG-based interaction with hold timers backed by a Redis-or-Postgres lock
+- `Attendee` entity holding purchase history across all events for a given email
+- CRUD endpoints for every entity (`/api/v1/events`, `/api/v1/orders`, `/api/v1/tickets`, …). Endpoints like `POST /orders/checkout`, `GET /tickets/:id/qr` or `POST /scan` can be declared in Advanced Mode; the checkout, QR signing and scan validation behind them are yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js organizer dashboard and buyer flow, with a .NET backend handling QR signing, Stripe webhooks, and scan validation. The generated CI/CD pipeline compiles and tests on every push. Docker-compose spins up Postgres, the .NET API, and the Next.js frontend in one command.
+That is the ticketing data model and CRUD layer, compile-verified. The buyer flow, the organizer dashboard, the scanner page (camera, QR decoding, an offline IndexedDB queue), the seat-map editor with hold timers, QR signing and the Stripe webhook are code you build on it. Docker Compose spins up Postgres, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Wire Stripe Connect to your test account and run a real end-to-end purchase.** The generated repo includes the Stripe Checkout integration and webhook handlers for payment_intent.succeeded, but you need to drop in your own test API keys and configure your Connect account so payouts route to your bank. Set `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_CONNECT_ACCOUNT_ID` in `.env.local`, run the migrations, buy a ticket as a test user, and confirm the QR code arrives by email. You now have a working purchase-to-scan loop without ever touching Eventbrite.
+1. **Wire Stripe and run a real end-to-end purchase.** The generated repo does not include Stripe; `Order` has a `stripe_payment_intent_id` column waiting for it. Add a checkout endpoint that creates the payment, a webhook handler for `payment_intent.succeeded` that issues the tickets, and the code that signs each `qr_payload` and emails it. If you split revenue with co-promoters or need payouts routed to several bank accounts, configure Stripe Connect too. Set `STRIPE_API_KEY` and `STRIPE_WEBHOOK_SECRET` in `.env.local`, buy a ticket as a test user, and confirm the QR code arrives by email. You now have a working purchase loop without ever touching Eventbrite.
 
-2. **Customize the scanner flow for your actual door staff.** The generated scanner is a generic phone-camera page, but every venue has weird door logic — early entry for VIPs, plus-ones at the door, in-and-out wristbands, will-call lookups by name. The code is yours to modify. You add a `wristband_color` field to the ticket entity, a will-call search endpoint, and a VIP-early-entry flag with a time window. This is not a template hack — this is the product working as designed. Five hours of work on day one buys you a check-in flow your staff actually likes using.
+2. **Build the scanner flow for your actual door staff.** The repo gives you `Ticket`, `ScanLog` and `CheckInDevice`; the scanner itself is yours to build — a mobile web page that opens the camera, decodes the QR code, and POSTs the scan. Build it around your door logic, because every venue has some: early entry for VIPs, plus-ones at the door, in-and-out wristbands, will-call lookups by name. Add a `wristband_color` field to the ticket entity, a will-call search endpoint, and a VIP-early-entry flag with a time window. This is not a template hack — this is the product working as designed, and it buys you a check-in flow your staff actually likes using.
 
 ## What is not included
 
 StackAlchemist is not Eventbrite. We do not host your ticketing site, do not run a discovery marketplace, and do not handle payouts for you (Stripe Connect does that — you plug it in). We generate you the code. You deploy and operate it.
 
-We do not include native mobile scanner apps — the generated scanner is a mobile web page that works on any phone with a camera, which covers 95% of door-staff needs. We do not handle real-time waitlist SMS notifications by default unless your spec asks for them, because Twilio integration costs tokens and most organizers do not need it on day one. Reserved-seating with complex stadium-style maps (50,000+ seats with accessibility zones) is out of scope for the generated scaffolding — for true arena ticketing you are better off building on top of the generated base.
+We do not include a scanner app, native or web — a mobile web scanner you build on the generated API works on any phone with a camera, which covers most door-staff needs. We do not include SMS notifications (waitlist or otherwise); that Twilio integration is yours to add, and most organizers do not need it on day one. Reserved-seating with complex stadium-style maps (50,000+ seats with accessibility zones) is out of scope for the generated scaffolding — for true arena ticketing you are better off building on top of the generated base.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode ticketing** — $299. Single venue, GA tickets only, basic organizer dashboard, Stripe checkout, QR scanner.
-- **Blueprint-tier** — $599. Adds reserved seating with seat-map editor, multi-event series, attendee CRM with email export, refund tooling.
-- **Boilerplate-tier** — $999. Adds multi-venue, multi-organizer (white-label tenants), waitlist with auto-promotion, advanced sales analytics, payout splits across co-promoters.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No per-ticket fee. You own what you generate.
 

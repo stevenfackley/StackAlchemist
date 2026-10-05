@@ -1,6 +1,6 @@
 # StackAlchemist vs Lovable
 
-**Last updated: April 20, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 Lovable is the closest comparison to StackAlchemist by *promise* — "describe an app, get a working app." But Lovable and StackAlchemist differ on almost every implementation choice below the prompt: runtime, ownership, stack, pricing model, and what "done" means. Here is the honest breakdown.
 
@@ -10,7 +10,7 @@ Lovable is the closest comparison to StackAlchemist by *promise* — "describe a
 |---|---|---|
 | Runtime | Hosted by Lovable | Your own infra |
 | Frontend stack | React / Vite | Next.js 16 (App Router) |
-| Backend stack | Supabase functions | .NET 10 Web API + Supabase |
+| Backend stack | Supabase functions | .NET 10 Web API (Dapper + PostgreSQL) |
 | Database schema + migrations | Generated, hosted | Generated, checked into your repo |
 | Compile-verified output | No | **Yes** |
 | Ownership | Export, then rewire for your infra | Native repo — `docker compose up` |
@@ -23,17 +23,17 @@ Lovable is the closest comparison to StackAlchemist by *promise* — "describe a
 
 **The onboarding is frictionless.** You type, you see, you iterate. No local tooling, no install step, no understanding of a repo layout required. For a non-engineer founder sketching a product, this is a genuine advantage.
 
-**Supabase integration is thoughtful.** Lovable wires database, auth, and storage through Supabase cleanly. It is not a toy store — you can ship a small product on top of it.
+**Supabase integration is thoughtful.** Lovable wires database, auth, and storage through Supabase cleanly. It is not a toy store — you can ship a small product on top of it. Our repo has no auth at all: the Supabase client is preinstalled and the sign-in flows are yours to write. On auth, Lovable is ahead.
 
 **The "agent" behaviour is improving.** Lovable will actually pick up broken state and try to fix it without being asked to. That matters for non-technical users who cannot diagnose a type error.
 
 ## Where StackAlchemist is the right call
 
-**You need a backend with a real runtime.** Lovable stays inside the Supabase + edge-function envelope. StackAlchemist ships a .NET 10 Web API with EF Core, DI, structured logging, test scaffolding — a backend you can grow. If your product needs real background jobs, heavy data transformations, or anything that does not belong in an edge function, you want this.
+**You need a backend with a real runtime.** Lovable stays inside the Supabase + edge-function envelope. StackAlchemist ships a .NET 10 Web API with Dapper repositories over PostgreSQL, DI, structured logging, and OpenAPI — a backend you can grow. If your product needs real background jobs, heavy data transformations, or anything that does not belong in an edge function, you want this. We don't generate those jobs; you write them, in a runtime built to host them.
 
-**You need the build to actually pass.** Lovable will let you iterate into broken states and keep generating. StackAlchemist refuses to hand you a repo that does not build. We run `dotnet build` and `pnpm build` on the full generated project and if either fails, you never see the output. That is the compile gate, and it is the thing Lovable cannot offer while preserving its live-preview loop.
+**You need the build to actually pass.** Lovable will let you iterate into broken states and keep generating. StackAlchemist refuses to hand you a repo that does not build. We run `dotnet build` and `next build` on the full generated project and if either fails, you never see the output. That is the compile gate, and it is the thing Lovable cannot offer while preserving its live-preview loop.
 
-**You want to own what you ship.** Lovable output lives inside Lovable's runtime. You can export, but the export is a starting point — you rewire env vars, rework auth callbacks, re-host Supabase (or accept Lovable's project), and move past a non-trivial delta before you have something deployable on your own infra. StackAlchemist hands you a repo with your name in the LICENSE and `docker compose up` on the front page of the README. Put it on GitHub, ship it to Fly or AWS, sell the company.
+**You want to own what you ship.** Lovable output lives inside Lovable's runtime. You can export, but the export is a starting point — you rewire env vars, rework auth callbacks, re-host Supabase (or accept Lovable's project), and move past a non-trivial delta before you have something deployable on your own infra. StackAlchemist hands you a repo with a Dockerfile and a compose file: `docker compose up` and it runs. Put it on GitHub, ship it to Fly or AWS, sell the company.
 
 **You want one-time pricing, not message-metered rental.** Lovable charges per message and per month. The math gets expensive fast once you are iterating on anything real. StackAlchemist is one price per generation — you pay once for the repo, and you own it. No seat rental, no message budget.
 
@@ -57,6 +57,7 @@ Be honest with yourself. You do not need StackAlchemist if:
 - You are building a throwaway prototype you will abandon in two weeks. Use Lovable.
 - Your product is genuinely "a Supabase app with a frontend" — no heavier backend needs. Lovable is cheaper per-prompt and ships faster at that scope.
 - You do not care about owning the repo. Lovable is less friction if you never plan to leave the platform.
+- You need auth and storage working on day one. Lovable wires them through Supabase; our repo leaves auth to you.
 
 ## When NOT to choose Lovable
 

@@ -1,6 +1,6 @@
 # StackAlchemist vs Bolt.new
 
-**Last updated: April 22, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 Bolt and StackAlchemist are the closest comparison in the "prompt to app" category, so this one deserves a real answer. Both of us generate working code from a prompt. We make very different trade-offs. Here is the honest breakdown.
 
@@ -29,15 +29,15 @@ Bolt and StackAlchemist are the closest comparison in the "prompt to app" catego
 
 ## Where StackAlchemist is the right call
 
-**Your app needs a real backend.** Bolt runs inside WebContainers — a Node-only sandbox. It cannot run .NET, Python, Go, or anything that is not JavaScript. If your SaaS needs a typed API with EF Core, background workers, or a real compilation step, you are out of scope for Bolt. StackAlchemist generates a .NET 10 API that runs anywhere a server runs.
+**Your app needs a real backend.** Bolt runs inside WebContainers — a Node-only sandbox. It cannot run .NET, Python, Go, or anything that is not JavaScript. If your SaaS needs a typed API, background workers, or a real compilation step, you are out of scope for Bolt. StackAlchemist generates a .NET 10 API that runs anywhere a server runs.
 
-**Your output needs to compile.** Bolt is aggressively optimized for speed of feedback. That means it returns apps that boot and show something — whether they fully compile cleanly as a production bundle is not the goal. StackAlchemist runs `dotnet build` and `pnpm build` as a gate before release. You never see a broken download.
+**Your output needs to compile.** Bolt is aggressively optimized for speed of feedback. That means it returns apps that boot and show something — whether they fully compile cleanly as a production bundle is not the goal. StackAlchemist runs `dotnet build` and `next build` as a gate before release. You never see a broken download.
 
 **You need to deploy to your own infrastructure.** Bolt's output runs in WebContainers, which is Bolt's thing. Exporting and self-hosting is possible but is a conversion step. StackAlchemist ships a repo with a Dockerfile and docker-compose on day one — `docker compose up` and you're running locally. Deploy to AWS, Fly, your VPS, whatever. No conversion needed.
 
 **You want to buy the code, not rent the tool.** Bolt is a subscription — you pay monthly for access. StackAlchemist is one-time per generation. When we're done you have the code, I have my fee, we do not have an ongoing relationship.
 
-**Auth, payments, and database are wired by default.** StackAlchemist ships with Supabase auth, Stripe billing, PostgreSQL migrations, and CI/CD all configured. Bolt can generate some of this; the depth and opinionation is different.
+**The database comes generated.** You get a PostgreSQL schema and SQL migrations for your entities, with CRUD endpoints, a typed API client, and pages on top. What you don't get is auth or payments: the Supabase client is preinstalled but the sign-in flows are yours to write, and Stripe is yours to add.
 
 ## The real question: are you prototyping or shipping?
 
@@ -55,7 +55,7 @@ Say the prompt is: "Build a subscription management dashboard for gyms."
 
 **On Bolt:** you'll have a working Node-based app running in the browser in about 2 minutes. UI, some in-memory data, a rough flow you can click through. Good for a demo to a gym owner. To actually deploy it, you export, wire a real database, set up auth, configure Stripe, and migrate off WebContainers — several days of work.
 
-**On StackAlchemist:** 12 minutes and you have a downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, Supabase auth, Stripe billing — all wired. `docker compose up` and it's running. Deploy to your cloud of choice. Hours of work, not days.
+**On StackAlchemist:** 12 minutes and you have a downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, CRUD endpoints and pages for the entities in your prompt, Docker Compose. `docker compose up` and it's running. Auth and Stripe are still yours to wire, so that part of the Bolt to-do list doesn't go away. What you skip is wiring the database and migrating off WebContainers.
 
 For validation: Bolt wins on speed.
 For shipping: StackAlchemist wins on depth.
@@ -68,9 +68,8 @@ For shipping: StackAlchemist wins on depth.
 
 ## When NOT to choose Bolt
 
-- You need a typed backend with EF Core or any non-Node runtime.
+- You need a typed .NET backend or any non-Node runtime.
 - You need the output to deploy to your own infra without a conversion step.
-- You need auth, payments, and database already wired on day one.
 - You prefer owning a repo over renting access to a tool.
 
 ## Verdict

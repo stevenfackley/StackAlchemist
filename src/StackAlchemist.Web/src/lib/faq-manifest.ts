@@ -101,7 +101,7 @@ export const FAQS = [
     category: "output",
     question: "What stack does StackAlchemist generate?",
     answer:
-      "The V1 stack is a .NET 10 minimal API with Dapper and PostgreSQL on the backend, Next.js 16 with the App Router and Tailwind CSS on the frontend, and Docker Compose for local development. The Supabase client and its env slots ship preinstalled but no auth flow is generated. Infrastructure tier adds AWS CDK, Terraform and a Helm chart.",
+      "The V1 stack is a .NET 10 minimal API with Dapper and PostgreSQL on the backend, Next.js 16 with the App Router and Tailwind CSS on the frontend, and Docker Compose for local development. Advanced Mode also offers FastAPI + React (Vite) + PostgreSQL. The Supabase client and its env slots ship preinstalled in the .NET stack, but no auth flow and no payment integration is generated. Infrastructure tier adds AWS CDK, Terraform and a Helm chart.",
   },
   {
     category: "output",

@@ -2,6 +2,8 @@
 
 **By Steve Ackley · June 1, 2026 · 9 min read**
 
+*Corrected October 4, 2026: earlier versions put auth, Stripe and CI in the deterministic skeleton and said the templates generate audit trails; generated repos include no auth, Stripe or CI, and you get the `AuditEvent` entity, not the logic that writes it.*
+
 Over the last two months I shipped 18 vertical "solutions" pages — each one a doorway into a specific kind of SaaS StackAlchemist can generate, from an [AI e-commerce platform](/solutions/ai-ecommerce-platform) to an [AI logistics tracking SaaS](/solutions/ai-logistics-tracking-saas). I expected the exercise to be marketing busywork. Instead, building the 18 taught me more about what the product actually is than building the generator did.
 
 Here is what I learned, including the parts that are slightly embarrassing to admit.
@@ -33,23 +35,23 @@ By the time I'd modeled a dozen of these, I could see the skeletons underneath. 
 - **Catalog + inventory + order** — [e-commerce](/solutions/ai-ecommerce-platform), [inventory](/solutions/ai-inventory-management-saas)
 - **Records + audit + compliance** — [healthcare](/solutions/ai-healthcare-patient-portal), [fintech](/solutions/fintech-saas-generator), [HR](/solutions/ai-hr-onboarding-platform)
 
-This is exactly why the [Swiss Cheese method](/blog/swiss-cheese-method-deterministic-templates-llm-logic) works. The skeleton — auth, CRUD, Stripe, migrations, Docker, CI — is deterministic and reused across every shape. The LLM only fills the holes that are specific to the vertical. Shipping the eighteenth solution was dramatically cheaper than the first, because the shapes were already proven and the generator only had to reason about what made *this* domain different.
+This is exactly why the [Swiss Cheese method](/blog/swiss-cheese-method-deterministic-templates-llm-logic) works. The skeleton — project structure, config, logging, the migration file, Docker — is deterministic and reused across every shape. The LLM only fills the holes that are specific to the vertical. Shipping the eighteenth solution was dramatically cheaper than the first, because the shapes were already proven and the generator only had to reason about what made *this* domain different.
 
 ## 3. The compliance verticals quietly improved every other template
 
 The two hardest verticals to ship were [healthcare](/solutions/ai-healthcare-patient-portal) and [fintech](/solutions/fintech-saas-generator). Both demanded something the easy verticals didn't: an immutable `AuditEvent` — a write-only record of every state change, the kind a HIPAA or financial auditor expects to see.
 
-Once that primitive existed, I backported it. Now the [CRM](/solutions/ai-crm-builder) gets an audit trail on deal changes, the [inventory SaaS](/solutions/ai-inventory-management-saas) gets one on stock adjustments, and the [HR platform](/solutions/ai-hr-onboarding-platform) gets one on every personnel record edit. The most-regulated vertical raised the floor for all of them. The lesson generalizes: build for your strictest buyer first, and the rest inherit the rigor for free.
+Once that primitive existed, I backported it to the other schemas. Now the [CRM](/solutions/ai-crm-builder) carries an `AuditEvent` for deal changes, the [inventory SaaS](/solutions/ai-inventory-management-saas) one for stock adjustments, and the [HR platform](/solutions/ai-hr-onboarding-platform) one for personnel record edits. To be precise about what's generated: you get the entity, its table and its CRUD code. Writing an event on every change is a rule you add. The most-regulated vertical raised the floor for all of them. The lesson generalizes: build for your strictest buyer first, and the rest inherit the rigor for free.
 
 ## 4. Entity modeling is where the LLM actually earns its money
 
-A deterministic template can scaffold CRUD, wire auth, drop in Stripe, and write a Dockerfile. What it *cannot* do is know that a food-delivery `Order` needs a `Driver`, a `DeliveryZone`, and a `Payout`, while a [ticketing](/solutions/ai-event-ticketing-platform) `Order` needs a `SeatMap` and a `Scanner`, and a [logistics](/solutions/ai-logistics-tracking-saas) shipment needs a `ProofOfDelivery` and an `Exception`.
+A deterministic template can lay out the project, wire the config and logging, and write a Dockerfile. What it *cannot* do is know that a food-delivery `Order` needs a `Driver`, a `DeliveryZone`, and a `Payout`, while a [ticketing](/solutions/ai-event-ticketing-platform) `Order` needs a `SeatMap` and a `Scanner`, and a [logistics](/solutions/ai-logistics-tracking-saas) shipment needs a `ProofOfDelivery` and an `Exception`.
 
 That domain modeling — choosing the right entities and relationships for *this* vertical — is precisely the gap the LLM fills. The template is the skeleton; the entity graph is the soul, and the soul is different for every domain. Watching the model get the entity graph right across 18 verticals is what convinced me the Swiss Cheese split is the correct architecture and not just a convenient one.
 
 ## 5. The honest part: the "AI" prefix is mostly SEO
 
-Most of these pages say "AI [vertical]." Here's the truth I went back and forth on: the *generation* is AI. Most of the generated apps are ordinary, well-built CRUD SaaS with maybe one AI-assisted feature, not AI products in the "the app is an AI" sense.
+Most of these pages say "AI [vertical]." Here's the truth I went back and forth on: the *generation* is AI. The generated apps are ordinary, well-built CRUD SaaS, not AI products in the "the app is an AI" sense.
 
 I kept the "AI" prefix because it's what people actually type into a search box. But I'm not going to pretend that an [AI inventory management SaaS](/solutions/ai-inventory-management-saas) is a neural network with a warehouse attached. It's a real, owned inventory SaaS, *generated* by AI and compile-verified before you get it. Being straight about that matters more to me than a cleaner funnel. If the honesty costs me a few clicks, fine — it's the same honesty I bring to the [comparison pages](/compare/v0), and it's the reason I trust our own numbers.
 

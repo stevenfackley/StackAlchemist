@@ -6,18 +6,21 @@ You describe the kind of project management product your team needs. StackAlchem
 
 A production-shaped AI project management SaaS with:
 
-- **Projects and workspaces** with multi-team scoping and per-project permissions
-- **Tasks and subtasks** with assignees, due dates, priority, status, and dependencies
-- **Sprints and milestones** with capacity planning and burn-down tracking
-- **Kanban and list views** with drag-and-drop status changes and saved filters
-- **Comments and mentions** on tasks with notification routing
-- **Time tracking** with manual entry and timer-based capture
-- **Reports and dashboards** for velocity, completion rate, and overdue task surfacing
-- **Role-based access control** so contributors see assigned work, managers see the team, admins see everything
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Workspaces and projects** — `Workspace`, `Project` and `Team` entities with team scoping
+- **Tasks and subtasks** — `Task`, `Subtask` and `TaskDependency` entities with assignees, due dates, priority, status and estimates
+- **Sprints and milestones** — `Sprint` and `Milestone` entities with dates and status
+- **Comments and mentions** — `Comment` and `Mention` entities on tasks and projects
+- **Time tracking** — `TimeEntry` and `Timer` entities
+- **Members and roles** — `User`, `Role` and `Membership` entities, the data per-project permissions are built on
+- **Notifications** — `Notification` and `NotificationChannel` entities
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** sign-in and permission checks (the Supabase client is preinstalled; the auth flows are yours to write), the kanban and list views with drag-and-drop, burndown and velocity reports, notification delivery, live updates, the GitHub integration, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of using Jira or Asana
 
@@ -64,32 +67,32 @@ StackAlchemist generates:
 - `TimeEntry` entity with task_id, user_id, duration_minutes, logged_at, notes
 - `Comment` entity polymorphic over task / project, with mentions[] for notifications
 - `GitHubLink` entity with task_id, pr_url, pr_state, linked_via (branch-name, manual)
-- API endpoints: `POST /tasks`, `PATCH /tasks/:id/status`, `POST /sprints/:id/start`, `GET /reports/velocity`, plus webhook receiver at `/api/webhooks/github` for PR auto-linking
-- A Next.js kanban UI, sprint planning view, manager dashboard, and time-tracking interface
+- CRUD endpoints for every entity (`/api/v1/tasks`, `/api/v1/sprints`, `/api/v1/projects`, …). Endpoints like `PATCH /tasks/:id/status`, `GET /reports/velocity` or a GitHub webhook receiver at `/api/webhooks/github` can be declared in Advanced Mode; the logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js frontend and a .NET backend with WebSocket-based live updates for the kanban board. The generated CI/CD pipeline compiles and tests on every push. Docker-compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
+That is the PM tool's data model and CRUD layer, compile-verified. The kanban UI with WebSocket live updates, the sprint planning and burndown views, the manager dashboard and the time-tracking interface are code you build on it. Docker Compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Connect your identity provider.** The generated repo defaults to Supabase Auth for email/password and Google OAuth. If your team uses Microsoft 365 or Okta, swap the auth provider — the middleware abstracts the JWT validation, and changing it is a single-file change. PM tools live or die on whether your team will log in daily; lean on the auth your team already uses.
+1. **Add sign-in with the identity provider your team already uses.** The generated repo has no authentication: the Supabase client is preinstalled in the frontend, but no sign-in flow or JWT validation is written. Use Supabase Auth, or Microsoft 365 or Okta if that is where your team lives, add JWT validation to the .NET API, and scope projects and tasks to the signed-in user's memberships. PM tools live or die on whether your team will log in daily; lean on the auth your team already uses.
 
-2. **Wire the GitHub PR-link webhook.** The generated `/api/webhooks/github` endpoint includes PR-link parsing and signature verification, but you need to register the webhook on your GitHub org and drop the webhook secret into `.env`. Once connected, every PR branch matching `task-123/` auto-links the PR to task 123 and updates the task status when the PR merges. This is the single feature that makes engineering teams actually use the PM tool.
+2. **Build the GitHub PR-link webhook.** The repo gives you the `GitHubLink` entity; the webhook endpoint, its signature verification, and the branch-name parsing are yours to write. Register the webhook on your GitHub org, drop the webhook secret into `.env`, and make every PR branch matching `task-123/` link the PR to task 123 and update the task status when the PR merges. This is the single feature that makes engineering teams actually use the PM tool.
 
 ## What is not included
 
 StackAlchemist is not Jira. We don't host your PM tool, don't ship a managed mobile app, and don't provide an enterprise app marketplace. We generate you the code. You deploy and operate it.
 
-We don't include Gantt charts, dependency-aware critical path visualization, or resource-allocation forecasting out of the box — those are dense visualizations with their own engineering surface, best added once you know whether your team will actually use them. The PM tool you get is the daily-driver operational layer plus the reporting skeleton. Specialized visualizations are yours to add.
+We don't include Gantt charts, dependency-aware critical path visualization, or resource-allocation forecasting out of the box — those are dense visualizations with their own engineering surface, best added once you know whether your team will actually use them. The PM tool you get is the data model and CRUD layer your daily-driver views are built on. Specialized visualizations are yours to add.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode PM SaaS** — $299. Single workspace, basic kanban, tasks + assignees, simple reports.
-- **Blueprint-tier** — $599. Multi-team, sprints, dependencies, time tracking, RBAC, GitHub linking.
-- **Boilerplate-tier** — $999. Multi-workspace, custom workflows per project, advanced reporting, webhook integrations for Slack / Linear / GitHub, audit log on all state changes.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No per-seat tax. You own what you generate.
 

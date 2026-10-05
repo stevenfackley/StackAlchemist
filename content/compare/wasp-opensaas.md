@@ -1,6 +1,6 @@
 # StackAlchemist vs Wasp / OpenSaaS
 
-**Last updated: June 1, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 Wasp and OpenSaaS are the open-source corner of this comparison set, and the most philosophically interesting one. Wasp is a declarative framework that compiles a config file into a full-stack React + Node + Prisma app. OpenSaaS is a free, MIT-licensed SaaS boilerplate built on top of Wasp by the same team — auth, Stripe, an admin dashboard, a blog, all wired. StackAlchemist generates a .NET 10 + Next.js 16 app from a prompt and compile-checks it before you download.
 
@@ -33,11 +33,11 @@ So this isn't "generator vs generator." It's **generate-my-domain vs fork-a-temp
 
 ## Where StackAlchemist is the right call
 
-**You want your domain generated, not a generic template retrofitted.** This is the core split. OpenSaaS gives you *a* SaaS — a demo product with example features — and your first week is spent deleting what you don't need and modeling what you do. StackAlchemist reads your prompt and generates entities, endpoints, and logic for *your* product. With a boilerplate you subtract and adapt; with us you start from your own domain.
+**You want your domain generated, not a generic template retrofitted.** This is the core split. OpenSaaS gives you *a* SaaS — a demo product with example features — and your first week is spent deleting what you don't need and modeling what you do. StackAlchemist reads your prompt and generates entities, endpoints, and pages for *your* product. With a boilerplate you subtract and adapt; with us you start from your own domain.
 
 **Open-source is not the same as no lock-in.** This is the nuance people miss. Your Wasp app is structured around the Wasp compiler and its abstractions — your code lives inside the framework's model of how an app works. The source is open, but architecturally you're committed to Wasp. If Wasp ships a breaking change, or you outgrow what its DSL can express, you're migrating off a framework. StackAlchemist outputs plain, idiomatic Next.js and .NET — there is no proprietary config compiler in the middle to migrate away from later.
 
-**The compile gate matters precisely because your code is custom.** A static boilerplate compiles because a human maintains it and it never changes shape until you change it. The moment code is generated for *your* specific domain, "does it actually compile" becomes a live question — and that's exactly the question our compile gate answers. We run `dotnet build` and `pnpm build` on your generated artifact, retry against compiler errors, and refund if it can't pass. A template doesn't need that because it isn't generating anything new; we do because we are.
+**The compile gate matters precisely because your code is custom.** A static boilerplate compiles because a human maintains it and it never changes shape until you change it. The moment code is generated for *your* specific domain, "does it actually compile" becomes a live question — and that's exactly the question our compile gate answers. We run `dotnet build` and `next build` on your generated artifact, retry against compiler errors, and refund if it can't pass. A template doesn't need that because it isn't generating anything new; we do because we are.
 
 **A .NET 10 backend for the teams and buyers that want it.** Node is a fine backend and I won't pretend otherwise. But for regulated industries, enterprise buyers, and teams that want a statically-typed, long-support runtime with first-class background services, a .NET 10 API is a real advantage — and it's the same .NET any enterprise shop already staffs.
 
@@ -59,7 +59,7 @@ Say the prompt is: "Build a SaaS for dental clinics to manage patients, appointm
 
 **With OpenSaaS:** you clone the repo and get a working SaaS in minutes — but it's the OpenSaaS demo product, a generic app with auth, payments, and an AI example. Now the work starts: delete the demo features, define `Patient`, `Appointment`, `Provider`, and `Invoice` as Prisma models, write the Wasp declarations for each route and operation, build the UI, wire the billing to your domain. You're productive because the scaffolding is solid — but you are building the clinic app by hand, on top of Wasp.
 
-**With StackAlchemist:** 12 minutes, downloadable repo. The prompt produced `Patient`, `Appointment`, `Provider`, and `Invoice` entities, CRUD endpoints, Supabase auth, Stripe billing, Postgres migrations, and Docker — modeled to a dental clinic, not a generic demo. `docker compose up` and it runs. It's plain .NET 10 + Next.js, so any engineer extends it without learning a framework DSL first.
+**With StackAlchemist:** 12 minutes, downloadable repo. The prompt produced `Patient`, `Appointment`, `Provider`, and `Invoice` entities, CRUD endpoints, Postgres migrations, a typed API client, pages, and Docker — modeled to a dental clinic, not a generic demo. `docker compose up` and it runs. What it doesn't have is what OpenSaaS gives you on day one: auth and Stripe billing. You wire those yourself. It's plain .NET 10 + Next.js, so any engineer extends it without learning a framework DSL first.
 
 OpenSaaS gives you an excellent, free starting line and asks you to run the race. StackAlchemist runs the first leg for you, for a one-time fee, and hands you a baton made of ordinary code.
 
@@ -69,12 +69,13 @@ OpenSaaS gives you an excellent, free starting line and asks you to run the race
 - Your team is React/Node-native and you want the largest possible hiring pool. Wasp/OpenSaaS fits better.
 - You value a mature community and a deep docs corpus over a generated head start. Wasp has years of both.
 - You enjoy shaping a proven boilerplate into your product and don't want to pay per generation.
+- You need auth and Stripe billing working on day one. OpenSaaS ships both; our repo ships neither, so you'd be wiring them yourself.
 
 ## When NOT to choose Wasp / OpenSaaS
 
 - You don't want your architecture committed to a framework DSL and compiler, even an open-source one.
 - You want code generated for your specific domain, not a generic template you retrofit.
-- You want a compile gate on your actual business logic, not just a static template that builds.
+- You want a compile gate on your generated domain code, not just a static template that builds.
 - You prefer a .NET 10 backend, or need one for enterprise and regulated buyers.
 - You'd rather pay once and skip the week of deleting demo features and modeling your domain by hand.
 
