@@ -1,0 +1,22 @@
+# Keep local build output out of the image build context.
+#
+# Both targets install their own dependencies (`npm ci` in web-deps, `dotnet restore` in
+# engine-builder). Without these exclusions, running `dotnet build` or `npm install` here
+# before `docker compose up --build` ships a few hundred MB of host-specific output into
+# the context — and, worse, `COPY dotnet/ ./` would drop a stale obj/project.assets.json
+# with absolute host paths into the builder stage and break the in-container restore.
+**/node_modules
+**/.next
+**/bin
+**/obj
+
+# …but `bin/` is not always build output. A Tier-3 tree carries its CDK app at
+# infra/cdk/bin/app.ts — the entrypoint cdk.json names — sitting at this same root, because
+# the Tier-3 overlay is merged into this tree rather than shipped beside it. .NET output is
+# always bin/<Configuration>/, so the rule above still covers dotnet/bin/Debug etc.
+!infra/cdk/bin
+!infra/cdk/bin/**
+
+.git
+.vs
+.vscode
