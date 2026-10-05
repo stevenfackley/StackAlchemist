@@ -21,7 +21,7 @@ Parent plan: `2026-09-28-qavren-replatform.md` (phase F section). Cutover record
 > - Merged in order: #483 (07d2272c), #482 (d1bd53c3), #480 (a58edc74).
 > - The final deploy (run 37243546821) is green.
 > - The Prod `SUPABASE_*` secrets are deleted, and #431 and #422 are closed.
-> - Remaining: the owner deletes the two Supabase projects (Task 7).
+> - Task 7 done the same day: the owner deleted both Supabase projects, the credential files moved into Bitwarden, and qavren-db #43 records the dates. **Phase F is complete.**
 > - The record is in `docs/runbooks/qavren-cutover-phase-e.md` (Execution record).
 >
 > **Progress (2026-10-04, before the merge):**
