@@ -23,6 +23,7 @@ export const BLOG_POSTS = [
     description:
       "Most AI code generators hand you broken code and call it shipped. Here is why a compile guarantee is the minimum bar for real SaaS builders, and how we enforce it.",
     publishedAt: "2026-04-16",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["ai-codegen", "compile-guarantee", "engineering"],
     relativePath: "compile-guarantee-why-ai-codegen-must-verify.md",
@@ -34,6 +35,7 @@ export const BLOG_POSTS = [
     description:
       "Full LLM generation hallucinates. Pure templates are rigid. The Swiss Cheese Method fuses deterministic scaffolding with targeted LLM logic so the output actually compiles.",
     publishedAt: "2026-04-18",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["architecture", "swiss-cheese-method", "engineering"],
     relativePath: "swiss-cheese-method-deterministic-templates-llm-logic.md",
@@ -45,6 +47,7 @@ export const BLOG_POSTS = [
     description:
       "An honest comparison of the AI-codegen landscape in 2026 and where each tool stops. v0 and Bolt are great inside their lane, but nobody ships a verified, owned, production SaaS from a single prompt except us.",
     publishedAt: "2026-04-22",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["comparison", "ai-codegen", "market"],
     relativePath: "what-ai-code-generators-cant-do-yet.md",
@@ -52,10 +55,11 @@ export const BLOG_POSTS = [
   },
   {
     slug: "prompt-to-production-dotnet-nextjs-in-12-minutes",
-    title: "From prompt to production: generating a .NET 10 + Next.js 15 SaaS in 12 minutes",
+    title: "From prompt to production: generating a .NET 10 + Next.js 16 SaaS in 12 minutes",
     description:
       "A timed walkthrough of a real StackAlchemist generation run. Prompt in at t=0, zip of compiled code in your hands at t=12 minutes. Here is what actually happens in between.",
     publishedAt: "2026-04-25",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["walkthrough", "generation", "engineering"],
     relativePath: "prompt-to-production-dotnet-nextjs-in-12-minutes.md",
@@ -67,6 +71,7 @@ export const BLOG_POSTS = [
     description:
       "Every AI-codegen tool in the market is a monthly subscription. We are not. Here is the math on why a one-time price for generated code is the honest model and what it means for your margins.",
     publishedAt: "2026-04-28",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["pricing", "business", "ownership"],
     relativePath: "why-we-charge-once-not-monthly.md",
@@ -78,6 +83,7 @@ export const BLOG_POSTS = [
     description:
       "The substrate choice decides whether the compile guarantee is real or theatrical. Here is why .NET 10 wins on strict typing, deterministic runtime, and template-friendly scaffolding — and where Node would have failed.",
     publishedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["engineering", "architecture", "stack-choice"],
     relativePath: "why-dotnet-10-as-the-codegen-substrate.md",
@@ -87,8 +93,9 @@ export const BLOG_POSTS = [
     slug: "what-production-ready-actually-means-for-generated-saas",
     title: "What \"production-ready\" actually means for a generated SaaS",
     description:
-      "Every AI codegen tool claims production-ready output. Most ship demos. Here is the five-part bar I hold StackAlchemist to — Docker-runs, real migrations, real auth, real Stripe webhooks, real CI — and how to use it to sort the category.",
+      "Every AI codegen tool claims production-ready output. Most ship demos. Here is a five-part bar (Docker-runs, real migrations, real auth, real Stripe webhooks, real CI), where StackAlchemist meets it today and where it does not, and how to use it to sort the category.",
     publishedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["evaluation", "production-ready", "ai-codegen"],
     relativePath: "what-production-ready-actually-means-for-generated-saas.md",
@@ -100,6 +107,7 @@ export const BLOG_POSTS = [
     description:
       "Eighteen vertical SaaS templates later, here are the honest lessons: almost every vertical is an escape from a per-seat tax, the 18 collapse into five shapes, and why the \"AI\" prefix is mostly SEO.",
     publishedAt: "2026-06-01",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["product", "ai-codegen", "market"],
     relativePath: "lessons-shipping-18-solution-templates.md",
@@ -111,6 +119,7 @@ export const BLOG_POSTS = [
     description:
       "Everyone wants a leaderboard of AI codegen compile rates. That benchmark is a category error. Here is the test that matters — deployable rate, not compile rate — and an open harness you can run yourself.",
     publishedAt: "2026-06-01",
+    updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,
     tags: ["evaluation", "comparison", "ai-codegen"],
     relativePath: "what-actually-compiles-ai-codegen-benchmark.md",

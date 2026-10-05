@@ -2,11 +2,13 @@
 
 **By Steve Ackley · May 26, 2026 · 9 min read**
 
+*Corrected October 4, 2026: earlier versions said StackAlchemist meets all five parts of this bar, with Supabase Auth, Stripe webhook handling, EF Core migrations and GitHub Actions CI generated; generated repos meet the Docker and migrations parts on a compile-verified build, and auth, payments and CI are yours to wire.*
+
 The single most overloaded phrase in AI-codegen marketing is "production-ready." Every tool in the space uses it. Most of the tools using it ship code that crashes on the first real request, refuses to deploy without a half-day of glue-fixing, or works locally and breaks the moment a second user touches it.
 
 So I want to write down what production-ready actually means when the SaaS you're shipping was generated, not hand-written. Because if the word means nothing, the category is selling vapor. And I want StackAlchemist to be in the category that means something.
 
-This post is the bar I hold StackAlchemist to. It is also the bar I think you should hold every AI-codegen tool to before you give them money.
+This post is the bar. I think you should hold every AI-codegen tool to it before you give them money, mine included, and I'll say plainly where StackAlchemist meets it today and where it does not.
 
 ## Production-ready is not "it compiled"
 
@@ -20,13 +22,13 @@ But shipping a SaaS to production is a different bar, and confusing the two is h
 
 ## The actual five-part bar
 
-Here is the bar I hold StackAlchemist to. If you are buying any AI-codegen tool, hold them to this bar too. Make them prove it.
+Here is the bar. If you are buying any AI-codegen tool, hold them to it. Make them prove it. Under each part I've written where StackAlchemist stands today.
 
 ### 1. The generated repo runs in Docker on a fresh machine
 
 `docker compose up` on a clean checkout. No manual steps. No "first run only" hacks. No `chmod +x` on the entrypoint. No "wait, you have to install Postgres globally first." The compose file spins up the database, runs the migrations, starts the API, starts the frontend, and you can hit `http://localhost:3000` in a browser within sixty seconds of `git clone`.
 
-StackAlchemist generates `docker compose up`-ready output by default. Every generation. If yours doesn't, that's a bug worth a refund.
+**Where StackAlchemist stands: meets it.** Every Boilerplate and Infrastructure repo ships `docker compose up`-ready: Postgres, the API and the frontend, with the schema in place on first start. If yours doesn't come up, that's a bug I want to hear about.
 
 ### 2. The database has migrations, not a SQL dump
 
@@ -34,7 +36,7 @@ Migrations are how a production database evolves. A SQL dump is how a starter pr
 
 The difference is real: with migrations, your team can change the schema next month, generate a new migration file, and roll forward (or back) cleanly. With a SQL dump, your schema is frozen on day one, and the second time you need to add a column, somebody has to remember which version was deployed and write the migration by hand from inference.
 
-StackAlchemist generates EF Core migrations as `.cs` files alongside the entity definitions. Tests run against migrations. CI applies them in order. Day-two schema evolution is the path the generator already paved.
+**Where StackAlchemist stands: meets it on the .NET stack.** The repo ships a numbered SQL migration, `001_initial_schema.sql`: UUID primary keys, foreign keys, row-level security enabled (no policies written; those are yours). To be precise: there is no migration runner in the repo. Compose applies `001` on a fresh database; your `002` is the next file, and you pick the tool that applies it in production. The FastAPI stack is weaker here: its tables are created from the SQLAlchemy models on startup, and Alembic is set up for the migrations you add.
 
 ### 3. Authentication actually works against a real identity provider
 
@@ -42,7 +44,7 @@ A SaaS without working auth is a demo. A SaaS with a hand-rolled auth implementa
 
 The bar is: the generator wires you into a real identity provider — Supabase, Auth0, Clerk, Cognito, your pick — with email/password, OAuth providers (Google, GitHub, Microsoft are table stakes), session management with HttpOnly cookies, CSRF protection, server-side session validation on every API call, password reset flows, and account deletion. You should not have to write a single security primitive yourself.
 
-StackAlchemist defaults to Supabase Auth because it's the lowest-friction provider with a real free tier and a serious security posture. The middleware that validates the Supabase JWT on every API request is generated. The HttpOnly cookie config is generated. The CSRF posture is generated. If you want to swap providers later, that's a real day of work — but you start from real working auth, not from `// TODO: add auth`.
+**Where StackAlchemist stands: does not meet it.** Generated repos include no authentication: no sign-in, sign-up or password-reset pages, no middleware validating tokens, no user accounts. The .NET + Next.js frontend has the Supabase client (`@supabase/supabase-js`) preinstalled with its env slots, and nothing calls it. The auth flows are yours to write.
 
 ### 4. Payments are scaffolded against a real processor with webhook handling
 
@@ -50,13 +52,13 @@ The bar: Stripe integration with both the client-side checkout flow and the serv
 
 Webhooks are where most starter projects break. A Stripe Checkout session completes in the user's browser, then Stripe POSTs to your `/api/webhooks/stripe` endpoint, and your code is supposed to verify the signature, look up the corresponding order in your database, mark it paid, and trigger fulfillment. If any step in that chain is missing or broken, you charge the customer and never fulfill — the worst possible failure mode for a SaaS.
 
-StackAlchemist generates webhook handling for `checkout.session.completed`, `invoice.payment_succeeded`, `customer.subscription.updated`, `customer.subscription.deleted`, and a few others, with signature verification using the Stripe library, idempotency via the Stripe event ID as a primary key in a `processed_webhook_events` table, and database transactions that wrap the state update so partial failures don't leave the database in a bad state. This is the unsexy correctness work that determines whether your SaaS actually takes money correctly.
+**Where StackAlchemist stands: does not meet it.** Generated repos include no Stripe integration: no checkout, no webhook handler, no subscriptions. If your schema has `Subscription` or `Payment` entities, you get those tables and their CRUD code, and wiring Stripe to them is yours. (StackAlchemist itself uses Stripe to take your payment; that code is not in your repo.)
 
 ### 5. The CI pipeline runs the compile gate on every push
 
 This is the part that compounds. If your generated repo doesn't ship with CI that compiles, lints, type-checks, and runs tests on every push, then the first regression you introduce next week is the regression that ships to production silently.
 
-StackAlchemist generates a GitHub Actions workflow that runs `dotnet build`, `dotnet test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` on every push and pull request. If any of those fail, the workflow fails. Your repo defaults to a "main branch is always green" posture from day one. That posture is hard to retrofit and easy to establish, which is exactly why we establish it for you.
+**Where StackAlchemist stands: does not meet it.** Generated repos ship no CI workflow. The compile gate runs on our side before delivery — `dotnet restore` and `dotnet build`, `npm ci`, the typecheck and `next build` — and `build-report.json` in the zip records every command and its exit code. Running those same commands on every push is a workflow you add.
 
 ## What "production-ready" emphatically does not include
 
@@ -66,13 +68,13 @@ I want to be honest about what the bar does not include, because being honest ab
 
 **Horizontal autoscaling.** The generated infra is sized for a single VM by default. If you want Kubernetes autoscaling, you're at the Infrastructure tier, and even there you get the cluster manifests, not a guarantee of optimal scaling under your specific load.
 
-**A complete observability stack.** You get structured logs, basic health checks, and an `/api/healthz` endpoint that load balancers can use. You do not get a Grafana dashboard, an OpenTelemetry trace exporter, or a paged-out alerting setup. Those are decisions that depend on which observability vendor you've committed to and what your SLO posture is.
+**A complete observability stack.** You get structured logs (Serilog on the .NET stack), a database health check in Compose, and on the FastAPI stack a `/healthz` endpoint. You do not get a Grafana dashboard, an OpenTelemetry trace exporter, or a paged-out alerting setup. Those are decisions that depend on which observability vendor you've committed to and what your SLO posture is.
 
-**Compliance certifications.** SOC 2, HIPAA, PCI DSS Level 1 — these are operational programs, not codebase features. The generated code is consistent with these certifications (no PII in logs, real auth, real payment handling) but the certification itself is months of audit work.
+**Compliance certifications.** SOC 2, HIPAA, PCI DSS Level 1 — these are operational programs, not codebase features. A repo with no auth or payment handling yet is a long way from any of them, and the certification itself is months of audit work.
 
 **Disaster recovery beyond Postgres backups.** The Infrastructure tier includes daily backups and point-in-time recovery via the cloud provider's managed Postgres. Cross-region replication, RPO/RTO targets below an hour, runbook for full-region failure — those are work the buyer takes on once they own the code.
 
-The honest framing is: StackAlchemist gets you to "production-ready" in the sense that you can take payments from real customers without lying to them about security or losing their data. It does not get you to "Series A SaaS at scale." That second mile is the user's, and we are clear about that.
+The honest framing is: today StackAlchemist clears two of the five parts — the repo comes up in Docker and the database starts from a real migration — on top of a compile-verified build. Auth, payments and CI are the next mile, and today that mile is yours. "Series A SaaS at scale" is a mile after that. I'd rather say so here than let the phrase "production-ready" imply otherwise.
 
 ## How most AI-codegen tools fail the bar
 
@@ -88,7 +90,7 @@ I want to name some specific failure modes I have seen from the tools in this sp
 
 **The "works on my CI" failure.** A generator that compiles its output on its own CI but doesn't run that same CI on the user's repo after delivery is giving you a one-time pass and hoping you don't regress. CI on the buyer's repo is what makes the bar continuous, not pointlike.
 
-If a tool can't pass the bar on any of these, they're not production-ready in the meaningful sense, even if they say they are.
+If a tool can't pass the bar on any of these, they're not production-ready in the meaningful sense, even if they say they are. By this list, StackAlchemist fails three today: auth, Stripe, and CI on the buyer's repo. I'm not exempting myself.
 
 ## Why this matters for the category
 
@@ -102,9 +104,9 @@ I want StackAlchemist to be a boring one. Boring is what production means. Borin
 
 - **"Production-ready" is meaningless without a checkable bar.** I propose the five-part bar in this post: Docker-runs, real migrations, real auth, real Stripe webhooks, real CI.
 - **The compile guarantee is the floor, not the ceiling.** Code that compiles is necessary but not sufficient. Production-ready is a higher bar.
-- **Honesty about scope is what separates a serious tool from a marketing tool.** StackAlchemist generates production-ready output as defined here. It does not generate a fully-operated Series A SaaS. Anyone claiming otherwise is selling vapor.
+- **Honesty about scope is what separates a serious tool from a marketing tool.** StackAlchemist meets the Docker and migrations parts today, on a compile-verified build; auth, Stripe and CI are yours to wire. It does not generate a fully-operated Series A SaaS. Anyone claiming otherwise is selling vapor.
 - **Hold the AI-codegen tool you are evaluating to this bar.** Make them prove the five things. The honest answers will sort the category.
 
-If you're evaluating StackAlchemist against this bar, [start a generation](/simple) and run it through the checklist. If you find a place we don't meet the bar, that's a bug worth telling me about.
+If you're evaluating StackAlchemist against this bar, [start a generation](/simple) and run it through the checklist. The three places we don't meet the bar yet are listed above. If you find a fourth, that's a bug worth telling me about.
 
 — Steve

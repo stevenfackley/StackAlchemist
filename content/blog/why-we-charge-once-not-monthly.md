@@ -2,6 +2,8 @@
 
 **By Steve Ackley · April 28, 2026 · 7 min read**
 
+*Corrected October 4, 2026: earlier versions described a $299 Simple-mode code tier and a per-project Infrastructure tier, and said the templates wire Supabase and Stripe; the tiers are Blueprint $299 (docs, no code), Boilerplate $599 (the compile-verified repo) and Infrastructure $999 (plus IaC), and generated repos include no auth or Stripe.*
+
 Every AI code generator in the market is a monthly subscription. v0 is seat-based. Bolt is usage-credits that roll over until they don't. Lovable is tiered monthly. Cursor is $20/month. Replit is usage + seat.
 
 We are not. StackAlchemist is one-time. $299, $599, or $999, you pay once, you own the generated code forever, and if you want another generation later you pay for that one too. No rental. No seat. No per-run meter.
@@ -28,15 +30,13 @@ The subscription pricing model for codegen is not really a pricing model. It is 
 
 Here is what actually honest pricing looks like for a generator.
 
-A Simple-mode generation (our $299 tier) costs us about $8 in LLM and infra. Gross margin at $299: $291, which is ~97%.
+A Blueprint generation ($299) produces the architecture documents: the schema and the API contract for every entity. No code.
 
-A Blueprint-tier generation ($599) allows more complexity, tighter integrations, longer prompts. Cost rises to ~$14. Gross margin: $585, ~98%.
+A Boilerplate generation ($599) produces the full source repo and runs it through the compile gate.
 
-A Boilerplate-tier generation ($999) includes more entities, more vertical-specific tuning, and a higher retry budget on the compile gate. Cost ~$22. Gross margin: $977, ~98%.
+An Infrastructure generation ($999) is the Boilerplate repo plus the AWS CDK stack, a Terraform baseline, a Helm chart and a deployment runbook.
 
-An Infrastructure-tier engagement (the highest tier, currently quoted per project) is less about automated generation and more about custom scaffolding. Margins vary by engagement.
-
-Across the three self-serve tiers, our gross margins are in the mid-to-high 90s. That is not by accident — it is because we only charge you when we actually do the work, and we do the work quickly and verifiably.
+None of them costs us more than the $3–$18 range above to fulfil, so across the three tiers our gross margins are in the mid-to-high 90s. That is not by accident — it is because we only charge you when we actually do the work, and we do the work quickly and verifiably.
 
 ## Why the one-time model is better for you
 
@@ -52,15 +52,15 @@ Over a year you subscribe for 4 months (validate 4 ideas). Total: $120.
 
 So far, one-time vs subscription is about even at this volume — until you account for the fact that with a subscription, you do not own the generated code. It ships with your subscription to the platform. If the platform raises prices, changes terms, or shuts down, your relationship with the code is at risk.
 
-**Scenario B: StackAlchemist one-time at $299.**
+**Scenario B: StackAlchemist one-time at $599 (Boilerplate, the tier that gives you the code).**
 
-You pay once. You own the code. It is yours, on disk, in your GitHub, in your LICENSE. If StackAlchemist shuts down tomorrow, your generated SaaS is unaffected. There is no dependency on us after the handoff.
+You pay once. You own the code. It is yours, on disk, in your GitHub, under whatever license you choose. If StackAlchemist shuts down tomorrow, your generated SaaS is unaffected. There is no dependency on us after the handoff.
 
 The one-time price is higher per generation, obviously. But you are paying for ownership, not rental. For a serious founder shipping a product, that is the correct trade.
 
 **Scenario C: you are generating five SaaS apps a year.**
 
-At one-time $299 × 5 = $1495. At subscription $30/month × 12 = $360.
+At one-time $599 × 5 = $2995. At subscription $30/month × 12 = $360.
 
 Subscription wins on raw cost, yes. But:
 
@@ -90,10 +90,10 @@ With a one-time model where you own the code from day one, there is no switching
 
 ## What you are actually paying for
 
-When you pay $299 for a Simple-mode generation, here is what you are getting:
+When you pay $599 for a Boilerplate generation, here is what you are getting:
 
 - The generation run itself: LLM calls, template rendering, compile gate, retries.
-- The templates that encode years of "how do you wire Supabase + Stripe + .NET + Next.js without it turning into a mess."
+- The templates that encode years of "how do you wire .NET + Next.js + Postgres without it turning into a mess."
 - The compile gate that means the code you download actually runs.
 - Ownership — clean, transferable, no strings.
 

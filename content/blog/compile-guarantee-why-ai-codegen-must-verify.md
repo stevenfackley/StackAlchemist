@@ -2,6 +2,8 @@
 
 **By Steve Ackley · April 16, 2026 · 7 min read**
 
+*Corrected October 4, 2026: earlier versions listed a `dotnet test` smoke run and pnpm in the compile gate and implied business rules get generated; generated repos have no .NET test project, the gate runs `dotnet restore`/`dotnet build` and `npm ci`/typecheck/`next build`, and business rules are yours to write.*
+
 I have watched a hundred AI code generators ship you a tarball, claim victory, and leave you to discover three hours later that nothing compiles. I am tired of it. If you have spent any time with the current generation of "prompt to app" tools, you already know the failure mode: the demo is beautiful, the code looks plausible, and half the imports do not resolve.
 
 This is the single biggest reason AI-generated code has a reputation problem in 2026 — not that the models are bad, but that the products built around them have no opinion about whether the output works.
@@ -25,13 +27,14 @@ The insight that started StackAlchemist was not about prompts or models. It was 
 When I say StackAlchemist gives you a compile guarantee, I mean this literally: before you can download the zip, our pipeline runs the equivalent of
 
 ```bash
-dotnet build
-dotnet test --filter Category=Smoke
-pnpm --filter web build
-pnpm --filter web typecheck
+dotnet restore
+dotnet build --no-restore
+npm ci
+npm run typecheck
+npm run build      # next build
 ```
 
-on the generated repo. If any of those fail, you never see a broken download. The generation retries, patches the failure, and verifies again. If it cannot be fixed within the retry budget, you get a clear error, not a booby-trapped zip.
+on the generated repo. If any of those fail, you never see a broken download. The compiler errors go back to the model, it patches the failure, and we verify again, up to three repair attempts. If it cannot be fixed within that budget, you get a clear error and a refund, not a booby-trapped zip.
 
 This sounds obvious. It is obvious. But zero of our named competitors do it.
 
@@ -55,7 +58,7 @@ A verified output is no longer a nice-to-have. It is the baseline for a tool any
 
 Being able to promise a compile guarantee required us to make a trade-off I know some people will push back on: we are less creative than fully-generative tools.
 
-If you ask StackAlchemist to build you "a marketplace for handmade ceramics with real-time bidding and a Polish-language admin panel", you will get a real, working marketplace. You will not get a bespoke custom-crafted one-of-a-kind codebase that looks nothing like any SaaS you have seen before. You will get a StackAlchemist-shaped SaaS, with the ceramics domain plugged into our scaffolding.
+If you ask StackAlchemist to build you "a marketplace for handmade ceramics with real-time bidding and a Polish-language admin panel", you will get a real, compiling marketplace codebase: the ceramics entities, their CRUD API and their pages. You will not get the real-time bidding; that rule is yours to write. You will not get a bespoke custom-crafted one-of-a-kind codebase that looks nothing like any SaaS you have seen before. You will get a StackAlchemist-shaped SaaS, with the ceramics domain plugged into our scaffolding.
 
 That is the deal. Determinism buys you verification. Verification buys you a working build. You trade "surprise me" for "ship me something that runs."
 
@@ -67,7 +70,7 @@ Let me be honest about the ceiling too:
 
 - **It does not guarantee the code is good.** Verified does not mean elegant. Our output is the scaffolding you would have written on day one of a project, not the artful refactor you would have done by week six.
 - **It does not guarantee the product is right.** We compile the code you asked for. If what you asked for is not what you actually wanted, no amount of verification saves you.
-- **It does not guarantee zero bugs in your business logic.** The LLM can still generate business logic that compiles but is wrong. We are working on extending verification to behavioural checks — that is the next frontier.
+- **It does not guarantee zero bugs in the domain code.** The LLM can still generate domain code that compiles but is wrong. We are working on extending verification to behavioural checks — that is the next frontier.
 
 What the compile guarantee does buy you is this: the first hour after you download the zip is spent reading the code, not fighting the build. That one hour is the difference between a tool you use again and a tool you abandon.
 

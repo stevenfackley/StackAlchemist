@@ -29,7 +29,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "v0 is the right tool if you need one beautiful component. StackAlchemist is the right tool if you need an entire SaaS. They compose well — use v0 to iterate on UI inside a StackAlchemist-generated Next.js app.",
-    updatedAt: "2026-04-22",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "bolt-new",
@@ -45,12 +45,12 @@ export const COMPARE_ENTRIES = [
     winsForUs: [
       "Real backend runtime (.NET 10 API, not just Node)",
       "Deployable to your own infra, not just Bolt's sandbox",
-      "Supabase + Stripe + Postgres wired by default",
+      "Real PostgreSQL migrations and Docker Compose in the repo",
       "Compile-gated verified output",
     ],
     verdict:
       "Bolt is the right tool for prototyping JS ideas in an afternoon. StackAlchemist is the right tool when you need a SaaS you can actually deploy and sell.",
-    updatedAt: "2026-04-22",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "lovable",
@@ -71,7 +71,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "Lovable is the best in-browser iteration loop for a full app. StackAlchemist is the right tool when the goal shifts from sketching a product to owning a SaaS you can sell.",
-    updatedAt: "2026-04-20",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "cursor",
@@ -86,13 +86,13 @@ export const COMPARE_ENTRIES = [
     ],
     winsForUs: [
       "Generate a full repo from a prompt — not file-by-file",
-      "Compile-gated output: frontend + backend + DB + auth + Stripe",
+      "Compile-gated output: frontend + backend + database migrations",
       "One-time price for the artifact, not monthly seats",
       "Starts the repo; Cursor is perfect for the rest of its life",
     ],
     verdict:
       "Different categories. Cursor is the best AI IDE once you have a repo. StackAlchemist creates the repo. Use StackAlchemist to generate, then Cursor forever after.",
-    updatedAt: "2026-04-20",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "replit-agent",
@@ -113,7 +113,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "Replit Agent is excellent for shipping inside the Replit ecosystem. StackAlchemist is the right tool when the goal is a SaaS you own, on your infra, under your license — a business you can run and sell.",
-    updatedAt: "2026-04-20",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "bubble",
@@ -134,7 +134,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "Bubble is the right tool when you cannot or will not write code and want to ship fast. StackAlchemist is the right tool when you want a real owned codebase you can scale, sell, or hand to engineers without re-platforming.",
-    updatedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "retool",
@@ -150,12 +150,12 @@ export const COMPARE_ENTRIES = [
     winsForUs: [
       "Generates the customer-facing SaaS, not the admin layer on top of one",
       "Real owned repo, not a hosted runtime keyed to a Retool seat",
-      "Backend + DB schema + auth + Stripe in one generation, not bolted on",
+      "Backend + DB schema + frontend in one generation, not bolted on",
       "One-time price for the artifact, not per-user platform fees",
     ],
     verdict:
       "Retool is the right tool when you already have a SaaS and need the internal admin/ops UI on top of it. StackAlchemist is the right tool when the SaaS itself is what you need to exist.",
-    updatedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "base44",
@@ -177,7 +177,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "base44 is the right tool when you're building an internal tool that lives forever on a hosted runtime. StackAlchemist is the right tool when you're building a customer-facing SaaS you sell, own, and deploy under your own roof.",
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "wasp-opensaas",
@@ -199,7 +199,7 @@ export const COMPARE_ENTRIES = [
     ],
     verdict:
       "Wasp/OpenSaaS is the best free, open-source starting point in this set — ideal if you have time, a Node stack, and want to shape a proven template by hand. StackAlchemist is the right call when you want your own domain generated, compile-verified, and handed to you as plain owned code with no framework layer in the middle.",
-    updatedAt: "2026-06-01",
+    updatedAt: "2026-10-04",
   },
 ] as const satisfies readonly CompareEntry[];
 

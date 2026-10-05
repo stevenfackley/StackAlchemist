@@ -8,8 +8,8 @@ const FAQS = [
     a: "Your generated Boilerplate or Infrastructure package is run through dotnet build before delivery. If it fails, an automatic correction loop re-runs the LLM and retries — up to three times. If it still fails, you get a full refund.",
   },
   {
-    q: "What stack does V1 generate?",
-    a: ".NET 10 Web API + Next.js 16 (App Router, TypeScript, Tailwind CSS) + PostgreSQL + Supabase. Additional stacks are planned for V2.",
+    q: "What stack does StackAlchemist generate?",
+    a: "By default a .NET 10 minimal API (Dapper over PostgreSQL) + Next.js 16 (App Router, TypeScript, Tailwind CSS). Advanced Mode also offers FastAPI + React (Vite) + PostgreSQL. The .NET stack's frontend ships the Supabase client preinstalled; auth and payments are yours to wire.",
   },
   {
     q: "Can I use the generated code commercially?",

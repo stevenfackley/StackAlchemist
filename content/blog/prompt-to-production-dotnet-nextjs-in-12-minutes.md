@@ -1,6 +1,8 @@
-# From prompt to production: generating a .NET 10 + Next.js 15 SaaS in 12 minutes
+# From prompt to production: generating a .NET 10 + Next.js 16 SaaS in 12 minutes
 
 **By Steve Ackley · April 25, 2026 · 8 min read**
+
+*Corrected October 4, 2026: earlier versions said generated repos include Supabase auth pages, Stripe webhook handling, service-layer business logic, EF Core, a smoke-test run and GitHub Actions CI; generated repos ship compile-verified scaffolding plus per-entity CRUD code, and auth, payments and CI are yours to wire.*
 
 People keep asking me what actually happens between the moment you hit "Generate" and the moment the zip lands in your download folder. Twelve minutes of black box feels long — especially compared to tools that return output in forty seconds.
 
@@ -12,7 +14,9 @@ The prompt I am using as the example:
 
 > A subscription management dashboard for small gyms. Coaches can create class schedules, members book classes, admins see attendance and churn. Stripe for billing. Owner-role admin. Next.js + .NET + Postgres.
 
-This is a Simple-mode prompt. In Advanced mode you would also provide the entity list, role matrix, and feature flags. The engine handles them the same way internally; Simple mode just infers them.
+This is a Simple-mode prompt. In Advanced mode you would define the entities, fields and relationships yourself in the wizard (and can declare custom endpoints). Simple mode has the model infer them from the prompt.
+
+One thing up front: the prompt asks for Stripe billing and an owner-role admin. Neither is generated. You get the entities those features need; wiring Stripe and auth is yours. More on that at the end.
 
 User hits Generate. The clock starts.
 
@@ -21,34 +25,36 @@ User hits Generate. The clock starts.
 - **t=0s:** Prompt hits our API. We validate it, check the user's tier, check their remaining credit.
 - **t=2s:** Job enqueued into our generation queue. This is a background worker pool running on ARM64 EC2 — one worker per concurrent build.
 - **t=8s:** Worker picks up the job. Ephemeral build directory created, isolated from every other generation in flight.
-- **t=15s:** Generation config loaded. We read the prompt, infer the vertical (fitness/subscription), select the `saas-subscription` template family, initialize the LLM session with our system prompt.
+- **t=15s:** Generation config loaded. We read the prompt, select the template set for the stack (.NET 10 + Next.js here), initialize the LLM session with our system prompt.
 
 You are staring at a progress bar. On our side, nothing has touched the LLM yet. This is all scaffolding.
 
 ## Minute 1 to 3: domain modeling (LLM pass 1)
 
-- **t=60s:** First LLM call goes out. Purpose: derive the domain model. The LLM is given the prompt plus a schema of what a valid domain looks like (must include User with Supabase auth fields; must declare relationships explicitly; etc.).
+- **t=60s:** First LLM call goes out. Purpose: derive the domain model. The LLM is given the prompt plus the rules for a valid schema (a UUID primary key on every entity; field types from a fixed list; relationships declared explicitly).
 - **t=90s:** LLM returns. In this run, it proposed entities: `Gym`, `Coach`, `Member`, `ClassSession`, `Booking`, `Subscription`, `Payment`, `AttendanceRecord`.
-- **t=95s:** We validate the LLM output against our schema. The first attempt failed because the LLM did not specify the relationship between `Coach` and `Gym`. This is a common failure mode. We re-prompt with a targeted error: "Coach must declare Gym relationship."
-- **t=135s:** Second LLM call returns with the fix. Validation passes.
-- **t=155s:** Domain model is now a typed artifact. It is not yet code.
+- **t=95s:** We validate the output: the JSON parses, every relationship points at an entity that exists, and the schema stays inside the size limits. If it fails, the run stops with the error instead of guessing. This one passed.
+
+The domain model is now a typed schema. It is not yet code. In the product you see it at this point and can edit the entities, fields and relationships before code generation starts; the clock in this post leaves that review out. In Advanced mode you built the schema yourself, so this pass does not run.
 
 Average for this stage: 1.5–2 minutes. It is bounded by LLM latency, not our code.
 
-## Minute 3 to 5: business logic (LLM pass 2)
+## Minute 3 to 5: per-entity code (LLM pass 2)
 
-This is the stage that varies most by prompt. For a subscription gym, the LLM needs to generate service-layer methods for:
+This is the stage that varies most by prompt, because it scales with the number of entities. For each entity in the schema, the LLM writes:
 
-- Creating a class schedule (constraints: no double-booking a coach)
-- Booking a class (constraints: capacity check, membership-tier check)
-- Handling subscription lifecycle (new, pause, cancel)
-- Processing Stripe webhooks (the glue code between Stripe events and our domain)
+- The C# model record and its request DTO
+- The Dapper repository (get all, get by id, create, update, delete)
+- The CRUD endpoints
+- The table's fragment of the SQL migration
+- The TypeScript types, the typed API client calls, and the pages
 
-- **t=180s:** LLM call for service-layer generation. This is the single heaviest LLM call of the run — it emits several thousand lines of C# across the service classes.
-- **t=240s:** LLM returns. Our validator runs: does every method signature match the interface we declared? Do the referenced entity fields all exist in the domain model from pass 1?
-- **t=245s:** First validation pass fails. The LLM emitted a `CancelSubscriptionAsync` method that referenced a field `Subscription.CancelledOn` that does not exist in the domain model. We have two options: reject and re-prompt, or patch. For a missing-field error we usually patch — add the field to the domain model, extend the migration.
-- **t=250s:** Patch applied.
-- **t=270s:** Re-run validation. Passes.
+Plus the one-line DI and route registrations that get spliced into `Program.cs`.
+
+What it does not write: the double-booking rule, the capacity check, the subscription lifecycle, Stripe webhooks. The prompt asked for them, but they are business rules and integrations, and in the repo they are yours to write. The entities carry the fields they need.
+
+- **t=180s:** LLM call for the per-entity code. This is the single heaviest LLM call of the run.
+- **t=240s:** LLM returns. We parse the file blocks and check that every path lands inside the project tree the templates render. Output aimed anywhere else is rejected. Whether the code is actually right gets checked for real at the compile gate, below.
 
 Average for this stage: 1.5–2 minutes. Again, LLM-bound.
 
@@ -56,13 +62,12 @@ Average for this stage: 1.5–2 minutes. Again, LLM-bound.
 
 Now the Swiss Cheese kicks in. The LLM artifacts from passes 1 and 2 get merged into our deterministic scaffold.
 
-- **t=300s:** Project skeletons instantiated. One `.csproj` per bounded context, one `package.json` per Next.js app, pnpm workspace root generated.
-- **t=320s:** Handlebars templates rendered. The LLM's domain model becomes EF Core entities with correctly-typed navigation properties. The LLM's service methods become real `.cs` files with dependency-injection boilerplate, logging, and exception handling.
-- **t=340s:** Migration generated. Based on the entity definitions, we emit a SQL migration that creates the tables. We do NOT ask the LLM to write SQL — migrations are 100% deterministic.
-- **t=360s:** Next.js side rendered. API routes for each entity, a typed data-access layer, a basic CRUD UI for each entity, and a starter dashboard.
-- **t=400s:** Auth wiring added. Supabase project env vars declared, signup/login/password reset pages generated from our standard template.
-- **t=430s:** Payments wiring. Stripe webhooks, products, subscription lifecycle handlers — all from our standard Stripe template, parameterized with the domain's subscription tiers.
-- **t=460s:** Docker, docker-compose, CI/CD, README, LICENSE all emitted. These are 100% template.
+- **t=300s:** Project skeleton rendered from Handlebars templates: a `dotnet/` .NET 10 minimal API project (`Program.cs` with DI, Serilog logging, OpenAPI, CORS and config) and a `nextjs/` Next.js 16 App Router project with Tailwind and the API client base.
+- **t=320s:** The LLM's per-entity files are merged into the skeleton: model records, Dapper repositories, endpoint groups, and the registration lines spliced into `Program.cs`.
+- **t=340s:** Migration assembled. `001_initial_schema.sql` creates the tables: UUID primary keys, foreign keys, row-level security enabled (no policies written; those are yours). The table fragments come from the LLM pass; the file around them is template.
+- **t=360s:** Next.js side assembled. The types, the typed API client and a CRUD page for each entity, inside the template's layout.
+- **t=400s:** Supabase slots. `@supabase/supabase-js` is preinstalled and the `NEXT_PUBLIC_SUPABASE_*` env vars are passed through `next.config`, compose and `.env.example`. Nothing calls the client. No sign-in, sign-up or password-reset pages are generated; the auth flows are yours to write.
+- **t=460s:** Multi-stage Dockerfile, docker-compose, `.env.example` and `.gitignore` emitted. These are 100% template. There is no CI workflow in the repo.
 
 This is the stage where most value is created. Notice it is almost entirely deterministic — LLM was heavily involved in minutes 1–5, then steps aside.
 
@@ -71,31 +76,31 @@ This is the stage where most value is created. Notice it is almost entirely dete
 Here is where most competitors stop. We do not.
 
 - **t=480s:** Directory handed to the verification runner.
-- **t=485s:** `dotnet restore` on the API projects.
-- **t=540s:** `dotnet build` on the full solution. This is the expensive step — compiling a multi-project .NET 10 solution takes real CPU.
-- **t=600s:** `dotnet test --filter Category=Smoke`. We run a small suite of smoke tests that are also generated from the domain model. They verify that entities can be created, read, updated, deleted, and that the service layer methods return the expected shapes.
-- **t=630s:** `pnpm install` on the Next.js workspace.
-- **t=660s:** `pnpm build`. Next.js compiles, typechecks, and produces a production build.
+- **t=485s:** `dotnet restore` on the API project.
+- **t=540s:** `dotnet build`. This is the expensive step — compiling .NET 10 takes real CPU.
+- **t=600s:** `npm ci` on the Next.js app.
+- **t=630s:** `npm run typecheck` (`tsc --noEmit`).
+- **t=660s:** `next build`. Next.js compiles, typechecks, and produces a production build.
 
 In 97% of runs this stage passes on the first try. In this run, it did.
 
-In the 3% where it fails, we loop back to the relevant LLM stage with a targeted error ("service method `X` references missing type `Y`"), re-generate just the failing slice, and re-verify. Our retry budget is three attempts. If all three fail, we stop and return an error — we never ship a non-compiling zip.
+In the 3% where it fails, the compiler errors go back to the model ("repository `X` references missing type `Y`"), it patches the failing files, and we run the builds again. Up to three repair attempts. If it still does not compile, the run fails and you are refunded — we never ship a non-compiling zip.
 
 ## Minute 11 to 12: packaging
 
-- **t=690s:** Full directory zipped.
+- **t=690s:** Full directory zipped, with `build-report.json` recording every build command, its exit code and the verdict.
 - **t=700s:** Zip uploaded to our storage (S3-compatible, signed URL).
 - **t=710s:** Download link emitted to the user. Progress bar hits 100%.
 - **t=720s (12:00):** User clicks download.
 
 ## What you have at t=12 minutes
 
-- A monorepo with .NET 10 API, Next.js 15 frontend, shared TypeScript types generated from C# models.
-- Supabase auth wired. Stripe wired. PostgreSQL migrations ready to run.
+- A repo with a .NET 10 minimal API (Dapper over Npgsql, Serilog, OpenAPI) and a Next.js 16 frontend, with TypeScript types, a typed API client and CRUD pages for every entity.
+- A PostgreSQL SQL migration for your schema, row-level security enabled on every table, no policies written.
 - Docker-compose for local dev — `docker compose up` and everything is running on your machine in another ~2 minutes.
-- GitHub Actions CI configured to run on push: lint, typecheck, unit tests, build.
-- A README that tells you which env vars to set and what commands to run.
-- A LICENSE file with your name in it (we ask at signup; if you did not provide one, it is blank).
+- The Supabase client preinstalled with its env slots. The auth flows are yours to write.
+- `Subscription` and `Payment` entities with their CRUD code. Stripe is not in the repo; wiring billing to those entities is yours.
+- No CI workflow. Add the one your team uses.
 
 Everything compiled. Everything owned. Yours.
 
@@ -108,9 +113,9 @@ Our twelve minutes is mostly the compile gate. Remove that, and we are at about 
 ## Key takeaways
 
 - A StackAlchemist generation takes about 12 minutes end to end, from prompt to downloadable zip.
-- **~5 minutes** is LLM work (domain model, business logic).
-- **~3 minutes** is deterministic assembly (templates, scaffolding, wiring).
-- **~4 minutes** is the compile gate (`dotnet build`, `dotnet test`, `pnpm build`).
+- **~5 minutes** is LLM work (domain model, per-entity CRUD code).
+- **~3 minutes** is deterministic assembly (templates, scaffolding, merging).
+- **~4 minutes** is the compile gate (`dotnet build`, typecheck, `next build`).
 - The compile gate is non-negotiable. It is the difference between a zip that runs and a zip that looks right but fails at `dotnet restore`.
 
 If you want to run this yourself, [start with a prompt](/simple) and time it on your own clock. The progress bar will tell you where in this sequence your job is.

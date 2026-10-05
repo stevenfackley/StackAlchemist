@@ -23,7 +23,7 @@ const EXAMPLE_APPS = [
   {
     icon: ShoppingCart,
     name: "E-commerce Platform",
-    description: "Multi-vendor marketplace with inventory, orders, product catalog, and Stripe payments.",
+    description: "Multi-vendor marketplace with inventory, orders, vendors and a product catalog.",
     tags: ["Products", "Orders", "Vendors"],
   },
   {

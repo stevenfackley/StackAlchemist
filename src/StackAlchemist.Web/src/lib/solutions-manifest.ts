@@ -17,7 +17,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI E-commerce Platform from a prompt",
     metaTitle: "AI E-commerce Platform Generator — Compile-Guaranteed SaaS",
     metaDescription:
-      "Generate a full .NET 10 + Next.js 16 AI-powered e-commerce platform with Stripe, auth, and inventory in 12 minutes. Verified build, owned code, one-time price.",
+      "Generate a full .NET 10 + Next.js 16 AI-powered e-commerce platform with catalog, variants, orders and inventory. Verified build, owned code, one-time price.",
     relativePath: "ai-ecommerce-platform.md",
     entityExamples: [
       "Product",
@@ -35,7 +35,7 @@ export const SOLUTION_ENTRIES = [
       "ai shopify alternative",
       "generate ecommerce saas",
     ],
-    updatedAt: "2026-04-16",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-lms-builder",
@@ -43,7 +43,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Learning Management System from a prompt",
     metaTitle: "AI LMS Builder — Generate a Full Learning Platform in Minutes",
     metaDescription:
-      "Generate a full .NET 10 + Next.js 16 AI-powered LMS with courses, lessons, quizzes, enrollments, and Stripe billing. Verified build, owned code, one-time price.",
+      "Generate a full .NET 10 + Next.js 16 AI-powered LMS with courses, lessons, quizzes and enrollments. Verified build, owned code, one-time price.",
     relativePath: "ai-lms-builder.md",
     entityExamples: [
       "Course",
@@ -61,7 +61,7 @@ export const SOLUTION_ENTRIES = [
       "ai course platform generator",
       "ai teachable alternative",
     ],
-    updatedAt: "2026-04-16",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "fintech-saas-generator",
@@ -69,7 +69,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full Fintech SaaS from a prompt",
     metaTitle: "Fintech SaaS Generator — Generate a Compliant Finance Platform",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 fintech SaaS with accounts, transactions, KYC hooks, audit trails, and Stripe. Verified build, owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 fintech SaaS data model with accounts, transactions, KYC records and audit trails. Verified build, owned code, one-time price.",
     relativePath: "fintech-saas-generator.md",
     entityExamples: [
       "Account",
@@ -86,7 +86,7 @@ export const SOLUTION_ENTRIES = [
       "ai fintech builder",
       "fintech codegen",
     ],
-    updatedAt: "2026-04-16",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-crm-builder",
@@ -94,7 +94,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI CRM from a prompt",
     metaTitle: "AI CRM Builder — Generate a Custom CRM SaaS in Minutes",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 CRM with contacts, deals, pipelines, tasks, and email integration. Verified build, owned code, one-time price — no Salesforce tax.",
+      "Generate a .NET 10 + Next.js 16 CRM with contacts, companies, deals, pipelines and tasks. Verified build, owned code, one-time price — no Salesforce tax.",
     relativePath: "ai-crm-builder.md",
     entityExamples: [
       "Contact",
@@ -112,7 +112,7 @@ export const SOLUTION_ENTRIES = [
       "custom crm generator",
       "ai salesforce alternative",
     ],
-    updatedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-marketplace-platform",
@@ -120,7 +120,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Marketplace Platform from a prompt",
     metaTitle: "AI Marketplace Generator — Generate a Two-Sided Marketplace SaaS",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 two-sided marketplace with listings, vendors, buyers, payouts, and Stripe Connect. Verified build, owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 two-sided marketplace with listings, vendors, buyers and orders. Verified build, owned code, one-time price.",
     relativePath: "ai-marketplace-platform.md",
     entityExamples: [
       "Listing",
@@ -138,7 +138,7 @@ export const SOLUTION_ENTRIES = [
       "two sided marketplace builder",
       "ai marketplace platform",
     ],
-    updatedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-jobboard-builder",
@@ -164,7 +164,7 @@ export const SOLUTION_ENTRIES = [
       "generate job board saas",
       "ai jobboard codegen",
     ],
-    updatedAt: "2026-05-09",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-analytics-saas",
@@ -190,15 +190,15 @@ export const SOLUTION_ENTRIES = [
       "amplitude alternative codegen",
       "build analytics saas",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-healthcare-patient-portal",
     vertical: "AI Healthcare Patient Portal",
     h1: "Generate a full AI Healthcare Patient Portal from a prompt",
-    metaTitle: "AI Healthcare Patient Portal Generator — Owned, Audit-Logged",
+    metaTitle: "AI Healthcare Patient Portal Generator — Owned Code",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 patient portal with records, scheduling, secure messaging, prescriptions, and audit logging. HIPAA-consistent foundation, owned outright.",
+      "Generate a .NET 10 + Next.js 16 patient-portal data model and CRUD layer: patients, appointments, messages, prescriptions. Auth and HIPAA safeguards are yours to build.",
     relativePath: "ai-healthcare-patient-portal.md",
     entityExamples: [
       "Patient",
@@ -216,7 +216,7 @@ export const SOLUTION_ENTRIES = [
       "telehealth portal builder",
       "epic alternative for clinics",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-project-management-saas",
@@ -242,7 +242,7 @@ export const SOLUTION_ENTRIES = [
       "custom pm tool codegen",
       "owned project management software",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-real-estate-platform",
@@ -268,7 +268,7 @@ export const SOLUTION_ENTRIES = [
       "owned mls site builder",
       "proptech codegen",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-food-delivery-platform",
@@ -276,7 +276,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Food Delivery Platform from a prompt",
     metaTitle: "AI Food Delivery Platform Generator — Zero Commission Stack",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 food delivery platform with menus, orders, driver dispatch, delivery zones, and Stripe payouts. Cut DoorDash commissions. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 food delivery platform with restaurants, menus, orders, drivers and delivery zones. Cut DoorDash commissions. Owned code, one-time price.",
     relativePath: "ai-food-delivery-platform.md",
     entityExamples: [
       "Restaurant",
@@ -294,7 +294,7 @@ export const SOLUTION_ENTRIES = [
       "restaurant ordering saas",
       "ghost kitchen marketplace builder",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-event-ticketing-platform",
@@ -302,7 +302,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Event Ticketing Platform from a prompt",
     metaTitle: "AI Event Ticketing Platform Generator — Own Your Attendees",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 event ticketing platform with seat maps, QR tickets, check-in, and Stripe payouts. Beat Eventbrite fees. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 event ticketing platform with events, ticket types, orders and check-ins. Beat Eventbrite fees. Owned code, one-time price.",
     relativePath: "ai-event-ticketing-platform.md",
     entityExamples: [
       "Event",
@@ -320,7 +320,7 @@ export const SOLUTION_ENTRIES = [
       "ticketing saas builder",
       "venue ticketing software",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-inventory-management-saas",
@@ -346,7 +346,7 @@ export const SOLUTION_ENTRIES = [
       "multi warehouse inventory builder",
       "owned wms software",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-hr-onboarding-platform",
@@ -372,7 +372,7 @@ export const SOLUTION_ENTRIES = [
       "custom onboarding saas",
       "owned hr software builder",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-customer-support-platform",
@@ -398,7 +398,7 @@ export const SOLUTION_ENTRIES = [
       "helpdesk saas builder",
       "owned support software",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-fitness-subscription-platform",
@@ -406,7 +406,7 @@ export const SOLUTION_ENTRIES = [
     h1: "Generate a full AI Fitness Subscription Platform from a prompt",
     metaTitle: "AI Fitness Subscription Platform Generator — Keep Member Revenue",
     metaDescription:
-      "Generate a .NET 10 + Next.js 16 fitness subscription SaaS with members, classes, check-ins, waitlists, and Stripe recurring billing. Beat Mindbody fees. Owned code, one-time price.",
+      "Generate a .NET 10 + Next.js 16 fitness studio SaaS with members, plans, classes, bookings and check-ins. Beat Mindbody fees. Owned code, one-time price.",
     relativePath: "ai-fitness-subscription-platform.md",
     entityExamples: [
       "Member",
@@ -424,7 +424,7 @@ export const SOLUTION_ENTRIES = [
       "boutique studio saas",
       "gym management software builder",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-appointment-booking-saas",
@@ -450,7 +450,7 @@ export const SOLUTION_ENTRIES = [
       "scheduling software builder",
       "owned booking platform",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
   {
     slug: "ai-logistics-tracking-saas",
@@ -476,7 +476,7 @@ export const SOLUTION_ENTRIES = [
       "last mile delivery software",
       "owned fleet management builder",
     ],
-    updatedAt: "2026-05-26",
+    updatedAt: "2026-10-04",
   },
 ] as const satisfies readonly SolutionEntry[];
 

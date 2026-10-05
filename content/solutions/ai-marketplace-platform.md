@@ -1,23 +1,25 @@
 # Generate a full AI Marketplace Platform from a prompt
 
-You describe the marketplace you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase — listings, vendors, buyers, payouts, the works — verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
+You describe the marketplace you want to run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase — listings, vendors, buyers, orders, and payout records — verifies the build, and hands you the zip. You own the code. Deploy wherever you want.
 
 ## What you get
 
 A production-shaped two-sided marketplace with:
 
-- **Vendor onboarding** with verification fields, tax info, and Stripe Connect express accounts
-- **Listings** with images, variants, categories, and search-friendly fields
-- **Buyer accounts** with order history, saved listings, and reviews
-- **Cart and checkout** wired to Stripe Connect — buyers pay you, you pay vendors, take your cut automatically
-- **Payouts** with configurable schedules (instant, daily, weekly) and clear vendor-side reporting
-- **Reviews** in both directions (buyers review vendors, vendors review buyers if your model needs it)
-- **Disputes** with a moderation queue for the platform operator
-- **Admin panel** for category management, fee tiers, vendor approvals, dispute resolution
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Vendors** — `Vendor`, `VendorProfile` and `StripeConnectAccount` entities with verification and tax-info fields
+- **Listings** — `Listing`, `ListingVariant`, `ListingImage`, `Category` and `Tag` entities with search-friendly fields
+- **Buyers** — `Buyer` and `BuyerProfile` entities
+- **Orders** — `Order` and `OrderLineItem` entities
+- **Payouts and commissions** — `Payout`, `PayoutSchedule`, `FeeTier` and `Commission` entities holding gross, fee and net amounts and payout schedules
+- **Reviews and disputes** — `Review` and `Dispute` entities with resolution state
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** Stripe Connect (vendor onboarding, checkout, the platform-fee split, payouts and webhooks), buyer and vendor sign-in (the Supabase client is preinstalled; the auth flows are yours to write), commission calculation, the dispute queue and admin panel, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of using Sharetribe or building from a template
 
@@ -25,7 +27,7 @@ All of this is generated in about 12 minutes from a single prompt. Every build i
 
 **Templates skip the hard part.** A two-sided marketplace template gets you to the home page. The hard part — splitting payments cleanly, handling refunds when a vendor disputes a chargeback, calculating multi-rate commissions, surviving the first vendor onboarding flow — is the part templates wave at and skip.
 
-**Generated marketplace code handles the hard part.** The compile guarantee fires on the parts that are easy to ship broken — Stripe Connect webhook handlers, payout calculations, refund routing — exactly the surface area where most homemade marketplaces silently corrupt money.
+**Generated marketplace code gets you to the hard part faster.** StackAlchemist generates the data model and CRUD layer — vendors, listings, orders, payouts, disputes — and the Compile Guarantee means it builds. The money movement (Stripe Connect webhook handlers, payout calculations, refund routing) is still yours to write. That is exactly where most homemade marketplaces silently corrupt money, so that is where your time should go.
 
 ## Who this is for
 
@@ -58,40 +60,39 @@ Imagine you submit this spec:
 StackAlchemist generates:
 
 - `Vendor` (editor) entity with profile, portfolio_links, hourly_rate, turnaround_days, stripe_connect_id
-- `Buyer` (podcaster) entity with profile and saved payment methods
+- `Buyer` (podcaster) entity with profile fields
 - `Job` entity (the listing variant for this model) with brief, budget, deadline, status
 - `Application` entity tying editors to jobs they have applied for
 - `Engagement` entity for the active editor-podcaster pairing on a job
 - `EscrowHold` entity tracking funds held against a Stripe payment intent
 - `Payout` entity with editor_id, gross_amount, platform_fee_amount, net_amount, status
 - `Dispute` entity with engagement_id, raised_by, reason, resolution_state
-- API endpoints: `POST /jobs`, `POST /jobs/:id/apply`, `POST /engagements/:id/release`, `POST /disputes`
-- Stripe Connect integration with platform-fee handling correctly applied at payment-intent capture time
-- Admin views for the dispute queue and per-vendor payout reconciliation
+- CRUD endpoints for every entity (`/api/v1/jobs`, `/api/v1/applications`, `/api/v1/disputes`, …). Endpoints like `POST /jobs/:id/apply` or `POST /engagements/:id/release` can be declared in Advanced Mode; the escrow release logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js frontend (separate vendor and buyer flows) and a .NET backend with audit logging on every escrow state change. The generated CI/CD pipeline compiles and tests on every push. Docker-compose spins up a local PostgreSQL, the .NET API, the Next.js frontend, and a Stripe webhook listener in one command.
+That is the marketplace's data model and CRUD layer, compile-verified. The separate vendor and buyer flows, Stripe Connect with the platform fee applied at payment-intent capture, escrow state changes with audit logging, and the admin views for disputes and payout reconciliation are code you write on top. Docker Compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Wire your Stripe Connect platform account.** The generated repo includes the platform-account flow, the express-account onboarding link, and the webhook handlers for `account.updated` and `payment_intent.succeeded`. Drop in your platform secret, point the webhook at your domain, and you can onboard a real vendor and run a test transaction within an hour.
+1. **Wire your Stripe Connect platform account.** The generated repo does not include Stripe; `Vendor` has a `stripe_connect_id` column, and `EscrowHold` and `Payout` hold the money state. Add the express-account onboarding link, a payment intent that applies the 12% platform fee, and webhook handlers for `account.updated` and `payment_intent.succeeded`. Drop in your platform secret, point the webhook at your domain, and onboard a test vendor before you touch real money.
 
-2. **Tune your commission model.** Generated code ships with a flat-percentage fee tier. If your real model is "10% on small orders, 7% on orders over $1,000, 5% for verified high-volume vendors" — that is one method change in `CalculateCommission()`. The compile guarantee will catch you if your branching forgets a case. This is the kind of customization that costs months on a managed marketplace platform.
+2. **Write your commission model.** The `FeeTier` and `Commission` entities hold the rates; the calculation is yours. Start with a flat percentage. When your real model is "10% on small orders, 7% on orders over $1,000, 5% for verified high-volume vendors", it lives in one `CalculateCommission()` method you own. This is the kind of customization that costs months on a managed marketplace platform.
 
 ## What is not included
 
 StackAlchemist is not Sharetribe. We do not host your marketplace, do not provide a managed admin runtime, and do not handle ongoing platform operations like fraud monitoring or vendor support. We generate you the code. You deploy and operate it.
 
-We do not ship native mobile marketplace apps out of the box — adding them is a separate generation or hand-built later. KYC and AML compliance are your responsibility — Stripe Connect handles a lot but the operator still owns the policy decisions. Tax handling for cross-border marketplace sales is not generated by default and should be added once you understand your jurisdictions.
+We do not ship native mobile marketplace apps out of the box — you build them on the generated API later. KYC and AML compliance are your responsibility — Stripe Connect handles a lot but the operator still owns the policy decisions. Tax handling for cross-border marketplace sales is not generated and should be added once you understand your jurisdictions.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode marketplace** — $299. Single category, basic listings, buyer/vendor flows, Stripe Connect with flat commission.
-- **Blueprint-tier** — $599. Multi-category, search and filters, dispute workflow, configurable commission tiers, vendor verification flow.
-- **Boilerplate-tier** — $999. Multi-region payouts, advanced fee structures, escrow workflow, dispute SLA tracking, admin reporting suite.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No platform tax. You own what you generate.
 

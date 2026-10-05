@@ -1,25 +1,26 @@
 # Generate a full AI Learning Management System from a prompt
 
-Teach, train, certify. StackAlchemist generates a production-shaped LMS as a .NET 10 + Next.js 16 codebase with courses, lessons, quizzes, and enrollments already wired. Compile-verified. Owned. Deployed wherever you want.
+Teach, train, certify. StackAlchemist generates a production-shaped LMS as a .NET 10 + Next.js 16 codebase with courses, lessons, quizzes, and enrollments modeled, each with CRUD endpoints. Compile-verified. Owned. Deployed wherever you want.
 
 ## What you get
 
 A production-shaped AI LMS with:
 
-- **Course catalog** with categories, tracks, and pricing tiers
-- **Lesson structure** with modules, chapters, and rich content (video embeds, markdown, code samples)
-- **Quizzes and assessments** with multiple-choice, short-answer, and auto-graded types
-- **Student enrollments** tied to Stripe subscriptions or one-time purchases
-- **Progress tracking** per student, per course, with completion certificates
-- **Instructor dashboard** to manage courses, see enrollment data, respond to questions
-- **Admin dashboard** for platform-wide analytics, payouts, and moderation
-- **Email notifications** for enrollment, reminders, and certificates
-- **Authentication** via Supabase — student, instructor, admin roles
-- **Payments** via Stripe — one-time courses, monthly memberships, lifetime access
-- **CI/CD** — GitHub Actions with compile verification
-- **Docker-compose** for local development — one command to run the full stack
+- **Course catalog** — `Course` entities with categories, tracks and prices
+- **Lesson structure** — `Module` and `Lesson` entities with order, video URLs and markdown content
+- **Quizzes and assessments** — `Quiz`, `Question` and `AnswerChoice` entities with question types (multiple-choice, short-answer) and passing scores
+- **Enrollments and progress** — `Enrollment`, `Progress` and `Completion` entities per student, per course
+- **Certificates** — `Certificate` and `CertificateTemplate` entities with verification tokens
+- **Instructors and students** — `Instructor` and `Student` entities
+- **Payment records** — `Subscription` and `Payment` entities ready for your payment integration
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — one command to run the full stack
 
-All generated in about 12 minutes. Compile-verified. Owned.
+**What you wire yourself:** Stripe for one-time courses, memberships or lifetime access, sign-in with student, instructor and admin roles (the Supabase client is preinstalled; the auth flows are yours to write), quiz grading, certificate generation, enrollment and reminder emails, the instructor and admin dashboards, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+All generated in about 12 minutes. Compile-verified on the Boilerplate and Infrastructure tiers. Owned.
 
 ## Why generate an LMS instead of using Teachable / Thinkific / Podia
 
@@ -71,21 +72,22 @@ StackAlchemist generates:
 - `LessonProgress` entity with enrollment_id, lesson_id, watched_at, watched_percent
 - `QuizAttempt` entity with quiz_id, enrollment_id, score, passed, attempted_at
 - `Certificate` entity with course_id, enrollment_id, issued_at, verification_token
-- API endpoints: `GET /courses/:id`, `POST /enrollments`, `POST /lessons/:id/progress`, `POST /quizzes/:id/submit`, `GET /certificates/:id/verify`, plus instructor and admin panels for content and analytics
+- CRUD endpoints for every entity (`/api/v1/courses`, `/api/v1/lessons`, `/api/v1/enrollments`, …). Endpoints like `POST /quizzes/:id/submit` or `GET /certificates/:id/verify` can be declared in Advanced Mode; the grading and verification logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-The generated codebase wires Stripe one-time payments to enrollments, sends email on enrollment and unit completion, and generates a signed certificate link the student can download or share. The instructor dashboard shows live progress across all students. The admin panel has forms to add lessons, edit quiz questions, and manage pricing.
+The generated codebase is the course data model and its CRUD layer, compile-verified. The Stripe payment that creates an enrollment, the emails on enrollment and unit completion, the signed certificate link a student can download or share, the instructor progress dashboard and the admin content forms are code you build on it. Docker Compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once you have the repo:
 
-1. **Connect your video host and configure email.** The generated codebase has placeholder fields for video URLs and email send integration. You create a Mux account (or Vimeo, or Bunny), upload your lessons, paste the CDN URLs into your admin panel, then wire your email provider (Resend, SendGrid, AWS SES — your choice) into the `EmailService` class. The .NET backend has the hooks pre-built; you just inject your credentials. One day of work, then students get real video and enrollment emails start flowing.
+1. **Connect your video host, Stripe and email.** The generated `Lesson` entity has a `video_url` field. You create a Mux account (or Vimeo, or Bunny), upload your lessons, and store the CDN URLs on each lesson. Then add the integrations the repo does not include: a Stripe Checkout for the $299 enrollment with a webhook that creates the `Enrollment`, and an `EmailService` backed by your email provider (Resend, SendGrid, AWS SES — your choice) for enrollment and completion emails. Once that is in, students get real video and enrollment emails start flowing.
 
-2. **Design your certificate template and add instructor-specific quizzes.** The generated certificate is a simple HTML template — you customize the colors, add your logo, and optionally add the student's name. For your second course, you might want different quiz types or a different quiz-per-lesson rhythm. You add new Question entity types (essay, code-submission, peer-review) by extending the quiz engine. The codebase is not locked to the first course; it scales to your whole catalog.
+2. **Build the certificate and extend the quizzes.** The `Certificate` entity has a verification token; the certificate itself — an HTML template with your colors, your logo and the student's name — is yours to design. For your second course, you might want different quiz types or a different quiz-per-lesson rhythm. You add new question types (essay, code-submission, peer-review) to the `Question` entity and write the grading for each. The codebase is not locked to the first course; it scales to your whole catalog.
 
 ## What is not included
 
-StackAlchemist does not host your videos. You plug in a video CDN (Mux, Vimeo, Bunny, S3 with CloudFront — whatever you prefer). We do not provide live streaming out of the box. We do not provide a mobile app — the generated Next.js site is mobile-responsive, but if you need native iOS/Android, that is a separate build.
+StackAlchemist does not host your videos. You plug in a video CDN (Mux, Vimeo, Bunny, S3 with CloudFront — whatever you prefer). We do not provide live streaming out of the box. We do not provide a mobile app — the generated frontend is a Next.js web app, and if you need native iOS/Android, that is a separate build.
 
 We do not provide SCORM compliance, xAPI tracking, or formal LMS interoperability out of the box. If you need to export student data to a corporate LMS or run cohort synchronization with an external system, that is custom integration work. We give you the structure; you plug in the standards.
 
@@ -93,11 +95,11 @@ For course creators who want everything managed, hosted LMS platforms are simple
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode LMS** — $299. Single institution, courses, lessons, quizzes, Stripe one-time payments.
-- **Blueprint-tier** — $599. Adds subscriptions, memberships, cohort-based courses, deeper analytics.
-- **Boilerplate-tier** — $999. Multi-institution, white-label, advanced certification, API for partner integrations.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No platform fee. No per-student charge. No revenue share. Generate once, deploy, operate.
 

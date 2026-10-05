@@ -6,18 +6,19 @@ You describe the kind of booking system you want. StackAlchemist generates the f
 
 A production-shaped AI appointment booking SaaS with:
 
-- **Services catalog** with durations, prices, buffer times, and category grouping
-- **Staff availability** with recurring weekly schedules, one-off blackouts, and time-off requests
-- **Customer-facing booking flow** with timezone-aware slot pickers and confirmation pages
-- **Stripe integration** for deposits, full payment at booking, or pay-on-arrival flows
-- **Automated reminders** via email and SMS — 24-hour, 1-hour, and custom intervals
-- **Recurring appointments** with series management and bulk reschedule
-- **Cancellation and rescheduling rules** with cutoff windows and policy enforcement
-- **Admin dashboard** for calendar view, staff schedules, customer history, and reporting
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Services catalog** — `Service` and `ServiceCategory` entities with durations, prices, buffer times and category grouping
+- **Staff availability** — `Staff`, `StaffAvailability` and `TimeOff` entities for recurring weekly schedules and one-off blackouts
+- **Appointments and bookings** — `Appointment`, `Booking` and `Customer` entities with status, timezone, deposit fields and a `stripe_payment_intent_id` column ready for your payment integration
+- **Reminders** — a `Reminder` entity (channel, send time, status) for the reminder sender you plug in
+- **Recurring series and policies** — `RecurringSeries`, `CancellationPolicy` and `RescheduleRule` entities holding cutoff windows and forfeit rules
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** slot calculation and the customer booking flow, Stripe deposits and payments, the email and SMS reminder sender, cancellation-rule enforcement, the admin calendar, staff and customer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), and your CI pipeline. The schema has the fields for all of it; the behavior is your code.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of renting Calendly
 
@@ -65,33 +66,32 @@ StackAlchemist generates:
 - `Customer` entity with name, email, phone, preferred_contact_method, timezone
 - `Reminder` entity with appointment_id, channel (email or sms), send_at, sent_at, status
 - `CancellationPolicy` entity with cutoff_hours (4), deposit_forfeit_rule (true)
-- API endpoints: `GET /services`, `GET /availability?service_id&date_range`, `POST /bookings`, `POST /bookings/:id/cancel`, `POST /bookings/:id/reschedule`, `POST /webhooks/stripe`, plus admin endpoints for staff schedules and calendar views
-- Next.js customer-facing booking flow with service picker, stylist picker, timezone-aware slot grid, and Stripe Checkout for the deposit
-- .NET background job that scans for appointments 24 hours out and queues SMS reminders via the SMS provider
+- CRUD endpoints for every entity (`/api/v1/services`, `/api/v1/staff`, `/api/v1/appointments`, `/api/v1/bookings`, …). Workflow endpoints such as `GET /availability`, `POST /bookings/:id/cancel` and `POST /bookings/:id/reschedule` can be declared in Advanced Mode; the slot math and cancellation rules behind them are yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js storefront and a .NET backend with Stripe webhooks closing the loop on deposit payments. Docker-compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
+That is the salon's data model and CRUD layer, compile-verified. The customer booking flow with its timezone-aware slot grid, the Stripe Checkout deposit and its webhook, and the job that sends SMS reminders 24 hours out are code you add on top. Docker Compose spins up a local PostgreSQL, the .NET API, and the Next.js frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Wire your SMS provider and run a live test booking.** The generated code ships with a reminder service interface and a no-op default. Drop in Twilio, MessageBird, or your provider of choice — set `SMS_PROVIDER_API_KEY` in your `.env.local`, swap the implementation in DI registration, and book yourself a test appointment one hour out. You should get an SMS. You are now operating a booking platform that actually sends reminders, and you control the SMS spend at-cost from your provider — not marked up by Calendly.
+1. **Wire Stripe deposits and an SMS provider, then run a live test booking.** The repo is not wired to any payment or messaging provider. It gives you `Booking` with deposit fields and a `stripe_payment_intent_id` column, and `Reminder` with channel, send time and status. Add a Stripe Checkout call for the $20 deposit and a webhook endpoint that sets `deposit_paid_at`. Then add a small scheduled job that picks up due `Reminder` rows and sends them through Twilio, MessageBird, or your provider of choice, with `SMS_PROVIDER_API_KEY` in your `.env.local`. Book yourself a test appointment one hour out. You should get an SMS. You are now operating a booking platform that actually sends reminders, and you control the SMS spend at-cost from your provider — not marked up by Calendly.
 
-2. **Add a domain-specific availability rule.** Maybe Sarah only takes color appointments on Saturdays, or you want to block double-booking across services that require the same shampoo bowl. The generated availability service is a normal C# class — add a `CanBook(staffId, serviceId, slotStart, slotEnd)` method that checks your custom rule alongside the standard availability lookup. This is not a hack — the codebase is yours, and these business rules are exactly where StackAlchemist expects you to extend.
+2. **Write the availability logic, including the rules only your shop has.** The repo gives you the availability, time-off and appointment tables with Dapper repositories; turning them into bookable slots is your code. Write a `CanBook(staffId, serviceId, slotStart, slotEnd)` method that checks the weekly schedule, time off and existing appointments, then add your own rules: maybe Sarah only takes color appointments on Saturdays, or you want to block double-booking across services that require the same shampoo bowl. This is not a hack — the codebase is yours, and these business rules are exactly where you extend it.
 
 ## What is not included
 
 StackAlchemist is not a hosted Calendly replacement. We do not host your booking page, do not provide an SMS-sending service ourselves (you plug in Twilio or similar), and do not operate the platform for you. We generate you the code. You deploy and operate it. SMS and email costs are at-provider — no markup, but also no included quota.
 
-We do not include Google Calendar / Outlook two-way sync out of the gate unless your spec asks for it, because OAuth flows for every calendar provider add complexity most operators don't need on day one. We also do not include payroll, commission tracking, or POS integration — if you need a full salon management system on top of bookings, those are extensions you build on the foundation. For most booking businesses, what you want is ownership of the booking layer with the freedom to add the rest. That is what this gives you.
+We do not include Google Calendar / Outlook two-way sync: OAuth flows for every calendar provider add complexity most operators don't need on day one, and that integration is yours to write when you need it. We also do not include payroll, commission tracking, or POS integration — if you need a full salon management system on top of bookings, those are extensions you build on the foundation. For most booking businesses, what you want is ownership of the booking layer with the freedom to add the rest. That is what this gives you.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode booking** — $299. Single-location, basic services, staff availability, email reminders, Stripe deposits.
-- **Blueprint-tier** — $599. Adds SMS reminders, recurring appointments, cancellation policy enforcement, customer login, and a richer admin calendar.
-- **Boilerplate-tier** — $999. Multi-location, package deals, gift cards, advanced reporting, calendar sync scaffolding, and waitlist management.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No per-seat tax. You own what you generate.
 

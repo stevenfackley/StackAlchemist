@@ -2,6 +2,8 @@
 
 **By Steve Ackley · May 9, 2026 · 8 min read**
 
+*Corrected October 4, 2026: earlier versions implied generated repos use EF Core and ship a native AOT build; generated repos use Dapper over Npgsql and a standard `dotnet publish` image.*
+
 The question I get asked most after "what's the compile guarantee" is "why .NET?"
 
 The honest answer is that the substrate choice — what language and framework the LLM has to fill in — is the single most important decision in AI codegen, and Node was the wrong choice for the kind of guarantee I wanted to make. This post is the long version of that answer, because the short version sounds glib and the real answer is interesting.
@@ -42,7 +44,7 @@ Node was the obvious default. I evaluated it seriously. Here is where it broke d
 
 **The hireable test.** Node and .NET both pass — both have giant talent pools. Net even.
 
-**The template-friendly test.** This is the one I underestimated until I tried both. .NET projects have explicit, readable scaffolding. A `Program.cs`, a `Startup.cs`-shaped builder pattern, explicit DI registrations, explicit EF Core `DbContext` declarations. When I write a Handlebars template that produces a `Program.cs`, the output looks like what a human .NET dev would have written. Node ecosystems vary so wildly — sometimes it is a `server.ts` with explicit Express, sometimes it is a Next.js API route, sometimes it is a tRPC router with adapters, sometimes it is a Hono handler in a Worker — that the templates have to embed an entire opinion stack just to produce a coherent file. The seam between template and LLM gets noisier in Node, which is precisely where the compile guarantee lives.
+**The template-friendly test.** This is the one I underestimated until I tried both. .NET projects have explicit, readable scaffolding. A `Program.cs`, a `Startup.cs`-shaped builder pattern, explicit DI registrations, explicit data access (Dapper repositories over Npgsql, in ours). When I write a Handlebars template that produces a `Program.cs`, the output looks like what a human .NET dev would have written. Node ecosystems vary so wildly — sometimes it is a `server.ts` with explicit Express, sometimes it is a Next.js API route, sometimes it is a tRPC router with adapters, sometimes it is a Hono handler in a Worker — that the templates have to embed an entire opinion stack just to produce a coherent file. The seam between template and LLM gets noisier in Node, which is precisely where the compile guarantee lives.
 
 This is not an argument that Node cannot work. It is an argument that Node would have made the central guarantee weaker, and the central guarantee is the product.
 
@@ -50,7 +52,7 @@ This is not an argument that Node cannot work. It is an argument that Node would
 
 I picked .NET 10 over its predecessors deliberately, and the reasons are practical.
 
-**Native AOT is finally first-class.** .NET 10's AOT story is real. The output of a generation can be published as a native binary, which means the user's deploy box does not need a .NET runtime installed. For a generator that hands users a Docker compose file, that means the production image is small, fast to start, and does not depend on a runtime that has to be patched independently of the application.
+**Native AOT is finally first-class.** .NET 10's AOT story is real. An app can be published as a native binary, which means the deploy box does not need a .NET runtime installed, and the image is small, fast to start, and does not depend on a runtime that has to be patched independently of the application. To be precise about today: the Dockerfile in a generated repo does a standard `dotnet publish` onto the ASP.NET runtime image, not an AOT build.
 
 **The minimal API and source generators in .NET 10 cut template noise.** Earlier .NET had a lot of ceremony — startup classes, separate DI builders, scattered configuration. .NET 10's minimal API + improved source generators let me write template scaffolding that is dense and readable. Less template surface to maintain, fewer holes for the LLM to misread.
 

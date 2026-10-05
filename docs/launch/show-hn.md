@@ -3,7 +3,7 @@
 **Author:** Steve Ackley
 **Status:** Draft v3 — submission-ready text. Comment 1 now uses a static screenshot path so launch is unblocked from the demo-video recording. Video is a nice-to-have, no longer a gate.
 **Submission target:** stackalchemist.app
-**Last updated:** 2026-05-26
+**Last updated:** 2026-10-04
 
 > HN style notes: no "Hi HN", no emojis, no marketing voice. First-person. Optimal body length ~150–300 words. Be ready to engage in comments for 6+ hours after submission.
 
@@ -25,10 +25,10 @@ v0 makes beautiful UI but stops at the component. Bolt.new gives you a runnable 
 
 So I built around two ideas:
 
-1. **The Swiss Cheese Method.** Static, deterministic Handlebars templates produce the scaffolding (project structure, auth, Stripe, Supabase wiring, CI). The LLM only fills in business-logic-shaped holes — entity classes, repository methods, route handlers. Templates can't hallucinate a missing import; the LLM can only see the holes, not the load-bearing structure.
+1. **The Swiss Cheese Method.** Static, deterministic Handlebars templates produce the scaffolding (project structure, DI, config, logging, Docker). The LLM only fills in domain-shaped holes — entity classes, repository methods, route handlers. Templates can't hallucinate a missing import; the LLM can only see the holes, not the load-bearing structure.
 2. **Compile guarantee.** Every generation runs `dotnet build` and `next build` (or the FastAPI/React equivalents) before the user sees it. If the build fails, the LLM sees the compiler error and patches. If it still fails after 3 retries, the run errors and a paid build is refunded automatically instead of shipping you broken code. You never download something that doesn't compile.
 
-Tech: Claude Sonnet 5.5 for generation, .NET 10 Web API + Next.js 16 (App Router) + Supabase client + Stripe in the output (or FastAPI + React), R2 for the artifact zip. The platform itself runs on Next.js 16, a .NET 10 Engine and Postgres with Keycloak sign-in. One-time price, owned code, deploy anywhere — not a hosted runtime.
+Tech: Claude Sonnet 5.5 for generation, .NET 10 Web API (Dapper over Npgsql) + Next.js 16 (App Router) in the output (or FastAPI + React), R2 for the artifact zip. The output has CRUD for your entities and Docker Compose; it has no auth flows (the Supabase client is preinstalled), no Stripe and no CI — those are yours to wire. The platform itself runs on Next.js 16, a .NET 10 Engine and Postgres with Keycloak sign-in. One-time price, owned code, deploy anywhere — not a hosted runtime.
 
 The output is opinionated about stack — if you don't want .NET, this isn't for you.
 
@@ -53,11 +53,11 @@ These go in *as comments* on the post, not in the post body — HN penalizes lon
 
 ### Comment 2 — "what's it cost"
 
-`$599 one-time, no seats, no monthly. That's the Boilerplate tier — the full compiled .NET + Next.js repo with the compile guarantee. $299 if you only want the architecture docs (Blueprint), $999 if you want IaC + Helm + CI on top (Infrastructure). The output is yours — the repo, the Docker compose, the migrations. I deliberately didn't build a hosted runtime because I didn't want the business model to depend on locking up your code.`
+`$599 one-time, no seats, no monthly. That's the Boilerplate tier — the full compiled .NET + Next.js repo with the compile guarantee. $299 if you only want the architecture docs (Blueprint), $999 if you want AWS CDK, Terraform and Helm on top (Infrastructure). The output is yours — the repo, the Docker compose, the migrations. I deliberately didn't build a hosted runtime because I didn't want the business model to depend on locking up your code.`
 
 ### Comment 3 — "why .NET"
 
-`Because templates need to be static, type-safe, and AOT-friendly. A scaffold that compiles to native and survives a missing import without nondeterminism gives the LLM smaller, sharper holes to fill. Node would have worked but with worse error messages, which matter when the compile gate is the load-bearing piece.`
+`Because templates need to be static and type-safe. A scaffold where the compiler catches a missing import, deterministically, gives the LLM smaller, sharper holes to fill. Node would have worked but with worse error messages, which matter when the compile gate is the load-bearing piece.`
 
 ### Comment 4 — anticipated push-back: "isn't this just a glorified template"
 
@@ -88,3 +88,6 @@ All text is final. Two non-text items left, both tracked in the pre-launch check
 
 **Resolved 2026-05-26:**
 - Demo-video gate broken in half — replaced with a screenshot-first launch path. A static PNG is much lower friction than a recorded clip, and HN readers click links either way. Video becomes Comment 1a once recorded — added value rather than a gate.
+
+**Resolved 2026-10-04:**
+- Output truth pass. Body, Comment 2 and Comment 3 corrected: generated repos have no auth flows (Supabase client preinstalled only), no Stripe, no CI, and the .NET image is a standard `dotnet publish`, not AOT. The 2026-05-13 Stripe entry above is superseded: the body claimed Stripe in the output, and it never was.

@@ -1,6 +1,6 @@
 # StackAlchemist vs Bubble
 
-**Last updated: May 9, 2026 · by Steve Ackley**
+**Last updated: October 4, 2026 · by Steve Ackley**
 
 Bubble and StackAlchemist do not really overlap, even though both promise "build an app without doing it the hard way." Bubble is a visual no-code platform — you build inside it, and your app runs on it. StackAlchemist is a SaaS generator — you describe an app, you get a real .NET + Next.js repo on disk. The decision is less "which is better" and more "do I want a hosted no-code app or do I want owned production code?" Here is the honest cut.
 
@@ -10,9 +10,9 @@ Bubble and StackAlchemist do not really overlap, even though both promise "build
 |---|---|---|
 | Category | Hosted no-code platform | Full-stack SaaS generator |
 | Output | A Bubble app on Bubble | A real repo (.NET 10 + Next.js 16 + Postgres) |
-| Code ownership | None — your "code" is Bubble config | Full repo, your LICENSE, deploy anywhere |
+| Code ownership | None — your "code" is Bubble config | Full repo, yours outright, deploy anywhere |
 | Backend | Bubble runtime | Your .NET 10 Web API |
-| Database | Bubble's hosted DB | Postgres (Supabase by default, swap if you want) |
+| Database | Bubble's hosted DB | PostgreSQL (plain SQL migrations, host it anywhere) |
 | Hosting | Bubble-only | Anywhere Docker runs |
 | Pricing | Monthly subscription, scales with users + workflows | One-time per generation |
 | Best for | Non-technical founders shipping a v1 fast | Founders who want owned code at the start, not after a re-platform |

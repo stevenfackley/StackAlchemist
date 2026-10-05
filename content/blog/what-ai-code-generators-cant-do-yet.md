@@ -2,6 +2,8 @@
 
 **By Steve Ackley · April 22, 2026 · 9 min read**
 
+*Corrected October 4, 2026: earlier versions said generated repos come with auth and CI/CD wired and a LICENSE with your name; generated repos come with Docker wired, and auth, payments and CI are yours to add.*
+
 If you are shopping for an AI code generator in 2026, you have a real menu for the first time. The space has matured. Most of the tools on that menu are genuinely good at what they do. I use several of them myself in side projects.
 
 This post is an honest, practitioner's take on where each of them stops. Not a hit piece, not a "why we're better" puff piece — a real map of the terrain, written by someone who both builds in this space and competes in it. Where a competitor genuinely wins, I will say so.
@@ -48,7 +50,7 @@ I use Cursor daily for editing. It is a different category of product entirely f
 
 ### StackAlchemist (us)
 
-Putting ourselves on the map honestly: we generate an opinionated, production-shaped full-stack SaaS (.NET 10 + Next.js 16 + PostgreSQL) with auth, CI/CD, and Docker already wired. We verify the output compiles before you download it. You own the code outright — one-time price, deploy wherever you want. We are slower than Bolt (minutes, not seconds) and more opinionated than v0 (you get a whole stack, not a component). That is the trade.
+Putting ourselves on the map honestly: we generate an opinionated, production-shaped full-stack SaaS (.NET 10 + Next.js 16 + PostgreSQL) with Docker already wired; auth, payments and CI are yours to add. We verify the output compiles before you download it. You own the code outright — one-time price, deploy wherever you want. We are slower than Bolt (minutes, not seconds) and more opinionated than v0 (you get a whole stack, not a component). That is the trade.
 
 ## Where each tool stops
 
@@ -79,8 +81,8 @@ Same as Lovable but with slightly different framing. Replit is great if you want
 After using all five of these tools in anger over the past year, here is the honest list of what still cannot be done by any of them:
 
 1. **Generate a verified, compiling, full-stack repo with a real backend.** v0 and Bolt and Lovable all hand you code that compiles sometimes. None of them run a full build as a gate before you download. This is [the compile guarantee problem](/blog/compile-guarantee-why-ai-codegen-must-verify) I have been banging on about.
-2. **Generate an owned codebase.** Cursor edits yours; Lovable and Replit want to own theirs. No tool in the first-generation category hands you a cleanly-exportable, your-name-in-the-LICENSE repo by default.
-3. **Generate with production opinions.** "Here is a sandbox that kinda works" is not the same as "here is a repo with CI/CD, auth, Docker, and a Dockerfile ready to deploy." Most of the tools stop at "it runs."
+2. **Generate an owned codebase.** Cursor edits yours; Lovable and Replit want to own theirs. No tool in the first-generation category hands you a cleanly-exportable repo you own outright by default.
+3. **Generate with production opinions.** "Here is a sandbox that kinda works" is not the same as "here is a repo with a typed API, a real migration and a Dockerfile, verified to build." Most of the tools stop at "it runs."
 4. **Give you a backend that a senior engineer would recognize.** The .NET + Next.js + Postgres combination is boring on purpose. It is what serious SaaS looks like. Most of the tools in this space are focused on pure-JavaScript outputs because that is what the WebContainer / serverless demo environment tolerates.
 
 ## Where StackAlchemist fits

@@ -1,23 +1,25 @@
 # Generate a full AI Logistics Tracking SaaS from a prompt
 
-You describe the kind of fleet and delivery operation you run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. The shipments, drivers, routes, and POD capture endpoints are all wired in one pass. You own the code. Deploy wherever you want.
+You describe the kind of fleet and delivery operation you run. StackAlchemist generates the full .NET 10 + Next.js 16 + PostgreSQL codebase, verifies the build, and hands you the zip. Shipments, drivers, routes, and proof-of-delivery records are modeled in one pass, with CRUD endpoints for each. You own the code. Deploy wherever you want.
 
 ## What you get
 
 A production-shaped AI logistics tracking SaaS with:
 
-- **Shipment management** with status timelines, customer addresses, weight, dimensions, and special-handling flags
-- **Driver roster** with vehicle assignments, shift schedules, and per-driver performance tracking
-- **Route planning scaffolding** with stop ordering, ETAs, and hooks for Mapbox or Google Distance Matrix
-- **Real-time GPS check-ins** from driver mobile clients, persisted to a location history table
-- **Proof of delivery capture** — signature, photo, recipient name, timestamp, geo-stamp
-- **Exception handling** for failed delivery, redelivery requests, refused shipments, and address corrections
-- **Customer-facing tracking pages** with live status, ETA, and delivery confirmation
-- **Driver mobile-app API endpoints** — manifest pull, status updates, POD upload, route progress
-- **CI/CD** via GitHub Actions — lint, typecheck, unit tests, compile verification
-- **Docker-compose** for local development — `docker compose up` and you are running
+- **Shipments** — `Shipment`, `ShipmentStatusEvent` and `ExceptionRecord` entities with addresses, weight, dimensions, service level, special-handling flags and a status history
+- **Drivers and vehicles** — `Driver`, `Vehicle` and `VehicleAssignment` entities with status, capacity and inspection dates
+- **Routes** — `Route`, `RouteStop` and `RouteProgress` entities with stop order and ETAs
+- **Location history** — `LocationCheckIn` and `LocationHistory` entities for driver GPS check-ins
+- **Proof of delivery** — `ProofOfDelivery`, `SignatureCapture` and `PhotoAttachment` entities with recipient name, timestamp and geo-stamp
+- **Customers and billing** — `Customer`, `Address`, `DeliveryWindow`, `BillingRecord` and `Invoice` entities
+- **.NET 10 minimal API** — a Dapper repository and CRUD endpoints for every entity, documented with OpenAPI
+- **Next.js 16 frontend** — TypeScript types, a typed API client and starter pages for your entities
+- **PostgreSQL migration** — UUID keys, foreign keys, row-level security enabled (the policies are yours to write)
+- **Docker Compose** for local development — `docker compose up` and you are running
 
-All of this is generated in about 12 minutes from a single prompt. Every build is verified with `dotnet build` + `pnpm build` before you can download.
+**What you wire yourself:** route optimization (Mapbox or Google Distance Matrix), file storage for signatures and photos, the exception workflows, the customer tracking page and dispatcher dashboard, driver and customer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), the driver mobile app, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
+
+Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of paying Onfleet per driver
 
@@ -65,31 +67,32 @@ StackAlchemist generates:
 - `ProofOfDelivery` entity with shipment_id, signature_blob_url, photo_urls (array), recipient_name, captured_at, captured_lat_lng
 - `ExceptionRecord` entity with shipment_id, exception_type (no_one_home, refused, address_invalid, damaged), photo_evidence, resolution_action
 - `BillingRecord` entity with customer_id, billing_period, total_stops, total_miles, surcharges, line_items
-- Driver API endpoints: `GET /drivers/me/manifest`, `POST /shipments/:id/checkin`, `POST /shipments/:id/pod`, `POST /shipments/:id/exception`, plus dispatcher endpoints for assignment and a public `GET /track/:shipment_token` customer page
+- CRUD endpoints for every entity (`/api/v1/shipments`, `/api/v1/drivers`, `/api/v1/routes`, …). Driver-app endpoints like `GET /drivers/me/manifest` and `POST /shipments/:id/pod`, or a public `GET /track/:shipment_token`, can be declared in Advanced Mode; the logic behind them is yours to write
+- Next.js types and a typed API client for every entity, plus starter pages
 
-All wired into a Next.js dispatcher dashboard, a Next.js customer tracking page, and a .NET backend with separate API surfaces for the driver mobile client and the web app. Docker-compose spins up PostgreSQL, the API, and the frontend so you can run a simulated dispatch in one command.
+That is the fleet's data model and CRUD layer, compile-verified. The dispatcher dashboard, the customer tracking page, and a driver-specific API surface for the mobile client are code you build on it. Docker Compose spins up PostgreSQL, the API, and the frontend in one command.
 
 ## After you own the code: two next steps
 
 Once the zip arrives and you have the repo cloned, here is what you do:
 
-1. **Wire a real mapping provider.** The generated repo scaffolds route ordering and ETA calculation behind an interface, but the default implementation is a stub. Drop in your Mapbox or Google Distance Matrix API key, replace the `IRouteOptimizer` implementation with a real call to their matrix endpoint, and you have actual driver-aware routing. For most courier operations a Mapbox Optimization API plan at $0.05/route is dramatically cheaper than paying Routific's per-vehicle subscription. The interface boundary is already there. You are filling in one method.
+1. **Wire a real mapping provider.** The repo gives you `Route` and `RouteStop` with stop order and ETA fields; route ordering and ETA calculation are yours to write. Put them behind an `IRouteOptimizer` interface and implement it with a call to the Mapbox or Google Distance Matrix endpoint, using your own API key. For most courier operations a Mapbox Optimization API plan at $0.05/route is dramatically cheaper than paying Routific's per-vehicle subscription.
 
-2. **Build the driver mobile client.** The backend exposes a clean driver API — manifest pull, status updates, POD upload, location check-in. You build a React Native or Flutter app against those endpoints, or use a no-code mobile tool that hits REST. The generated repo includes example request and response shapes for every driver endpoint. Most courier operations ship a thin mobile app in two to four weeks once the backend is wired. The hard part — auth, conflict resolution, exception handling — is already in your generated codebase.
+2. **Build the driver mobile client.** The backend exposes CRUD endpoints for shipments, check-ins, proofs of delivery and exceptions, with OpenAPI describing every request and response. Add the driver-facing endpoints you need (manifest pull, POD upload) and driver sign-in, then build a React Native or Flutter app against them, or use a no-code mobile tool that hits REST. Most courier operations ship a thin mobile app in two to four weeks once the backend is wired. Auth, conflict resolution and exception handling are part of that work; the data model they sit on is already there.
 
 ## What is not included
 
-StackAlchemist is not a turnkey logistics platform. We do not provide the driver mobile app binary, do not bundle a mapping or routing service, and do not provide ongoing fleet telematics. We generate the backend, the dispatcher dashboard, the customer tracking page, and the API surface that a driver app will consume. You build or buy the mobile client and you pay your own mapping provider.
+StackAlchemist is not a turnkey logistics platform. We do not provide the driver mobile app binary, do not bundle a mapping or routing service, and do not provide ongoing fleet telematics. We generate the backend data model and the CRUD API that your dispatcher dashboard, customer tracking page and driver app will consume. You build or buy the mobile client and you pay your own mapping provider.
 
 We do not include integrations with carrier APIs (UPS, FedEx, USPS) out of the gate — this product is for operations running their own fleet, not for resellers of national carriers. We do not include EDI or freight tendering — that is a different vertical. If your operation needs those, the generated codebase is still a fine foundation, but you are writing the integrations after generation.
 
 ## Pricing
 
-One-time, per generation:
+One-time, per generation. Simple Mode (describe it in plain English) and Advanced Mode (define the entities step by step) are two ways to describe your app; the tier decides what you get.
 
-- **Simple-mode logistics** — $299. Single fleet, shipments, drivers, basic routing, POD capture, customer tracking page.
-- **Blueprint-tier** — $599. Adds multi-depot support, advanced exception workflows, billing engine, driver performance reporting.
-- **Boilerplate-tier** — $999. Adds multi-tenant (for 3PLs), white-label customer portals, custom POD workflows, deeper analytics, audit logging for regulated cargo.
+- **Blueprint** — $299. `schema.json` (the entity-relationship model) and `api-docs.md` (the CRUD contract, endpoint by endpoint). Documents, no code.
+- **Boilerplate** — $599. The repository described above, put through its real compilers before delivery (the Compile Guarantee).
+- **Infrastructure** — $999. Boilerplate plus an AWS CDK stack, a Terraform AWS baseline, a Helm chart and a `DEPLOYMENT.md` runbook.
 
 No monthly fee. No per-driver fee. You own what you generate.
 
