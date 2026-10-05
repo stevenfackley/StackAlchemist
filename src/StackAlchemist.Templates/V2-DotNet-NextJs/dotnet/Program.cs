@@ -43,6 +43,10 @@ try
     app.UseCors();
     app.UseSerilogRequestLogging();
 
+    // Liveness for load balancers and Kubernetes probes: the Infrastructure tier's CDK,
+    // Terraform and Helm all health-check this path.
+    app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+
     {{#each Entities}}
     app.MapGroup("/api/{{NameLower}}s").Map{{Name}}Endpoints();
     {{/each}}
