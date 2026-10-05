@@ -19,7 +19,7 @@ A production-shaped AI analytics SaaS with:
 
 **What you wire yourself:** ingest beyond plain CRUD (batching, deduplication, schema validation), the query executor and the widget renderers, sign-in and role enforcement (the Supabase client is preinstalled; the auth flows are yours to write), scheduled email digests, alert delivery, Stripe billing, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of buying an analytics product
 

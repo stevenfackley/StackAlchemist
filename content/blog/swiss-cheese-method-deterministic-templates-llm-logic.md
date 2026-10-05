@@ -20,7 +20,7 @@ The Swiss Cheese Method is a deliberate middle. Most of the repo is deterministi
 
 ## What is deterministic
 
-If you generate an app with StackAlchemist, about 85% of the code that ends up in your zip is deterministic. Every app ships with the same:
+If you generate an app with StackAlchemist, much of the code that ends up in your zip is deterministic. Every app ships with the same:
 
 - Next.js 16 App Router project structure
 - .NET 10 minimal API project structure with the same namespace convention
@@ -63,7 +63,7 @@ Three checks, in order of cost: path and zone validation is microseconds, schema
 
 The implicit argument of every "prompt to app" tool is: more LLM = more magic. The pitch is that with the next model generation, the hallucinations will go away and the tool will become a god-mode code generator.
 
-I don't buy it. Not because the models won't improve — they obviously will — but because even a perfect LLM is the wrong tool for 85% of a codebase. The wiring between a route, its handler and the DI container is solved. It has been solved since 2014. There is no creative value in having an LLM re-derive it every time. Every token the LLM spends re-writing boilerplate is a token it is not spending on your actual business logic.
+I don't buy it. Not because the models won't improve — they obviously will — but because even a perfect LLM is the wrong tool for most of a codebase. The wiring between a route, its handler and the DI container is solved. It has been solved since 2014. There is no creative value in having an LLM re-derive it every time. Every token the LLM spends re-writing boilerplate is a token it is not spending on your actual business logic.
 
 Determinism is not a weakness we are hiding. It is a feature we charge for. When you generate with StackAlchemist, the scaffolding you get is the scaffolding I would write myself on a greenfield project — because it is, almost literally, the scaffolding I wrote on a greenfield project, parameterized and templated. That is the accumulated taste of a senior engineer, baked in. The LLM is the junior engineer writing the domain code under that senior engineer's supervision.
 
@@ -78,7 +78,7 @@ Practically, the Swiss Cheese architecture means:
 ## Key takeaways
 
 - **Full LLM generation hallucinates. Pure templates are rigid. The Swiss Cheese Method is the deliberate middle.**
-- **Deterministic scaffolding (85% of the code) handles what does not need creativity: routing, DI, config, logging, Docker, the migration file.**
+- **Deterministic scaffolding handles what does not need creativity: routing, DI, config, logging, Docker, the migration file.**
 - **LLM-generated holes handle what does: domain models, per-entity CRUD code, UI copy.**
 - **The interface between the two is enforced by typed contracts and integrity checks.**
 - **Most of the value of a senior engineer's taste is in the scaffolding, not the domain logic. Bake the scaffolding; let the LLM handle the novelty.**

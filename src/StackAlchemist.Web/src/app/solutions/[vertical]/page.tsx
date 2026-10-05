@@ -80,7 +80,7 @@ export default async function SolutionPage({ params }: Props) {
             </h3>
             <p className="text-slate-300 text-sm leading-relaxed mb-5">
               Describe your {entry.meta.vertical.toLowerCase()} in plain English. Compile-verified
-              code in 12 minutes. Owned outright.
+              code you own outright.
             </p>
             <Link
               href="/simple"

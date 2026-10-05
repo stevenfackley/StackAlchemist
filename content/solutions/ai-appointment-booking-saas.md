@@ -18,7 +18,7 @@ A production-shaped AI appointment booking SaaS with:
 
 **What you wire yourself:** slot calculation and the customer booking flow, Stripe deposits and payments, the email and SMS reminder sender, cancellation-rule enforcement, the admin calendar, staff and customer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), and your CI pipeline. The schema has the fields for all of it; the behavior is your code.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of renting Calendly
 

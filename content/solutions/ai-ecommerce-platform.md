@@ -18,7 +18,7 @@ A production-shaped AI e-commerce platform with:
 
 **What you wire yourself:** Stripe Checkout and its webhook, customer accounts (the Supabase client is preinstalled; login, register and password reset are yours to write), discount and inventory rules, catalog search, receipt and transactional emails, the admin dashboard, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of buying a template
 
@@ -31,7 +31,7 @@ Generation takes about 12 minutes from a single prompt. On the Boilerplate and I
 ## Who this is for
 
 - **Indie founders** who want to own the code for their storefront rather than rent a platform.
-- **Agencies** delivering bespoke e-commerce sites to clients — generate in 12 minutes, then spend the build budget on the client's checkout and customization.
+- **Agencies** delivering bespoke e-commerce sites to clients — generate the foundation, then spend the build budget on the client's checkout and customization.
 - **Developers** who need a starting point for a specialized e-commerce product (niche verticals, B2B commerce, subscription boxes, DTC brands with custom fulfillment).
 - **Engineering teams** who want to evaluate a compile-verified starter before building on top of it.
 

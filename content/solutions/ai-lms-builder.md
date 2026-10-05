@@ -20,7 +20,7 @@ A production-shaped AI LMS with:
 
 **What you wire yourself:** Stripe for one-time courses, memberships or lifetime access, sign-in with student, instructor and admin roles (the Supabase client is preinstalled; the auth flows are yours to write), quiz grading, certificate generation, enrollment and reminder emails, the instructor and admin dashboards, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-All generated in about 12 minutes. Compile-verified on the Boilerplate and Infrastructure tiers. Owned.
+All generated from one description. Compile-verified on the Boilerplate and Infrastructure tiers. Owned.
 
 ## Why generate an LMS instead of using Teachable / Thinkific / Podia
 

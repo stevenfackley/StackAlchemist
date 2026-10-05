@@ -19,7 +19,7 @@ A production-shaped AI CRM with:
 
 **What you wire yourself:** Gmail and Outlook sync (OAuth), sign-in and server-side role enforcement (the Supabase client is preinstalled; the auth flows are yours to write), writing an audit event on every change, the kanban board and forecast reports, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of buying a CRM
 

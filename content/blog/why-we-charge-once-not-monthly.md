@@ -18,11 +18,9 @@ The second half of that pitch is true for tools that are assisting you in an ong
 
 The first half of the pitch — "AI is expensive, so you need a subscription" — is the part that falls apart under inspection when the tool is generating a full app, not editing one.
 
-Here is the truth: generating a full-stack SaaS repo with StackAlchemist costs us somewhere between $3 and $18 in LLM tokens, depending on how complex the domain is and how many retries the compile gate forced. Call it $10 average. Add some infra cost for the build runners (compiling .NET + Next.js takes real compute), call it another $3 per generation. We are around $13 cost per generation.
+Here is the truth: every generation costs us real money. Model tokens for the schema and the code, more tokens for each repair round the compile gate forces, and the compute to run a real .NET and Next.js build. The figure moves with the size of your domain and the number of repairs; I will publish measured numbers once I have enough paid runs to mean something.
 
-If we charged you $20/month subscription for unlimited generations, and you generated once per quarter, we would make $60/quarter from you and pay $13 to fulfill it. Nice margins.
-
-But the people actually paying for subscriptions are the people generating often. And the people generating often are paying $20/month to generate dozens of times. At five generations per month, we are at $65 in cost per month against $20 in revenue. We lose money. The only way the subscription math works is to aggressively rate-limit, which is exactly what every subscription-based tool in this space does once you dig in.
+The exact figure does not change the shape of the problem. Under a flat subscription with unlimited generations, a subscriber who generates once a quarter is profitable. The people who keep paying a subscription are the ones generating often, and every extra generation is another full cost against the same monthly fee. The heavier the user, the worse the math. The only way the subscription math works is to aggressively rate-limit, which is exactly what every subscription-based tool in this space does once you dig in.
 
 The subscription pricing model for codegen is not really a pricing model. It is a bundling model that relies on most users underusing. That is not a product I want to build.
 
@@ -36,7 +34,7 @@ A Boilerplate generation ($599) produces the full source repo and runs it throug
 
 An Infrastructure generation ($999) is the Boilerplate repo plus the AWS CDK stack, a Terraform baseline, a Helm chart and a deployment runbook.
 
-None of them costs us more than the $3–$18 range above to fulfil, so across the three tiers our gross margins are in the mid-to-high 90s. That is not by accident — it is because we only charge you when we actually do the work, and we do the work quickly and verifiably.
+Each price sits well above what the work costs us to run. That is not by accident: we only charge you when we actually do the work, and we do the work verifiably.
 
 ## Why the one-time model is better for you
 
@@ -50,7 +48,7 @@ Six months later you have a second idea. You subscribe again, generate, cancel. 
 
 Over a year you subscribe for 4 months (validate 4 ideas). Total: $120.
 
-So far, one-time vs subscription is about even at this volume — until you account for the fact that with a subscription, you do not own the generated code. It ships with your subscription to the platform. If the platform raises prices, changes terms, or shuts down, your relationship with the code is at risk.
+On raw cost, the subscription wins at this volume, and by a lot: $120 against $599 for a single Boilerplate. What it does not give you is ownership: with a subscription, you do not own the generated code. It ships with your subscription to the platform. If the platform raises prices, changes terms, or shuts down, your relationship with the code is at risk.
 
 **Scenario B: StackAlchemist one-time at $599 (Boilerplate, the tier that gives you the code).**
 
@@ -78,7 +76,7 @@ Here is the principle I actually believe: **you should own your stack.** The cod
 
 I chose the one-time model because I want StackAlchemist to be a tool you use and move on from, the same way you would use a contractor to frame a house and then own the house. If you come back for another project, great. If you do not, also great. The product does not depend on a captive subscriber base.
 
-This works because our unit economics work. Charging once at mid-90s% margin on a job that takes 12 minutes is a sustainable business. It is not a hype-growth VC-backed business. It is a real business.
+This works because our unit economics work. Charging once, well above what a job costs us to run, is a sustainable business. It is not a hype-growth VC-backed business. It is a real business.
 
 ## The hidden cost of subscriptions I rarely see discussed
 
