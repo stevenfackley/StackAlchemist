@@ -510,4 +510,5 @@ realm, which is untouched); the Supabase accounts come back.
   - 0 of 15 scanned JS chunks mention `supabase.co`, and the served CSP `connect-src` lists no Supabase host.
 - **Secrets:** the Prod `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are deleted. No `SUPABASE*` secret is left at repo, Prod or Test level.
 - **Issues:** #431 and #422 closed as retired, and #426 closed by #482.
-- **Still open (owner, Supabase dashboard):** delete projects `ctqhwykryoglhdwatljt` (prod) and `cdlefpvsvyepofsboepc` (CI). Nothing reads either one. An optional final `pg_dump` of the prod project into the password vault comes first.
+- **Owner, same day:** deleted Supabase projects `ctqhwykryoglhdwatljt` (prod) and `cdlefpvsvyepofsboepc` (CI); both hostnames no longer resolve. The `provision-prod.txt` / `provision-test.txt` credential files moved into Bitwarden and the local folder is gone. qavren-db `apps/stackalchemist.yaml` notes record the dates (qavren-db #43).
+- **Phase F is complete.** The re-platform is finished: one store (qavren-db), one identity provider (Qavren Auth), no Supabase dependency.
