@@ -20,7 +20,7 @@ A production-shaped AI event ticketing platform with:
 
 **What you wire yourself:** Stripe Checkout (and Stripe Connect if you split payouts), QR signing and ticket emails, the scanner page and its duplicate-scan logic, the seat-map editor and hold timers, the organizer dashboard, organizer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of using Eventbrite
 

@@ -20,7 +20,7 @@ A production-shaped AI job board with:
 
 **What you wire yourself:** employer billing through Stripe, employer and applicant sign-in (the Supabase client is preinstalled; the auth flows are yours to write), resume file storage, search and filters, featured-slot rotation, the search-alert email job, the admin panel, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of using a job-board template
 

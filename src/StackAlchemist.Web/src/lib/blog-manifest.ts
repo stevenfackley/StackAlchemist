@@ -55,9 +55,9 @@ export const BLOG_POSTS = [
   },
   {
     slug: "prompt-to-production-dotnet-nextjs-in-12-minutes",
-    title: "From prompt to production: generating a .NET 10 + Next.js 16 SaaS in 12 minutes",
+    title: "From prompt to production: what happens when you generate a .NET 10 + Next.js 16 SaaS",
     description:
-      "A timed walkthrough of a real StackAlchemist generation run. Prompt in at t=0, zip of compiled code in your hands at t=12 minutes. Here is what actually happens in between.",
+      "A stage-by-stage walkthrough of a StackAlchemist generation: the schema pass, the per-entity code pass, the deterministic template render, the compile gate and packaging, in the order the engine runs them.",
     publishedAt: "2026-04-25",
     updatedAt: "2026-10-04",
     author: BLOG_AUTHOR,

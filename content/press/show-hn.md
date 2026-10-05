@@ -14,7 +14,7 @@ Primary (recommended):
 Alternates (A/B if first falls flat):
 - `Show HN: StackAlchemist – generate .NET + Next.js SaaS repos you own`
 - `Show HN: I'm tired of AI codegen tools that ship broken zips, so I built this`
-- `Show HN: Prompt → compiled, downloadable SaaS repo in 12 minutes`
+- `Show HN: Prompt → compiled, downloadable SaaS repo`
 
 ---
 
@@ -51,7 +51,7 @@ The output is a full-stack repo:
 
 Not in it: auth flows (the Supabase client is preinstalled, the flows are yours to write), Stripe (the entities have the fields, you wire billing), and CI. The compile gate runs on our side; `build-report.json` in the zip records every command and its exit code.
 
-It takes ~12 minutes end to end. About 5 of those minutes are LLM work (the schema and the per-entity CRUD code). The rest is deterministic template rendering + the compile gate. We call the architecture the "Swiss Cheese Method" — deterministic templates for the 85% of code that shouldn't need creativity (project structure, routing, config, Docker), with LLM generation filling in the domain-specific holes.
+End to end it takes minutes: two LLM passes (the schema, then the per-entity CRUD code), a deterministic template render, and the compile gate. I have not measured enough paid runs to quote a number yet. We call the architecture the "Swiss Cheese Method" — deterministic templates for the 85% of code that shouldn't need creativity (project structure, routing, config, Docker), with LLM generation filling in the domain-specific holes.
 
 A few opinionated choices worth flagging:
 1. **Pricing is one-time, not subscription.** $299 for the architecture docs (Blueprint), $599 for the compile-verified repo (Boilerplate), $999 with AWS IaC on top (Infrastructure). You generate once, you own the repo forever. No seat rental, no usage meter. Subscriptions for full-app codegen only work if the average user underuses — that's a bundling trick, not a real pricing model.

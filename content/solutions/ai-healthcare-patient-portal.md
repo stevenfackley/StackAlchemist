@@ -20,7 +20,7 @@ A production-shaped AI healthcare patient portal with:
 
 **What you wire yourself:** authentication and authorization — the generated repo has none. The Supabase client is preinstalled, but sign-in, roles and the rule that patients see only their own records are yours to write. So are audit logging on every record access, encryption of messages and documents, file storage for uploads, appointment reminders, and your CI pipeline. Build those before a single real patient record goes in.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of buying a portal product
 

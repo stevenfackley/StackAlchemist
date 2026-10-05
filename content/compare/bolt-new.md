@@ -21,7 +21,7 @@ Bolt and StackAlchemist are the closest comparison in the "prompt to app" catego
 
 **The iteration loop is the best I have used.** You prompt, the app re-renders in the browser, you prompt again. No local setup, no dev server, no install step. For rapid experimentation with ideas, Bolt is unmatched. If I am brainstorming a small JS app, I open Bolt.
 
-**Speed to first working preview.** Bolt returns a working preview in under a minute for small apps. StackAlchemist takes about 12 minutes — because we run a full build before releasing the artifact. For prototyping, Bolt's speed is the right trade. For shipping, it is not.
+**Speed to first working preview.** Bolt returns a working preview in under a minute for small apps. StackAlchemist takes minutes, not seconds, because it runs a full build before releasing the artifact. For prototyping, Bolt's speed is the right trade. For shipping, it is not.
 
 **In-browser IDE.** No install, no local environment. That is a real UX win for users who do not want to configure anything.
 
@@ -55,7 +55,7 @@ Say the prompt is: "Build a subscription management dashboard for gyms."
 
 **On Bolt:** you'll have a working Node-based app running in the browser in about 2 minutes. UI, some in-memory data, a rough flow you can click through. Good for a demo to a gym owner. To actually deploy it, you export, wire a real database, set up auth, configure Stripe, and migrate off WebContainers — several days of work.
 
-**On StackAlchemist:** 12 minutes and you have a downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, CRUD endpoints and pages for the entities in your prompt, Docker Compose. `docker compose up` and it's running. Auth and Stripe are still yours to wire, so that part of the Bolt to-do list doesn't go away. What you skip is wiring the database and migrating off WebContainers.
+**On StackAlchemist:** you get a downloadable repo. .NET 10 API, Next.js 16 frontend, Postgres migrations, CRUD endpoints and pages for the entities in your prompt, Docker Compose. `docker compose up` and it's running. Auth and Stripe are still yours to wire, so that part of the Bolt to-do list doesn't go away. What you skip is wiring the database and migrating off WebContainers.
 
 For validation: Bolt wins on speed.
 For shipping: StackAlchemist wins on depth.

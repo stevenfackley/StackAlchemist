@@ -47,8 +47,8 @@ export function StepPersonalize({ personalization, setPersonalization, onOpenMod
                   </div>
                 </div>
                 <div className="rounded-control border border-border bg-surface-0/50 px-3 py-2">
-                  <p className="text-ink-faint">Auth</p>
-                  <p className="uppercase text-ink">{personalization.featureFlags.authMethod}</p>
+                  <p className="text-ink-faint">Sign-in</p>
+                  <p className="text-ink">Not generated</p>
                 </div>
               </div>
             </Stack>

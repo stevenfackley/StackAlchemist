@@ -1,23 +1,13 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import engine, Base
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    # Tables are created when the server starts, not when this module is imported:
-    # importing app.main (pytest collection, tooling) must never need a database.
-    Base.metadata.create_all(bind=engine)
-    yield
-
-
+# The schema comes from the Alembic migrations (`alembic upgrade head`), which the container
+# runs before it starts the server. Importing app.main never needs a database.
 app = FastAPI(
     title="{{ProjectName}} API",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(

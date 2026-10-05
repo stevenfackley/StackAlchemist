@@ -139,4 +139,30 @@ public sealed class V2DotNetNextJsCompileTests : IDisposable
             "the archive ships `npm run lint`; it must run, and pass, on the template as rendered."
             + $"\n\n{IntegrationToolchain.Tail(lintLog)}");
     }
+
+    /// <summary>
+    /// The set shipped no Dockerfile or compose file at all (StackAlchemist#494), so flipping
+    /// <c>Generation:UseSwissCheese</c> on in prod would have dropped Docker from every .NET
+    /// deliverable. The pricing page promises one. Built for real, both targets, as V1's gate
+    /// does: a Dockerfile that exists but does not build is the same broken promise.
+    /// </summary>
+    [Theory]
+    [InlineData("web")]
+    [InlineData("engine")]
+    public async Task RenderedTemplate_DockerTargetBuilds(string target)
+    {
+        if (!IntegrationToolchain.Available("docker", "version", "Docker", requiredOnCi: false))
+            return;
+
+        var render = await RenderAsync();
+        render.Files.Should().Contain(["Dockerfile", "docker-compose.yml", ".dockerignore", ".env.example"]);
+
+        var (exitCode, transcript) = await IntegrationToolchain.RunAsync(
+            "docker", $"build --target {target} --tag sa-v2-template-gate:{target} .", _outputDir,
+            TimeSpan.FromMinutes(20));
+
+        exitCode.Should().Be(0,
+            $"`docker build --target {target}` is the customer's first command against the archive."
+            + $"\n\n{IntegrationToolchain.Tail(transcript)}");
+    }
 }

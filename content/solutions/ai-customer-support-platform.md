@@ -19,7 +19,7 @@ A production-shaped AI customer support platform with:
 
 **What you wire yourself:** email-to-ticket, chat and web-form intake, routing rules, the SLA clock evaluator and breach alerts, CSAT sending, macro variable substitution, the public help-center search, agent and customer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of paying Zendesk per agent forever
 

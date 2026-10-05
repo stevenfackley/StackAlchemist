@@ -197,7 +197,8 @@ export const DEFAULT_PERSONALIZATION: PersonalizationData = {
   colorScheme: COLOR_PALETTES[0],
   domainContext: {},
   featureFlags: {
-    authMethod: "jwt",
+    // Sign-in is not generated (#492); kept for stored rows, always "none" for new ones.
+    authMethod: "none",
     softDelete: false,
     auditTimestamps: true,
     includeSwagger: true,

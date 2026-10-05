@@ -19,7 +19,7 @@ A production-shaped AI logistics tracking SaaS with:
 
 **What you wire yourself:** route optimization (Mapbox or Google Distance Matrix), file storage for signatures and photos, the exception workflows, the customer tracking page and dispatcher dashboard, driver and customer sign-in (the Supabase client is preinstalled; the auth flows are yours to write), the driver mobile app, and your CI pipeline. The entities carry the fields those features need; the feature code is yours.
 
-Generation takes about 12 minutes from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
+You generate it from a single prompt. On the Boilerplate and Infrastructure tiers, the repo goes through `dotnet build` and `next build` before you can download it, and `build-report.json` in the archive records every command and its result.
 
 ## Why generate it instead of paying Onfleet per driver
 
