@@ -108,7 +108,6 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
                     SanitizeUserInput(pair.Value, 500)))
                 .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
                 .ToList();
-            var sanitizedAuthMethod = SanitizeUserInput(personalization.FeatureFlags?.AuthMethod, 50);
 
             if (!string.IsNullOrWhiteSpace(sanitizedBusinessDescription))
             {
@@ -155,7 +154,9 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
                 var ff = personalization.FeatureFlags;
                 sb.AppendLine();
                 sb.AppendLine("## Feature Flags");
-                sb.AppendLine(CultureInfo.InvariantCulture, $"- Authentication method: {sanitizedAuthMethod}");
+                // No template has a sign-in flow, so a stored auth choice is not passed on (#492):
+                // it invited half-built auth code the compile gate then had to throw away.
+                sb.AppendLine("- Authentication: not generated. Do not add sign-in, sessions, or auth middleware.");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- Soft delete (deleted_at): {(ff.SoftDelete ? "yes — add deleted_at TIMESTAMPTZ to all entities and filter in queries" : "no")}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- Audit timestamps (created_at/updated_at): {(ff.AuditTimestamps ? "yes — include on all tables" : "no")}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- Swagger/OpenAPI docs: {(ff.IncludeSwagger ? "yes" : "no")}");

@@ -348,7 +348,8 @@ public class PromptBuilderTests
         prompt.Should().NotContain("## injected heading");
         prompt.Should().Contain("TestName");
         prompt.Should().Contain("Friendly buyer");
-        prompt.Should().Contain("Authentication method: jwt");
+        prompt.Should().Contain("Authentication: not generated",
+            "no template has a sign-in flow, so the stored choice is never passed to the model (#492)");
     }
 
     #region Prompt ↔ template-tree agreement

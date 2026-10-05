@@ -591,13 +591,6 @@ function StepFeatureFlags({
     onChange({ featureFlags: { ...flags, ...patch } });
   }
 
-  const LOGIN_OPTIONS: { id: PersonalizationData["featureFlags"]["authMethod"]; label: string; desc: string; emoji: string }[] = [
-    { id: "jwt",    label: "Email & Password",    desc: "Classic login with email + password",          emoji: "📧" },
-    { id: "cookie", label: "Stay Logged In",      desc: "Browser remembers your session automatically", emoji: "🍪" },
-    { id: "oauth",  label: "Sign in with Google", desc: "Login via Google, GitHub, or other accounts",  emoji: "🔑" },
-    { id: "none",   label: "No Login Needed",     desc: "Public app — no accounts required",            emoji: "🌐" },
-  ];
-
   const toggles: { key: keyof Omit<PersonalizationData["featureFlags"], "authMethod">; label: string; desc: string; emoji: string }[] = [
     { key: "softDelete",           label: "Keep deleted items",   desc: "Deleted records stay hidden, not permanently removed", emoji: "🗂️" },
     { key: "auditTimestamps",      label: "Track when things change", desc: "Automatically log when records are created or updated", emoji: "🕐" },
@@ -611,27 +604,14 @@ function StepFeatureFlags({
         A few quick preferences. These shape how your app works under the hood — but we&apos;ve written them in plain terms.
       </p>
 
-      <div className="space-y-2">
-        <p className="font-mono text-xs text-slate-500 uppercase tracking-widest">How do users log in?</p>
-        <div className="grid grid-cols-2 gap-2">
-          {LOGIN_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => patchFlags({ authMethod: opt.id })}
-              className={cn(
-                "rounded-lg border p-3 text-left transition-all",
-                flags.authMethod === opt.id
-                  ? "border-accent/60 bg-accent/10"
-                  : "border-slate-600/30 bg-slate-700/20 hover:border-slate-500/50"
-              )}
-            >
-              <p className="text-base mb-1">{opt.emoji}</p>
-              <p className={cn("text-xs font-semibold", flags.authMethod === opt.id ? "text-accent" : "text-white")}>{opt.label}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</p>
-            </button>
-          ))}
-        </div>
+      {/* Sign-in is not generated (StackAlchemist#492): asking how users log in promised a
+          feature no template delivers, so the wizard says so instead of offering a choice. */}
+      <div className="rounded-lg border border-slate-600/30 bg-slate-700/20 p-3" data-testid="no-auth-note">
+        <p className="font-mono text-xs text-slate-500 uppercase tracking-widest mb-1">Sign-in</p>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          Your app is generated without sign-in or user accounts. Add the provider you prefer
+          afterwards; the .NET + Next.js stack ships the Supabase client preinstalled for it.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -675,7 +655,7 @@ const SUB_STEPS = [
   { title: "Look & Feel",          subtitle: "Color palette and theme" },
   { title: "Inspiration & Scale",  subtitle: "Apps you love and how big this is" },
   { title: "Name Your Things",     subtitle: "What each part of your app means" },
-  { title: "A Few Preferences",    subtitle: "Login style and optional features" },
+  { title: "A Few Preferences",    subtitle: "Optional features" },
 ];
 
 export function PersonalizationModal({

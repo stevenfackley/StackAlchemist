@@ -223,7 +223,7 @@ public sealed class PersonalizationColorScheme
 
 public sealed class PersonalizationFeatureFlags
 {
-    public string AuthMethod { get; init; } = "jwt"; // jwt | cookie | oauth | none
+    public string AuthMethod { get; init; } = "none"; // stored for old rows; not sent to the model (#492)
     public bool SoftDelete { get; init; }
     public bool AuditTimestamps { get; init; } = true;
     public bool IncludeSwagger { get; init; } = true;
