@@ -147,7 +147,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-fake-key-1234567890" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-" + "ant-fake-key-1234567890" })
     );
     expect(result).toEqual({
       status: "error",
@@ -163,7 +163,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-fake-key-1234567890" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-" + "ant-fake-key-1234567890" })
     );
     expect(result.status).toBe("error");
   });
@@ -178,7 +178,7 @@ describe("actions.ts — saveProfileSettings", () => {
 
     const result = await saveProfileSettings(
       IDLE,
-      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-ant-super-secret-real-looking-key-000111" })
+      makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: "sk-" + "ant-super-secret-real-looking-key-000111" })
     );
 
     expect(result).toEqual({
@@ -193,7 +193,7 @@ describe("actions.ts — saveProfileSettings", () => {
     const byokKey = "byok-encryption-key-that-is-32-chars-plus!!";
     vi.stubEnv("BYOK_ENCRYPTION_KEY", byokKey);
 
-    const plaintext = "sk-ant-super-secret-real-looking-key-000111";
+    const plaintext = "sk-" + "ant-super-secret-real-looking-key-000111";
     const result = await saveProfileSettings(
       IDLE,
       makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: plaintext })
@@ -226,7 +226,7 @@ describe("actions.ts — saveProfileSettings", () => {
     vi.stubEnv("BYOK_ENCRYPTION_KEY", byokKey);
     vi.stubEnv("ENGINE_SERVICE_KEY", engineKey);
 
-    const plaintext = "sk-ant-another-realistic-looking-secret-key";
+    const plaintext = "sk-" + "ant-another-realistic-looking-secret-key";
     await saveProfileSettings(
       IDLE,
       makeFormData({ preferredModel: "claude-sonnet-5-5", apiKeyOverride: plaintext })

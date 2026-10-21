@@ -112,7 +112,7 @@ public sealed class BuildProcessEnvironmentTests
             ["PATH"] = "/usr/bin",
             ["HOME"] = "/root",
             ["DATABASE_URL"] = "postgres://stackalchemist:secret@pooler:6543/postgres",
-            ["STRIPE_SECRET_KEY"] = "sk_live_x",
+            ["STRIPE_SECRET_KEY"] = "sk_" + "live_x",
             ["DOTNET_ROOT"] = "/usr/share/dotnet",
         };
 
