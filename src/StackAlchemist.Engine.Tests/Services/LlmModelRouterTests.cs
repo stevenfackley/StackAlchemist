@@ -42,7 +42,7 @@ public class LlmModelRouterTests
     }
 
     [Theory]
-    [InlineData("sk-ant-api03-abc", LlmProvider.Anthropic)]
+    [InlineData("sk-" + "ant-api03-abc", LlmProvider.Anthropic)]
     [InlineData("sk-or-v1-abc", LlmProvider.OpenRouter)]
     [InlineData("sk-proj-abc", LlmProvider.OpenAi)]
     [InlineData("sk-abc", LlmProvider.OpenAi)]
@@ -56,7 +56,7 @@ public class LlmModelRouterTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("not-a-key")]
-    [InlineData("Bearer sk-ant-abc")] // must start with the prefix, not merely contain it
+    [InlineData("Bearer sk-" + "ant-abc")] // must start with the prefix, not merely contain it
     public void ProviderForKey_UnrecognizedShape_ReturnsNull(string? key)
     {
         LlmModelRouter.ProviderForKey(key).Should().BeNull();

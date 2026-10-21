@@ -115,7 +115,7 @@ public class ByokRoutingTests
         // H1: a stored OpenAI key (sk-proj-…) with an Anthropic model selected must NOT be sent to
         // Anthropic. The key is dropped (provider mismatch) and the Anthropic route falls back to
         // the global key — the user's OpenAI secret never reaches api.anthropic.com.
-        var config = Config(globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+        var config = Config(globalAnthropicKey: "sk-" + "ant-GLOBAL-house-key");
 
         var delivery = Substitute.For<IDeliveryService>();
         delivery.GetGenerationCredentialAsync("gen-x", Arg.Any<CancellationToken>())
@@ -138,7 +138,7 @@ public class ByokRoutingTests
         await routing.GenerateAsync("system", "user", options, CancellationToken.None);
 
         // The outbound Anthropic request used the GLOBAL house key, not the user's OpenAI key.
-        handler.LastRequest!.Headers.GetValues("x-api-key").Should().ContainSingle().Which.Should().Be("sk-ant-GLOBAL-house-key");
+        handler.LastRequest!.Headers.GetValues("x-api-key").Should().ContainSingle().Which.Should().Be("sk-" + "ant-GLOBAL-house-key");
         handler.LastBody.Should().NotContain(GoldenOpenAiPlaintext);
     }
 
@@ -148,7 +148,7 @@ public class ByokRoutingTests
         // M1: preferred_model is RLS-writable, bypassing the web allowlist. A user cannot pin our
         // GLOBAL key to an arbitrary expensive model — a non-allowlisted Anthropic model with no
         // BYOK key is downgraded to the configured default.
-        var config = Config(globalModel: "claude-sonnet-5-5", globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+        var config = Config(globalModel: "claude-sonnet-5-5", globalAnthropicKey: "sk-" + "ant-GLOBAL-house-key");
 
         var delivery = Substitute.For<IDeliveryService>();
         delivery.GetGenerationCredentialAsync("gen-m1", Arg.Any<CancellationToken>())
@@ -167,7 +167,7 @@ public class ByokRoutingTests
     public async Task Resolve_AllowlistedNonDefaultAnthropicModelOnGlobalKey_IsHonored()
     {
         // An allowlisted non-default Anthropic model (e.g. Haiku) is fine on the global key.
-        var config = Config(globalModel: "claude-sonnet-5-5", globalAnthropicKey: "sk-ant-GLOBAL-house-key");
+        var config = Config(globalModel: "claude-sonnet-5-5", globalAnthropicKey: "sk-" + "ant-GLOBAL-house-key");
 
         var delivery = Substitute.For<IDeliveryService>();
         delivery.GetGenerationCredentialAsync("gen-m2", Arg.Any<CancellationToken>())

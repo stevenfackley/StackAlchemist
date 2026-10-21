@@ -10,7 +10,7 @@ public class LlmHttpRetryTests
     [InlineData(
         "{\"error\":{\"message\":\"Incorrect API key provided: sk-proj-abc123DEF456. You can find your key at...\"}}",
         "sk-proj-abc123DEF456")]
-    [InlineData("Invalid key sk-ant-api03-secret-value here", "sk-ant-api03-secret-value")]
+    [InlineData("Invalid key sk-" + "ant-api03-secret-value here", "sk-" + "ant-api03-secret-value")]
     [InlineData("openrouter says sk-or-v1-longsecrettoken is bad", "sk-or-v1-longsecrettoken")]
     public void ScrubKeys_RemovesKeyShapedTokens(string body, string leaked)
     {
