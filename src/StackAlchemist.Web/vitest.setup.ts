@@ -5,7 +5,7 @@ import { server } from './__tests__/mocks/server';
 import React from 'react';
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'warn' });
+  server.listen({ onUnhandledFrame: 'warn' });
 });
 
 afterEach(() => {
