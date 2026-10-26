@@ -47,7 +47,7 @@
          read-only in Microsoft.OpenApi 3.x (CS0200 in generated code; see
          Dependabot #206). Revisit when Microsoft.AspNetCore.OpenApi supports
          OpenApi 3.x. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageReference Include="Npgsql" Version="10.*" />
     <PackageReference Include="Npgsql.DependencyInjection" Version="10.*" />
     <PackageReference Include="Stripe.net" Version="53.0.0" />
