@@ -6,11 +6,11 @@ Welcome to StackAlchemist! While this is a **Proprietary & Source Available** pr
 
 By contributing to this repository, you agree that:
 1.  **Copyright:** You grant StackAlchemist a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions.
-2.  **Proprietary Status:** You acknowledge that the Software remains the proprietary property of StackAlchemist and is subject to the [LICENSE](LICENSE) file.
+2.  **Proprietary Status:** You acknowledge that the Software remains the proprietary property of StackAlchemist and is subject to the [LICENSE](../LICENSE) file.
 
 ## 🛠️ Contribution Workflow
 
-1.  **Search First:** Check the [Issues](https://github.com/steveackley/StackAlchemist/issues) to see if your bug or feature is already being discussed.
+1.  **Search First:** Check the [Issues](https://github.com/stevenfackley/StackAlchemist/issues) to see if your bug or feature is already being discussed.
 2.  **Fork & Branch:** Fork the repo and create a branch named `feat/your-feature` or `fix/your-fix`.
 3.  **Strict Standards:**
     -   **SOLID & DRY:** We enforce strict architectural standards.
