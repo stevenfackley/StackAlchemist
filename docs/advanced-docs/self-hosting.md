@@ -54,7 +54,7 @@ Demo mode is the fastest way to see the UI. Outside production the web app runs 
 git clone https://github.com/stevenfackley/StackAlchemist.git
 cd StackAlchemist
 npm install                                  # also creates .env from .env.example
-dotnet run --project src/StackAlchemist.Engine     # terminal A, :5000
+dotnet run --project src/StackAlchemist.Engine -- --urls http://localhost:5000   # terminal A, :5000 (ENGINE_API_URL)
 npm run dev --prefix src/StackAlchemist.Web        # terminal B, :3000
 ```
 
@@ -139,7 +139,7 @@ In `ASPNETCORE_ENVIRONMENT=Production` the Engine refuses to start without `ENGI
 ### 4. Run
 
 ```bash
-dotnet run --project src/StackAlchemist.Engine
+dotnet run --project src/StackAlchemist.Engine -- --urls http://localhost:5000
 npm run dev --prefix src/StackAlchemist.Web
 ```
 

@@ -87,8 +87,9 @@ npm install
 # 4. Restore .NET packages
 dotnet restore StackAlchemist.slnx
 
-# 5. Run the backend engine (Terminal A — listens on :5000)
-dotnet run --project src/StackAlchemist.Engine
+# 5. Run the backend engine (Terminal A — :5000, matching ENGINE_API_URL in .env.example;
+#    without --urls, dotnet run uses the launchSettings port :5048)
+dotnet run --project src/StackAlchemist.Engine -- --urls http://localhost:5000
 
 # 6. (with DATABASE_URL set) apply the schema
 npm run db:migrate --prefix src/StackAlchemist.Web

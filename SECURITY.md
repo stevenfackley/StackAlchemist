@@ -2,7 +2,7 @@
 
 ## Reporting
 
-Report suspected vulnerabilities privately via GitHub Security Advisories on this repo, or email `{{AUTHOR}}` directly. Do not open public issues for undisclosed vulns.
+Report suspected vulnerabilities privately via GitHub Security Advisories on this repo. Do not open public issues for undisclosed vulns.
 
 ## Response
 

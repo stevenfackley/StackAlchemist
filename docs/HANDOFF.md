@@ -147,11 +147,11 @@ Same three-step pattern for compare (`compare-manifest.ts`) and solutions (`solu
 
 ## Key context
 
-- **Git identity:** commits authored as `Steve Fackley` (git config). Content bylines say **Steve Ackley** (real user). Don't rename content.
+- **Git identity:** commits and content bylines are **Steve Ackley**.
 - **Test site:** Cloudflare Tunnel → sa-web:3000 (no nginx). Basic Auth in middleware. `/api/healthz` exempt.
-- **Engine backend:** model is env-controlled via `ANTHROPIC_MODEL` (`AnthropicDefaults.ModelId` in code); current default is **Claude Sonnet 4.6** (`claude-sonnet-4-6`) — bumped 2026-05-06 after `claude-3-5-sonnet-20241022` was retired. Strict 95%+ margin requirement still applies; see `docs/DECISIONS.md` before changing the default.
+- **Engine backend:** model is env-controlled via `ANTHROPIC_MODEL` (`AnthropicDefaults.ModelId` in code); the default at the time of this snapshot was Claude Sonnet 4.6 (`claude-sonnet-4-6`), bumped 2026-05-06 after `claude-3-5-sonnet-20241022` was retired; the README tech stack has the current default. Strict 95%+ margin requirement still applies; see `docs/DECISIONS.md` before changing the default.
 - **Blog rendering:** `react-markdown` + `remark-gfm` + `rehype-highlight` via `DocsMarkdown` component — don't fork it.
-- **Demo mode:** `isDemoMode` = true when `NEXT_PUBLIC_DEMO_MODE=true` OR Supabase envs missing in non-prod.
+- **Demo mode:** (historical: Supabase mode was removed in re-platform Phase F) at the time `isDemoMode` was true when `NEXT_PUBLIC_DEMO_MODE=true` OR Supabase envs were missing in non-prod. Today see the Demo mode block in `.env.example`.
 - **Plausible:** wired in layout, guarded by `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` env + `!isTestSite`. Code is ready; just needs the secret added.
 - **GSC:** wired in layout metadata via `GOOGLE_SITE_VERIFICATION` env. Code is ready; just needs the secret.
 
