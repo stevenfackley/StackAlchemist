@@ -2,13 +2,15 @@ version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 10
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
     groups:
       dotnet-runtime:
         patterns: ["Microsoft.Extensions.*", "Microsoft.AspNetCore.*"]
+        update-types: [minor, patch]
       testing:
         patterns: ["xunit*", "coverlet.*", "Microsoft.NET.Test.*", "NetArchTest.*"]
+        update-types: [minor, patch]
     ignore:
       # Microsoft.OpenApi 3.x is incompatible with the AspNetCore.OpenApi 10.0.9
       # XML-comment source generator (IOpenApiMediaType.Example is read-only in
@@ -20,8 +22,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 10
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
     groups:
       next-react:
         patterns: ["next", "react*", "eslint-config-next"]
@@ -32,8 +34,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /src/StackAlchemist.Web
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 10
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
     groups:
       next-react:
         patterns: ["next", "react*", "eslint-config-next"]
@@ -55,11 +57,21 @@ updates:
 
   - package-ecosystem: docker
     directory: /
-    schedule: { interval: weekly, day: monday }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      docker-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly, day: monday }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   # ── Added by the project-wide Dependabot sweep ──────────────────────────
   # Ecosystems present in the repo that no existing entry covered.
@@ -72,11 +84,8 @@ updates:
       - "/src/StackAlchemist.Templates/V2-DotNet-NextJs/nextjs"
       - "/src/StackAlchemist.Templates/V2-Python-React/frontend"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "javascript"
@@ -114,11 +123,8 @@ updates:
       - "/src/StackAlchemist.Templates/V1-Python-React/backend"
       - "/src/StackAlchemist.Templates/V2-Python-React/backend"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "python"
@@ -138,16 +144,17 @@ updates:
       - "/src/StackAlchemist.Templates/V1-Python-React/infra"
       - "/src/StackAlchemist.Templates/V2-Python-React/infra"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "docker"
     commit-message:
       prefix: "deps(docker)"
+    groups:
+      docker-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   # NOTE: no `helm` ecosystem here on purpose. infra/helm/values.yaml is a
   # Scriban template ({{ProjectNameKebab}}.example.com) — not valid YAML until
@@ -157,13 +164,14 @@ updates:
   - package-ecosystem: "terraform"
     directory: "/src/StackAlchemist.Templates/Tier3-Infrastructure/infra/terraform"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "terraform"
     commit-message:
       prefix: "deps(terraform)"
+    groups:
+      terraform-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
