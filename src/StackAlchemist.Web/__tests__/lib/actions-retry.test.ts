@@ -143,8 +143,10 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(store.resetForRetry).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(store.resetForRetry.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
-    const [url] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/generate");
+    // A retry spends the caller's own rate-limit window, like their first submit.
+    expect(init.headers["X-Engine-User"]).toBe(OWNER_ID);
   });
 
   it("does not re-fire the engine when another retry already claimed the failed row", async () => {

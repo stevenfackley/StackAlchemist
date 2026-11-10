@@ -3,11 +3,12 @@
 import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { getDataStore, type ProfileSettingsRow } from "./data";
+import { getDataStore, type NewGeneration, type ProfileSettingsRow } from "./data";
 import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
+import { postToEngine } from "./engine-client";
 import { safeReturnTo } from "./proxy-utils";
-import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
+import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
   Generation,
   Tier,
@@ -37,20 +38,6 @@ const ALLOWED_PROFILE_MODELS = new Set([
 ]);
 
 /**
- * Returns headers for all Engine API calls, including the service key when set.
- * `userId` is the signed-in user the call is made for: the Engine rate-limits per
- * user on it (every call comes from this server, so the IP tells it nothing).
- * Without it the call falls into a window shared by all such calls.
- */
-function engineHeaders(userId?: string): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const key = getEngineServiceKey();
-  if (key) headers["X-Engine-Key"] = key;
-  if (userId) headers["X-Engine-User"] = userId;
-  return headers;
-}
-
-/**
  * Sanitizes a user-supplied prompt before sending to the LLM.
  * - Caps length to prevent token abuse
  * - Strips null bytes and non-printable control chars (except newlines/tabs)
@@ -64,19 +51,6 @@ function sanitizePrompt(raw: string, maxLength = 2000): string {
   // Hard cap
   if (s.length > maxLength) s = s.slice(0, maxLength);
   return s.trim();
-}
-
-function resolveEngineUrl() {
-  const configuredUrl = process.env.ENGINE_API_URL;
-  if (configuredUrl) {
-    return configuredUrl;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    return "http://localhost:5000";
-  }
-
-  throw new Error("ENGINE_API_URL must be configured in production.");
 }
 
 function normalizePreferredModel(model: string | null | undefined) {
@@ -262,11 +236,126 @@ async function countFreeGenerationsThisMonth(userId: string): Promise<number> {
 }
 
 /**
- * qavren-db has no auth.users trigger creating profiles, and the generations FK
- * needs the row first.
+ * Creates a generation row for the signed-in user: the step every creation
+ * shares. `tag` names the calling action in the logs and `saveError` is the
+ * message that action shows when a write fails.
  */
-async function ensureProfileRow(user: SessionUser): Promise<void> {
-  await getDataStore().ensureProfile({ id: user.id, email: user.email ?? "" });
+async function createGenerationRow(
+  tag: string,
+  row: Omit<NewGeneration, "user_id">,
+  saveError: string
+): Promise<{ user: SessionUser; generation: Generation } | { error: string }> {
+  // Every creation is tied to an account so the per-account free-tier quota can
+  // be enforced.
+  const user = await getSessionUser();
+  if (!user) {
+    return { error: "Please sign in to start a build." };
+  }
+
+  try {
+    // qavren-db has no auth.users trigger creating profiles, and the generations
+    // FK needs the row first.
+    await getDataStore().ensureProfile({ id: user.id, email: user.email ?? "" });
+  } catch (error) {
+    console.error(`[${tag}] Profile insert error:`, error);
+    return { error: saveError };
+  }
+
+  // Free-tier quota pre-check: a friendly message before the DB trigger's hard
+  // rejection. The trigger (drizzle/0001_functions.sql) is the authoritative gate.
+  if (row.tier === 0) {
+    const used = await countFreeGenerationsThisMonth(user.id);
+    if (used >= FREE_TIER_MONTHLY_LIMIT) {
+      return {
+        error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
+      };
+    }
+  }
+
+  try {
+    const generation = await getDataStore().insertGeneration({ ...row, user_id: user.id });
+    return { user, generation };
+  } catch (error) {
+    console.error(`[${tag}] Insert error:`, error);
+    return { error: saveError };
+  }
+}
+
+/**
+ * Asks the Engine to build a generation. Resolves with null when the Engine
+ * could not be reached: the row stays pending, so the caller still succeeds and
+ * the build can be retried.
+ */
+async function requestBuild(
+  tag: string,
+  payload: EngineGenerateRequest,
+  userId: string
+): Promise<Response | null> {
+  try {
+    return await postToEngine("/api/generate", payload, { userId });
+  } catch (error) {
+    console.error(`[${tag}] Failed to reach engine:`, error);
+    return null;
+  }
+}
+
+/**
+ * The free build both submit actions end in: the row, then the Engine. An
+ * Engine refusal is logged, not returned: the row exists and the result page
+ * shows its state.
+ */
+async function startFreeGeneration(
+  tag: string,
+  input: {
+    mode: "simple" | "advanced";
+    prompt: string;
+    schema: GenerationSchema | null;
+    projectType: ProjectType;
+    personalization?: PersonalizationData;
+  },
+  saveError: string
+): Promise<SubmitGenerationResponse> {
+  const { mode, prompt, schema, projectType, personalization } = input;
+
+  const created = await createGenerationRow(
+    tag,
+    {
+      mode,
+      tier: 0,
+      prompt,
+      project_type: projectType,
+      schema_json: schema,
+      personalization_json: personalization ?? null,
+    },
+    saveError
+  );
+  if ("error" in created) {
+    return { success: false, error: created.error };
+  }
+
+  const generationId = created.generation.id;
+  const res = await requestBuild(
+    tag,
+    {
+      generationId,
+      mode,
+      tier: 0,
+      projectType,
+      // Advanced builds are described by the schema; the prompt is only its summary.
+      ...(schema ? { schema } : { prompt }),
+      personalization: personalization ?? DEFAULT_PERSONALIZATION,
+    },
+    created.user.id
+  );
+  if (res && !res.ok) {
+    console.error(`[${tag}] Engine error:`, await res.text());
+  }
+
+  return {
+    success: true,
+    generationId,
+    redirectUrl: `/generate/${generationId}`,
+  };
 }
 
 export async function submitSimpleGeneration(
@@ -294,131 +383,11 @@ export async function submitSimpleGeneration(
     return { success: false, error: PAID_TIER_NEEDS_CHECKOUT };
   }
 
-  // Require authentication: every creation is tied to an account so the
-  // per-account free-tier quota can be enforced.
-  const user = await getSessionUser();
-  if (!user) {
-    return { success: false, error: "Please sign in to start a build." };
-  }
-  try {
-    await ensureProfileRow(user);
-  } catch (error) {
-    console.error("[submitSimpleGeneration] Profile insert error:", error);
-    return { success: false, error: "Failed to create generation record. Please try again." };
-  }
-
-  // Free-tier quota pre-check — a friendly message before the DB trigger's hard
-  // rejection. The trigger (drizzle/0001_functions.sql) is the authoritative gate.
-  if (tier === 0) {
-    const used = await countFreeGenerationsThisMonth(user.id);
-    if (used >= FREE_TIER_MONTHLY_LIMIT) {
-      return {
-        success: false,
-        error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
-      };
-    }
-  }
-
-  // 1. Insert generation record
-  let data: Generation;
-  try {
-    data = await getDataStore().insertGeneration({
-      mode: "simple",
-      tier,
-      prompt: prompt.trim(),
-      project_type: projectType,
-      schema_json: null,
-      personalization_json: personalization ?? null,
-      user_id: user.id,
-    });
-  } catch (error) {
-    console.error("[submitSimpleGeneration] Insert error:", error);
-    return { success: false, error: "Failed to create generation record. Please try again." };
-  }
-
-  const generationId = data.id;
-
-  // 2. Notify the .NET Engine
-  try {
-    const enginePayload: EngineGenerateRequest = {
-      generationId,
-      mode: "simple",
-      tier,
-      projectType,
-      prompt: prompt.trim(),
-      personalization: personalization ?? DEFAULT_PERSONALIZATION,
-    };
-
-    const engineUrl = resolveEngineUrl();
-    const engineRes = await fetch(`${engineUrl}/api/generate`, {
-      method: "POST",
-      headers: engineHeaders(user.id),
-      body: JSON.stringify(enginePayload),
-    });
-
-    if (!engineRes.ok) {
-      const errText = await engineRes.text();
-      console.error("[submitSimpleGeneration] Engine error:", errText);
-      // Don't fail the user — the generation row exists, engine can be retried
-    }
-  } catch (fetchErr) {
-    console.error("[submitSimpleGeneration] Failed to reach engine:", fetchErr);
-    // Log but continue — the UI will show the pending state
-  }
-
-  return {
-    success: true,
-    generationId,
-    redirectUrl: `/generate/${generationId}`,
-  };
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   extractSchema
-   Called in Simple Mode before generation. Sends the prompt to the Engine
-   which calls the generation model to extract a structured JSON schema.
-   Returns the schema so the user can review/edit on the React Flow canvas.
-───────────────────────────────────────────────────────────────────────────── */
-export async function extractSchema(
-  generationId: string,
-  prompt: string
-): Promise<{ success: true; schema: GenerationSchema } | { success: false; error: string }> {
-  if (isDemoMode || !hasEngineConfig()) {
-    return { success: true, schema: buildDemoGeneration(generationId).schema_json! };
-  }
-
-  // 80s client abort. The engine no longer binds this call to HttpContext.RequestAborted,
-  // so an abort here only stops *our* waiting — it won't cancel the LLM extraction or mark
-  // the row failed. 80s sits under the ~100s Cloudflare tunnel ceiling while giving a slow
-  // (or retry-backed-off) extraction room to return the real schema.
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 80_000);
-
-  try {
-    const engineUrl = resolveEngineUrl();
-    const res = await fetch(`${engineUrl}/api/extract-schema`, {
-      method: "POST",
-      headers: engineHeaders(),
-      body: JSON.stringify({ generationId, prompt: sanitizePrompt(prompt) }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: "Schema extraction failed" }));
-      return { success: false, error: body.error || "Schema extraction failed" };
-    }
-
-    const data = await res.json();
-    return { success: true, schema: data.schema as GenerationSchema };
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err instanceof Error && err.name === "AbortError") {
-      return { success: false, error: "Schema extraction timed out. The engine may be under load — please try again." };
-    }
-    console.error("[extractSchema] Failed:", err);
-    return { success: false, error: "Failed to reach the generation engine." };
-  }
+  return startFreeGeneration(
+    "submitSimpleGeneration",
+    { mode: "simple", prompt, schema: null, projectType, personalization },
+    "Failed to create generation record. Please try again."
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -463,81 +432,11 @@ export async function submitAdvancedGeneration(
     schema.entities.map((e) => e.name).join(", ") +
     ` — ${schema.entities.length} entities, ${schema.relationships.length} relationships, ${schema.endpoints.length} endpoints`;
 
-  // Require authentication: every creation is tied to an account so the
-  // per-account free-tier quota can be enforced.
-  const user = await getSessionUser();
-  if (!user) {
-    return { success: false, error: "Please sign in to start a build." };
-  }
-  try {
-    await ensureProfileRow(user);
-  } catch (error) {
-    console.error("[submitAdvancedGeneration] Profile insert error:", error);
-    return { success: false, error: "Failed to save your schema. Please try again." };
-  }
-
-  // Free-tier quota pre-check — see submitSimpleGeneration. The DB trigger
-  // (drizzle/0001_functions.sql) is the authoritative gate; this is UX-only.
-  if (tier === 0) {
-    const used = await countFreeGenerationsThisMonth(user.id);
-    if (used >= FREE_TIER_MONTHLY_LIMIT) {
-      return {
-        success: false,
-        error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
-      };
-    }
-  }
-
-  // 1. Insert generation record with the full schema
-  let data: Generation;
-  try {
-    data = await getDataStore().insertGeneration({
-      mode: "advanced",
-      tier,
-      prompt: promptSummary,
-      project_type: projectType,
-      schema_json: schema,
-      personalization_json: personalization ?? null,
-      user_id: user.id,
-    });
-  } catch (error) {
-    console.error("[submitAdvancedGeneration] Insert error:", error);
-    return { success: false, error: "Failed to save your schema. Please try again." };
-  }
-
-  const generationId = data.id;
-
-  // 2. Notify the .NET Engine with the full schema
-  try {
-    const enginePayload: EngineGenerateRequest = {
-      generationId,
-      mode: "advanced",
-      tier,
-      projectType,
-      schema,
-      personalization: personalization ?? DEFAULT_PERSONALIZATION,
-    };
-
-    const engineUrl = resolveEngineUrl();
-    const engineRes = await fetch(`${engineUrl}/api/generate`, {
-      method: "POST",
-      headers: engineHeaders(user.id),
-      body: JSON.stringify(enginePayload),
-    });
-
-    if (!engineRes.ok) {
-      const errText = await engineRes.text();
-      console.error("[submitAdvancedGeneration] Engine error:", errText);
-    }
-  } catch (fetchErr) {
-    console.error("[submitAdvancedGeneration] Failed to reach engine:", fetchErr);
-  }
-
-  return {
-    success: true,
-    generationId,
-    redirectUrl: `/generate/${generationId}`,
-  };
+  return startFreeGeneration(
+    "submitAdvancedGeneration",
+    { mode: "advanced", prompt: promptSummary, schema, projectType, personalization },
+    "Failed to save your schema. Please try again."
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -672,8 +571,9 @@ export async function retryGeneration(
   }
 
   // Re-fire the engine
-  try {
-    const enginePayload: EngineGenerateRequest = {
+  const res = await requestBuild(
+    "retryGeneration",
+    {
       generationId,
       mode: gen.mode,
       tier: gen.tier as Tier,
@@ -681,25 +581,17 @@ export async function retryGeneration(
       prompt: gen.prompt ?? undefined,
       schema: gen.schema_json ?? undefined,
       personalization: gen.personalization_json ?? DEFAULT_PERSONALIZATION,
+    },
+    user.id
+  );
+  // 402: a paid build with no completed payment behind it (refunded, disputed).
+  // The Engine has failed the row again with this same message.
+  if (res?.status === 402) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: typeof body.error === "string" ? body.error : "This build has no completed payment.",
     };
-
-    const engineUrl = resolveEngineUrl();
-    const res = await fetch(`${engineUrl}/api/generate`, {
-      method: "POST",
-      headers: engineHeaders(),
-      body: JSON.stringify(enginePayload),
-    });
-    // 402: a paid build with no completed payment behind it (refunded, disputed).
-    // The Engine has failed the row again with this same message.
-    if (res.status === 402) {
-      const body = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        error: typeof body.error === "string" ? body.error : "This build has no completed payment.",
-      };
-    }
-  } catch (err) {
-    console.error("[retryGeneration] Engine call failed:", err);
   }
 
   return { success: true };
@@ -729,36 +621,23 @@ export async function createPendingGeneration(
         ` — ${schema.entities.length} entities`
       : (prompt ?? "").trim();
 
-  // Require authentication: every creation is tied to an account so the
-  // per-account free-tier quota can be enforced.
-  const user = await getSessionUser();
-  if (!user) {
-    return { success: false, error: "Please sign in to start a build." };
-  }
-  try {
-    await ensureProfileRow(user);
-  } catch (error) {
-    console.error("[createPendingGeneration] Profile insert error:", error);
-    return { success: false, error: "Failed to create generation record. Please try again." };
-  }
-
-  let data: Generation;
-  try {
-    data = await getDataStore().insertGeneration({
+  const created = await createGenerationRow(
+    "createPendingGeneration",
+    {
       mode,
       tier,
       prompt: promptSummary || null,
       project_type: projectType,
       schema_json: schema ?? null,
       personalization_json: personalization ?? null,
-      user_id: user.id,
-    });
-  } catch (error) {
-    console.error("[createPendingGeneration] Insert error:", error);
-    return { success: false, error: "Failed to create generation record. Please try again." };
+    },
+    "Failed to create generation record. Please try again."
+  );
+  if ("error" in created) {
+    return { success: false, error: created.error };
   }
 
-  return { success: true, generationId: data.id };
+  return { success: true, generationId: created.generation.id };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -830,19 +709,19 @@ export async function createCheckoutSession(
     // turn the cancel link on our Stripe checkout page into someone else's host.
     const resolvedCancelPath = safeReturnTo(cancelPath, modeDefault);
 
-    const engineUrl = resolveEngineUrl();
-    const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
-      method: "POST",
-      headers: engineHeaders(user.id),
-      body: JSON.stringify({
+    // Stripe answers within its own limits, which are longer than the default here.
+    const res = await postToEngine(
+      "/api/stripe/create-session",
+      {
         generationId,
         tier,
         projectType,
         prompt: prompt ?? "",
         successUrl: `${origin}/generate/${generationId}?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${origin}${resolvedCancelPath}`,
-      }),
-    });
+      },
+      { userId: user.id, timeoutMs: 30_000 }
+    );
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: "Checkout session creation failed." }));

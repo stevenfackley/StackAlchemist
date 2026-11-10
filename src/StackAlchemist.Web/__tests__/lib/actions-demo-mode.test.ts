@@ -11,7 +11,6 @@ import { getSessionUser } from "@/lib/session";
 import {
   createCheckoutSession,
   createPendingGeneration,
-  extractSchema,
   getFreeQuotaStatus,
   getMyGenerations,
   getProfileSettings,
@@ -139,15 +138,6 @@ describe("actions.ts — demo mode short circuits", () => {
       success: true,
       sessionUrl: "/generate/gen-1?demo=1&tier=2",
     });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("extractSchema returns the canned demo schema without calling the engine", async () => {
-    const result = await extractSchema("demo-simple-1", "a prompt");
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.schema.entities.length).toBeGreaterThan(0);
-    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
