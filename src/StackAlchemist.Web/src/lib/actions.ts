@@ -210,6 +210,15 @@ export async function saveProfileSettings(
 ───────────────────────────────────────────────────────────────────────────── */
 const FREE_TIER_MONTHLY_LIMIT = 5;
 
+/**
+ * The submit actions start the Engine straight away, so they build the free tier
+ * only. A paid tier is started by the Stripe webhook once the payment completes
+ * (createPendingGeneration, then createCheckoutSession). The tier is an argument
+ * from the browser: without this check, calling a submit action with tier 3 built
+ * the paid product for nothing. The Engine refuses it too.
+ */
+const PAID_TIER_NEEDS_CHECKOUT = "Paid tiers start at checkout. Choose a plan to continue.";
+
 /** UTC start of the current calendar month — matches the quota trigger's
  *  date_trunc('month', now(), 'UTC'). */
 function currentMonthStartUtc(): Date {
@@ -272,6 +281,10 @@ export async function submitSimpleGeneration(
       generationId,
       redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
     };
+  }
+
+  if (tier !== 0) {
+    return { success: false, error: PAID_TIER_NEEDS_CHECKOUT };
   }
 
   // Require authentication: every creation is tied to an account so the
@@ -432,6 +445,10 @@ export async function submitAdvancedGeneration(
       generationId,
       redirectUrl: `/generate/${generationId}?demo=1&tier=${tier}`,
     };
+  }
+
+  if (tier !== 0) {
+    return { success: false, error: PAID_TIER_NEEDS_CHECKOUT };
   }
 
   // Build a human-readable prompt summary from the schema
@@ -660,11 +677,20 @@ export async function retryGeneration(
     };
 
     const engineUrl = resolveEngineUrl();
-    await fetch(`${engineUrl}/api/generate`, {
+    const res = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
       headers: engineHeaders(),
       body: JSON.stringify(enginePayload),
     });
+    // 402: a paid build with no completed payment behind it (refunded, disputed).
+    // The Engine has failed the row again with this same message.
+    if (res.status === 402) {
+      const body = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        error: typeof body.error === "string" ? body.error : "This build has no completed payment.",
+      };
+    }
   } catch (err) {
     console.error("[retryGeneration] Engine call failed:", err);
   }

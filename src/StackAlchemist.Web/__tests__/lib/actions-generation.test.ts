@@ -81,9 +81,26 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
   it("rejects when the caller is not authenticated", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
 
-    const result = await submitSimpleGeneration(PROMPT, 1);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result).toEqual({ success: false, error: "Please sign in to start a build." });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The tier is an argument from the browser. A submit action starts the Engine at
+  // once, so a paid tier here would be a paid build with no payment.
+  it.each([1, 2, 3] as const)("refuses paid tier %i: no row, no Engine call", async (tier) => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-paid" } as never);
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+
+    const result = await submitSimpleGeneration(PROMPT, tier);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Paid tiers start at checkout. Choose a plan to continue.",
+    });
     expect(store.insertGeneration).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -133,22 +150,11 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     expect(init.headers["X-Engine-Key"]).toBe("engine-service-key-test");
   });
 
-  it("does not re-check the quota for paid tiers", async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(USER);
-    store.insertGeneration.mockResolvedValue({ id: "gen-paid" } as never);
-    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
-
-    const result = await submitSimpleGeneration(PROMPT, 2);
-
-    expect(result.success).toBe(true);
-    expect(store.countFreeGenerationsThisMonth).not.toHaveBeenCalled();
-  });
-
   it("returns a generic error when the insert fails", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(USER);
     store.insertGeneration.mockRejectedValue(new DataStoreError("db down"));
 
-    const result = await submitSimpleGeneration(PROMPT, 2);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result).toEqual({
       success: false,
@@ -162,7 +168,7 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     store.insertGeneration.mockResolvedValue({ id: "gen-resilient" } as never);
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const result = await submitSimpleGeneration(PROMPT, 3);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result).toEqual({
       success: true,
@@ -176,7 +182,7 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     store.insertGeneration.mockResolvedValue({ id: "gen-engine-500" } as never);
     fetchMock.mockResolvedValue(fakeResponse("engine exploded", { ok: false, status: 500 }));
 
-    const result = await submitSimpleGeneration(PROMPT, 1);
+    const result = await submitSimpleGeneration(PROMPT, 0);
 
     expect(result.success).toBe(true);
   });
@@ -214,9 +220,24 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
   it("rejects when unauthenticated", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
 
-    const result = await submitAdvancedGeneration(VALID_SCHEMA, 1);
+    const result = await submitAdvancedGeneration(VALID_SCHEMA, 0);
     expect(result).toEqual({ success: false, error: "Please sign in to start a build." });
     expect(store.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2, 3] as const)("refuses paid tier %i: no row, no Engine call", async (tier) => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-paid" } as never);
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+
+    const result = await submitAdvancedGeneration(VALID_SCHEMA, tier);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Paid tiers start at checkout. Choose a plan to continue.",
+    });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks tier-0 submission once quota is exhausted", async () => {
@@ -236,7 +257,7 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
     store.insertGeneration.mockResolvedValue({ id: "gen-advanced-1" } as never);
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
 
-    const result = await submitAdvancedGeneration(VALID_SCHEMA, 2);
+    const result = await submitAdvancedGeneration(VALID_SCHEMA, 0);
 
     expect(result).toEqual({
       success: true,
@@ -245,7 +266,7 @@ describe("actions.ts — submitAdvancedGeneration (configured)", () => {
     });
     expect(store.insertGeneration).toHaveBeenCalledWith({
       mode: "advanced",
-      tier: 2,
+      tier: 0,
       prompt: "Widget — 1 entities, 0 relationships, 0 endpoints",
       project_type: "DotNetNextJs",
       schema_json: VALID_SCHEMA,
