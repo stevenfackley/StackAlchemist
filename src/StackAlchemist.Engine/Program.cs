@@ -389,8 +389,8 @@ app.Use(async (context, next) =>
 
         if (!string.IsNullOrWhiteSpace(configuredKey))
         {
-            var providedKey = context.Request.Headers["X-Engine-Key"].FirstOrDefault();
-            if (providedKey != configuredKey)
+            var providedKey = context.Request.Headers[EngineCaller.KeyHeader].FirstOrDefault();
+            if (!EngineCaller.HasServiceKey(providedKey, configuredKey))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 await context.Response.WriteAsJsonAsync(new { error = "Unauthorized" });
@@ -688,8 +688,12 @@ app.MapPost("/api/stripe/create-session", async (
     }
     catch (StripeException ex)
     {
+        // Stripe's own message can name price ids and describe the API key, and the web app shows
+        // this body to the buyer, so the detail goes to the log only.
         logger.StripeSessionCreationFailed(ex, req.GenerationId);
-        return Results.BadRequest(new { error = ex.Message });
+        return Results.Json(
+            new { error = "We could not start checkout. Please try again in a moment." },
+            statusCode: StatusCodes.Status502BadGateway);
     }
 })
 .WithName("CreateStripeSession")

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace StackAlchemist.Engine.Middleware;
 
 /// <summary>
@@ -9,6 +12,18 @@ namespace StackAlchemist.Engine.Middleware;
 public static class EngineCaller
 {
     public const string UserHeader = "X-Engine-User";
+    public const string KeyHeader = "X-Engine-Key";
+
+    /// <summary>
+    /// Whether <paramref name="presented"/> is the configured service key. The two are compared as
+    /// SHA-256 digests in constant time, so the time taken tells a caller neither how many leading
+    /// characters matched nor how long the real key is.
+    /// </summary>
+    public static bool HasServiceKey(string? presented, string configured) =>
+        presented is not null &&
+        CryptographicOperations.FixedTimeEquals(
+            SHA256.HashData(Encoding.UTF8.GetBytes(presented)),
+            SHA256.HashData(Encoding.UTF8.GetBytes(configured)));
 
     /// <summary>The bucket for requests that name no user: one window shared by all of them.</summary>
     public const string SharedPartition = "shared";
