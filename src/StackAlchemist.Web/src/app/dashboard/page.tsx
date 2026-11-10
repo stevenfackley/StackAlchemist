@@ -20,7 +20,7 @@ const DASHBOARD_PAGE_SIZE = 20;
 import { ByokSettingsForm } from "./ByokSettingsForm";
 import { GenerationsLiveRefresher } from "./GenerationsLiveRefresher";
 import { SectionErrorBoundary } from "@/components/error-boundary";
-import type { Generation } from "@/lib/types";
+import type { Generation, GenerationSummary } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -114,7 +114,7 @@ function StatusBadge({ status }: { status: Generation["status"] }) {
 }
 
 /* ─── Generation row ─────────────────────────────────────────────────────── */
-function GenerationRow({ gen }: { gen: Generation }) {
+function GenerationRow({ gen }: { gen: GenerationSummary }) {
   const tierName = TIER_NAMES[gen.tier] ?? "Unknown";
   const tierClasses = TIER_COLORS[gen.tier] ?? TIER_COLORS[0];
   const isComplete = gen.status === "success";

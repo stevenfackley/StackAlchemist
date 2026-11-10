@@ -1,4 +1,4 @@
-import type { Generation, GenerationSchema, PersonalizationData, ProjectType, Tier } from "@/lib/types";
+import type { Generation, GenerationSchema, GenerationSummary, PersonalizationData, ProjectType, Tier } from "@/lib/types";
 
 /** The profile columns the settings page reads (not the full stored row). */
 export interface ProfileSettingsRow {
@@ -62,10 +62,11 @@ export interface DataStore {
    */
   resetForRetry(id: string, userId: string): Promise<boolean>;
   /**
-   * The caller's rows ordered by `created_at` descending. `total` is the
-   * caller's full row count, independent of `offset` and `limit`.
+   * The caller's rows ordered by `created_at` descending, as list summaries:
+   * the large columns (schema, build log, preview files) are not read. `total`
+   * is the caller's full row count, independent of `offset` and `limit`.
    */
-  listMyGenerations(userId: string, offset: number, limit: number): Promise<{ generations: Generation[]; total: number }>;
+  listMyGenerations(userId: string, offset: number, limit: number): Promise<{ generations: GenerationSummary[]; total: number }>;
   /**
    * `total` is all of the caller's rows, `completed` those with status
    * `success`, `inProgress` those with a status that is neither `success`

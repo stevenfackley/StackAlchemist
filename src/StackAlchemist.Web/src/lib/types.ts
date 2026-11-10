@@ -98,6 +98,16 @@ export interface Generation {
   completed_at: string | null;
 }
 
+/**
+ * What the dashboard list shows of a generation. The list reads only these
+ * columns, so a page of rows does not carry each build's schema, log and
+ * preview files across the wire.
+ */
+export type GenerationSummary = Pick<
+  Generation,
+  "id" | "mode" | "tier" | "prompt" | "status" | "download_url" | "created_at"
+>;
+
 // ─── Profile Record ─────────────────────────────────────────────────────────
 export interface Profile {
   id: string;

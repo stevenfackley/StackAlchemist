@@ -10,6 +10,7 @@ import { safeReturnTo } from "./proxy-utils";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
+  GenerationSummary,
   Tier,
   GenerationSchema,
   SubmitGenerationResponse,
@@ -868,8 +869,8 @@ export async function createCheckoutSession(
 export async function getMyGenerations(
   page = 1,
   pageSize = 20
-): Promise<{ generations: Generation[]; total: number }> {
-  const empty = { generations: [] as Generation[], total: 0 };
+): Promise<{ generations: GenerationSummary[]; total: number }> {
+  const empty = { generations: [] as GenerationSummary[], total: 0 };
 
   const user = await getSessionUser();
   if (!user) return empty;

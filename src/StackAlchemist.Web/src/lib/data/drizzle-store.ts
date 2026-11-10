@@ -8,6 +8,17 @@ import { DataStoreError, type DataStore, type NewGeneration, type ProfileSetting
 // A malformed id would make Postgres raise 22P02 (invalid uuid); it is simply not found.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The columns of a GenerationSummary: what the dashboard list shows, and nothing heavier. */
+const SUMMARY_COLUMNS = {
+  id: generations.id,
+  mode: generations.mode,
+  tier: generations.tier,
+  prompt: generations.prompt,
+  status: generations.status,
+  download_url: generations.download_url,
+  created_at: generations.created_at,
+};
+
 /**
  * Drizzle 0.45 wraps every driver failure in a DrizzleQueryError whose message is
  * `Failed query: <sql>\nparams: <values>`. Unwrap to the driver's own error so
@@ -119,7 +130,7 @@ export class DrizzleStore implements DataStore {
     try {
       const [rows, [{ n }]] = await Promise.all([
         // id breaks created_at ties so a page boundary never repeats or skips a row.
-        this.db.select().from(generations).where(eq(generations.user_id, userId))
+        this.db.select(SUMMARY_COLUMNS).from(generations).where(eq(generations.user_id, userId))
           .orderBy(desc(generations.created_at), desc(generations.id)).limit(limit).offset(offset),
         this.db.select({ n: count() }).from(generations).where(eq(generations.user_id, userId)),
       ]);
