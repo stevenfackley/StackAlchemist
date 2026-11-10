@@ -629,15 +629,7 @@ app.MapPost("/api/stripe/create-session", async (
 
     StripeConfiguration.ApiKey = secretKey;
 
-    // Amount in cents for each tier
-    var tierPricing = new Dictionary<int, (long Cents, string Name, string Description)>
-    {
-        [1] = (29_900, "StackAlchemist Blueprint",      "Schema JSON, OpenAPI spec, SQL migration scripts"),
-        [2] = (59_900, "StackAlchemist Boilerplate",    "Full compilable .NET + Next.js codebase — Compile Guarantee"),
-        [3] = (99_900, "StackAlchemist Infrastructure", "Codebase + AWS CDK, Helm Charts, Deployment Runbook"),
-    };
-
-    if (!tierPricing.TryGetValue(req.Tier, out var pricing))
+    if (!TierCatalog.TryGetPaidTier(req.Tier, req.ProjectType, out var pricing))
         return Results.BadRequest(new { error = $"Invalid tier: {req.Tier}. Must be 1, 2, or 3." });
 
     try
