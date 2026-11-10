@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { getDataStore, type ProfileSettingsRow } from "./data";
 import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
+import { safeReturnTo } from "./proxy-utils";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode, getEngineServiceKey } from "./runtime-config";
 import type {
   Generation,
@@ -814,11 +815,14 @@ export async function createCheckoutSession(
     // An explicit cancelPath wins (e.g. the try-before-buy upgrade returns to the
     // existing /generate/[id] result page — NOT back to /simple, which would
     // spawn a brand-new free build). Otherwise fall back to the mode default.
-    const resolvedCancelPath =
-      cancelPath ??
-      (mode === "simple"
+    const modeDefault =
+      mode === "simple"
         ? `/simple?q=${encodeURIComponent(prompt ?? "")}&tier=${tier}`
-        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`);
+        : `/advanced?step=4&tier=${tier}&projectType=${projectType}`;
+    // cancelPath comes from the browser and is appended to the origin, so it must
+    // be a path on this site: "@evil.example" or ".evil.example" would otherwise
+    // turn the cancel link on our Stripe checkout page into someone else's host.
+    const resolvedCancelPath = safeReturnTo(cancelPath, modeDefault);
 
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
