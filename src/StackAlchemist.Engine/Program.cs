@@ -164,35 +164,25 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
-// Per-IP fixed-window limits on expensive endpoints.
+// Per-user fixed-window limits on expensive endpoints. A named AddFixedWindowLimiter is ONE
+// window for every caller, so these used to be limits on the whole product: five generations a
+// minute across all users, and one busy user locked everyone else out. Each policy is now
+// partitioned by the user the web app names (EngineCaller); requests that name none share a window.
 builder.Services.AddRateLimiter(rl =>
 {
-    // Generation: 5 per minute per IP — generous for real users, blocks spamming
-    rl.AddFixedWindowLimiter("generate", o =>
-    {
-        o.Window          = TimeSpan.FromMinutes(1);
-        o.PermitLimit     = 5;
-        o.QueueLimit      = 0;
-        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-    });
+    void PerUser(string policy, int permitsPerMinute) =>
+        rl.AddPolicy(policy, context => RateLimitPartition.GetFixedWindowLimiter(
+            EngineCaller.PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                Window      = TimeSpan.FromMinutes(1),
+                PermitLimit = permitsPerMinute,
+                QueueLimit  = 0,
+            }));
 
-    // Schema extraction: 15 per minute per IP
-    rl.AddFixedWindowLimiter("extract", o =>
-    {
-        o.Window          = TimeSpan.FromMinutes(1);
-        o.PermitLimit     = 15;
-        o.QueueLimit      = 0;
-        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-    });
-
-    // Stripe session creation: 3 per minute per IP
-    rl.AddFixedWindowLimiter("stripe-session", o =>
-    {
-        o.Window          = TimeSpan.FromMinutes(1);
-        o.PermitLimit     = 3;
-        o.QueueLimit      = 0;
-        o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-    });
+    PerUser("generate", 5);        // generous for a real user, blocks spamming
+    PerUser("extract", 15);
+    PerUser("stripe-session", 3);
 
     rl.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     rl.OnRejected = async (ctx, token) =>
@@ -384,7 +374,6 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
-app.UseRateLimiter();
 
 // ── Service key auth ──────────────────────────────────────────────────────────
 // Protects /api/* (except /api/webhooks/stripe which uses Stripe signature auth)
@@ -412,6 +401,10 @@ app.Use(async (context, next) =>
 
     await next(context);
 });
+
+// After the key check on purpose: a request without the service key is refused before it can
+// spend a permit, and the X-Engine-User header the limiter partitions on is one the key vouches for.
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {

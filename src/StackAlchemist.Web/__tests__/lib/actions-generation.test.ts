@@ -148,6 +148,8 @@ describe("actions.ts — submitSimpleGeneration (configured)", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/generate");
     expect(init.headers["X-Engine-Key"]).toBe("engine-service-key-test");
+    // The Engine rate-limits per user on this header.
+    expect(init.headers["X-Engine-User"]).toBe(USER.id);
   });
 
   it("returns a generic error when the insert fails", async () => {
