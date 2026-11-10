@@ -171,6 +171,21 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("reports the Engine's refusal when the build has no completed payment (402)", async () => {
+    // A paid build whose payment was refunded: the Engine will not rebuild it.
+    store.getGenerationForUser.mockResolvedValue(baseGeneration({ tier: 2 }) as never);
+    store.resetForRetry.mockResolvedValue(true);
+    fetchMock.mockResolvedValue(
+      fakeResponse({ error: "This build has no completed payment, so it was not started." }, { ok: false, status: 402 })
+    );
+
+    const result = await retryGeneration(GEN_ID);
+    expect(result).toEqual({
+      success: false,
+      error: "This build has no completed payment, so it was not started.",
+    });
+  });
+
   it("still reports success even when the re-fire fetch throws", async () => {
     store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
     store.resetForRetry.mockResolvedValue(true);

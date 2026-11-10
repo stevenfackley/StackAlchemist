@@ -3,7 +3,12 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using NSubstitute;
+using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Integration;
 
@@ -73,6 +78,55 @@ public sealed class InputValidationTests(NoAuthEngineFactory factory)
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/generate", new
+        {
+            generationId = Guid.NewGuid().ToString(),
+            mode = "simple",
+            tier = 0,
+            prompt = "Build a task tracking app",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+}
+
+/// <summary>
+/// <c>/api/generate</c> with a billing store that knows of no payment: the paid tiers are refused
+/// at the endpoint, and the free tier is not.
+/// </summary>
+public sealed class UnpaidGenerateTests(NoAuthEngineFactory factory) : IClassFixture<NoAuthEngineFactory>
+{
+    private HttpClient UnpaidClient() => factory.WithWebHostBuilder(builder =>
+        builder.ConfigureTestServices(services =>
+        {
+            var billing = Substitute.For<IBillingStore>();
+            billing.FindCompletedTransactionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns((EligibleTransaction?)null);
+            services.RemoveAll<IBillingStore>();
+            services.AddSingleton(billing);
+        })).CreateClient();
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Generate_PaidTierWithoutPayment_Returns402(int tier)
+    {
+        var response = await UnpaidClient().PostAsJsonAsync("/api/generate", new
+        {
+            generationId = Guid.NewGuid().ToString(),
+            mode = "simple",
+            tier,
+            prompt = "Build a task tracking app",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.PaymentRequired);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("no completed payment");
+    }
+
+    [Fact]
+    public async Task Generate_FreeTier_IsStillAccepted()
+    {
+        var response = await UnpaidClient().PostAsJsonAsync("/api/generate", new
         {
             generationId = Guid.NewGuid().ToString(),
             mode = "simple",

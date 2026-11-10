@@ -346,6 +346,11 @@ builder.Services.AddSingleton<IStripeWebhookHandler>(sp => new StripeWebhookHand
     sp.GetRequiredService<IGenerationOrchestrator>(), sp.GetService<IBillingStore>(),
     sp.GetRequiredService<IEmailService>(), sp.GetRequiredService<ILogger<StripeWebhookHandler>>()));
 
+// ── Payment check in front of /api/generate ───────────────────────────────────
+builder.Services.AddSingleton<IPaidGenerationGate>(sp => new PaidGenerationGate(
+    sp.GetRequiredService<IDeliveryService>(), sp.GetService<IBillingStore>(),
+    sp.GetRequiredService<ILogger<PaidGenerationGate>>()));
+
 // ── Compile Guarantee automatic refund ────────────────────────────────────────
 // Stripe.net's RefundService reads the API key from the ambient StripeConfiguration
 // static at call time (same pattern the /api/stripe/create-session handler uses),
@@ -429,6 +434,7 @@ app.MapPost("/api/generate", async (
     GenerateRequest request,
     IGenerationOrchestrator orchestrator,
     IDeliveryService delivery,
+    IPaidGenerationGate paidGate,
     IConfiguration config,
     IHostApplicationLifetime lifetime,
     ILogger<Program> logger) =>
@@ -443,6 +449,29 @@ app.MapPost("/api/generate", async (
         await delivery.UpdateStatusAsync(
             request.GenerationId, "failed", lifetime.ApplicationStopping, msg, ErrorCategorizer.Schema);
         return Results.BadRequest(new { error = msg });
+    }
+
+    // The tier in the request came from the browser by way of the web app. A paid tier is built
+    // only for a completed payment: without this, calling the web's submit action with tier 3, or
+    // retrying a build that was refunded, got a paid build for nothing.
+    switch (await paidGate.CheckAsync(request.GenerationId, request.Tier, lifetime.ApplicationStopping))
+    {
+        case PaymentCheck.Unpaid:
+            logger.UnpaidGenerationRefused(request.GenerationId, request.Tier);
+            // Failing the row takes it out of pending, where it would otherwise sit until the
+            // reconciler gave up on it a day later.
+            await delivery.UpdateStatusAsync(
+                request.GenerationId, "failed", lifetime.ApplicationStopping,
+                PaidGenerationGate.UnpaidMessage, ErrorCategorizer.Internal);
+            return Results.Json(
+                new { error = PaidGenerationGate.UnpaidMessage },
+                statusCode: StatusCodes.Status402PaymentRequired);
+
+        case PaymentCheck.Unavailable:
+            // The row is left alone: if it is paid, the reconciler re-enqueues it once it goes stale.
+            return Results.Json(
+                new { error = "Payment status could not be checked. Please try again shortly." },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     // Dispatch codegen to the background on the app-lifetime token — NOT the request's

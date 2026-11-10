@@ -36,4 +36,11 @@ internal static partial class ProgramLog
 
     [LoggerMessage(EventId = 409, Level = LogLevel.Error, Message = "Background generation dispatch failed for {GenerationId}")]
     public static partial void GenerationDispatchFailed(this ILogger logger, Exception ex, string generationId);
+
+    [LoggerMessage(EventId = 410, Level = LogLevel.Warning, Message = "Refused /api/generate for {GenerationId}: tier {Tier} has no completed payment")]
+    public static partial void UnpaidGenerationRefused(this ILogger logger, string generationId, int tier);
+
+    // Used by PaidGenerationGate, the check in front of /api/generate.
+    [LoggerMessage(EventId = 411, Level = LogLevel.Error, Message = "Could not check payment for generation {GenerationId}; not starting it")]
+    public static partial void PaymentCheckUnavailable(this ILogger logger, Exception ex, string generationId);
 }
