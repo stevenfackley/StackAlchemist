@@ -52,13 +52,24 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
   });
 
   it("list and stats are scoped to the caller", async () => {
-    await gen(alice); await gen(alice); await gen(bob);
+    const mine = [await gen(alice), await gen(alice)];
+    await gen(bob);
     const a = await store.listMyGenerations(alice, 0, 20);
     const b = await store.listMyGenerations(bob, 0, 20);
     expect(a.total).toBe(2);
     expect(b.total).toBe(1);
-    expect(a.generations.every((g) => g.user_id === alice)).toBe(true);
+    expect(a.generations.map((g) => g.id).sort()).toEqual(mine.map((g) => g.id).sort());
     expect((await store.generationStats(bob)).total).toBe(1);
+  });
+
+  it("list rows are summaries: the large columns are not read", async () => {
+    await gen(alice);
+    const { generations: [row] } = await store.listMyGenerations(alice, 0, 20);
+    expect(Object.keys(row).sort()).toEqual(
+      ["created_at", "download_url", "id", "mode", "prompt", "status", "tier"]
+    );
+    // Same timestamp shape as a full row.
+    expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
   });
 
   it("list pages by offset and limit, newest first, with total independent of the page", async () => {
