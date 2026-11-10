@@ -186,6 +186,27 @@ describe("actions.ts — createCheckoutSession", () => {
     expect(body.cancelUrl).toBe(`http://app.stackalchemist.app/generate/${GEN_ID}?upgrade=1`);
   });
 
+  // cancelPath is a browser-supplied string appended to the origin. Each of these
+  // would otherwise put the cancel link of our Stripe checkout page on another host.
+  it.each([
+    "@evil.example/phish",
+    ".evil.example/phish",
+    ":8443@evil.example",
+    "//evil.example/phish",
+    "https://evil.example/phish",
+    "/\\evil.example",
+    "/\t/evil.example",
+  ])("falls back to the mode default for a cancelPath that is not a path on this site: %j", async (cancelPath) => {
+    fetchMock.mockResolvedValue(fakeResponse({ url: "https://checkout.stripe.com/session/safe" }));
+
+    await createCheckoutSession(GEN_ID, 3, undefined, "PythonReact", "advanced", cancelPath);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.cancelUrl).toBe("http://app.stackalchemist.app/advanced?step=4&tier=3&projectType=PythonReact");
+    expect(new URL(body.cancelUrl).host).toBe("app.stackalchemist.app");
+  });
+
   it("resolves https origin from x-forwarded-proto even outside production", async () => {
     headersMock.mockResolvedValue(
       new Headers({ host: "app.stackalchemist.app", "x-forwarded-proto": "https" })
