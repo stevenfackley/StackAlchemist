@@ -1,7 +1,7 @@
 /**
  * actions.ts — submitSimpleGeneration / submitAdvancedGeneration /
- * createPendingGeneration / getFreeQuotaStatus / getMyGenerations /
- * extractSchema with a "fully configured" (non-demo) runtime: auth gating,
+ * createPendingGeneration / getFreeQuotaStatus / getMyGenerations
+ * with a "fully configured" (non-demo) runtime: auth gating,
  * the free-tier quota pre-check, DB failure handling, and Engine-fetch
  * resilience.
  */
@@ -11,7 +11,6 @@ import { getSessionUser } from "@/lib/session";
 import { hasDataStoreConfig } from "@/lib/runtime-config";
 import {
   createPendingGeneration,
-  extractSchema,
   getFreeQuotaStatus,
   getMyGenerations,
   getGenerationStats,
@@ -474,61 +473,5 @@ describe("actions.ts — getFreeQuotaStatus / getMyGenerations (config gating, n
 
     const stats = await getGenerationStats();
     expect(stats).toEqual({ total: 0, completed: 0, inProgress: 0 });
-  });
-});
-
-describe("actions.ts — extractSchema (configured)", () => {
-  const fetchMock = vi.fn();
-
-  beforeEach(() => {
-    vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockReset();
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("returns the schema from a successful Engine response", async () => {
-    const schema: GenerationSchema = { entities: [], relationships: [], endpoints: [] };
-    fetchMock.mockResolvedValue(fakeResponse({ schema }));
-
-    const result = await extractSchema("gen-1", "a prompt");
-    expect(result).toEqual({ success: true, schema });
-  });
-
-  it("propagates the Engine's error message on a non-2xx response", async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ error: "LLM extraction failed" }, { ok: false, status: 502 }));
-
-    const result = await extractSchema("gen-1", "a prompt");
-    expect(result).toEqual({ success: false, error: "LLM extraction failed" });
-  });
-
-  it("falls back to a generic error when a non-2xx body isn't valid JSON", async () => {
-    fetchMock.mockResolvedValue(fakeResponse("", { ok: false, status: 500, jsonThrows: true }));
-
-    const result = await extractSchema("gen-1", "a prompt");
-    expect(result).toEqual({ success: false, error: "Schema extraction failed" });
-  });
-
-  it("returns a timeout-specific message when the request aborts", async () => {
-    const abortErr = new Error("The operation was aborted.");
-    abortErr.name = "AbortError";
-    fetchMock.mockRejectedValue(abortErr);
-
-    const result = await extractSchema("gen-1", "a prompt");
-    expect(result).toEqual({
-      success: false,
-      error: "Schema extraction timed out. The engine may be under load — please try again.",
-    });
-  });
-
-  it("returns a generic reachability error on any other fetch failure", async () => {
-    fetchMock.mockRejectedValue(new Error("ECONNRESET"));
-
-    const result = await extractSchema("gen-1", "a prompt");
-    expect(result).toEqual({ success: false, error: "Failed to reach the generation engine." });
   });
 });
