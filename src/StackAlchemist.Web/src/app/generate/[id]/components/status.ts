@@ -57,7 +57,7 @@ export const TIER_NAMES: Record<number, string> = {
 };
 
 export const PAID_TIERS: { id: Tier; name: string; price: string; tagline: string }[] = [
-  { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs + SQL scripts" },
+  { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs, no code" },
   { id: 2, name: "Boilerplate", price: "$599", tagline: "Full source + Compile Guarantee" },
   { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
 ];

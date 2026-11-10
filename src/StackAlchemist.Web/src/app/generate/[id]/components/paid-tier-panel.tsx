@@ -73,7 +73,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
         </h2>
         <p className="text-slate-400 text-sm leading-relaxed">
           {generation.tier === 1
-            ? "Your schema, API spec, and SQL scripts are packaged and ready to download."
+            ? "Your schema and API docs are packaged and ready to download."
             : generation.tier === 2
             ? verifiedBlurb(
                 "Your full-stack codebase has been compiled and verified. Download, run, and ship.",
