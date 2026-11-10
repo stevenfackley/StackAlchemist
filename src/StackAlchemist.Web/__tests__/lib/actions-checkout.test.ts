@@ -126,6 +126,8 @@ describe("actions.ts — createCheckoutSession", () => {
     expect(result).toEqual({ success: true, sessionUrl: "https://checkout.stripe.com/session/own" });
     expect(store.getGenerationForUser).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
     expect(store.getGenerationForUser.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
+    // The Engine rate-limits checkout creation per user on this header.
+    expect(fetchMock.mock.calls[0][1].headers["X-Engine-User"]).toBe(OWNER_ID);
   });
 
   it("refuses, without calling the Engine, when the ownership lookup itself fails", async () => {

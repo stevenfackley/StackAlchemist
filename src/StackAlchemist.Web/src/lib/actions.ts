@@ -35,11 +35,17 @@ const ALLOWED_PROFILE_MODELS = new Set([
   "openrouter/anthropic/claude-sonnet-5.5",
 ]);
 
-/** Returns headers for all Engine API calls, including the service key when set. */
-function engineHeaders(): Record<string, string> {
+/**
+ * Returns headers for all Engine API calls, including the service key when set.
+ * `userId` is the signed-in user the call is made for: the Engine rate-limits per
+ * user on it (every call comes from this server, so the IP tells it nothing).
+ * Without it the call falls into a window shared by all such calls.
+ */
+function engineHeaders(userId?: string): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const key = getEngineServiceKey();
   if (key) headers["X-Engine-Key"] = key;
+  if (userId) headers["X-Engine-User"] = userId;
   return headers;
 }
 
@@ -332,7 +338,7 @@ export async function submitSimpleGeneration(
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: engineHeaders(),
+      headers: engineHeaders(user.id),
       body: JSON.stringify(enginePayload),
     });
 
@@ -497,7 +503,7 @@ export async function submitAdvancedGeneration(
     const engineUrl = resolveEngineUrl();
     const engineRes = await fetch(`${engineUrl}/api/generate`, {
       method: "POST",
-      headers: engineHeaders(),
+      headers: engineHeaders(user.id),
       body: JSON.stringify(enginePayload),
     });
 
@@ -797,7 +803,7 @@ export async function createCheckoutSession(
     const engineUrl = resolveEngineUrl();
     const res = await fetch(`${engineUrl}/api/stripe/create-session`, {
       method: "POST",
-      headers: engineHeaders(),
+      headers: engineHeaders(user.id),
       body: JSON.stringify({
         generationId,
         tier,
