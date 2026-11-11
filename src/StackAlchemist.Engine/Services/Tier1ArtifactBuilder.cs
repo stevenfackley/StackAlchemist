@@ -43,18 +43,16 @@ public static class Tier1ArtifactBuilder
             return sb.ToString();
         }
 
-        // Not ToDictionary: template names are sanitised identifiers, so two schema entities
-        // ("User" and "User-") can arrive here under one name, and a duplicate key threw. That
-        // failed a build the customer had already paid for. The first one wins.
-        var entityLookup = new Dictionary<string, TemplateEntity>(StringComparer.Ordinal);
-        foreach (var templateEntity in variables.Entities)
-            entityLookup.TryAdd(templateEntity.Name, templateEntity);
-
         foreach (var entity in schema.Entities)
         {
-            var nameLower = entityLookup.TryGetValue(entity.Name, out var te)
-                ? te.NameLower
-                : entity.Name.ToLowerInvariant();
+            // The route segment the generated product uses: the name as BuildVariables sanitises
+            // it, lower-cased. This used to be looked up in a dictionary keyed by the sanitised
+            // names, which threw on two entities sharing one ("User" and "User-") and failed a
+            // paid build; and since it was queried with the raw name, an entity like "Order Item"
+            // was documented at `/api/v1/order items`, a route that does not exist.
+            var nameLower = TemplateValueSanitizer
+                .SanitizeIdentifier(entity.Name, fallback: "Entity")
+                .ToLowerInvariant();
 
             sb.AppendLine(CultureInfo.InvariantCulture, $"## {entity.Name}");
             sb.AppendLine();
