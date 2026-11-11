@@ -190,12 +190,7 @@ public class CompileWorkerRefundTests
         var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
         var refund = Substitute.For<IRefundService>();
         var delivery = Substitute.For<IDeliveryService>();
-        delivery.GetGenerationSnapshotAsync(job.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(new GenerationSnapshot(
-                job.GenerationId, "building", 2, "advanced", null, null, null, null, 0, DateTimeOffset.UtcNow)
-            {
-                RetryCount = FailedBuildRefunder.RetryLimit,
-            });
+        delivery.GetRetryCountAsync(job.GenerationId, Arg.Any<CancellationToken>()).Returns(FailedBuildRefunder.RetryLimit);
 
         await RunWorkerAsync(
             job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,
@@ -212,9 +207,8 @@ public class CompileWorkerRefundTests
         var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
         var refund = Substitute.For<IRefundService>();
         var delivery = Substitute.For<IDeliveryService>();
-        delivery.GetGenerationSnapshotAsync(job.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(new GenerationSnapshot(
-                job.GenerationId, "building", 2, "advanced", null, null, null, null, 3, DateTimeOffset.UtcNow));
+        // Three restarts (attempt_count 3); the customer's own count is 0.
+        delivery.GetRetryCountAsync(job.GenerationId, Arg.Any<CancellationToken>()).Returns(0);
 
         await RunWorkerAsync(
             job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,

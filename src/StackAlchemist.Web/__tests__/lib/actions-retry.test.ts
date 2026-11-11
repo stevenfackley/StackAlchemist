@@ -193,36 +193,48 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(store.uncountRetry).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
   });
 
-  it("still reports success when the re-fire fetch throws, and gives the retry back", async () => {
-    // The row is pending and the Engine's reconciler will start it; the page shows it in progress.
+  it("keeps the retry counted when the Engine cannot be reached: the row is pending and will be built", async () => {
+    // The reconciler starts a pending row once it goes stale. A timeout can also come after the
+    // Engine accepted. Either way a build runs, so the retry was used.
     store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
     store.resetForRetry.mockResolvedValue(true);
     fetchMock.mockRejectedValue(new Error("engine unreachable"));
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
-    expect(store.uncountRetry).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
+    expect(store.uncountRetry).not.toHaveBeenCalled();
   });
 
-  it.each([429, 500, 503])("gives the retry back when the Engine answers %i without starting a build", async (status) => {
+  it.each([429, 500, 503])("keeps the retry counted when the Engine answers %i: the row is pending and will be built", async (status) => {
     store.getGenerationForUser.mockResolvedValue(baseGeneration({ tier: 2, retry_count: 2 }) as never);
     store.resetForRetry.mockResolvedValue(true);
     fetchMock.mockResolvedValue(fakeResponse({ error: "busy" }, { ok: false, status }));
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({ success: true });
-    expect(store.uncountRetry).toHaveBeenCalledTimes(1);
-    expect(store.uncountRetry).toHaveBeenCalledWith(GEN_ID, OWNER_ID);
+    expect(store.uncountRetry).not.toHaveBeenCalled();
+  });
+
+  it("a refused input (400) is reported, and the retry stays counted: the same input fails the same way", async () => {
+    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    store.resetForRetry.mockResolvedValue(true);
+    fetchMock.mockResolvedValue(
+      fakeResponse({ error: "Prompt exceeds the 5,000 character limit." }, { ok: false, status: 400 })
+    );
+
+    const result = await retryGeneration(GEN_ID);
+    expect(result).toEqual({ success: false, error: "Prompt exceeds the 5,000 character limit." });
+    expect(store.uncountRetry).not.toHaveBeenCalled();
   });
 
   it("a failure to give the retry back is logged and does not change the answer", async () => {
-    store.getGenerationForUser.mockResolvedValue(baseGeneration() as never);
+    store.getGenerationForUser.mockResolvedValue(baseGeneration({ tier: 2 }) as never);
     store.resetForRetry.mockResolvedValue(true);
     store.uncountRetry.mockRejectedValue(new Error("connection reset"));
-    fetchMock.mockRejectedValue(new Error("engine unreachable"));
+    fetchMock.mockResolvedValue(fakeResponse({ error: "No completed payment." }, { ok: false, status: 402 }));
 
     const result = await retryGeneration(GEN_ID);
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: false, error: "No completed payment." });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "[retryGeneration] Could not give the retry back:",
       expect.objectContaining({ message: "connection reset" })

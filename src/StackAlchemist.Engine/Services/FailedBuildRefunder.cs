@@ -68,8 +68,10 @@ public sealed partial class FailedBuildRefunder(
         try
         {
             // Not on a caller's token: this decides a refund for a row that is already failed.
-            var row = await deliveryService.GetGenerationSnapshotAsync(generationId, CancellationToken.None);
-            return row is not null && row.RetryCount >= RetryLimit;
+            // The count alone, not the snapshot: a row whose JSON no longer parses must still be
+            // refunded when its retries are used up.
+            var retries = await deliveryService.GetRetryCountAsync(generationId, CancellationToken.None);
+            return retries >= RetryLimit;
         }
         catch (Exception ex)
         {

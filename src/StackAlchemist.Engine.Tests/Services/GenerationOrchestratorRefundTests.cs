@@ -152,12 +152,6 @@ public sealed class GenerationOrchestratorRefundTests
         await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
     }
 
-    private static GenerationSnapshot Row(string id, int retryCount, int attemptCount = 0) =>
-        new(id, "pending", 2, "simple", null, null, null, null, attemptCount, DateTimeOffset.UtcNow)
-        {
-            RetryCount = retryCount,
-        };
-
     [Fact]
     public async Task PaidBuild_RetryableFailureWithEveryRetryUsed_IsRefunded()
     {
@@ -166,8 +160,8 @@ public sealed class GenerationOrchestratorRefundTests
         var f = Build();
         LlmThrows(f, new HttpRequestException("upstream failed"));
         var request = Request(tier: 2);
-        f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(Row(request.GenerationId, retryCount: FailedBuildRefunder.RetryLimit));
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(FailedBuildRefunder.RetryLimit);
 
         await f.Sut.EnqueueAsync(request);
 
@@ -183,8 +177,8 @@ public sealed class GenerationOrchestratorRefundTests
         var f = Build();
         LlmThrows(f, new HttpRequestException("upstream failed"));
         var request = Request(tier: 2);
-        f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(Row(request.GenerationId, retryCount: 0, attemptCount: 3));
+        // The restart budget is a different column; the customer's own count is 0.
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>()).Returns(0);
 
         await f.Sut.EnqueueAsync(request);
 
@@ -192,15 +186,16 @@ public sealed class GenerationOrchestratorRefundTests
     }
 
     [Fact]
-    public async Task PaidBuild_RetryCountIsReadAtTheFailure_NotWhenTheRunStarted()
+    public async Task PaidBuild_RetryCountIsReadAtTheFailure_NotFromTheRowReadAtTheStart()
     {
-        // The row read at the start of the run fails (the store blinks) and comes back for the
-        // read at the failure. A count taken at the start would have been "none used".
+        // The row read at the start of the run fails (the store blinks). The count is read again,
+        // on its own, at the failure; a count taken from the start-of-run read would be "none used".
         var f = Build();
         LlmThrows(f, new HttpRequestException("upstream failed"));
         var request = Request(tier: 2);
         f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
-            .Returns((GenerationSnapshot?)null, Row(request.GenerationId, retryCount: 3));
+            .Returns((GenerationSnapshot?)null);
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>()).Returns(3);
 
         await f.Sut.EnqueueAsync(request);
 

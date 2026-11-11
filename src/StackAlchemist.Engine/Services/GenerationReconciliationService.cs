@@ -34,7 +34,8 @@ public sealed partial class GenerationReconciliationService(
 {
     private const int DefaultStaleMinutes = 15;
     private const int DefaultIntervalMinutes = 5;
-    private const int DefaultMaxAttempts = 3; // matches the frontend's attempt_count < 3 retry gate
+    // Automatic restarts per row. Not the customer's retries: those are retry_count, gated by the web.
+    private const int DefaultMaxAttempts = 3;
     private static readonly TimeSpan MaxBufferedWriteAge = TimeSpan.FromHours(1);
 
     // A Checkout Session can be paid for at most 24 hours after creation; an hour of slack covers

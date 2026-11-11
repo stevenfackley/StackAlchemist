@@ -613,20 +613,15 @@ export async function retryGeneration(
     },
     user.id
   );
-  // The retry was counted before the call, because the Engine reads the count the
-  // moment it accepts the build. Anything but an acceptance started nothing, and a
-  // retry that started nothing is not one of the owner's three: give it back.
-  if (!res?.ok) {
+  // 402: a paid build with no completed payment behind it (refunded, disputed). The
+  // Engine has failed the row again and will never build it, so this press started
+  // nothing: give the retry back.
+  if (res?.status === 402) {
     try {
       await getDataStore().uncountRetry(generationId, user.id);
     } catch (err) {
       console.error("[retryGeneration] Could not give the retry back:", err);
     }
-  }
-
-  // 402: a paid build with no completed payment behind it (refunded, disputed).
-  // The Engine has failed the row again with this same message.
-  if (res?.status === 402) {
     const body = await res.json().catch(() => ({}));
     return {
       success: false,
@@ -634,9 +629,21 @@ export async function retryGeneration(
     };
   }
 
-  // Not accepted for any other reason (Engine unreachable or busy, payment state
-  // unreadable): the row is pending, and the Engine's reconciler starts it once
-  // it goes stale. The page shows it as in progress, which it now is.
+  // 400: the Engine refused the input (a prompt over its limit) and failed the row.
+  // The same input fails the same way every time, so the retry stays counted:
+  // giving it back would offer a Retry that can never work.
+  if (res?.status === 400) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: typeof body.error === "string" ? body.error : "This build could not be retried.",
+    };
+  }
+
+  // Accepted, or no clear answer (Engine unreachable or busy, a timeout after it may
+  // have accepted, payment state unreadable). The retry stays counted either way: the
+  // row is pending, and if the Engine did not take it, its reconciler starts it once
+  // it goes stale. The page shows it as in progress, which it is.
   return { success: true };
 }
 

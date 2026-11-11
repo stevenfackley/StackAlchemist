@@ -220,6 +220,22 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
     }
 
     [Fact]
+    public async Task GetRetryCountAsync_reads_the_count_even_when_the_rows_json_does_not_fit()
+    {
+        if (!fx.Available) return;
+        var id = await fx.SeedGenerationAsync(status: "failed", tier: 2, attempts: 3);
+        // A schema the snapshot reader rejects (#425): the count must not depend on it.
+        await fx.ExecuteAsync(
+            "update stackalchemist.generations set retry_count = 2, schema_json = $1::jsonb where id = $2",
+            """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", id);
+        var sut = Sut();
+
+        (await sut.GetRetryCountAsync(id.ToString(), Ct)).Should().Be(2, "retry_count, not attempt_count");
+        (await sut.GetRetryCountAsync(Guid.NewGuid().ToString(), Ct)).Should().BeNull();
+        (await sut.GetRetryCountAsync("demo-not-a-uuid", Ct)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetStaleNonTerminalAsync_lists_only_old_non_terminal_rows()
     {
         if (!fx.Available) return;

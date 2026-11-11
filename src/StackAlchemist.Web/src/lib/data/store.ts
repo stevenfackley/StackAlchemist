@@ -63,14 +63,14 @@ export interface DataStore {
    * retry left (`retry_count` under MAX_RETRIES) flips back to pending, and
    * the retry is counted in the same write. Returns whether a row changed, so
    * of two concurrent retries exactly one gets `true` and one retry is spent.
-   * Counted before the Engine is called, because the Engine reads the count as
-   * soon as it accepts the build.
+   * Counted before the Engine is called: the compare-and-set is what stops two
+   * tabs from both starting a build.
    */
   resetForRetry(id: string, userId: string): Promise<boolean>;
   /**
-   * Gives back the retry that `resetForRetry` counted, when the Engine did not
-   * accept the build: a retry that started nothing is not one of the owner's
-   * three. Never goes below zero.
+   * Gives back the retry that `resetForRetry` counted, when the Engine refused
+   * the build for good (402: no completed payment) and will never run it. Never
+   * goes below zero.
    */
   uncountRetry(id: string, userId: string): Promise<void>;
   /**

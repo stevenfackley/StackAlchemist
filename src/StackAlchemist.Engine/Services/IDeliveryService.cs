@@ -41,6 +41,13 @@ public interface IDeliveryService
     Task<GenerationSnapshot?> GetGenerationSnapshotAsync(string generationId, CancellationToken ct);
 
     /// <summary>
+    /// How many times the owner has pressed Retry (<c>retry_count</c>), read on its own: unlike
+    /// <see cref="GetGenerationSnapshotAsync"/> it does not depend on the row's JSON columns
+    /// parsing. Null when no store is configured, the row is missing, or the read fails.
+    /// </summary>
+    Task<int?> GetRetryCountAsync(string generationId, CancellationToken ct);
+
+    /// <summary>
     /// Tier-0 (free Spark preview) terminal write: stores the generated file map in
     /// <c>preview_files_json</c> and flips the row to <c>success</c> in a single atomic
     /// write. No build, pack, R2 upload, or <c>download_url</c> — the frontend renders the

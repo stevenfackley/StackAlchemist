@@ -389,6 +389,25 @@ public sealed partial class PostgresDeliveryService(
         }
     }
 
+    public async Task<int?> GetRetryCountAsync(string generationId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(generationId, out var id))
+            return null;
+
+        try
+        {
+            await using var cmd = CreateCommand(
+                "select retry_count from stackalchemist.generations where id = $1", [new(id, NpgsqlDbType.Uuid)]);
+            return await cmd.ExecuteScalarAsync(ct) is int count ? count : null;
+        }
+        catch (Exception ex)
+        {
+            var (loggable, reason) = PostgresErrors.Redact(ex);
+            LogSnapshotReadFailed(logger, loggable, generationId, reason);
+            return null;
+        }
+    }
+
     public async Task<bool> TryPatchOnceAsync(
         string generationId, Dictionary<string, object?> payload, CancellationToken ct)
     {
