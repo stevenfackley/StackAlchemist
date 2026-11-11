@@ -34,8 +34,7 @@ internal static partial class ProgramLog
     [LoggerMessage(EventId = 408, Level = LogLevel.Information, Message = "Stripe event {Id} skipped: {Reason}")]
     public static partial void StripeEventSkipped(this ILogger logger, string id, string? reason);
 
-    [LoggerMessage(EventId = 409, Level = LogLevel.Error, Message = "Background generation dispatch failed for {GenerationId}")]
-    public static partial void GenerationDispatchFailed(this ILogger logger, Exception ex, string generationId);
+    // 409 moved to BackgroundGenerationDispatcher with the dispatch it logs.
 
     [LoggerMessage(EventId = 410, Level = LogLevel.Warning, Message = "Refused /api/generate for {GenerationId}: tier {Tier} has no completed payment")]
     public static partial void UnpaidGenerationRefused(this ILogger logger, string generationId, int tier);
