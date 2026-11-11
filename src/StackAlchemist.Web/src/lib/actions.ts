@@ -8,6 +8,7 @@ import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
 import { postToEngine } from "./engine-client";
 import { validatePersonalization, validateSchema } from "./generation-input";
+import { MAX_RETRIES } from "./generation-outcome";
 import { safeReturnTo } from "./proxy-utils";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
@@ -537,7 +538,8 @@ export async function getGeneration(generationId: string, demoTier?: Tier) {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    retryGeneration
-   Asks the Engine to retry a failed generation (up to 3 attempts).
+   Asks the Engine to retry a failed generation. Each retry is counted on the
+   row (resetForRetry), up to MAX_RETRIES.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function retryGeneration(
   generationId: string
@@ -573,8 +575,11 @@ export async function retryGeneration(
     return { success: false, error: "Generation not found." };
   }
 
-  if (gen.attempt_count >= 3) {
-    return { success: false, error: "Maximum retry attempts (3) reached. Please start a new generation." };
+  if (gen.attempt_count >= MAX_RETRIES) {
+    return {
+      success: false,
+      error: `You have used all ${MAX_RETRIES} retries for this build. Please start a new one.`,
+    };
   }
 
   if (gen.status !== "failed") {

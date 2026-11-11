@@ -1,8 +1,9 @@
-import { DrizzleQueryError, and, count, desc, eq, gt, gte, ne, sql } from "drizzle-orm";
+import { DrizzleQueryError, and, count, desc, eq, getTableColumns, gt, gte, lt, ne, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { getDb, type Db } from "@/db";
-import { generations, profiles } from "@/db/schema";
-import type { Generation } from "@/lib/types";
+import { generations, profiles, transactions } from "@/db/schema";
+import { MAX_RETRIES } from "@/lib/generation-outcome";
+import type { Generation, PaymentStatus } from "@/lib/types";
 import { DataStoreError, type DataStore, type NewGeneration, type ProfileSettingsRow, type ProfileUpsert } from "./store";
 
 // A malformed id would make Postgres raise 22P02 (invalid uuid); it is simply not found.
@@ -18,6 +19,26 @@ const SUMMARY_COLUMNS = {
   download_url: generations.download_url,
   created_at: generations.created_at,
 };
+
+/**
+ * The status of the payment behind a generation, for its owner's result page.
+ * A build can have several transactions (an abandoned checkout, then a paid
+ * one). A completed one wins, because that is what the Engine's payment gate
+ * looks for; then a refund in progress, a finished refund, a dispute, and last
+ * anything else. null when the build has no transaction.
+ *
+ * The outer row is written out as "generations"."id", not interpolated from the Drizzle
+ * column: with no join Drizzle renders a column bare ("id"), which inside this subquery binds
+ * to the transaction's own id and matches nothing. The integration test caught exactly that.
+ */
+const PAYMENT_STATUS = sql<PaymentStatus | null>`(
+  select t.status from ${transactions} t
+  where t.generation_id = "generations"."id"
+  order by case t.status
+    when 'completed' then 0 when 'refund_pending' then 1 when 'refunded' then 2 when 'disputed' then 3 else 4
+  end, t.created_at desc
+  limit 1
+)`;
 
 /**
  * Drizzle 0.45 wraps every driver failure in a DrizzleQueryError whose message is
@@ -119,7 +140,8 @@ export class DrizzleStore implements DataStore {
   async getGenerationForUser(id: string, userId: string): Promise<Generation | null> {
     if (!UUID.test(id) || !UUID.test(userId)) return null;
     try {
-      const [row] = await this.db.select().from(generations)
+      const [row] = await this.db.select({ ...getTableColumns(generations), payment_status: PAYMENT_STATUS })
+        .from(generations)
         .where(and(eq(generations.id, id), eq(generations.user_id, userId))).limit(1);
       return row ?? null;
     } catch (e) { throw new DataStoreError("generations select failed", driverError(e)); }
@@ -129,8 +151,11 @@ export class DrizzleStore implements DataStore {
     if (!UUID.test(id) || !UUID.test(userId)) return false;
     try {
       const rows = await this.db.update(generations)
-        .set({ status: "pending", error_message: null })
-        .where(and(eq(generations.id, id), eq(generations.user_id, userId), eq(generations.status, "failed")))
+        .set({ status: "pending", error_message: null, attempt_count: sql`${generations.attempt_count} + 1` })
+        .where(and(
+          eq(generations.id, id), eq(generations.user_id, userId), eq(generations.status, "failed"),
+          lt(generations.attempt_count, MAX_RETRIES),
+        ))
         .returning({ id: generations.id });
       return rows.length === 1;
     } catch (e) { throw new DataStoreError("generations update failed", driverError(e)); }

@@ -107,13 +107,13 @@ describe("actions.ts — retryGeneration (configured)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses to retry once the max attempt count (3) is reached", async () => {
+  it("refuses to retry once all 3 retries are used", async () => {
     store.getGenerationForUser.mockResolvedValue(baseGeneration({ attempt_count: 3 }) as never);
 
     const result = await retryGeneration(GEN_ID);
     expect(result).toEqual({
       success: false,
-      error: "Maximum retry attempts (3) reached. Please start a new generation.",
+      error: "You have used all 3 retries for this build. Please start a new one.",
     });
     expect(store.resetForRetry).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
