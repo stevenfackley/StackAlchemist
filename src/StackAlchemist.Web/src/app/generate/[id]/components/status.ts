@@ -1,3 +1,4 @@
+import { TIERS, tierPriceLabel } from "@/lib/tiers";
 import type { Generation, Tier } from "@/lib/types";
 
 export const STATUS_STEPS: Generation["status"][] = [
@@ -49,15 +50,11 @@ export function isFreeGeneration(gen: Generation): boolean {
   return gen.tier === 0;
 }
 
-export const TIER_NAMES: Record<number, string> = {
-  0: "Spark",
-  1: "Blueprint",
-  2: "Boilerplate",
-  3: "Infrastructure",
-};
-
-export const PAID_TIERS: { id: Tier; name: string; price: string; tagline: string }[] = [
-  { id: 1, name: "Blueprint", price: "$299", tagline: "Schema + API docs, no code" },
-  { id: 2, name: "Boilerplate", price: "$599", tagline: "Full source + Compile Guarantee" },
-  { id: 3, name: "Infrastructure", price: "$999", tagline: "Everything + IaC + Runbook" },
+const PAID_TIER_TAGLINES: [Tier, string][] = [
+  [1, "Schema + API docs, no code"],
+  [2, "Full source + Compile Guarantee"],
+  [3, "Everything + IaC + Runbook"],
 ];
+
+export const PAID_TIERS: { id: Tier; name: string; price: string; tagline: string }[] =
+  PAID_TIER_TAGLINES.map(([id, tagline]) => ({ id, name: TIERS[id].name, price: tierPriceLabel(id), tagline }));

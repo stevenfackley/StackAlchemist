@@ -4,7 +4,8 @@ import { Loader2 } from "lucide-react";
 import type { Generation } from "@/lib/types";
 import { BuildLogConsole } from "@/components/build-log-console";
 import { SectionErrorBoundary } from "@/components/error-boundary";
-import { STATUS_LABELS, STATUS_DESCRIPTIONS, TIER_NAMES, isFreeGeneration } from "./status";
+import { tierName } from "@/lib/tiers";
+import { STATUS_LABELS, STATUS_DESCRIPTIONS, isFreeGeneration } from "./status";
 import { ProgressStepper } from "./progress-stepper";
 
 export function InProgressPanel({ generation }: { generation: Generation }) {
@@ -34,7 +35,7 @@ export function InProgressPanel({ generation }: { generation: Generation }) {
               : "bg-accent text-white"
           }`}
         >
-          {isFree ? "SPARK" : TIER_NAMES[generation.tier]}
+          {isFree ? "SPARK" : tierName(generation.tier)}
         </div>
       </div>
 

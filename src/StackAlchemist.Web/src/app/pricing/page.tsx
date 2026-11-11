@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ContentHeader } from "@/components/content-header";
 import { pricingProductJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { SITE_URL } from "@/lib/constants";
+import { TIERS } from "@/lib/tiers";
 
 export const metadata: Metadata = {
   title: "Pricing — One Payment, Own It Forever",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 // exactly that — the run, not an imagined generation.
 const freeTier = {
   id: "spark",
-  name: "Spark",
+  name: TIERS[0].name,
   tagline: "Take the Workflow for a Lap",
   price: "Free",
   description:
@@ -40,9 +41,9 @@ const freeTier = {
 const tiers = [
   {
     id: "blueprint",
-    name: "Blueprint",
+    name: TIERS[1].name,
     tagline: "The Architecture",
-    price: 299,
+    price: TIERS[1].priceUsd,
     description:
       "Your data model and API contract, written down. No code — the documents you hand to a stakeholder, drop into an RFP, or give to the engineer who is going to build it.",
     items: [
@@ -59,9 +60,9 @@ const tiers = [
   },
   {
     id: "boilerplate",
-    name: "Boilerplate",
+    name: TIERS[2].name,
     tagline: "The Foundation",
-    price: 599,
+    price: TIERS[2].priceUsd,
     description:
       "A complete, download-ready source repository shaped around your schema. Both halves are put through their real compilers before it ships — or we correct and rebuild, up to three times.",
     items: [
@@ -80,9 +81,9 @@ const tiers = [
   },
   {
     id: "infrastructure",
-    name: "Infrastructure",
+    name: TIERS[3].name,
     tagline: "The Kingdom",
-    price: 999,
+    price: TIERS[3].priceUsd,
     description:
       "The Boilerplate repository plus the infrastructure to put it in a cloud. Two IaC paths, a Kubernetes chart, and a runbook complete enough to hand to a junior engineer.",
     items: [

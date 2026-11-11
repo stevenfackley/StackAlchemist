@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CheckCircle2, Download, Loader2, MinusCircle, XCircle } from "lucide-react";
 import type { Generation } from "@/lib/types";
 import { parseBuildReportSummary, type BuildHalfStatus } from "@/lib/build-report";
-import { TIER_NAMES } from "./status";
+import { tierName } from "@/lib/tiers";
 
 /**
  * Tier 1 (Blueprint) is schema + API docs. Nothing in it is compiled, so it is not sold
@@ -34,7 +34,7 @@ const HALF_LABELS: Record<BuildHalfStatus, string> = {
 };
 
 export function PaidTierPanel({ generation }: { generation: Generation }) {
-  const tierName = TIER_NAMES[generation.tier] ?? "Unknown";
+  const name = tierName(generation.tier);
 
   // The badge is driven by what the compile worker actually recorded, not by the fact that
   // a row reached "success". It used to read "Compile Verified" unconditionally — on
@@ -69,7 +69,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
       {/* Heading */}
       <div className="text-center space-y-2 max-w-lg">
         <h2 className="text-2xl font-bold text-white tracking-tight">
-          Your {tierName} is Ready
+          Your {name} is Ready
         </h2>
         <p className="text-slate-400 text-sm leading-relaxed">
           {generation.tier === 1
@@ -90,7 +90,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
       <div className="w-full max-w-md rounded-xl border border-slate-600/30 bg-slate-700/20 divide-y divide-slate-700/40">
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Tier</span>
-          <span className="font-mono text-xs text-accent font-bold">{tierName}</span>
+          <span className="font-mono text-xs text-accent font-bold">{name}</span>
         </div>
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Mode</span>
@@ -144,7 +144,7 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
             className="flex items-center gap-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3.5 text-sm font-medium hover:shadow-[0_0_24px_rgba(16,185,129,0.35)] transition-all duration-300"
           >
             <Download className="h-5 w-5" />
-            Download {tierName} Package
+            Download {name} Package
           </a>
           <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">
             Link expires in 168 hours (7 days)
