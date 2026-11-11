@@ -151,13 +151,22 @@ export class DrizzleStore implements DataStore {
     if (!UUID.test(id) || !UUID.test(userId)) return false;
     try {
       const rows = await this.db.update(generations)
-        .set({ status: "pending", error_message: null, attempt_count: sql`${generations.attempt_count} + 1` })
+        .set({ status: "pending", error_message: null, retry_count: sql`${generations.retry_count} + 1` })
         .where(and(
           eq(generations.id, id), eq(generations.user_id, userId), eq(generations.status, "failed"),
-          lt(generations.attempt_count, MAX_RETRIES),
+          lt(generations.retry_count, MAX_RETRIES),
         ))
         .returning({ id: generations.id });
       return rows.length === 1;
+    } catch (e) { throw new DataStoreError("generations update failed", driverError(e)); }
+  }
+
+  async uncountRetry(id: string, userId: string): Promise<void> {
+    if (!UUID.test(id) || !UUID.test(userId)) return;
+    try {
+      await this.db.update(generations)
+        .set({ retry_count: sql`${generations.retry_count} - 1` })
+        .where(and(eq(generations.id, id), eq(generations.user_id, userId), gt(generations.retry_count, 0)));
     } catch (e) { throw new DataStoreError("generations update failed", driverError(e)); }
   }
 

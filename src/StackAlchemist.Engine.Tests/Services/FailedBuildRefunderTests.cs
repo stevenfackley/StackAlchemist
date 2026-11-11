@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
 
 namespace StackAlchemist.Engine.Tests.Services;
@@ -29,15 +30,64 @@ public sealed class FailedBuildRefunderTests
     public void ShouldRefund_PaidTierAndACategoryWithNoRetry(int tier, string category, bool expected) =>
         FailedBuildRefunder.ShouldRefund(tier, category).Should().Be(expected);
 
+    private static GenerationSnapshot Row(int retryCount, int attemptCount = 0) =>
+        new("gen-1", "failed", 2, "advanced", null, null, null, null, attemptCount, DateTimeOffset.UtcNow)
+        {
+            RetryCount = retryCount,
+        };
+
     [Theory]
-    // At the attempt limit the result page still shows Retry, but the web refuses it.
+    // Every retry used: the web refuses another, so the customer has nothing left to press.
     [InlineData(2, ErrorCategorizer.Network, 3, true)]
     [InlineData(2, ErrorCategorizer.Schema, 4, true)]
     [InlineData(2, ErrorCategorizer.Network, 2, false)]
     [InlineData(0, ErrorCategorizer.Network, 3, false)]
-    public void ShouldRefund_ARetryableCategoryAtTheAttemptLimitHasNoRetryLeft(
-        int tier, string category, int attemptCount, bool expected) =>
-        FailedBuildRefunder.ShouldRefund(tier, category, attemptCount).Should().Be(expected);
+    public async Task ShouldRefundAsync_ARetryableCategoryWithEveryRetryUsedHasNoRetryLeft(
+        int tier, string category, int retryCount, bool expected)
+    {
+        _delivery.GetGenerationSnapshotAsync("gen-1", Arg.Any<CancellationToken>()).Returns(Row(retryCount));
+
+        (await Sut().ShouldRefundAsync("gen-1", tier, category)).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ShouldRefundAsync_AutomaticRestartsAreNotTheCustomersRetries()
+    {
+        // Three deploys restarted this build. The customer has pressed Retry once, and can again.
+        _delivery.GetGenerationSnapshotAsync("gen-1", Arg.Any<CancellationToken>())
+            .Returns(Row(retryCount: 1, attemptCount: 3));
+
+        (await Sut().ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Network)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ShouldRefundAsync_ACategoryWithNoRetryNeedsNoRow()
+    {
+        (await Sut().ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Internal)).Should().BeTrue();
+        await _delivery.DidNotReceiveWithAnyArgs().GetGenerationSnapshotAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task ShouldRefundAsync_ReadsTheCountOnATokenTheStoppingHostCannotCancel()
+    {
+        _delivery.GetGenerationSnapshotAsync("gen-1", Arg.Any<CancellationToken>()).Returns(Row(retryCount: 3));
+
+        await Sut().ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Network);
+
+        await _delivery.Received(1).GetGenerationSnapshotAsync("gen-1", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ShouldRefundAsync_WhenTheRowCannotBeRead_RefundsNothingOnAGuess()
+    {
+        _delivery.GetGenerationSnapshotAsync("gen-missing", Arg.Any<CancellationToken>())
+            .Returns((GenerationSnapshot?)null);
+        _delivery.GetGenerationSnapshotAsync("gen-throws", Arg.Any<CancellationToken>())
+            .Returns<Task<GenerationSnapshot?>>(_ => throw new InvalidOperationException("db down"));
+
+        (await Sut().ShouldRefundAsync("gen-missing", 2, ErrorCategorizer.Network)).Should().BeFalse();
+        (await Sut().ShouldRefundAsync("gen-throws", 2, ErrorCategorizer.Network)).Should().BeFalse();
+    }
 
     [Theory]
     // Must match RETRYABLE in src/StackAlchemist.Web/src/lib/generation-outcome.ts (a web test checks it).

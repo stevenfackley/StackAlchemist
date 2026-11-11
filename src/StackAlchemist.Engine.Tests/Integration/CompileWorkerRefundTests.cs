@@ -182,19 +182,45 @@ public class CompileWorkerRefundTests
     }
 
     [Fact]
-    public async Task WorkerThrows_RetryableCategoryAtTheAttemptLimit_IsRefunded()
+    public async Task WorkerThrows_RetryableCategoryWithEveryRetryUsed_IsRefunded()
     {
-        // The page shows Retry for a network failure, but the web refuses a retry once the
-        // reconciler has re-enqueued the row three times.
-        var job = MakeJob(tier: 2, attemptCount: FailedBuildRefunder.RetryAttemptLimit);
+        // A network failure is retryable, but the customer has pressed Retry three times and the
+        // web refuses a fourth.
+        var job = MakeJob(tier: 2);
         var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
         var refund = Substitute.For<IRefundService>();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationSnapshotAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(new GenerationSnapshot(
+                job.GenerationId, "building", 2, "advanced", null, null, null, null, 0, DateTimeOffset.UtcNow)
+            {
+                RetryCount = FailedBuildRefunder.RetryLimit,
+            });
 
         await RunWorkerAsync(
             job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,
-            Substitute.For<IDeliveryService>(), Substitute.For<IEmailService>(), refund);
+            delivery, Substitute.For<IEmailService>(), refund);
 
         await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task WorkerThrows_RetryableCategory_AfterThreeAutomaticRestarts_IsNotRefunded()
+    {
+        // Restarts by the reconciler are not the customer's retries: they still have all three.
+        var job = MakeJob(tier: 2);
+        var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var refund = Substitute.For<IRefundService>();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationSnapshotAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(new GenerationSnapshot(
+                job.GenerationId, "building", 2, "advanced", null, null, null, null, 3, DateTimeOffset.UtcNow));
+
+        await RunWorkerAsync(
+            job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,
+            delivery, Substitute.For<IEmailService>(), refund);
+
+        await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
     }
 
     [Fact]
@@ -291,12 +317,11 @@ public class CompileWorkerRefundTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static GenerationContext MakeJob(int tier, int attemptCount = 0) => new()
+    private static GenerationContext MakeJob(int tier) => new()
     {
         GenerationId = "refund-" + Guid.NewGuid(),
         Mode = "advanced",
         Tier = tier,
-        AttemptCount = attemptCount,
         ProjectType = ProjectType.DotNetNextJs,
         Prompt = "Build a Product CRUD app",
         OutputDirectory = MakeTempOutputDir(),

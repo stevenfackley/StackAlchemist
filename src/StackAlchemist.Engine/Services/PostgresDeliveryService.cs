@@ -49,7 +49,7 @@ public sealed partial class PostgresDeliveryService(
     };
 
     private const string SnapshotColumns =
-        "select id, status, tier, mode, prompt, project_type, schema_json, personalization_json, attempt_count, updated_at " +
+        "select id, status, tier, mode, prompt, project_type, schema_json, personalization_json, attempt_count, updated_at, retry_count " +
         "from stackalchemist.generations";
 
     // "Every status except the two terminal ones (success, failed)" — a restart can orphan a job
@@ -594,7 +594,8 @@ public sealed partial class PostgresDeliveryService(
             schemaJson: NullableString(r, 6),
             personalizationJson: NullableString(r, 7),
             attemptCount: r.IsDBNull(8) ? null : r.GetInt32(8),
-            updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9));
+            updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9))
+        with { RetryCount = RetryCountOf(r) };
 
     // Same row, none of the jsonb columns: what the reconciler needs to fail it and nothing more.
     private static GenerationSnapshot ReadUnreadableSnapshot(NpgsqlDataReader r) =>
@@ -603,7 +604,11 @@ public sealed partial class PostgresDeliveryService(
             status: NullableString(r, 1),
             tier: r.IsDBNull(2) ? null : r.GetInt32(2),
             attemptCount: r.IsDBNull(8) ? null : r.GetInt32(8),
-            updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9));
+            updatedAt: r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9))
+        with { RetryCount = RetryCountOf(r) };
+
+    // Column 10 of SnapshotColumns: the owner's retries, apart from the reconciler's attempt_count.
+    private static int RetryCountOf(NpgsqlDataReader r) => r.IsDBNull(10) ? 0 : r.GetInt32(10);
 
     private static string? NullableString(NpgsqlDataReader r, int ordinal) =>
         r.IsDBNull(ordinal) ? null : r.GetString(ordinal);

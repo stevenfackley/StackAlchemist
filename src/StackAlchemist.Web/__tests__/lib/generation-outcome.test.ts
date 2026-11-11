@@ -11,10 +11,10 @@ import { GENERATION_ERROR_CATEGORIES, type GenerationErrorCategory, type Payment
 function failed(over: {
   tier?: Tier;
   error_category?: GenerationErrorCategory | null;
-  attempt_count?: number;
+  retry_count?: number;
   payment_status?: PaymentStatus | null;
 }) {
-  return { tier: 2 as Tier, error_category: "network" as GenerationErrorCategory | null, attempt_count: 0, ...over };
+  return { tier: 2 as Tier, error_category: "network" as GenerationErrorCategory | null, retry_count: 0, ...over };
 }
 
 describe("failureOutcome — free builds", () => {
@@ -32,18 +32,18 @@ describe("failureOutcome — free builds", () => {
   });
 
   it("counts retries down and stops offering one when they are used", () => {
-    expect(failureOutcome(failed({ tier: 0, attempt_count: 2 }))).toMatchObject({ canRetry: true, retriesLeft: 1 });
-    expect(failureOutcome(failed({ tier: 0, attempt_count: 3 }))).toEqual({
+    expect(failureOutcome(failed({ tier: 0, retry_count: 2 }))).toMatchObject({ canRetry: true, retriesLeft: 1 });
+    expect(failureOutcome(failed({ tier: 0, retry_count: 3 }))).toEqual({
       canRetry: false, retriesLeft: 0, retriesUsedUp: true, payment: "none",
     });
-    // The reconciler can push the count past the limit.
-    expect(failureOutcome(failed({ tier: 0, attempt_count: 5 })).retriesLeft).toBe(0);
+    // A count past the limit never shows a negative number of retries.
+    expect(failureOutcome(failed({ tier: 0, retry_count: 5 })).retriesLeft).toBe(0);
   });
 });
 
 describe("failureOutcome — paid builds", () => {
   it("payment in place and a retry left: Retry, and the payment is kept", () => {
-    expect(failureOutcome(failed({ payment_status: "completed", attempt_count: 1 }))).toEqual({
+    expect(failureOutcome(failed({ payment_status: "completed", retry_count: 1 }))).toEqual({
       canRetry: true, retriesLeft: 2, retriesUsedUp: false, payment: "kept",
     });
   });
@@ -65,8 +65,36 @@ describe("failureOutcome — paid builds", () => {
   });
 
   it("retries used up with the payment still in place: no Retry, a refund is on its way", () => {
-    expect(failureOutcome(failed({ payment_status: "completed", attempt_count: MAX_RETRIES }))).toEqual({
+    expect(failureOutcome(failed({ payment_status: "completed", retry_count: MAX_RETRIES }))).toEqual({
       canRetry: false, retriesLeft: 0, retriesUsedUp: true, payment: "refund_expected",
+    });
+  });
+
+  describe("a refund that is expected but not recorded", () => {
+    const now = Date.parse("2026-11-11T12:00:00Z");
+    const stuck = (updated_at: string) =>
+      failureOutcome({ ...failed({ payment_status: "completed", error_category: "internal" }), updated_at }, now);
+
+    it("is on its way while the failure is recent: the Engine starts it within seconds", () => {
+      expect(stuck("2026-11-11T11:59:30Z").payment).toBe("refund_expected");
+      expect(stuck("2026-11-11T11:45:00Z").payment).toBe("refund_expected");
+    });
+
+    it("is overdue once the failure is old: nothing stands behind 'starts automatically' any more", () => {
+      // A refund attempt that failed, or a build that failed before automatic refunds existed.
+      expect(stuck("2026-11-11T11:44:59Z").payment).toBe("refund_overdue");
+      expect(stuck("2026-10-01T00:00:00Z")).toMatchObject({ canRetry: false, payment: "refund_overdue" });
+    });
+
+    it("with no timestamp it stays 'expected': the page claims the weaker thing", () => {
+      expect(failureOutcome(failed({ payment_status: "completed", error_category: "internal" }), now).payment)
+        .toBe("refund_expected");
+    });
+
+    it("an old failure that can still be retried is not overdue: nothing is owed yet", () => {
+      expect(
+        failureOutcome({ ...failed({ payment_status: "completed" }), updated_at: "2026-10-01T00:00:00Z" }, now)
+      ).toMatchObject({ canRetry: true, payment: "kept" });
     });
   });
 
@@ -107,8 +135,8 @@ describe("the Engine's copy of these rules", () => {
     expect(engineNoRetry).toEqual(webNoRetry);
   });
 
-  it("FailedBuildRefunder.RetryAttemptLimit is MAX_RETRIES", () => {
-    const match = /const int RetryAttemptLimit = (\d+);/.exec(engine("FailedBuildRefunder.cs"));
+  it("FailedBuildRefunder.RetryLimit is MAX_RETRIES", () => {
+    const match = /const int RetryLimit = (\d+);/.exec(engine("FailedBuildRefunder.cs"));
     expect(Number(match?.[1])).toBe(MAX_RETRIES);
   });
 });

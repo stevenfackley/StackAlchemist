@@ -48,7 +48,14 @@ public sealed class GenerationOrchestratorRefundTests
 
         var llm = Substitute.For<ILlmClient>();
         var delivery = Substitute.For<IDeliveryService>();
+        // The refund call is observed on a substitute; the decision is the real rule, reading the
+        // same delivery service the orchestrator uses.
         var refunder = Substitute.For<IFailedBuildRefunder>();
+        var rule = new FailedBuildRefunder(
+            Substitute.For<IRefundService>(), delivery, Substitute.For<IEmailService>(),
+            NullLogger<FailedBuildRefunder>.Instance);
+        refunder.ShouldRefundAsync(default!, default, default!).ReturnsForAnyArgs(call =>
+            rule.ShouldRefundAsync(call.ArgAt<string>(0), call.ArgAt<int>(1), call.ArgAt<string>(2)));
         var inFlight = new InFlightGenerationRegistry();
         var queue = Channel.CreateUnbounded<GenerationContext>();
 
@@ -145,18 +152,55 @@ public sealed class GenerationOrchestratorRefundTests
         await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
     }
 
+    private static GenerationSnapshot Row(string id, int retryCount, int attemptCount = 0) =>
+        new(id, "pending", 2, "simple", null, null, null, null, attemptCount, DateTimeOffset.UtcNow)
+        {
+            RetryCount = retryCount,
+        };
+
     [Fact]
-    public async Task PaidBuild_RetryableFailureAtTheAttemptLimit_IsRefunded()
+    public async Task PaidBuild_RetryableFailureWithEveryRetryUsed_IsRefunded()
     {
-        // The reconciler has re-enqueued this row three times. The result page will show Retry
-        // for a network failure, but the web refuses a retry at attempt_count 3.
+        // The customer has pressed Retry three times. A network failure is retryable, but the
+        // web refuses a fourth retry, so there is nothing left for them to press.
         var f = Build();
         LlmThrows(f, new HttpRequestException("upstream failed"));
         var request = Request(tier: 2);
         f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(new GenerationSnapshot(
-                request.GenerationId, "pending", 2, "simple", null, null, null, null,
-                FailedBuildRefunder.RetryAttemptLimit, DateTimeOffset.UtcNow));
+            .Returns(Row(request.GenerationId, retryCount: FailedBuildRefunder.RetryLimit));
+
+        await f.Sut.EnqueueAsync(request);
+
+        await f.Refunder.Received(1).TryRefundAsync(
+            request.GenerationId, 2, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PaidBuild_RestartedThreeTimesByDeploys_StillHasItsRetries_AndIsNotRefunded()
+    {
+        // attempt_count is the reconciler's restart budget. Counting it against the customer
+        // refunded a build they could still retry, and told them they had used retries they had not.
+        var f = Build();
+        LlmThrows(f, new HttpRequestException("upstream failed"));
+        var request = Request(tier: 2);
+        f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(Row(request.GenerationId, retryCount: 0, attemptCount: 3));
+
+        await f.Sut.EnqueueAsync(request);
+
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task PaidBuild_RetryCountIsReadAtTheFailure_NotWhenTheRunStarted()
+    {
+        // The row read at the start of the run fails (the store blinks) and comes back for the
+        // read at the failure. A count taken at the start would have been "none used".
+        var f = Build();
+        LlmThrows(f, new HttpRequestException("upstream failed"));
+        var request = Request(tier: 2);
+        f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
+            .Returns((GenerationSnapshot?)null, Row(request.GenerationId, retryCount: 3));
 
         await f.Sut.EnqueueAsync(request);
 

@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Generation, PaymentStatus, Tier } from "@/lib/types";
 
@@ -13,7 +13,7 @@ vi.mock("@/lib/hooks/use-generation-status", () => ({
     watch.onUpdate = options.onUpdate;
   },
 }));
-vi.mock("@/lib/actions", () => ({ retryGeneration: vi.fn() }));
+vi.mock("@/lib/actions", () => ({ retryGeneration: vi.fn(), getGeneration: vi.fn() }));
 vi.mock("@/lib/runtime-config", () => ({ isDemoMode: false }));
 vi.mock("@/app/generate/[id]/components/generate-header", () => ({ GenerateHeader: () => null }));
 vi.mock("next/link", () => ({
@@ -23,6 +23,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { GenerateClientPage } from "@/app/generate/[id]/GenerateClientPage";
+import { getGeneration, retryGeneration } from "@/lib/actions";
 
 function failedGeneration(payment_status: PaymentStatus | null, overrides: Partial<Generation> = {}): Generation {
   return {
@@ -42,8 +43,10 @@ function failedGeneration(payment_status: PaymentStatus | null, overrides: Parti
     error_message: "boom",
     error_category: "internal",
     attempt_count: 0,
+    retry_count: 0,
     created_at: "2026-11-11T00:00:00Z",
-    updated_at: "2026-11-11T00:00:00Z",
+    // Just failed: the Engine's refund, when one is due, is still on its way.
+    updated_at: new Date().toISOString(),
     completed_at: "2026-11-11T00:00:00Z",
     payment_status,
     ...overrides,
@@ -98,6 +101,29 @@ describe("GenerateClientPage — watching a failed paid build for its refund", (
   ])("does not watch a failed build with %s", (_name, generation) => {
     render(<GenerateClientPage initialGeneration={generation} generationId="gen-1" />);
     expect(watching()).toBe(false);
+  });
+
+  it("re-reads the row when a retry is refused, so the page stops offering what was just refused", async () => {
+    vi.useRealTimers();
+    // The page last saw the payment in place. It was refunded since: the Engine answers 402.
+    vi.mocked(retryGeneration).mockResolvedValue({ success: false, error: "This build has no completed payment." });
+    vi.mocked(getGeneration).mockResolvedValue(failedGeneration("refunded", { error_category: "network" }));
+    render(
+      <GenerateClientPage
+        initialGeneration={failedGeneration("completed", { error_category: "network" })}
+        generationId="gen-1"
+      />
+    );
+    expect(screen.getByTestId("payment-outcome")).toHaveAttribute("data-outcome", "kept");
+
+    fireEvent.click(screen.getByRole("button", { name: /^retry$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("payment-outcome")).toHaveAttribute("data-outcome", "refunded")
+    );
+    expect(getGeneration).toHaveBeenCalledWith("gen-1");
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("This build has no completed payment.");
   });
 
   it("watches a build that is still in progress, as before", () => {

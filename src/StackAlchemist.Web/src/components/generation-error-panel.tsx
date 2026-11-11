@@ -80,6 +80,7 @@ const PAYMENT_HEADING: Partial<Record<PaymentOutcome, string>> = {
   kept: "Your payment",
   refunded: "You are being refunded",
   refund_expected: "You will be refunded",
+  refund_overdue: "We owe you a refund",
   disputed: "Payment under dispute",
   unpaid: "No completed payment",
 };
@@ -115,6 +116,13 @@ function PaymentNote({ outcome, generationId }: { outcome: FailureOutcome; gener
             <GenerationId id={generationId} />
           </>
         )}
+        {outcome.payment === "refund_overdue" && (
+          <>
+            This build should have been refunded automatically, and the refund has not gone out.
+            Write to <Support /> and we will refund it.
+            <GenerationId id={generationId} />
+          </>
+        )}
         {outcome.payment === "disputed" && (
           <>
             This payment is under dispute with your card issuer, so the build can&apos;t be
@@ -144,7 +152,10 @@ export interface GenerationErrorPanelProps {
     id: string;
     error_category?: GenerationErrorCategory | null;
     error_message: string | null;
-    attempt_count: number;
+    /** Retries the owner has used. Absent = none. */
+    retry_count?: number;
+    /** When the row last changed: for a failed row, when it failed. */
+    updated_at?: string;
     tier?: Tier;
     payment_status?: PaymentStatus | null;
   };
@@ -182,7 +193,8 @@ export function GenerationErrorPanel({
   const outcome = failureOutcome({
     tier: generation?.tier ?? 0,
     error_category: category,
-    attempt_count: generation?.attempt_count ?? 0,
+    retry_count: generation?.retry_count,
+    updated_at: generation?.updated_at,
     payment_status: generation?.payment_status,
   });
 

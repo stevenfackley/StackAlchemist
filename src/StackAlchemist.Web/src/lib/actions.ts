@@ -575,7 +575,7 @@ export async function retryGeneration(
     return { success: false, error: "Generation not found." };
   }
 
-  if (gen.attempt_count >= MAX_RETRIES) {
+  if (gen.retry_count >= MAX_RETRIES) {
     return {
       success: false,
       error: `You have used all ${MAX_RETRIES} retries for this build. Please start a new one.`,
@@ -613,6 +613,17 @@ export async function retryGeneration(
     },
     user.id
   );
+  // The retry was counted before the call, because the Engine reads the count the
+  // moment it accepts the build. Anything but an acceptance started nothing, and a
+  // retry that started nothing is not one of the owner's three: give it back.
+  if (!res?.ok) {
+    try {
+      await getDataStore().uncountRetry(generationId, user.id);
+    } catch (err) {
+      console.error("[retryGeneration] Could not give the retry back:", err);
+    }
+  }
+
   // 402: a paid build with no completed payment behind it (refunded, disputed).
   // The Engine has failed the row again with this same message.
   if (res?.status === 402) {
@@ -623,6 +634,9 @@ export async function retryGeneration(
     };
   }
 
+  // Not accepted for any other reason (Engine unreachable or busy, payment state
+  // unreadable): the row is pending, and the Engine's reconciler starts it once
+  // it goes stale. The page shows it as in progress, which it now is.
   return { success: true };
 }
 

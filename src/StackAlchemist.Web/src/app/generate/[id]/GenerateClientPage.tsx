@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { retryGeneration } from "@/lib/actions";
+import { getGeneration, retryGeneration } from "@/lib/actions";
 import { failureOutcome } from "@/lib/generation-outcome";
 import { useGenerationStatus } from "@/lib/hooks/use-generation-status";
 import type { Generation } from "@/lib/types";
@@ -80,6 +80,16 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
         // Without this the spinner stops and nothing else changes: a retry refused
         // for a refunded payment or an expired session looked like a dead button.
         setRetryError(result.error ?? "The retry could not be started. Please try again in a moment.");
+
+        // A refusal usually means the row is not what this page last saw (the payment was
+        // refunded or disputed since). Read it again, so the page stops offering a Retry and
+        // saying the payment is in place right next to the reason it was refused.
+        try {
+          const fresh = await getGeneration(generationId);
+          if (fresh) setGeneration(fresh);
+        } catch {
+          // The message above stands; the next page load shows the current state.
+        }
       }
     });
   }

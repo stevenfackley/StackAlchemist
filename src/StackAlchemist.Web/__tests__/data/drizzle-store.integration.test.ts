@@ -119,20 +119,46 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
       await sql`update stackalchemist.generations set status = 'failed', error_message = 'boom' where id = ${g.id}`;
       expect(await store.resetForRetry(g.id, alice)).toBe(true);
       const row = await store.getGenerationForUser(g.id, alice);
-      expect(row).toMatchObject({ status: "pending", attempt_count: used, error_message: null });
+      // The owner's retries are counted on their own: the Engine's restart budget is untouched.
+      expect(row).toMatchObject({ status: "pending", retry_count: used, attempt_count: 0, error_message: null });
     }
 
     await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
     expect(await store.resetForRetry(g.id, alice)).toBe(false);
     // Refused means untouched: still failed, and the count has not moved.
-    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ status: "failed", attempt_count: 3 });
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ status: "failed", retry_count: 3 });
+  });
+
+  it("automatic restarts by the Engine do not use up the owner's retries", async () => {
+    const g = await gen(alice);
+    // Three re-enqueues by the reconciler, then a failure.
+    await sql`update stackalchemist.generations set status = 'failed', attempt_count = 3 where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, alice)).toBe(true);
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ retry_count: 1, attempt_count: 3 });
   });
 
   it("a refused retry (someone else's row) spends nothing", async () => {
     const g = await gen(alice);
     await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
     expect(await store.resetForRetry(g.id, bob)).toBe(false);
-    expect((await store.getGenerationForUser(g.id, alice))?.attempt_count).toBe(0);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(0);
+  });
+
+  it("a retry that started nothing is given back, to its owner only, and never below zero", async () => {
+    const g = await gen(alice);
+    await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, alice)).toBe(true);
+
+    await store.uncountRetry(g.id, bob);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(1);
+
+    await store.uncountRetry(g.id, alice);
+    // Only the count moves: the row stays pending for the Engine's reconciler to start.
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ retry_count: 0, status: "pending" });
+
+    await store.uncountRetry(g.id, alice);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(0);
+    await expect(store.uncountRetry("not-a-uuid", alice)).resolves.toBeUndefined();
   });
 
   describe("payment_status on the owner's row", () => {
@@ -183,7 +209,9 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
       const g = await gen(alice);
       await pay(g.id, alice, "completed");
       const row = await store.getGenerationForUser(g.id, alice);
-      expect(row).toMatchObject({ id: g.id, user_id: alice, tier: 1, status: "pending", attempt_count: 0, prompt: "p" });
+      expect(row).toMatchObject({
+        id: g.id, user_id: alice, tier: 1, status: "pending", attempt_count: 0, retry_count: 0, prompt: "p",
+      });
       expect(row!.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
     });
   });

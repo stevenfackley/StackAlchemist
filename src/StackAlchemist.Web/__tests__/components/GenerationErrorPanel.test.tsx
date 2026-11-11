@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
 const baseGeneration = {
   id: "gen-abc-123",
   error_message: null,
-  attempt_count: 1,
+  retry_count: 1,
   error_category: null as GenerationErrorCategory | null,
 };
 
@@ -65,7 +65,7 @@ describe("GenerationErrorPanel — build category", () => {
   it("says the code did not compile after the automatic corrections, not a retry count", () => {
     render(
       <GenerationErrorPanel
-        generation={{ ...baseGeneration, error_category: "build", attempt_count: 0, tier: 2, payment_status: "refund_pending" }}
+        generation={{ ...baseGeneration, error_category: "build", retry_count: 0, tier: 2, payment_status: "refund_pending" }}
       />
     );
     expect(screen.getByRole("heading", { name: /did not compile/i })).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("GenerationErrorPanel — build category", () => {
 });
 
 describe("GenerationErrorPanel — what happened to the payment", () => {
-  const paid = { ...baseGeneration, tier: 2 as const, attempt_count: 0 };
+  const paid = { ...baseGeneration, tier: 2 as const, retry_count: 0 };
 
   it("refund started: says so plainly, tells the customer to do nothing, and offers no Retry", () => {
     render(
@@ -129,11 +129,30 @@ describe("GenerationErrorPanel — what happened to the payment", () => {
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
   });
 
+  it("an old failure whose refund never went out: does not promise it is on its way, says we owe it", () => {
+    render(
+      <GenerationErrorPanel
+        generation={{
+          ...paid, error_category: "internal", payment_status: "completed",
+          updated_at: "2026-10-01T00:00:00Z",
+        }}
+        onRetry={vi.fn()}
+      />
+    );
+    const note = screen.getByTestId("payment-outcome");
+    expect(note).toHaveAttribute("data-outcome", "refund_overdue");
+    expect(note).toHaveTextContent(/we owe you a refund/i);
+    expect(note).toHaveTextContent(/has not gone out/i);
+    expect(note).not.toHaveTextContent(/starts automatically/i);
+    expect(note).toHaveTextContent("gen-abc-123");
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+  });
+
   it("payment in place and retries left: Retry, says retrying is free, and counts what is left", () => {
     const onRetry = vi.fn();
     render(
       <GenerationErrorPanel
-        generation={{ ...paid, error_category: "network", attempt_count: 1, payment_status: "completed" }}
+        generation={{ ...paid, error_category: "network", retry_count: 1, payment_status: "completed" }}
         onRetry={onRetry}
       />
     );
@@ -149,7 +168,7 @@ describe("GenerationErrorPanel — what happened to the payment", () => {
   it("the last retry is counted in the singular", () => {
     render(
       <GenerationErrorPanel
-        generation={{ ...paid, error_category: "network", attempt_count: 2, payment_status: "completed" }}
+        generation={{ ...paid, error_category: "network", retry_count: 2, payment_status: "completed" }}
         onRetry={vi.fn()}
       />
     );
@@ -159,7 +178,7 @@ describe("GenerationErrorPanel — what happened to the payment", () => {
   it("retries used up on a paid build: no Retry, says so, and says the refund is coming", () => {
     render(
       <GenerationErrorPanel
-        generation={{ ...paid, error_category: "network", attempt_count: 3, payment_status: "completed" }}
+        generation={{ ...paid, error_category: "network", retry_count: 3, payment_status: "completed" }}
         onRetry={vi.fn()}
       />
     );
@@ -209,7 +228,7 @@ describe("GenerationErrorPanel — encouragement to retry", () => {
   it("says retrying usually helps only while a Retry is on offer", () => {
     const { unmount } = render(
       <GenerationErrorPanel
-        generation={{ ...baseGeneration, tier: 0, error_category: "network", attempt_count: 0 }}
+        generation={{ ...baseGeneration, tier: 0, error_category: "network", retry_count: 0 }}
         onRetry={vi.fn()}
       />
     );
@@ -219,7 +238,7 @@ describe("GenerationErrorPanel — encouragement to retry", () => {
     // Every retry used: telling the customer that retrying helps would contradict the next line.
     render(
       <GenerationErrorPanel
-        generation={{ ...baseGeneration, tier: 0, error_category: "network", attempt_count: 3 }}
+        generation={{ ...baseGeneration, tier: 0, error_category: "network", retry_count: 3 }}
         onRetry={vi.fn()}
       />
     );
@@ -242,7 +261,7 @@ describe("GenerationErrorPanel — retries on a free build", () => {
   it("counts the retries left under the button", () => {
     render(
       <GenerationErrorPanel
-        generation={{ ...baseGeneration, tier: 0, error_category: "schema", attempt_count: 0 }}
+        generation={{ ...baseGeneration, tier: 0, error_category: "schema", retry_count: 0 }}
         onRetry={vi.fn()}
       />
     );
@@ -252,7 +271,7 @@ describe("GenerationErrorPanel — retries on a free build", () => {
   it("with every retry used, hides Retry and says to start a new build", () => {
     render(
       <GenerationErrorPanel
-        generation={{ ...baseGeneration, tier: 0, error_category: "schema", attempt_count: 3 }}
+        generation={{ ...baseGeneration, tier: 0, error_category: "schema", retry_count: 3 }}
         onRetry={vi.fn()}
       />
     );

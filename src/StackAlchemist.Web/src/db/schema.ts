@@ -49,7 +49,11 @@ export const generations = sa.table(
     preview_files_json: jsonb("preview_files_json").$type<Record<string, string>>(),
     build_log: text("build_log"),
     error_message: text("error_message"),
+    // How many times the Engine's reconciler has re-enqueued the row (its restart budget).
     attempt_count: integer("attempt_count").notNull().default(0),
+    // How many times the owner has pressed Retry. Kept apart from attempt_count so a deploy
+    // that restarts a build does not spend one of the customer's retries.
+    retry_count: integer("retry_count").notNull().default(0),
     created_at: timestamptz("created_at").notNull().default(sql`now()`),
     updated_at: timestamptz("updated_at").notNull().default(sql`now()`),
     completed_at: timestamptz("completed_at"),

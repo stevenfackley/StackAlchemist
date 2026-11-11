@@ -102,8 +102,10 @@ export interface Generation {
   build_log: string | null;
   error_message: string | null;
   error_category: GenerationErrorCategory | null;
-  /** Retries used: raised by each user retry and each re-enqueue by the Engine's reconciler. */
+  /** How many times the Engine's reconciler has re-enqueued the row (a restart cut the build off). */
   attempt_count: number;
+  /** How many times the owner has pressed Retry. The customer's retries, and nothing else. */
+  retry_count: number;
   created_at: string;
   updated_at: string;
   completed_at: string | null;

@@ -31,6 +31,7 @@ export function makeStore(): FakeStore {
     }),
     getGenerationForUser: vi.fn(async () => null),
     resetForRetry: vi.fn(async () => false),
+    uncountRetry: vi.fn(async () => {}),
     listMyGenerations: vi.fn(async () => ({ generations: [], total: 0 })),
     generationStats: vi.fn(async () => ({ total: 0, completed: 0, inProgress: 0 })),
   };

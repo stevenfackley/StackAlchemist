@@ -105,7 +105,6 @@ public sealed partial class GenerationOrchestrator(
             Prompt = request.Prompt,
             Schema = request.Schema,
             Personalization = request.Personalization,
-            AttemptCount = snapshot?.AttemptCount ?? 0,
         };
 
         Meters.Started.Add(1, BuildTags(request));
@@ -236,11 +235,11 @@ public sealed partial class GenerationOrchestrator(
                     BuildTags(request, stage: "orchestration", outcome: "failed"));
 
                 // A paid build that failed here with no retry left for the customer (a category
-                // the result page offers no Retry for, or a row at the attempt limit) leaves them
-                // charged with nothing to press. Any other failure is not refunded: the customer
-                // can retry, and a refund would make that retry answer 402.
+                // the result page offers no Retry for, or every retry used) leaves them charged
+                // with nothing to press. Any other failure is not refunded: the customer can
+                // retry, and a refund would make that retry answer 402.
                 if (refunder is not null
-                    && FailedBuildRefunder.ShouldRefund(request.Tier, category, context.AttemptCount))
+                    && await refunder.ShouldRefundAsync(request.GenerationId, request.Tier, category))
                 {
                     await refunder.TryRefundAsync(
                         request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);

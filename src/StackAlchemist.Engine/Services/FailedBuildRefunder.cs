@@ -22,6 +22,14 @@ public interface IFailedBuildRefunder
     /// only refunds a completed transaction, so an unpaid or already-refunded build is a no-op.
     /// </summary>
     Task TryRefundAsync(string generationId, int tier, RefundReason reason, CancellationToken ct);
+
+    /// <summary>
+    /// Whether a paid build that has just failed with this category leaves its customer no
+    /// retry: the category offers none, or the owner has used every retry. Reads the row's
+    /// retry count now, at the failure, not when the run started. Never throws; when the
+    /// count cannot be read the answer is false and nothing is refunded on a guess.
+    /// </summary>
+    Task<bool> ShouldRefundAsync(string generationId, int tier, string errorCategory);
 }
 
 /// <inheritdoc />
@@ -32,22 +40,43 @@ public sealed partial class FailedBuildRefunder(
     ILogger logger) : IFailedBuildRefunder
 {
     /// <summary>
-    /// The web refuses a retry once the row's <c>attempt_count</c> reaches this
-    /// (<c>MAX_RETRIES</c> in <c>lib/generation-outcome.ts</c>; a web test pins the two together).
-    /// Each user retry and each re-enqueue by the reconciler raises the count, and the
-    /// reconciler's own budget (<c>Generation:MaxAttempts</c>) defaults to the same number.
+    /// How many times the owner may retry a failed build: the web refuses a retry once the
+    /// row's <c>retry_count</c> reaches this (<c>MAX_RETRIES</c> in
+    /// <c>lib/generation-outcome.ts</c>; a web test pins the two together). The reconciler's
+    /// automatic restarts are counted apart, in <c>attempt_count</c>.
     /// </summary>
-    public const int RetryAttemptLimit = 3;
+    public const int RetryLimit = 3;
 
     /// <summary>
     /// The rule for a failure outside the build-retry loop: refund a paid tier only when the
-    /// customer has no retry left. That is a category the result page offers no Retry for, or a
-    /// row at the attempt limit, where the Retry button is shown but refused. Refunding a failure
-    /// the customer can retry would turn it into a lost sale: the refund takes the transaction
-    /// out of <c>completed</c>, and <see cref="PaidGenerationGate"/> then refuses the retry.
+    /// customer has no retry left. This overload covers the half that needs no row: a category
+    /// the result page offers no Retry for. <see cref="ShouldRefundAsync"/> adds the other half,
+    /// every retry used. Refunding a failure the customer can retry would turn it into a lost
+    /// sale: the refund takes the transaction out of <c>completed</c>, and
+    /// <see cref="PaidGenerationGate"/> then refuses the retry.
     /// </summary>
-    public static bool ShouldRefund(int tier, string errorCategory, int attemptCount = 0) =>
-        tier >= 1 && (!ErrorCategorizer.OffersRetry(errorCategory) || attemptCount >= RetryAttemptLimit);
+    public static bool ShouldRefund(int tier, string errorCategory) =>
+        tier >= 1 && !ErrorCategorizer.OffersRetry(errorCategory);
+
+    public async Task<bool> ShouldRefundAsync(string generationId, int tier, string errorCategory)
+    {
+        if (tier < 1)
+            return false;
+        if (!ErrorCategorizer.OffersRetry(errorCategory))
+            return true;
+
+        try
+        {
+            // Not on a caller's token: this decides a refund for a row that is already failed.
+            var row = await deliveryService.GetGenerationSnapshotAsync(generationId, CancellationToken.None);
+            return row is not null && row.RetryCount >= RetryLimit;
+        }
+        catch (Exception ex)
+        {
+            LogRetryCountUnreadable(logger, ex, generationId);
+            return false;
+        }
+    }
 
     public async Task TryRefundAsync(string generationId, int tier, RefundReason reason, CancellationToken ct)
     {
@@ -87,4 +116,7 @@ public sealed partial class FailedBuildRefunder(
 
     [LoggerMessage(EventId = 610, Level = LogLevel.Error, Message = "Refund attempt threw for failed generation {Id} ({Reason}); the generation stays failed and is NOT refunded")]
     private static partial void LogRefundAttemptFailed(ILogger logger, Exception ex, string id, RefundReason reason);
+
+    [LoggerMessage(EventId = 615, Level = LogLevel.Error, Message = "Could not read the retry count of failed generation {Id}; it is NOT refunded on a guess")]
+    private static partial void LogRetryCountUnreadable(ILogger logger, Exception ex, string id);
 }

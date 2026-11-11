@@ -73,11 +73,11 @@ public sealed partial class CompileWorkerService(
                     ct: stoppingToken);
 
                 // A paid build that died here with no retry left for the customer (a category
-                // the result page offers no Retry for, or a row at the attempt limit) leaves
-                // them charged with nothing to press. Not on stoppingToken: the row is already
-                // failed, and a host that starts stopping now would cancel the refund with
-                // nothing left to try it again.
-                if (FailedBuildRefunder.ShouldRefund(job.Tier, category, job.AttemptCount))
+                // the result page offers no Retry for, or every retry used) leaves them charged
+                // with nothing to press. Not on stoppingToken: the row is already failed, and
+                // a host that starts stopping now would cancel the refund with nothing left to
+                // try it again.
+                if (await _refunder.ShouldRefundAsync(job.GenerationId, job.Tier, category))
                 {
                     await _refunder.TryRefundAsync(
                         job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
