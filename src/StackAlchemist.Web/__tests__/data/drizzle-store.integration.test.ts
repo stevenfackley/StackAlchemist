@@ -136,6 +136,18 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     await expect(gen(alice, 0)).rejects.toThrow(/Free generation limit reached/);
   });
 
+  it("unpaid pending count: the caller's paid rows still pending, and no others", async () => {
+    await gen(alice, 1);
+    await gen(alice, 1);
+    await gen(alice, 0); // free tier: never waits for a checkout
+    await gen(bob, 1); // someone else's
+    const started = await gen(alice, 1);
+    await sql`update stackalchemist.generations set status = 'generating' where id = ${started.id}`;
+
+    expect(await store.countUnpaidPendingGenerations(alice)).toBe(2);
+    expect(await store.countUnpaidPendingGenerations(bob)).toBe(1);
+  });
+
   it("profile upsert: undefined leaves the key, null clears it", async () => {
     await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-sonnet-5-5", api_key_override: "v1:cipher" });
     await store.upsertProfile({ id: alice, email: "alice@example.test", preferred_model: "claude-haiku-4-5" });

@@ -1,4 +1,4 @@
-import { DrizzleQueryError, and, count, desc, eq, gte, ne, sql } from "drizzle-orm";
+import { DrizzleQueryError, and, count, desc, eq, gt, gte, ne, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { getDb, type Db } from "@/db";
 import { generations, profiles } from "@/db/schema";
@@ -71,6 +71,15 @@ export class DrizzleStore implements DataStore {
       const [{ n }] = await this.db.select({ n: count() }).from(generations).where(and(
         eq(generations.user_id, userId), eq(generations.tier, 0), ne(generations.status, "failed"),
         gte(generations.created_at, monthStartUtc.toISOString()),
+      ));
+      return n;
+    } catch (e) { throw new DataStoreError("generations count failed", driverError(e)); }
+  }
+
+  async countUnpaidPendingGenerations(userId: string): Promise<number> {
+    try {
+      const [{ n }] = await this.db.select({ n: count() }).from(generations).where(and(
+        eq(generations.user_id, userId), gt(generations.tier, 0), eq(generations.status, "pending"),
       ));
       return n;
     } catch (e) { throw new DataStoreError("generations count failed", driverError(e)); }

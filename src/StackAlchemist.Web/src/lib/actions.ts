@@ -7,6 +7,7 @@ import { getDataStore, type NewGeneration, type ProfileSettingsRow } from "./dat
 import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
 import { postToEngine } from "./engine-client";
+import { validatePersonalization, validateSchema } from "./generation-input";
 import { safeReturnTo } from "./proxy-utils";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
@@ -193,6 +194,12 @@ export async function saveProfileSettings(
 const FREE_TIER_MONTHLY_LIMIT = 5;
 
 /**
+ * Paid rows one account may have waiting for a checkout. Each click on Checkout
+ * makes a row; an abandoned one is failed by the Engine about a day later.
+ */
+const MAX_UNFINISHED_CHECKOUTS = 10;
+
+/**
  * The submit actions start the Engine straight away, so they build the free tier
  * only. A paid tier is started by the Stripe webhook once the payment completes
  * (createPendingGeneration, then createCheckoutSession). The tier is an argument
@@ -269,6 +276,21 @@ async function createGenerationRow(
     if (used >= FREE_TIER_MONTHLY_LIMIT) {
       return {
         error: `You've used all ${FREE_TIER_MONTHLY_LIMIT} free builds this month. Upgrade to unlock downloads, or wait until ${nextResetLabel()} when your free builds reset.`,
+      };
+    }
+  } else {
+    // A paid row waits for its checkout and costs nothing to create, so without a
+    // cap one account could fill the shared database with them. Fails open: a
+    // count that cannot be read must not stop a customer from paying.
+    let unfinished = 0;
+    try {
+      unfinished = await getDataStore().countUnpaidPendingGenerations(user.id);
+    } catch (error) {
+      console.error(`[${tag}] Pending count failed:`, error);
+    }
+    if (unfinished >= MAX_UNFINISHED_CHECKOUTS) {
+      return {
+        error: "You have several checkouts that were started and not finished. Please try again tomorrow, or contact support.",
       };
     }
   }
@@ -405,14 +427,9 @@ export async function submitAdvancedGeneration(
 ): Promise<SubmitGenerationResponse> {
   // Input validation runs BEFORE the demo short-circuit so a malformed schema
   // is rejected the same way in demo mode as in a live generation.
-  if (!schema.entities || schema.entities.length === 0) {
-    return { success: false, error: "Please define at least one entity before proceeding." };
-  }
-
-  for (const entity of schema.entities) {
-    if (!entity.name.trim()) {
-      return { success: false, error: "All entities must have a name." };
-    }
+  const invalid = validateSchema(schema) ?? validatePersonalization(personalization);
+  if (invalid) {
+    return { success: false, error: invalid };
   }
 
   if (isDemoMode || !hasDataStoreConfig() || !hasEngineConfig()) {
@@ -612,6 +629,17 @@ export async function createPendingGeneration(
   projectType: ProjectType = "DotNetNextJs",
   personalization?: PersonalizationData
 ): Promise<{ success: true; generationId: string } | { success: false; error: string }> {
+  // Checked before the row exists, so before the payment: the webhook builds
+  // whatever this row holds, and a schema that cannot be built would be found
+  // only after the customer was charged.
+  const sanitizedPrompt = sanitizePrompt(prompt ?? "");
+  const invalid =
+    (schema ? validateSchema(schema) : sanitizedPrompt ? null : "Please describe what you want to build.") ??
+    validatePersonalization(personalization);
+  if (invalid) {
+    return { success: false, error: invalid };
+  }
+
   if (isDemoMode || !hasDataStoreConfig()) {
     return { success: true, generationId: `demo-pending-${Date.now()}` };
   }
@@ -620,7 +648,7 @@ export async function createPendingGeneration(
     schema
       ? schema.entities.map((e) => e.name).join(", ") +
         ` — ${schema.entities.length} entities`
-      : (prompt ?? "").trim();
+      : sanitizedPrompt;
 
   const created = await createGenerationRow(
     "createPendingGeneration",

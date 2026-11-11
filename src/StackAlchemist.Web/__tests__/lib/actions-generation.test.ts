@@ -315,6 +315,66 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  // The Stripe webhook builds whatever the row holds. A schema refused here is
+  // refused before the payment; found later, it is a charge for a failed build.
+  it.each([
+    ["no entities", { entities: [], relationships: [], endpoints: [] }, "Please define at least one entity before proceeding."],
+    [
+      "two entities the Engine builds as one",
+      { ...VALID_SCHEMA, entities: [VALID_SCHEMA.entities[0], { ...VALID_SCHEMA.entities[0], name: "Widget-" }] },
+      'Two entities would both be built as "Widget". Give each entity its own name.',
+    ],
+  ] as const)("refuses a schema with %s, and saves nothing", async (_case, schema, error) => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+
+    const result = await createPendingGeneration("advanced", 2, undefined, schema as unknown as GenerationSchema);
+
+    expect(result).toEqual({ success: false, error });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("refuses a simple checkout with no prompt", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+
+    const result = await createPendingGeneration("simple", 2, "  \u0000 ");
+
+    expect(result).toEqual({ success: false, error: "Please describe what you want to build." });
+    expect(store.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("stores the prompt with control characters stripped", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.insertGeneration.mockResolvedValue({ id: "gen-pending-2" } as never);
+
+    await createPendingGeneration("simple", 2, "a recipe\u0000 app\u0007");
+
+    expect(store.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ prompt: "a recipe app" }));
+  });
+
+  it("refuses another checkout once ten are waiting unpaid", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countUnpaidPendingGenerations.mockResolvedValue(10);
+
+    const result = await createPendingGeneration("advanced", 2, undefined, VALID_SCHEMA);
+
+    expect(result).toEqual({
+      success: false,
+      error: "You have several checkouts that were started and not finished. Please try again tomorrow, or contact support.",
+    });
+    expect(store.countUnpaidPendingGenerations).toHaveBeenCalledWith(USER.id);
+    expect(store.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("still creates the row when the unpaid count cannot be read", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countUnpaidPendingGenerations.mockRejectedValue(new DataStoreError("generations count failed"));
+    store.insertGeneration.mockResolvedValue({ id: "gen-pending-3" } as never);
+
+    const result = await createPendingGeneration("advanced", 2, undefined, VALID_SCHEMA);
+
+    expect(result).toEqual({ success: true, generationId: "gen-pending-3" });
+  });
 });
 
 describe("actions.ts — the caller's profile row exists before the first insert", () => {

@@ -25,6 +25,7 @@ export function makeStore(): FakeStore {
     upsertProfile: vi.fn(async () => {}),
     ensureProfile: vi.fn(async () => {}),
     countFreeGenerationsThisMonth: vi.fn(async () => 0),
+    countUnpaidPendingGenerations: vi.fn(async () => 0),
     insertGeneration: vi.fn(async () => {
       throw new Error("insertGeneration was not arranged by this test");
     }),
