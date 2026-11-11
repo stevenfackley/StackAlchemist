@@ -1,8 +1,8 @@
 /**
- * GET /api/download/{id}: the owner of a delivered paid build is sent to a
+ * GET /download/{id}: the owner of a delivered paid build is sent to a
  * link signed for this click; nobody else is sent anywhere.
  */
-import { GET } from "@/app/api/download/[id]/route";
+import { GET } from "@/app/download/[id]/route";
 import { getDataStore } from "@/lib/data";
 import { getSessionUser } from "@/lib/session";
 import type { Generation } from "@/lib/types";
@@ -38,7 +38,7 @@ function delivered(overrides: Partial<Generation> = {}): Generation {
   } as Generation;
 }
 
-const get = (id = ID) => GET(new Request(`http://localhost/api/download/${id}`), { params: Promise.resolve({ id }) });
+const get = (id = ID) => GET(new Request(`http://localhost/download/${id}`), { params: Promise.resolve({ id }) });
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
@@ -55,7 +55,7 @@ afterEach(() => {
   consoleErrorSpy.mockRestore();
 });
 
-describe("GET /api/download/[id]", () => {
+describe("GET /download/[id]", () => {
   it("redirects the owner to a link the Engine signed for this click", async () => {
     store.getGenerationForUser.mockResolvedValue(delivered());
     fetchMock.mockResolvedValue(fakeResponse({ url: FRESH }));

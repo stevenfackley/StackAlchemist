@@ -4,8 +4,12 @@ import { hasDataStoreConfig, hasEngineConfig, isDemoMode } from "@/lib/runtime-c
 import { getSessionUser } from "@/lib/session";
 
 /**
- * GET /api/download/{generationId}: sends the owner of a delivered paid build
+ * GET /download/{generationId}: sends the owner of a delivered paid build
  * to a download link made for this click.
+ *
+ * Deliberately not under /api: the production nginx sends every /api/ path it
+ * has no explicit rule for to the Engine (docker/nginx.prod.conf), where this
+ * request would get a 401 and never reach the web app.
  *
  * The link the Engine stores on the row is signed once and stops working after
  * seven days, the longest a presigned link can last. The Download buttons used
