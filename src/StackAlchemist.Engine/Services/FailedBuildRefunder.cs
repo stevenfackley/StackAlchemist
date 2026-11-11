@@ -32,13 +32,21 @@ public sealed partial class FailedBuildRefunder(
     ILogger logger) : IFailedBuildRefunder
 {
     /// <summary>
-    /// The rule for a failure outside the build-retry loop: refund a paid tier only when the
-    /// result page offers no Retry for the failure's category. Refunding a failure the customer
-    /// can retry would turn it into a lost sale: the refund takes the transaction out of
-    /// <c>completed</c>, and <see cref="PaidGenerationGate"/> then refuses the retry.
+    /// The web's <c>retryGeneration</c> refuses a retry once the row's <c>attempt_count</c>
+    /// reaches this. Only the reconciler's re-enqueues raise that count, and its own budget
+    /// (<c>Generation:MaxAttempts</c>) defaults to the same number.
     /// </summary>
-    public static bool ShouldRefund(int tier, string errorCategory) =>
-        tier >= 1 && !ErrorCategorizer.OffersRetry(errorCategory);
+    public const int RetryAttemptLimit = 3;
+
+    /// <summary>
+    /// The rule for a failure outside the build-retry loop: refund a paid tier only when the
+    /// customer has no retry left. That is a category the result page offers no Retry for, or a
+    /// row at the attempt limit, where the Retry button is shown but refused. Refunding a failure
+    /// the customer can retry would turn it into a lost sale: the refund takes the transaction
+    /// out of <c>completed</c>, and <see cref="PaidGenerationGate"/> then refuses the retry.
+    /// </summary>
+    public static bool ShouldRefund(int tier, string errorCategory, int attemptCount = 0) =>
+        tier >= 1 && (!ErrorCategorizer.OffersRetry(errorCategory) || attemptCount >= RetryAttemptLimit);
 
     public async Task TryRefundAsync(string generationId, int tier, RefundReason reason, CancellationToken ct)
     {

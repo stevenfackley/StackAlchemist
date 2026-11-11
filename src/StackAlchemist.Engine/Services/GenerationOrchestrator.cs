@@ -93,6 +93,7 @@ public sealed partial class GenerationOrchestrator(
             Prompt = request.Prompt,
             Schema = request.Schema,
             Personalization = request.Personalization,
+            AttemptCount = snapshot?.AttemptCount ?? 0,
         };
 
         Meters.Started.Add(1, BuildTags(request));
@@ -201,33 +202,43 @@ public sealed partial class GenerationOrchestrator(
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
-            inFlight.Remove(request.GenerationId);
 
-            // Persist the terminal failure so the row leaves pending/in-progress and the UI
-            // shows the error. CancellationToken.None: a host that starts stopping right now
-            // must still record it.
-            var category = ErrorCategorizer.Categorize(ex);
-            await deliveryService.UpdateStatusAsync(
-                request.GenerationId,
-                GenerationState.Failed,
-                errorMessage: ex.Message,
-                errorCategory: category,
-                ct: CancellationToken.None);
-
-            LogOrchestrationFailed(logger, ex, request.GenerationId);
-
-            Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
-            Meters.DurationMs.Record(
-                (DateTimeOffset.UtcNow - context.StartedAt).TotalMilliseconds,
-                BuildTags(request, stage: "orchestration", outcome: "failed"));
-
-            // A paid build that failed here with a category the result page offers no Retry for
-            // leaves the customer charged with nothing to press. Any other category is not
-            // refunded: the customer can retry, and a refund would make that retry answer 402.
-            if (refunder is not null && FailedBuildRefunder.ShouldRefund(request.Tier, category))
+            try
             {
-                await refunder.TryRefundAsync(
-                    request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+                // Persist the terminal failure so the row leaves pending/in-progress and the UI
+                // shows the error. CancellationToken.None: a host that starts stopping right now
+                // must still record it.
+                var category = ErrorCategorizer.Categorize(ex);
+                await deliveryService.UpdateStatusAsync(
+                    request.GenerationId,
+                    GenerationState.Failed,
+                    errorMessage: ex.Message,
+                    errorCategory: category,
+                    ct: CancellationToken.None);
+
+                LogOrchestrationFailed(logger, ex, request.GenerationId);
+
+                Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - context.StartedAt).TotalMilliseconds,
+                    BuildTags(request, stage: "orchestration", outcome: "failed"));
+
+                // A paid build that failed here with no retry left for the customer (a category
+                // the result page offers no Retry for, or a row at the attempt limit) leaves them
+                // charged with nothing to press. Any other failure is not refunded: the customer
+                // can retry, and a refund would make that retry answer 402.
+                if (refunder is not null
+                    && FailedBuildRefunder.ShouldRefund(request.Tier, category, context.AttemptCount))
+                {
+                    await refunder.TryRefundAsync(
+                        request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+                }
+            }
+            finally
+            {
+                // Last, not first: until the failed status and the refund are done, the
+                // reconciler must not see this row as orphaned and re-enqueue it.
+                inFlight.Remove(request.GenerationId);
             }
         }
 

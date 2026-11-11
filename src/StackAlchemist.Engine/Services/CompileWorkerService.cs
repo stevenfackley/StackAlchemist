@@ -72,12 +72,15 @@ public sealed partial class CompileWorkerService(
                     errorCategory: category,
                     ct: stoppingToken);
 
-                // A paid build that died here with a category the result page offers no Retry
-                // for leaves the customer charged with nothing to press.
-                if (FailedBuildRefunder.ShouldRefund(job.Tier, category))
+                // A paid build that died here with no retry left for the customer (a category
+                // the result page offers no Retry for, or a row at the attempt limit) leaves
+                // them charged with nothing to press. Not on stoppingToken: the row is already
+                // failed, and a host that starts stopping now would cancel the refund with
+                // nothing left to try it again.
+                if (FailedBuildRefunder.ShouldRefund(job.Tier, category, job.AttemptCount))
                 {
                     await _refunder.TryRefundAsync(
-                        job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, stoppingToken);
+                        job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
                 }
             }
             finally
@@ -228,11 +231,12 @@ public sealed partial class CompileWorkerService(
                 // Compile Guarantee: paid tiers (1-3) get an automatic refund when the
                 // build is still failing after MaxRetries corrections. Best-effort: the
                 // refunder never throws, so a refund failure cannot crash the worker loop or
-                // reverse the Failed status written above.
+                // reverse the Failed status written above. Not on ct, for the same reason as
+                // the refund in ExecuteAsync's catch.
                 if (job.Tier >= 1)
                 {
                     await _refunder.TryRefundAsync(
-                        job.GenerationId, job.Tier, RefundReason.CompileRetriesExhausted, ct);
+                        job.GenerationId, job.Tier, RefundReason.CompileRetriesExhausted, CancellationToken.None);
                 }
 
                 return;
@@ -433,7 +437,8 @@ public sealed partial class CompileWorkerService(
 
         if (FailedBuildRefunder.ShouldRefund(job.Tier, ErrorCategorizer.Internal))
         {
-            await _refunder.TryRefundAsync(job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, ct);
+            await _refunder.TryRefundAsync(
+                job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
         }
     }
 

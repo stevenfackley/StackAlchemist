@@ -111,9 +111,29 @@ public sealed partial class GenerationReconciliationService(
             if (inFlight.Contains(row.Id))
                 continue;
 
-            // A paid tier that is still pending has not started; only a completed payment may
-            // start it. Unpaid: wait while the checkout can still complete, then fail the row.
-            if (row.Status == "pending" && row.Tier > 0 && !await IsPaidAsync(row.Id, ct))
+            // The job finished in this process and its terminal write (success with the download
+            // link, or failed) is still buffered after a store outage: the flush above could not
+            // land it this tick. The row is not orphaned. Failing it here would be overwritten by
+            // that write on a later tick, and for a paid row the refund below would by then have
+            // paid back a customer whose build was delivered. A write that ages out of the buffer
+            // is dropped, and the row then comes back to this sweep.
+            if (pendingWrites.HasPendingFor(row.Id))
+                continue;
+
+            // Only a completed payment may start, or restart, a paid tier. No billing store
+            // (local dev): a pending paid row can never be paid, and a started one is left to
+            // run, as PaidGenerationGate and the webhook do.
+            var payment = row.Tier > 0 && (billing is not null || row.Status == "pending")
+                ? await CheckPaymentAsync(row.Id, ct)
+                : Payment.Paid;
+
+            // The lookup failed: nothing is known, so nothing is built, failed or refunded.
+            if (payment == Payment.Unknown)
+                continue;
+
+            // A paid tier that is still pending has not started. Unpaid: wait while the checkout
+            // can still complete, then fail the row.
+            if (row.Status == "pending" && payment == Payment.Unpaid)
             {
                 if (timeProvider.GetUtcNow() - row.UpdatedAt > UnpaidCheckoutLifetime)
                 {
@@ -132,7 +152,10 @@ public sealed partial class GenerationReconciliationService(
                 continue;
             }
 
-            if (RequeueableStatuses.Contains(row.Status) && row.AttemptCount < maxAttempts)
+            // payment == Unpaid past this point means a started paid row whose payment is no
+            // longer completed: refunded or disputed while it was in flight. It is never rebuilt
+            // (that would deliver a refunded build); it falls through and is failed.
+            if (RequeueableStatuses.Contains(row.Status) && row.AttemptCount < maxAttempts && payment == Payment.Paid)
             {
                 if (!await deliveryService.TryClaimForRequeueAsync(row, staleWindow, ct))
                     continue; // another instance/tick won the claim, or the row progressed
@@ -165,31 +188,42 @@ public sealed partial class GenerationReconciliationService(
             // back. Only when this sweep won the write: a row that moved on is not ours to
             // refund. The unpaid checkout above never reaches here, and the refund service
             // refunds a completed transaction only.
+            // Not on ct: the row is already failed, and a host that starts stopping now would
+            // cancel the refund with nothing left to try it again.
             if (failed && refunder is not null && FailedBuildRefunder.ShouldRefund(row.Tier, ErrorCategorizer.Internal))
             {
-                await refunder.TryRefundAsync(row.Id, row.Tier, RefundReason.BuildCouldNotFinish, ct);
+                await refunder.TryRefundAsync(row.Id, row.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
             }
         }
     }
 
-    /// <summary>
-    /// True when a completed Stripe transaction backs the generation. No billing store (local dev)
-    /// means nothing can ever be paid; a lookup failure skips the row this tick rather than risk
-    /// building it unpaid.
-    /// </summary>
-    private async Task<bool> IsPaidAsync(string generationId, CancellationToken ct)
+    private enum Payment
+    {
+        /// <summary>A completed Stripe transaction backs the generation (or the tier is free).</summary>
+        Paid,
+
+        /// <summary>No completed transaction: never paid, refunded, or disputed. No billing store means nothing can ever be paid.</summary>
+        Unpaid,
+
+        /// <summary>The lookup failed. The row is skipped this tick rather than acted on blind.</summary>
+        Unknown,
+    }
+
+    private async Task<Payment> CheckPaymentAsync(string generationId, CancellationToken ct)
     {
         if (billing is null)
-            return false;
+            return Payment.Unpaid;
 
         try
         {
-            return await billing.FindCompletedTransactionAsync(generationId, ct) is not null;
+            return await billing.FindCompletedTransactionAsync(generationId, ct) is not null
+                ? Payment.Paid
+                : Payment.Unpaid;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogPaymentLookupFailed(logger, ex, generationId);
-            return false;
+            return Payment.Unknown;
         }
     }
 

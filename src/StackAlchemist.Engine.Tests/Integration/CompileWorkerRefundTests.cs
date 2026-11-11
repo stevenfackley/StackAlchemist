@@ -150,7 +150,9 @@ public class CompileWorkerRefundTests
         await delivery.Received(1).UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
             ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
-        await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, Arg.Any<CancellationToken>());
+        // CancellationToken.None, not the host's stopping token: the row is already failed, and a
+        // refund cancelled by a deploy would never be tried again.
+        await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
         await email.Received(1).SendAsync(
             "owner@example.com",
             EmailTemplates.RefundIssuedForUnfinishedBuild(2).Subject,
@@ -177,6 +179,22 @@ public class CompileWorkerRefundTests
             job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
             ErrorCategorizer.Network, Arg.Any<CancellationToken>());
         await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task WorkerThrows_RetryableCategoryAtTheAttemptLimit_IsRefunded()
+    {
+        // The page shows Retry for a network failure, but the web refuses a retry once the
+        // reconciler has re-enqueued the row three times.
+        var job = MakeJob(tier: 2, attemptCount: FailedBuildRefunder.RetryAttemptLimit);
+        var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var refund = Substitute.For<IRefundService>();
+
+        await RunWorkerAsync(
+            job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,
+            Substitute.For<IDeliveryService>(), Substitute.For<IEmailService>(), refund);
+
+        await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
     }
 
     [Fact]
@@ -273,11 +291,12 @@ public class CompileWorkerRefundTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static GenerationContext MakeJob(int tier) => new()
+    private static GenerationContext MakeJob(int tier, int attemptCount = 0) => new()
     {
         GenerationId = "refund-" + Guid.NewGuid(),
         Mode = "advanced",
         Tier = tier,
+        AttemptCount = attemptCount,
         ProjectType = ProjectType.DotNetNextJs,
         Prompt = "Build a Product CRUD app",
         OutputDirectory = MakeTempOutputDir(),

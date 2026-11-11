@@ -47,6 +47,14 @@ public sealed class GenerationContext
     public GenerationState State { get; set; } = GenerationState.Pending;
     public DateTimeOffset StartedAt { get; init; } = DateTimeOffset.UtcNow;
     public int RetryCount { get; set; }
+
+    /// <summary>
+    /// The row's <c>attempt_count</c> when this run started: how many times the reconciler has
+    /// re-enqueued the generation. Not <see cref="RetryCount"/>, which counts build corrections
+    /// inside one run. At the limit the web refuses a retry, so a failure is refunded.
+    /// </summary>
+    public int AttemptCount { get; init; }
+
     public List<string> BuildErrorHistory { get; } = [];
 
     /// <summary>

@@ -146,6 +146,58 @@ public sealed class GenerationOrchestratorRefundTests
     }
 
     [Fact]
+    public async Task PaidBuild_RetryableFailureAtTheAttemptLimit_IsRefunded()
+    {
+        // The reconciler has re-enqueued this row three times. The result page will show Retry
+        // for a network failure, but the web refuses a retry at attempt_count 3.
+        var f = Build();
+        LlmThrows(f, new HttpRequestException("upstream failed"));
+        var request = Request(tier: 2);
+        f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(new GenerationSnapshot(
+                request.GenerationId, "pending", 2, "simple", null, null, null, null,
+                FailedBuildRefunder.RetryAttemptLimit, DateTimeOffset.UtcNow));
+
+        await f.Sut.EnqueueAsync(request);
+
+        await f.Refunder.Received(1).TryRefundAsync(
+            request.GenerationId, 2, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FailedBuild_StaysInFlightUntilTheFailedStatusAndTheRefundAreDone()
+    {
+        // Released first, a sweep running during the failed write could see the row as orphaned
+        // and re-enqueue it, and the refund below would then pay back a build that goes on to
+        // deliver.
+        var f = Build();
+        LlmThrows(f, new InvalidOperationException("template bug"));
+        var request = Request(tier: 2);
+        var inFlightDuringWrite = false;
+        var inFlightDuringRefund = false;
+        f.Delivery.UpdateStatusAsync(
+                request.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                inFlightDuringWrite = f.InFlight.Contains(request.GenerationId);
+                return Task.CompletedTask;
+            });
+        f.Refunder.TryRefundAsync(request.GenerationId, 2, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                inFlightDuringRefund = f.InFlight.Contains(request.GenerationId);
+                return Task.CompletedTask;
+            });
+
+        await f.Sut.EnqueueAsync(request);
+
+        inFlightDuringWrite.Should().BeTrue();
+        inFlightDuringRefund.Should().BeTrue();
+        f.InFlight.Contains(request.GenerationId).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task CancelledByTheCallersToken_IsAnInterruption_NotAFailure()
     {
         // The host stopping (a deploy) cancels the token mid-codegen. Writing 'failed' made every

@@ -30,6 +30,16 @@ public sealed class FailedBuildRefunderTests
         FailedBuildRefunder.ShouldRefund(tier, category).Should().Be(expected);
 
     [Theory]
+    // At the attempt limit the result page still shows Retry, but the web refuses it.
+    [InlineData(2, ErrorCategorizer.Network, 3, true)]
+    [InlineData(2, ErrorCategorizer.Schema, 4, true)]
+    [InlineData(2, ErrorCategorizer.Network, 2, false)]
+    [InlineData(0, ErrorCategorizer.Network, 3, false)]
+    public void ShouldRefund_ARetryableCategoryAtTheAttemptLimitHasNoRetryLeft(
+        int tier, string category, int attemptCount, bool expected) =>
+        FailedBuildRefunder.ShouldRefund(tier, category, attemptCount).Should().Be(expected);
+
+    [Theory]
     // Must match showRetry in src/StackAlchemist.Web/src/components/generation-error-panel.tsx.
     [InlineData(ErrorCategorizer.Quota, false)]
     [InlineData(ErrorCategorizer.Schema, true)]

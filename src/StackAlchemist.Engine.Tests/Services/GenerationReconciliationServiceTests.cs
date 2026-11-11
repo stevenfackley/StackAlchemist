@@ -478,6 +478,115 @@ public sealed class GenerationReconciliationServiceTests
     }
 
     [Fact]
+    public async Task RunOnce_RefundDoesNotRideTheSweepsToken()
+    {
+        // The row is failed by the time the refund runs. On the sweep's token, a host that
+        // starts stopping in between cancels the refund, and nothing ever tries it again.
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
+        var row = StaleRow(status: "building", tier: 2);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+        using var sweep = new CancellationTokenSource();
+
+        await sut.RunOnceAsync(StaleWindow, sweep.Token);
+
+        await refunder.Received(1).TryRefundAsync(row.Id, 2, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunOnce_RowWithATerminalWriteStillBuffered_IsLeftAlone()
+    {
+        // The build finished and uploaded during a store outage; its success write is buffered
+        // and this tick's flush could not land it. Failing the row here would be overwritten by
+        // that write on the next tick, after the refund had already gone out.
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, orchestrator, _, buffer) = BuildSut(refunder: refunder);
+        var row = StaleRow(id: "gen-delivered", status: "uploading", tier: 2);
+        buffer.Enqueue(new PendingGenerationWrite(
+            "gen-delivered", new Dictionary<string, object?> { ["status"] = "success" }, DateTimeOffset.UtcNow));
+        delivery.TryPatchOnceAsync("gen-delivered", Arg.Any<Dictionary<string, object?>>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        buffer.HasPendingFor("gen-delivered").Should().BeTrue("the failed flush put the write back");
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── A started paid row is rebuilt only while its payment is still completed ──
+
+    [Fact]
+    public async Task RunOnce_StartedPaidRowStillPaid_IsRequeued()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-started", Arg.Any<CancellationToken>())
+            .Returns(new EligibleTransaction("tx-1", "pi_1"));
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-started", status: "generating_code");
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-started"), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("generating_code")]
+    [InlineData("generating")]
+    public async Task RunOnce_StartedPaidRowWhosePaymentIsNoLongerCompleted_IsFailedNotRebuilt(string status)
+    {
+        // Refunded (by the Engine after a failure whose failed write was lost, or from the Stripe
+        // dashboard) while the row sat in an in-progress status. Rebuilding it delivers a build
+        // nobody is paying for.
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-refunded", Arg.Any<CancellationToken>())
+            .Returns((EligibleTransaction?)null);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing);
+        var row = StaleRow(id: "gen-refunded", status: status);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("generating_code")]
+    [InlineData("building")]
+    public async Task RunOnce_StartedPaidRow_PaymentLookupThrows_IsSkippedThisTick(string status)
+    {
+        // Nothing is known about the payment, so the row is neither rebuilt, failed nor refunded.
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unknown", Arg.Any<CancellationToken>())
+            .Returns<EligibleTransaction?>(_ => throw new InvalidOperationException("db down"));
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, orchestrator, _, _) = BuildSut(billing: billing, refunder: refunder);
+        var row = StaleRow(id: "gen-unknown", status: status);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
     public async Task RunOnce_PaidRowThatMovedOnBeforeTheSweepCouldFailIt_IsNotRefunded()
     {
         // The conditional write lost: the row progressed (or another sweep took it). Refunding
