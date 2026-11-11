@@ -19,7 +19,7 @@ public sealed class StripeWebhookMoneyPathTests
     private readonly IGenerationOrchestrator _orchestrator = Substitute.For<IGenerationOrchestrator>();
 
     private StripeWebhookHandler Sut() =>
-        new(_orchestrator, _billing, Substitute.For<IEmailService>(), NullLogger<StripeWebhookHandler>.Instance);
+        new(new InlineGenerationDispatcher(_orchestrator), _billing, Substitute.For<IEmailService>(), NullLogger<StripeWebhookHandler>.Instance);
 
     private static Event SessionEvent(string type, string? paymentStatus, string prompt = "short prompt") => new()
     {

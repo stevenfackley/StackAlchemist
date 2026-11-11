@@ -135,8 +135,8 @@ public static class StripeEndpoints
 
         var result = await webhookHandler.HandleAsync(stripeEvent, ct);
 
-        // A retryable side-effect failure (idempotency log down, RPC failure, enqueue
-        // failure) must surface as 5xx — Stripe only redelivers on non-2xx responses.
+        // A retryable side-effect failure (idempotency log down, RPC failure, a failed status
+        // write) must surface as 5xx — Stripe only redelivers on non-2xx responses.
         if (result.Retry)
             return Results.StatusCode(StatusCodes.Status500InternalServerError);
 

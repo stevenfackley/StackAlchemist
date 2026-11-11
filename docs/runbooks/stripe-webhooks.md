@@ -40,7 +40,7 @@ The **signing secret** shown on that endpoint must equal the `STRIPE_WEBHOOK_SEC
 
 ## Checking delivery without paying
 
-1. **Dashboard:** open the endpoint and look at **Recent deliveries**. Every entry should be `200`. A `401` means the signing secret doesn't match. A `5xx` means the Engine asked Stripe to retry (`rpc_failed`, `enqueue_failed` or `idempotency_unavailable` in the Engine logs).
+1. **Dashboard:** open the endpoint and look at **Recent deliveries**. Every entry should be `200`. A `401` means the signing secret doesn't match. A `5xx` means the Engine asked Stripe to retry (`rpc_failed`, `status_write_failed` or `idempotency_unavailable` in the Engine logs). A paid build is started in the background after the `200`, so a build that fails does not show up here: look at the generation row.
 2. **Database (read-only):** the Engine records every event it accepts in `stackalchemist.stripe_events`, except `checkout.session.completed`, whose record is written by `process_checkout_completed`. Use `select type, count(*), max(processed_at) from stackalchemist.stripe_events group by type;` with the session URL from the credentials vault.
 3. **Zero-charge probe:** `.github/workflows/stripe-wiring-check.yml` (`workflow_dispatch`, Prod environment; approved by the owner 2026-10-03). Run it with `gh workflow run stripe-wiring-check.yml -f probe=true`.
    - **Read-only by default.** It lists the live endpoints and fails if none is enabled at the URL above with every event in the table.

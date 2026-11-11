@@ -68,7 +68,19 @@ public sealed partial class GenerationOrchestrator(
         // can upgrade the tier concurrently with (or just before) this enqueue — without
         // the re-read, a paid generation processes as the stale tier-0 Spark preview.
         // Never downgrade: the request tier wins when it is the higher of the two.
-        var snapshot = await deliveryService.GetGenerationSnapshotAsync(request.GenerationId, ct);
+        GenerationSnapshot? snapshot;
+        try
+        {
+            snapshot = await deliveryService.GetGenerationSnapshotAsync(request.GenerationId, ct);
+        }
+        catch
+        {
+            // Nothing has started and the row is untouched. Left registered, the id would hide
+            // the row from the reconciler for the life of the process.
+            inFlight.Remove(request.GenerationId);
+            throw;
+        }
+
         if (snapshot is not null && snapshot.Tier > request.Tier)
         {
             LogTierUpgradedFromRow(logger, request.GenerationId, request.Tier, snapshot.Tier);

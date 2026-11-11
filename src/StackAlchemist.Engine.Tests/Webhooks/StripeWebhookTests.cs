@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackAlchemist.Engine.Models;
@@ -30,7 +31,8 @@ public sealed class StripeWebhookTests
 
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
         var email = Substitute.For<IEmailService>();
-        var sut = new StripeWebhookHandler(orchestrator, billing, email, NullLogger<StripeWebhookHandler>.Instance);
+        var sut = new StripeWebhookHandler(
+            new InlineGenerationDispatcher(orchestrator), billing, email, NullLogger<StripeWebhookHandler>.Instance);
         return (sut, billing, orchestrator);
     }
 
@@ -329,62 +331,95 @@ public sealed class StripeWebhookTests
             Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task CheckoutCompleted_EnqueueThrows_CompensatesEventAndRetries()
+    /// <summary>The handler wired to the real background dispatcher, as production is.</summary>
+    private static (StripeWebhookHandler Sut, IBillingStore Billing, IGenerationOrchestrator Orchestrator, CancellationTokenSource AppStopping)
+        BuildSutWithBackgroundDispatch()
     {
-        var (sut, billing, orchestrator) = BuildSut();
+        var billing = Substitute.For<IBillingStore>();
         CheckoutReturns(billing, NewAdvancedCheckout);
 
-        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
-            .Returns<Task<GenerateResponse>>(_ => throw new InvalidOperationException("queue full"));
+        var appStopping = new CancellationTokenSource();
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        lifetime.ApplicationStopping.Returns(appStopping.Token);
 
-        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_2"), CancellationToken.None);
-
-        result.Processed.Should().BeFalse();
-        result.Retry.Should().BeTrue();
-
-        // Compensation: the event row is deleted so the checkout call sees a fresh insert on
-        // Stripe's redelivery instead of short-circuiting as a duplicate.
-        Received.InOrder(() =>
-        {
-            billing.ProcessCheckoutCompletedAsync(
-                "evt_comp_2", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
-                Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
-            billing.DeleteEventAsync("evt_comp_2", Arg.Any<CancellationToken>());
-        });
-        await billing.Received(1).DeleteEventAsync("evt_comp_2", Arg.Any<CancellationToken>());
+        var orchestrator = Substitute.For<IGenerationOrchestrator>();
+        var dispatcher = new BackgroundGenerationDispatcher(
+            orchestrator, lifetime, NullLogger<BackgroundGenerationDispatcher>.Instance);
+        var sut = new StripeWebhookHandler(
+            dispatcher, billing, Substitute.For<IEmailService>(), NullLogger<StripeWebhookHandler>.Instance);
+        return (sut, billing, orchestrator, appStopping);
     }
 
     [Fact]
-    public async Task CheckoutCompleted_EnqueueThrowsAfterRequestAborted_StillRunsCompensatingDelete()
+    public async Task CheckoutCompleted_AnswersStripeWithoutWaitingForTheBuild()
     {
-        // The enqueue can fail because the request was aborted. The compensation must not ride
-        // that token: a delete skipped on an already-cancelled token would leave the event
-        // recorded, and Stripe's redelivery would then report "duplicate" for a paid checkout.
-        // The abort happens inside the enqueue (the checkout call ran on a live token), so the
-        // delete must arrive on a token that is not cancelled.
-        var (sut, billing, orchestrator) = BuildSut();
-        CheckoutReturns(billing, NewAdvancedCheckout);
+        // A tier 2 or 3 build spends minutes in LLM code generation inside EnqueueAsync. Stripe
+        // expects its answer in seconds, so the handler must return while the build is running.
+        var (sut, _, orchestrator, appStopping) = BuildSutWithBackgroundDispatch();
+        using var _ = appStopping;
+        var buildStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var buildNeverFinishes = new TaskCompletionSource<GenerateResponse>();
+        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                buildStarted.SetResult();
+                return buildNeverFinishes.Task;
+            });
 
+        var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        result.Processed.Should().BeTrue();
+        result.Retry.Should().BeFalse();
+        await buildStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task CheckoutCompleted_RequestAbortedAfterTheAnswer_DoesNotCancelTheBuild()
+    {
+        // Stripe hanging up, or the proxy's read timeout, aborts the request token. The build
+        // runs on the app-lifetime token, so neither can cancel it.
+        var (sut, _, orchestrator, appStopping) = BuildSutWithBackgroundDispatch();
+        using var _ = appStopping;
+        var buildToken = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                buildToken.SetResult(call.ArgAt<CancellationToken>(1));
+                return new GenerateResponse { JobId = "gen-77", Status = "building" };
+            });
         using var requestAborted = new CancellationTokenSource();
+
+        await sut.HandleAsync(CheckoutCompletedEvent(), requestAborted.Token);
+        await requestAborted.CancelAsync();
+
+        var token = await buildToken.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        token.IsCancellationRequested.Should().BeFalse();
+        token.Should().Be(appStopping.Token);
+    }
+
+    [Fact]
+    public async Task CheckoutCompleted_BuildFailsToStart_KeepsThePaymentRecordedAndDoesNotAskForARetry()
+    {
+        // The payment and the event are already committed. Taking the event back out would make
+        // Stripe redeliver, but the build no longer runs on the delivery, so there is nothing for
+        // a redelivery to wait for: the row is pending and paid, and the reconciler starts it.
+        var (sut, billing, orchestrator, appStopping) = BuildSutWithBackgroundDispatch();
+        using var _ = appStopping;
+        var attempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         orchestrator.EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>())
             .Returns<Task<GenerateResponse>>(_ =>
             {
-                requestAborted.Cancel();
-                throw new OperationCanceledException(requestAborted.Token);
+                attempted.SetResult();
+                throw new InvalidOperationException("store unreachable");
             });
 
-        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_3"), requestAborted.Token);
+        var result = await sut.HandleAsync(CheckoutCompletedEvent("evt_comp_2"), CancellationToken.None);
+        await attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        requestAborted.IsCancellationRequested.Should().BeTrue();
-        result.Processed.Should().BeFalse();
-        result.Retry.Should().BeTrue();
-
-        await billing.Received(1).ProcessCheckoutCompletedAsync(
-            "evt_comp_3", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
-            Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
-        await billing.Received(1).DeleteEventAsync(
-            "evt_comp_3", Arg.Is<CancellationToken>(t => !t.IsCancellationRequested));
+        result.Processed.Should().BeTrue();
+        result.Retry.Should().BeFalse();
+        await billing.DidNotReceiveWithAnyArgs().DeleteEventAsync(default!, default);
     }
 
     [Fact]
@@ -394,7 +429,8 @@ public sealed class StripeWebhookTests
         // enqueued straight from the session metadata.
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
         var email = Substitute.For<IEmailService>();
-        var sut = new StripeWebhookHandler(orchestrator, billing: null, email, NullLogger<StripeWebhookHandler>.Instance);
+        var sut = new StripeWebhookHandler(
+            new InlineGenerationDispatcher(orchestrator), billing: null, email, NullLogger<StripeWebhookHandler>.Instance);
 
         var result = await sut.HandleAsync(CheckoutCompletedEvent(), CancellationToken.None);
 
