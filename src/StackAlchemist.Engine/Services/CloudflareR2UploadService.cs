@@ -19,20 +19,13 @@ public sealed partial class CloudflareR2UploadService(
         string directoryPath,
         CancellationToken ct = default)
     {
-        var accountId = config["CloudflareR2:AccountId"]
-            ?? throw new InvalidOperationException("CloudflareR2:AccountId is not configured.");
-        var accessKey = config["CloudflareR2:AccessKeyId"]
-            ?? throw new InvalidOperationException("CloudflareR2:AccessKeyId is not configured.");
-        var secretKey = config["CloudflareR2:SecretAccessKey"]
-            ?? throw new InvalidOperationException("CloudflareR2:SecretAccessKey is not configured.");
-        var bucket = config["CloudflareR2:BucketName"] ?? "stackalchemist-builds";
+        var (accountId, credentials, bucket) = ReadSettings();
         var expiryHours = int.TryParse(
             config["CloudflareR2:PresignedUrlExpiryHours"], out var h) ? h : 168;
 
-        var key = $"{generationId}/project.zip";
+        var key = ObjectKey(generationId);
 
         // ── 1. Verify bucket is reachable (fail-fast on misconfig) ───────────
-        var credentials = new BasicAWSCredentials(accessKey, secretKey);
         var s3Config = BuildS3Config(accountId);
         using var s3 = new AmazonS3Client(credentials, s3Config);
 
@@ -69,19 +62,46 @@ public sealed partial class CloudflareR2UploadService(
         }
 
         // ── 4. Generate a presigned download URL ─────────────────────────────
-        var presignRequest = new GetPreSignedUrlRequest
-        {
-            BucketName = bucket,
-            Key = key,
-            Expires = DateTime.UtcNow.AddHours(expiryHours),
-            Protocol = Protocol.HTTPS,
-            Verb = HttpVerb.GET,
-        };
-        var url = s3.GetPreSignedURL(presignRequest);
+        var url = Presign(s3, bucket, key, TimeSpan.FromHours(expiryHours));
 
         LogPresignedUrlCreated(logger, generationId, expiryHours);
         return url;
     }
+
+    /// <inheritdoc />
+    public string CreateDownloadUrl(string generationId, TimeSpan lifetime)
+    {
+        var (accountId, credentials, bucket) = ReadSettings();
+        using var s3 = new AmazonS3Client(credentials, BuildS3Config(accountId));
+        return Presign(s3, bucket, ObjectKey(generationId), lifetime);
+    }
+
+    /// <summary>Where a generation's archive lives in the bucket: the one place that spells the key.</summary>
+    private static string ObjectKey(string generationId) => $"{generationId}/project.zip";
+
+    private (string AccountId, BasicAWSCredentials Credentials, string Bucket) ReadSettings()
+    {
+        var accountId = config["CloudflareR2:AccountId"]
+            ?? throw new InvalidOperationException("CloudflareR2:AccountId is not configured.");
+        var accessKey = config["CloudflareR2:AccessKeyId"]
+            ?? throw new InvalidOperationException("CloudflareR2:AccessKeyId is not configured.");
+        var secretKey = config["CloudflareR2:SecretAccessKey"]
+            ?? throw new InvalidOperationException("CloudflareR2:SecretAccessKey is not configured.");
+        var bucket = config["CloudflareR2:BucketName"] ?? "stackalchemist-builds";
+
+        return (accountId, new BasicAWSCredentials(accessKey, secretKey), bucket);
+    }
+
+    /// <summary>Signed locally; no request is made.</summary>
+    private static string Presign(AmazonS3Client s3, string bucket, string key, TimeSpan lifetime) =>
+        s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = key,
+            Expires = DateTime.UtcNow.Add(lifetime),
+            Protocol = Protocol.HTTPS,
+            Verb = HttpVerb.GET,
+        });
 
     private async Task EnsureBucketExistsAsync(
         AmazonS3Client s3,
