@@ -78,6 +78,7 @@ public sealed class EngineDataSourceTests : IDisposable
         // The Stripe paths still resolve: their factories pass the missing store as null.
         factory.Services.GetRequiredService<IStripeWebhookHandler>().Should().BeOfType<StripeWebhookHandler>();
         factory.Services.GetRequiredService<IRefundService>().Should().BeOfType<StripeRefundService>();
+        factory.Services.GetRequiredService<IFailedBuildRefunder>().Should().BeOfType<FailedBuildRefunder>();
     }
 
     [Fact]

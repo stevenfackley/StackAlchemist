@@ -17,6 +17,13 @@ public static class ErrorCategorizer
     public const string Network = "network";
     public const string Internal = "internal";
 
+    /// <summary>
+    /// Whether the result page shows a Retry button for a failure of this category. Mirrors
+    /// <c>showRetry</c> in the web app's <c>generation-error-panel.tsx</c>; keep the two in step,
+    /// because a paid failure with no Retry is refunded (<see cref="FailedBuildRefunder.ShouldRefund"/>).
+    /// </summary>
+    public static bool OffersRetry(string category) => category is not (Internal or Quota);
+
     public static string Categorize(Exception ex) => ex switch
     {
         SchemaExtractionException or SchemaValidationException

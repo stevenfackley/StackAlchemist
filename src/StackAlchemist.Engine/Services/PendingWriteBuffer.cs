@@ -17,6 +17,9 @@ public interface IPendingWriteBuffer
     void Enqueue(PendingGenerationWrite write);
     bool TryDequeue(out PendingGenerationWrite? write);
     int Count { get; }
+
+    /// <summary>True while a write for this generation is still waiting to be flushed.</summary>
+    bool HasPendingFor(string generationId);
 }
 
 public sealed class PendingWriteBuffer : IPendingWriteBuffer
@@ -29,6 +32,10 @@ public sealed class PendingWriteBuffer : IPendingWriteBuffer
     private readonly ConcurrentQueue<PendingGenerationWrite> _queue = new();
 
     public int Count => _queue.Count;
+
+    // Enumerating a ConcurrentQueue reads a moment-in-time snapshot, so this is safe against
+    // concurrent Enqueue/TryDequeue. At most Capacity entries.
+    public bool HasPendingFor(string generationId) => _queue.Any(w => w.GenerationId == generationId);
 
     public void Enqueue(PendingGenerationWrite write)
     {

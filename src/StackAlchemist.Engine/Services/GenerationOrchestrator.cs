@@ -37,7 +37,9 @@ public sealed partial class GenerationOrchestrator(
     ILogger<GenerationOrchestrator> logger,
     // Optional so existing test fixtures construct without it → null resolver = global config
     // (unchanged). Production DI always injects the real resolver, enabling BYOK/model routing.
-    ILlmCredentialResolver? credentialResolver = null) : IGenerationOrchestrator
+    ILlmCredentialResolver? credentialResolver = null,
+    // Optional for the same reason. Null = a failed paid build is never refunded from here.
+    IFailedBuildRefunder? refunder = null) : IGenerationOrchestrator
 {
     private const string Tier0SparkTemplateSet = "V0-Spark-NextJs";
     private const string Tier3InfrastructureTemplateSet = "Tier3-Infrastructure";
@@ -103,6 +105,7 @@ public sealed partial class GenerationOrchestrator(
             Prompt = request.Prompt,
             Schema = request.Schema,
             Personalization = request.Personalization,
+            AttemptCount = snapshot?.AttemptCount ?? 0,
         };
 
         Meters.Started.Add(1, BuildTags(request));
@@ -198,27 +201,57 @@ public sealed partial class GenerationOrchestrator(
 
             LogGenerationEnqueued(logger, request.GenerationId, outputDir);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Cancelled by the caller's token: the host is stopping, or the request that started
+            // this was aborted. The generation did not fail, so no failed status and no refund.
+            // The row keeps the status it has (pending or generating_code), and the reconciler
+            // re-enqueues both once the row is stale: a restart costs a delay, not the build.
+            inFlight.Remove(request.GenerationId);
+            LogInterrupted(logger, request.GenerationId);
+        }
         catch (Exception ex)
         {
             context.State = GenerationState.Failed;
             context.ErrorMessage = ex.Message;
-            inFlight.Remove(request.GenerationId);
 
-            // Persist the terminal failure so the row leaves pending/in-progress and the UI
-            // shows the error. CancellationToken.None: a cancelled request must still record it.
-            await deliveryService.UpdateStatusAsync(
-                request.GenerationId,
-                GenerationState.Failed,
-                errorMessage: ex.Message,
-                errorCategory: ErrorCategorizer.Categorize(ex),
-                ct: CancellationToken.None);
+            try
+            {
+                // Persist the terminal failure so the row leaves pending/in-progress and the UI
+                // shows the error. CancellationToken.None: a host that starts stopping right now
+                // must still record it.
+                var category = ErrorCategorizer.Categorize(ex);
+                await deliveryService.UpdateStatusAsync(
+                    request.GenerationId,
+                    GenerationState.Failed,
+                    errorMessage: ex.Message,
+                    errorCategory: category,
+                    ct: CancellationToken.None);
 
-            LogOrchestrationFailed(logger, ex, request.GenerationId);
+                LogOrchestrationFailed(logger, ex, request.GenerationId);
 
-            Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
-            Meters.DurationMs.Record(
-                (DateTimeOffset.UtcNow - context.StartedAt).TotalMilliseconds,
-                BuildTags(request, stage: "orchestration", outcome: "failed"));
+                Meters.Failed.Add(1, BuildTags(request, stage: "orchestration"));
+                Meters.DurationMs.Record(
+                    (DateTimeOffset.UtcNow - context.StartedAt).TotalMilliseconds,
+                    BuildTags(request, stage: "orchestration", outcome: "failed"));
+
+                // A paid build that failed here with no retry left for the customer (a category
+                // the result page offers no Retry for, or a row at the attempt limit) leaves them
+                // charged with nothing to press. Any other failure is not refunded: the customer
+                // can retry, and a refund would make that retry answer 402.
+                if (refunder is not null
+                    && FailedBuildRefunder.ShouldRefund(request.Tier, category, context.AttemptCount))
+                {
+                    await refunder.TryRefundAsync(
+                        request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+                }
+            }
+            finally
+            {
+                // Last, not first: until the failed status and the refund are done, the
+                // reconciler must not see this row as orphaned and re-enqueue it.
+                inFlight.Remove(request.GenerationId);
+            }
         }
 
         return new GenerateResponse
@@ -568,4 +601,8 @@ public sealed partial class GenerationOrchestrator(
     [LoggerMessage(EventId = 207, Level = LogLevel.Information,
         Message = "Generation {Id} tier upgraded from {RequestTier} to {RowTier} — row tier is authoritative (Stripe webhook race)")]
     private static partial void LogTierUpgradedFromRow(ILogger logger, string id, int requestTier, int rowTier);
+
+    [LoggerMessage(EventId = 208, Level = LogLevel.Warning,
+        Message = "Generation {Id} interrupted during orchestration (host stopping or caller cancelled); left for the reconciler")]
+    private static partial void LogInterrupted(ILogger logger, string id);
 }
