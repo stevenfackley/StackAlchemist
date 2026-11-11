@@ -32,9 +32,10 @@ public sealed partial class FailedBuildRefunder(
     ILogger logger) : IFailedBuildRefunder
 {
     /// <summary>
-    /// The web's <c>retryGeneration</c> refuses a retry once the row's <c>attempt_count</c>
-    /// reaches this. Only the reconciler's re-enqueues raise that count, and its own budget
-    /// (<c>Generation:MaxAttempts</c>) defaults to the same number.
+    /// The web refuses a retry once the row's <c>attempt_count</c> reaches this
+    /// (<c>MAX_RETRIES</c> in <c>lib/generation-outcome.ts</c>; a web test pins the two together).
+    /// Each user retry and each re-enqueue by the reconciler raises the count, and the
+    /// reconciler's own budget (<c>Generation:MaxAttempts</c>) defaults to the same number.
     /// </summary>
     public const int RetryAttemptLimit = 3;
 

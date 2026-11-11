@@ -306,13 +306,58 @@ public sealed class GenerationReconciliationServiceTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task RunOnce_LateStageRow_FailsWithRestartMessage()
+    [Theory]
+    [InlineData("building")]
+    [InlineData("packing")]
+    [InlineData("uploading")]
+    public async Task RunOnce_LateStageRowCutOffByARestart_IsRunAgainFromTheTop(string status)
     {
-        // Row last updated BEFORE this process started → the engine restarted on it.
+        // Row last updated BEFORE this process started: a restart (every merge deploys prod) cut
+        // the job off. The temp directory is gone but the row has the prompt and schema, so the
+        // build runs again. Failing it would refund a sale the customer still wants.
         var processStart = DateTimeOffset.UtcNow;
         var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: status, updatedAt: processStart.AddMinutes(-30));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
+            .Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == row.Id && r.Tier == row.Tier && r.Schema == row.Schema),
+            Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_LateStageRowCutOffByARestart_WhosePaymentIsNoLongerCompleted_IsFailedNotRebuilt()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((EligibleTransaction?)null);
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart, billing: billing);
         var row = StaleRow(status: "building", updatedAt: processStart.AddMinutes(-30));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, Arg.Is<string>(m => m.Contains("restarted")), ErrorCategorizer.Internal,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_SchemaExtractionCutOffByARestart_FailsWithRestartMessage()
+    {
+        // extracting_schema is driven by a browser request this sweep cannot replay.
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: "extracting_schema", updatedAt: processStart.AddMinutes(-30), tier: 0);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
             .Returns([row]);
 
@@ -330,15 +375,19 @@ public sealed class GenerationReconciliationServiceTests
     [Fact]
     public async Task RunOnce_LateStageRowAfterProcessStart_FailsWithTimeoutMessage()
     {
-        // Row updated AFTER this process started → it stalled while the engine was alive.
+        // Row updated AFTER this process started → it stalled while the engine was alive. The
+        // worker dropped it with an outcome this sweep cannot know, so it is not run again.
         var processStart = DateTimeOffset.UtcNow.AddHours(-2);
-        var (sut, delivery, _, _, _) = BuildSut(processStart);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
         var row = StaleRow(status: "uploading", updatedAt: processStart.AddHours(1));
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
             .Returns([row]);
 
         await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
 
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).TryFailStaleRowAsync(
             row, StaleWindow,
             Arg.Is<string>(m => m.Contains("stalled")),
@@ -455,14 +504,17 @@ public sealed class GenerationReconciliationServiceTests
             .Returns(won);
 
     [Theory]
-    [InlineData("building", 0)]         // stranded in a late stage by a restart
-    [InlineData("uploading", 0)]
-    [InlineData("generating_code", 3)]  // out of attempts
-    public async Task RunOnce_PaidRowTheSweepFails_IsRefunded(string status, int attemptCount)
+    [InlineData("building", 3, -30)]        // cut off by a restart, and out of attempts
+    [InlineData("generating_code", 3, -30)] // out of attempts
+    [InlineData("uploading", 0, 30)]        // dropped in a late stage while this process was alive
+    public async Task RunOnce_PaidRowTheSweepFails_IsRefunded(string status, int attemptCount, int updatedMinutesFromProcessStart)
     {
         var refunder = Substitute.For<IFailedBuildRefunder>();
-        var (sut, delivery, orchestrator, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(id: "gen-paid-dead", status: status, attemptCount: attemptCount, tier: 2);
+        var processStart = DateTimeOffset.UtcNow.AddHours(-2);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart, refunder: refunder);
+        var row = StaleRow(
+            id: "gen-paid-dead", status: status, attemptCount: attemptCount, tier: 2,
+            updatedAt: processStart.AddMinutes(updatedMinutesFromProcessStart));
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row);
 
@@ -484,7 +536,7 @@ public sealed class GenerationReconciliationServiceTests
         // starts stopping in between cancels the refund, and nothing ever tries it again.
         var refunder = Substitute.For<IFailedBuildRefunder>();
         var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(status: "building", tier: 2);
+        var row = StaleRow(status: "building", attemptCount: 3, tier: 2);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row);
         using var sweep = new CancellationTokenSource();
@@ -593,7 +645,7 @@ public sealed class GenerationReconciliationServiceTests
         // on a lost write would refund a build that may be about to deliver.
         var refunder = Substitute.For<IFailedBuildRefunder>();
         var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(status: "building", tier: 2);
+        var row = StaleRow(status: "building", attemptCount: 3, tier: 2);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row, won: false);
 

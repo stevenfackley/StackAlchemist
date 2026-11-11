@@ -13,7 +13,7 @@ namespace StackAlchemist.Engine.Services;
 /// failing the row), (2) list stale non-terminal rows, (3) skip rows this instance is
 /// actively processing, (4) leave unpaid paid-tier checkouts alone (and fail them once
 /// their Checkout Session can no longer be paid), (5) re-enqueue pending/generating_code
-/// rows under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
+/// rows, and late-stage rows a restart cut off, under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
 /// message, and refund the ones that were paid for. A row whose stored schema no longer parses is failed at step (5) instead: it can
 /// never be rebuilt, and skipping it left it stale on every tick, forever (#425).
 ///
@@ -44,11 +44,19 @@ public sealed partial class GenerationReconciliationService(
     // Construction time ≈ process start (singleton hosted service, built at host boot).
     private readonly DateTimeOffset _processStartedUtc = timeProvider.GetUtcNow();
 
-    // Statuses safe to re-fire from the top of the pipeline: no on-disk artifacts to
-    // lose yet. Later states (building/packing/uploading) reference a temp directory
-    // that died with the old process, and extracting_schema is driven by a frontend
-    // HTTP call we cannot replay — those fail with a clear message instead.
+    // Statuses safe to re-fire from the top of the pipeline whenever they go stale: nothing is
+    // on disk yet. extracting_schema is driven by a frontend HTTP call we cannot replay, so it
+    // fails with a clear message instead.
     private static readonly HashSet<string> RequeueableStatuses = ["pending", "generating_code", "generating"];
+
+    // Later stages hold a temp directory that died with the old process, but the row still has
+    // the prompt and schema, so the build can be run again from the top. Only paid tiers get
+    // this far, and failing the row would refund a sale the customer still wants. Re-fired only
+    // when the row was last touched before this process started, i.e. a restart (every merge
+    // deploys prod) cut the job off. A late-stage row that went stale while this process was
+    // alive was dropped by the worker itself, with an outcome this sweep cannot know: that one
+    // is failed, not rebuilt.
+    private static readonly HashSet<string> RestartRequeueableStatuses = ["building", "packing", "uploading"];
 
     internal const string UnreadableRowMessage =
         "This generation could not be resumed: its saved schema or settings could not be read. "
@@ -155,7 +163,10 @@ public sealed partial class GenerationReconciliationService(
             // payment == Unpaid past this point means a started paid row whose payment is no
             // longer completed: refunded or disputed while it was in flight. It is never rebuilt
             // (that would deliver a refunded build); it falls through and is failed.
-            if (RequeueableStatuses.Contains(row.Status) && row.AttemptCount < maxAttempts && payment == Payment.Paid)
+            var canRunAgain = RequeueableStatuses.Contains(row.Status)
+                || (RestartRequeueableStatuses.Contains(row.Status) && row.UpdatedAt < _processStartedUtc);
+
+            if (canRunAgain && row.AttemptCount < maxAttempts && payment == Payment.Paid)
             {
                 if (!await deliveryService.TryClaimForRequeueAsync(row, staleWindow, ct))
                     continue; // another instance/tick won the claim, or the row progressed
@@ -183,8 +194,8 @@ public sealed partial class GenerationReconciliationService(
             var failed = await deliveryService.TryFailStaleRowAsync(
                 row, staleWindow, message, ErrorCategorizer.Internal, ct);
 
-            // A paid build this sweep has just ended: out of attempts, or stranded in a late
-            // stage by a restart. The category offers the customer no Retry, so the payment goes
+            // A paid build this sweep has just ended: out of attempts, or dropped in a late
+            // stage. The category offers the customer no Retry, so the payment goes
             // back. Only when this sweep won the write: a row that moved on is not ours to
             // refund. The unpaid checkout above never reaches here, and the refund service
             // refunds a completed transaction only.

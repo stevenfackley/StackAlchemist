@@ -40,7 +40,7 @@ public sealed class FailedBuildRefunderTests
         FailedBuildRefunder.ShouldRefund(tier, category, attemptCount).Should().Be(expected);
 
     [Theory]
-    // Must match showRetry in src/StackAlchemist.Web/src/components/generation-error-panel.tsx.
+    // Must match RETRYABLE in src/StackAlchemist.Web/src/lib/generation-outcome.ts (a web test checks it).
     [InlineData(ErrorCategorizer.Quota, false)]
     [InlineData(ErrorCategorizer.Schema, true)]
     [InlineData(ErrorCategorizer.Build, true)]
