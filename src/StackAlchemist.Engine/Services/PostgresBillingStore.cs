@@ -143,9 +143,12 @@ public sealed partial class PostgresBillingStore(
 
         try
         {
+            // 'failed' only lands on a payment that has not completed. Stripe does not deliver in
+            // order, and a late card-declined event must not take 'completed' off a paid transaction:
+            // the payment check and the Compile Guarantee refund both look the row up by that status.
             await using var cmd = CreateCommand(
                 "update stackalchemist.transactions set status = $1, last_stripe_event_id = $2, updated_at = now() " +
-                $"where {column} = $3 returning generation_id",
+                $"where {column} = $3 and ($1 <> 'failed' or status = 'pending') returning generation_id",
                 (status, NpgsqlDbType.Text), (eventId, NpgsqlDbType.Text), (value, NpgsqlDbType.Text));
             await using var reader = await cmd.ExecuteReaderAsync(ct);
 
@@ -158,11 +161,11 @@ public sealed partial class PostgresBillingStore(
 
             return returnGenerationId ? generationId : null;
         }
-        catch (Exception ex)
+        catch (PostgresException ex)
         {
-            var (loggable, reason) = PostgresErrors.Redact(ex);
-            LogTxUpdateFailed(logger, loggable, column, status, reason);
-            return null;
+            // Thrown, not swallowed: the webhook has already recorded the event, and only a throw
+            // lets it take that record back and ask Stripe to deliver the event again.
+            throw Sanitized("transaction status update", ex);
         }
     }
 
@@ -295,9 +298,6 @@ public sealed partial class PostgresBillingStore(
 
     [LoggerMessage(EventId = 304, Level = LogLevel.Warning, Message = "Failed to record Stripe event {Id} for idempotency in Postgres ({Reason})")]
     private static partial void LogStripeEventRecordFailed(ILogger logger, Exception? ex, string id, string reason);
-
-    [LoggerMessage(EventId = 306, Level = LogLevel.Error, Message = "Failed to update Postgres transactions (by {Column}, status={Status}) ({Reason})")]
-    private static partial void LogTxUpdateFailed(ILogger logger, Exception? ex, string column, string status, string reason);
 
     [LoggerMessage(EventId = 307, Level = LogLevel.Error, Message = "Failed to cancel undelivered generation {Id} in Postgres ({Reason})")]
     private static partial void LogGenerationCancelFailed(ILogger logger, Exception? ex, string id, string reason);

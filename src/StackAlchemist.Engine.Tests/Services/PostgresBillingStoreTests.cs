@@ -271,16 +271,38 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
     }
 
     [Fact]
-    public async Task UpdateTransactionsAsync_swallows_a_rejected_status()
+    public async Task UpdateTransactionsAsync_throws_on_a_rejected_status_and_leaves_the_row()
     {
         if (!fx.Available) return;
         var gen = await fx.SeedGenerationAsync();
         var pi = Unique("pi");
         var tx = await SeedTransactionAsync(gen, "completed", pi, Unique("cs"), Unique("ch"), TimeSpan.Zero);
 
-        (await Sut().UpdateTransactionsAsync(TransactionKey.StripePaymentIntent, pi, "bogus", Unique("evt"), returnGenerationId: true, Ct))
-            .Should().BeNull();
+        // Thrown so the webhook can ask Stripe to deliver the event again; the message carries no value.
+        (await Sut().Invoking(s => s.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, pi, "bogus", Unique("evt"), returnGenerationId: true, Ct))
+            .Should().ThrowAsync<InvalidOperationException>())
+            .Which.Message.Should().NotContain("bogus");
         (await TransactionStatus(tx)).Should().Be("completed");
+    }
+
+    [Theory]
+    [InlineData("completed")]
+    [InlineData("refund_pending")]
+    [InlineData("refunded")]
+    [InlineData("disputed")]
+    public async Task UpdateTransactionsAsync_does_not_fail_a_transaction_that_was_paid(string paidStatus)
+    {
+        if (!fx.Available) return;
+        var gen = await fx.SeedGenerationAsync();
+        var (pi, cs) = (Unique("pi"), Unique("cs"));
+        var tx = await SeedTransactionAsync(gen, paidStatus, pi, cs, Unique("ch"), TimeSpan.Zero);
+
+        // A card declined before the one that paid: Stripe can deliver that event last.
+        await Sut().UpdateTransactionsAsync(TransactionKey.StripePaymentIntent, pi, "failed", Unique("evt"), returnGenerationId: false, Ct);
+        await Sut().UpdateTransactionsAsync(TransactionKey.StripeSessionId, cs, "failed", Unique("evt"), returnGenerationId: false, Ct);
+
+        (await TransactionStatus(tx)).Should().Be(paidStatus);
     }
 
     [Fact]
@@ -401,7 +423,7 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
     }
 
     [Fact]
-    public async Task An_unreachable_database_throws_for_the_refund_reads_and_is_swallowed_by_the_writes()
+    public async Task An_unreachable_database_throws_for_the_refund_reads_and_the_status_write_and_is_swallowed_by_the_rest()
     {
         await using var dataSource = Unreachable();
         var sut = new PostgresBillingStore(dataSource, NullLogger<PostgresBillingStore>.Instance);
@@ -409,10 +431,11 @@ public sealed class PostgresBillingStoreTests(PostgresFixture fx)
 
         await sut.Invoking(s => s.FindCompletedTransactionAsync(id, Ct)).Should().ThrowAsync<NpgsqlException>();
         await sut.Invoking(s => s.TryClaimForRefundAsync(id, Ct)).Should().ThrowAsync<NpgsqlException>();
+        await sut.Invoking(s => s.UpdateTransactionsAsync(
+                TransactionKey.StripePaymentIntent, "pi_x", "refunded", "evt_x", returnGenerationId: true, Ct))
+            .Should().ThrowAsync<NpgsqlException>();
 
         await sut.Invoking(s => s.DeleteEventAsync("evt_x", Ct)).Should().NotThrowAsync();
-        (await sut.UpdateTransactionsAsync(TransactionKey.StripePaymentIntent, "pi_x", "refunded", "evt_x", returnGenerationId: true, Ct))
-            .Should().BeNull();
         await sut.Invoking(s => s.CancelUndeliveredGenerationAsync(id, "Refunded by Stripe", Ct)).Should().NotThrowAsync();
         await sut.Invoking(s => s.RevertRefundClaimAsync(id, Ct)).Should().NotThrowAsync();
     }
