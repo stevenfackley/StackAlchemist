@@ -54,7 +54,24 @@ internal static class BoundedOutput
 
         dropped += TrimToLast(tail, tailChars);
         if (dropped > 0)
+        {
+            // A cut can land between the two halves of a surrogate pair (an emoji in a log line).
+            // Half a pair is not valid text: Postgres's encoder rejects it, and that attempt's
+            // whole build log would be lost. Drop the stray half on each side of the cut.
+            if (head.Length > 0 && char.IsHighSurrogate(head[^1]))
+            {
+                head.Length--;
+                dropped++;
+            }
+
+            if (tail.Length > 0 && char.IsLowSurrogate(tail[0]))
+            {
+                tail.Remove(0, 1);
+                dropped++;
+            }
+
             head.Append(CultureInfo.InvariantCulture, $"\n[… {dropped} characters of output dropped …]\n");
+        }
 
         return head.Append(tail).ToString();
     }

@@ -40,6 +40,21 @@ public sealed class BoundedOutputTests
     }
 
     [Fact]
+    public async Task A_cut_through_a_surrogate_pair_leaves_no_half_character()
+    {
+        // "😀" is two UTF-16 chars. The head ends on the first half of one, the tail starts on the
+        // second half of another. Half a pair cannot be encoded as UTF-8, so Postgres would
+        // refuse the build log that carries it.
+        var output = "abc😀" + new string('x', 1_000) + "😀xyz";
+
+        var kept = await BoundedOutput.ReadToEndAsync(new StringReader(output), headChars: 4, tailChars: 4);
+
+        kept.Should().Be("abc\n[… 1004 characters of output dropped …]\nxyz");
+        var strict = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        strict.Invoking(e => e.GetBytes(kept)).Should().NotThrow();
+    }
+
+    [Fact]
     public async Task Endless_output_is_read_to_the_end_without_being_held()
     {
         // 200 MB of characters through the default limits: read whole, this would be a 400 MB string.
