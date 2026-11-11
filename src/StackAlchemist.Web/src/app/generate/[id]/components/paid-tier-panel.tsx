@@ -138,16 +138,17 @@ export function PaidTierPanel({ generation }: { generation: Generation }) {
       {/* Download button */}
       {generation.download_url ? (
         <div className="flex flex-col items-center gap-3">
+          {/* Not the stored link: that one is signed once and dies after seven
+              days. /api/download signs a new one on each click. */}
           <a
-            href={generation.download_url}
-            download
+            href={`/api/download/${generation.id}`}
             className="flex items-center gap-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3.5 text-sm font-medium hover:shadow-[0_0_24px_rgba(16,185,129,0.35)] transition-all duration-300"
           >
             <Download className="h-5 w-5" />
             Download {tierName} Package
           </a>
           <p className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">
-            Link expires in 168 hours (7 days)
+            A new link is made each time you click
           </p>
         </div>
       ) : (

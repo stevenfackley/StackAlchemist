@@ -166,4 +166,28 @@ public class CloudflareR2UploadServiceTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void CreateDownloadUrl_SignsTheStoredArchiveForTheGivenLifetime()
+    {
+        var sut = BuildSut(BuildConfig());
+        var id = Guid.NewGuid().ToString();
+
+        var url = new Uri(sut.CreateDownloadUrl(id, TimeSpan.FromMinutes(15)));
+
+        url.Scheme.Should().Be("https");
+        url.Host.Should().Be("test-account.r2.cloudflarestorage.com");
+        url.AbsolutePath.Should().Be($"/test-bucket/{id}/project.zip");
+        url.Query.Should().Contain("X-Amz-Expires=900").And.Contain("X-Amz-Signature=");
+    }
+
+    [Fact]
+    public void CreateDownloadUrl_MissingSecretKey_ThrowsInvalidOperationException()
+    {
+        var sut = BuildSut(BuildConfig(secretKey: null));
+
+        var act = () => sut.CreateDownloadUrl(Guid.NewGuid().ToString(), TimeSpan.FromMinutes(15));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*SecretAccessKey*");
+    }
 }

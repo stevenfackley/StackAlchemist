@@ -172,8 +172,7 @@ function GenerationRow({ gen }: { gen: GenerationSummary }) {
         {/* Download (paid + complete only) */}
         {isComplete && !isFree && gen.download_url && (
           <a
-            href={gen.download_url}
-            download
+            href={`/api/download/${gen.id}`}
             className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
             aria-label="Download source"
           >

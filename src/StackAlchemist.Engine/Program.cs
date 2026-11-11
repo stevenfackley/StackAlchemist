@@ -106,6 +106,7 @@ app.MapHealthChecks("/health");
 
 app.MapGenerationEndpoints();
 app.MapStripeEndpoints();
+app.MapDownloadEndpoints();
 
 app.Run();
 

@@ -8,6 +8,7 @@ public static class RateLimitPolicies
     public const string Generate = "generate";
     public const string Extract = "extract";
     public const string StripeSession = "stripe-session";
+    public const string Download = "download";
 }
 
 public static class EngineRateLimiting
@@ -34,6 +35,7 @@ public static class EngineRateLimiting
             PerUser(RateLimitPolicies.Generate, 5);        // generous for a real user, blocks spamming
             PerUser(RateLimitPolicies.Extract, 15);
             PerUser(RateLimitPolicies.StripeSession, 3);
+            PerUser(RateLimitPolicies.Download, 30);       // signing a link is cheap; this only stops a loop
 
             rl.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             rl.OnRejected = async (ctx, token) =>
