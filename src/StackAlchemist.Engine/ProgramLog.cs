@@ -1,9 +1,9 @@
 namespace StackAlchemist.Engine;
 
 /// <summary>
-/// LoggerMessage source-gen partials for the top-level statements in Program.cs.
-/// Top-level statements have no class to host instance partials, so these live here
-/// as a static class. Event IDs in 400–499 are reserved for Program.cs.
+/// LoggerMessage source-gen partials for the HTTP endpoints (Endpoints/), which log under the
+/// <c>Program</c> category. The handlers are static methods with no class to host instance
+/// partials, so these live here as a static class. Event IDs in 400–499 are reserved for them.
 /// </summary>
 internal static partial class ProgramLog
 {
