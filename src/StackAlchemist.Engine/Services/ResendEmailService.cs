@@ -136,4 +136,13 @@ public static class EmailTemplates
          "<p>No dispute needed on your end — the refund will appear on your original payment method " +
          "within 5–10 business days.</p>" +
          "<p>If you have any questions, just reply to this email — we read every one.</p>");
+
+    /// <summary>For a paid build that ended without a result and without a retry: not a compile failure.</summary>
+    public static (string Subject, string Html) RefundIssuedForUnfinishedBuild(int tier) =>
+        ("Your StackAlchemist build could not be finished — refund initiated",
+         "<p>Something went wrong on our side while building your project, and the build could not be " +
+         $"finished. We've initiated a full refund for your tier {tier} purchase.</p>" +
+         "<p>No dispute needed on your end — the refund will appear on your original payment method " +
+         "within 5–10 business days.</p>" +
+         "<p>If you have any questions, just reply to this email — we read every one.</p>");
 }

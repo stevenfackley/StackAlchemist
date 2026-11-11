@@ -14,7 +14,7 @@ namespace StackAlchemist.Engine.Services;
 /// actively processing, (4) leave unpaid paid-tier checkouts alone (and fail them once
 /// their Checkout Session can no longer be paid), (5) re-enqueue pending/generating_code
 /// rows under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
-/// message. A row whose stored schema no longer parses is failed at step (5) instead: it can
+/// message, and refund the ones that were paid for. A row whose stored schema no longer parses is failed at step (5) instead: it can
 /// never be rebuilt, and skipping it left it stale on every tick, forever (#425).
 ///
 /// Step (4) closes #421: the web inserts a paid-tier row as `pending` before the user pays,
@@ -29,7 +29,8 @@ public sealed partial class GenerationReconciliationService(
     IConfiguration configuration,
     TimeProvider timeProvider,
     ILogger<GenerationReconciliationService> logger,
-    IBillingStore? billing = null) : BackgroundService
+    IBillingStore? billing = null,
+    IFailedBuildRefunder? refunder = null) : BackgroundService
 {
     private const int DefaultStaleMinutes = 15;
     private const int DefaultIntervalMinutes = 5;
@@ -156,7 +157,18 @@ public sealed partial class GenerationReconciliationService(
                     ? "Generation did not complete — the engine restarted while this job was in flight."
                     : $"Generation stalled and timed out after {staleWindow.TotalMinutes:0} minutes without progress.";
 
-            await deliveryService.TryFailStaleRowAsync(row, staleWindow, message, ErrorCategorizer.Internal, ct);
+            var failed = await deliveryService.TryFailStaleRowAsync(
+                row, staleWindow, message, ErrorCategorizer.Internal, ct);
+
+            // A paid build this sweep has just ended: out of attempts, or stranded in a late
+            // stage by a restart. The category offers the customer no Retry, so the payment goes
+            // back. Only when this sweep won the write: a row that moved on is not ours to
+            // refund. The unpaid checkout above never reaches here, and the refund service
+            // refunds a completed transaction only.
+            if (failed && refunder is not null && FailedBuildRefunder.ShouldRefund(row.Tier, ErrorCategorizer.Internal))
+            {
+                await refunder.TryRefundAsync(row.Id, row.Tier, RefundReason.BuildCouldNotFinish, ct);
+            }
         }
     }
 

@@ -29,7 +29,9 @@ public sealed class GenerationReconciliationServiceTests
         IGenerationOrchestrator Orchestrator,
         InFlightGenerationRegistry Registry,
         PendingWriteBuffer Buffer)
-        BuildSut(DateTimeOffset? processStart = null, int maxAttempts = 3, IBillingStore? billing = null)
+        BuildSut(
+            DateTimeOffset? processStart = null, int maxAttempts = 3, IBillingStore? billing = null,
+            IFailedBuildRefunder? refunder = null)
     {
         var delivery = Substitute.For<IDeliveryService>();
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
@@ -43,7 +45,8 @@ public sealed class GenerationReconciliationServiceTests
             Config(maxAttempts),
             new FixedTimeProvider(processStart ?? DateTimeOffset.UtcNow),
             NullLogger<GenerationReconciliationService>.Instance,
-            billing);
+            billing,
+            refunder);
         return (sut, delivery, orchestrator, registry, buffer);
     }
 
@@ -442,5 +445,83 @@ public sealed class GenerationReconciliationServiceTests
         // the safe wrapper is exercised via ExecuteAsync in integration.
         var act = () => sut.RunOnceAsync(StaleWindow, CancellationToken.None);
         await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    // ── A paid build the sweep ends is refunded ──────────────────────────────────
+
+    private static void FailStaleWins(IDeliveryService delivery, GenerationSnapshot row, bool won = true) =>
+        delivery.TryFailStaleRowAsync(
+                row, StaleWindow, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(won);
+
+    [Theory]
+    [InlineData("building", 0)]         // stranded in a late stage by a restart
+    [InlineData("uploading", 0)]
+    [InlineData("generating_code", 3)]  // out of attempts
+    public async Task RunOnce_PaidRowTheSweepFails_IsRefunded(string status, int attemptCount)
+    {
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, orchestrator, _, _) = BuildSut(refunder: refunder);
+        var row = StaleRow(id: "gen-paid-dead", status: status, attemptCount: attemptCount, tier: 2);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        Received.InOrder(() =>
+        {
+            delivery.TryFailStaleRowAsync(
+                row, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+            refunder.TryRefundAsync("gen-paid-dead", 2, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task RunOnce_PaidRowThatMovedOnBeforeTheSweepCouldFailIt_IsNotRefunded()
+    {
+        // The conditional write lost: the row progressed (or another sweep took it). Refunding
+        // on a lost write would refund a build that may be about to deliver.
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
+        var row = StaleRow(status: "building", tier: 2);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row, won: false);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task RunOnce_FreeRowTheSweepFails_IsNotRefunded()
+    {
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
+        var row = StaleRow(status: "generating_code", attemptCount: 3, tier: 0);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task RunOnce_AbandonedCheckout_IsFailedButNeverSentToTheRefunder()
+    {
+        // Nothing was paid. The refund service would find no transaction, but the sweep should
+        // not ask: an abandoned checkout is not a failed build.
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, _, _, _) = BuildSut(billing: Substitute.For<IBillingStore>(), refunder: refunder);
+        var row = StaleRow(id: "gen-abandoned", status: "pending", updatedAt: DateTimeOffset.UtcNow.AddHours(-26));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, "Checkout was not completed.", ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
     }
 }

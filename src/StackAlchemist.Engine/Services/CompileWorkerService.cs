@@ -27,6 +27,8 @@ public sealed partial class CompileWorkerService(
     /// <summary>How much raw transcript to fall back on when no error matcher fired.</summary>
     private const int RawLogTailChars = 4_000;
 
+    private readonly FailedBuildRefunder _refunder = new(refundService, deliveryService, emailService, logger);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LogWorkerStarted(logger);
@@ -36,6 +38,21 @@ public sealed partial class CompileWorkerService(
             try
             {
                 await ProcessJobAsync(job, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // The host is stopping mid-job. That is not a failure of the build: no failed
+                // status, and above all no refund. The row keeps its in-progress status and the
+                // reconciler settles it after the restart.
+                LogJobInterruptedByShutdown(logger, job.GenerationId, job.State);
+            }
+            catch (Exception ex) when (job.State == GenerationState.Success)
+            {
+                // Delivered: the archive is uploaded and the row says success. What threw came
+                // after that (the owner lookup or the completion email). Failing the row here
+                // flipped a delivered build to failed, and a refund would pay back a customer
+                // who has their download.
+                LogPostDeliveryStepFailed(logger, ex, job.GenerationId);
             }
             catch (Exception ex)
             {
@@ -48,11 +65,20 @@ public sealed partial class CompileWorkerService(
                     (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
                     BuildJobTags(job, stage: "worker_unhandled", outcome: "failed"));
 
+                var category = ErrorCategorizer.Categorize(ex);
                 await deliveryService.UpdateStatusAsync(
                     job.GenerationId, GenerationState.Failed,
                     errorMessage: ex.Message,
-                    errorCategory: ErrorCategorizer.Categorize(ex),
+                    errorCategory: category,
                     ct: stoppingToken);
+
+                // A paid build that died here with a category the result page offers no Retry
+                // for leaves the customer charged with nothing to press.
+                if (FailedBuildRefunder.ShouldRefund(job.Tier, category))
+                {
+                    await _refunder.TryRefundAsync(
+                        job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, stoppingToken);
+                }
             }
             finally
             {
@@ -157,7 +183,7 @@ public sealed partial class CompileWorkerService(
 
             // No matcher fired: send the tail of the raw transcript rather than nothing.
             // An empty error section makes the repair prompt unusable, and three unusable
-            // prompts end in TryIssueCompileGuaranteeRefundAsync — a real refund on a
+            // prompts end in the Compile Guarantee refund — a real refund on a
             // failure shape we simply failed to parse.
             var errorSummary = errors.Count > 0
                 ? string.Join("\n", errors)
@@ -200,12 +226,13 @@ public sealed partial class CompileWorkerService(
                     ct: ct);
 
                 // Compile Guarantee: paid tiers (1-3) get an automatic refund when the
-                // build is still failing after MaxRetries corrections. Best-effort —
-                // see TryIssueCompileGuaranteeRefundAsync for why failures never
-                // propagate past this point.
+                // build is still failing after MaxRetries corrections. Best-effort: the
+                // refunder never throws, so a refund failure cannot crash the worker loop or
+                // reverse the Failed status written above.
                 if (job.Tier >= 1)
                 {
-                    await TryIssueCompileGuaranteeRefundAsync(job, ct);
+                    await _refunder.TryRefundAsync(
+                        job.GenerationId, job.Tier, RefundReason.CompileRetriesExhausted, ct);
                 }
 
                 return;
@@ -388,41 +415,6 @@ public sealed partial class CompileWorkerService(
         }
     }
 
-    /// <summary>
-    /// Attempts the Compile Guarantee refund for a paid-tier generation that just
-    /// exhausted all build-correction retries, then emails the customer once the
-    /// refund is actually initiated. Deliberately swallows every exception: a
-    /// refund (or store/Stripe) failure here must never crash the worker loop
-    /// or reverse the generation's already-persisted Failed status — the
-    /// charge.refunded webhook remains the eventual source of truth regardless of
-    /// whether this call succeeds.
-    /// </summary>
-    private async Task TryIssueCompileGuaranteeRefundAsync(GenerationContext job, CancellationToken ct)
-    {
-        try
-        {
-            var outcome = await refundService.RefundFailedGenerationAsync(job.GenerationId, ct);
-            if (outcome != RefundOutcome.Issued)
-            {
-                LogRefundNotIssued(logger, job.GenerationId, outcome);
-                return;
-            }
-
-            LogRefundIssued(logger, job.GenerationId);
-
-            var ownerEmail = await deliveryService.GetGenerationOwnerEmailAsync(job.GenerationId, ct);
-            if (!string.IsNullOrWhiteSpace(ownerEmail))
-            {
-                var (subject, html) = EmailTemplates.RefundIssued(job.Tier);
-                await emailService.SendAsync(ownerEmail, subject, html, ct);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogRefundAttemptFailed(logger, ex, job.GenerationId);
-        }
-    }
-
     private async Task FailMissingOutputDir(GenerationContext job, CancellationToken ct)
     {
         job.State = GenerationState.Failed;
@@ -438,6 +430,11 @@ public sealed partial class CompileWorkerService(
             errorMessage: job.ErrorMessage,
             errorCategory: ErrorCategorizer.Internal,
             ct: ct);
+
+        if (FailedBuildRefunder.ShouldRefund(job.Tier, ErrorCategorizer.Internal))
+        {
+            await _refunder.TryRefundAsync(job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, ct);
+        }
     }
 
     /// <summary>
@@ -491,14 +488,13 @@ public sealed partial class CompileWorkerService(
     [LoggerMessage(EventId = 607, Level = LogLevel.Warning, Message = "Failed to clean up temp directory for {Id}")]
     private static partial void LogTempDirCleanupFailed(ILogger logger, Exception ex, string id);
 
-    [LoggerMessage(EventId = 608, Level = LogLevel.Information, Message = "Compile-guarantee refund issued for generation {Id}")]
-    private static partial void LogRefundIssued(ILogger logger, string id);
+    // 608-610 (the refund outcome) moved to FailedBuildRefunder.
 
-    [LoggerMessage(EventId = 609, Level = LogLevel.Information, Message = "Compile-guarantee refund not issued for generation {Id}: {Outcome}")]
-    private static partial void LogRefundNotIssued(ILogger logger, string id, RefundOutcome outcome);
+    [LoggerMessage(EventId = 613, Level = LogLevel.Warning, Message = "Generation {Id} interrupted by host shutdown in state {State}; left for the reconciler")]
+    private static partial void LogJobInterruptedByShutdown(ILogger logger, string id, GenerationState state);
 
-    [LoggerMessage(EventId = 610, Level = LogLevel.Error, Message = "Compile-guarantee refund attempt threw for generation {Id} — worker continues, generation stays Failed")]
-    private static partial void LogRefundAttemptFailed(ILogger logger, Exception ex, string id);
+    [LoggerMessage(EventId = 614, Level = LogLevel.Error, Message = "Generation {Id} was delivered, but a step after delivery threw (owner lookup or completion email); the row stays success")]
+    private static partial void LogPostDeliveryStepFailed(ILogger logger, Exception ex, string id);
 
     [LoggerMessage(EventId = 611, Level = LogLevel.Warning, Message = "Could not write build-report.json for generation {Id} — archive ships without it")]
     private static partial void LogBuildReportWriteFailed(ILogger logger, Exception ex, string id);

@@ -1,0 +1,191 @@
+using System.IO.Abstractions.TestingHelpers;
+using System.Threading.Channels;
+using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using StackAlchemist.Engine.Models;
+using StackAlchemist.Engine.Services;
+
+namespace StackAlchemist.Engine.Tests.Services;
+
+/// <summary>
+/// What <see cref="GenerationOrchestrator.EnqueueAsync"/> does with the customer's money when a
+/// generation ends in its catch: refund a paid build only when the failure leaves no Retry, and
+/// treat a cancelled token as an interruption, not a failure.
+/// </summary>
+public sealed class GenerationOrchestratorRefundTests
+{
+    private sealed record Fixture(
+        GenerationOrchestrator Sut,
+        ILlmClient Llm,
+        IDeliveryService Delivery,
+        IFailedBuildRefunder Refunder,
+        InFlightGenerationRegistry InFlight,
+        Channel<GenerationContext> Queue);
+
+    private static Fixture Build()
+    {
+        var files = new Dictionary<string, string>
+        {
+            ["dotnet/Program.cs"] = "var builder = WebApplication.CreateBuilder(args);",
+        };
+
+        var templates = Substitute.For<ITemplateProvider>();
+        templates.LoadTemplate(Arg.Any<string>()).Returns(files);
+        templates.Render(Arg.Any<Dictionary<string, string>>(), Arg.Any<TemplateVariables>()).Returns(files);
+        templates.FindInjectionZones(Arg.Any<string>()).Returns([]);
+
+        var reconstruction = Substitute.For<IReconstructionService>();
+        reconstruction.Parse(Arg.Any<string>()).Returns(files);
+        reconstruction.Reconstruct(Arg.Any<Dictionary<string, string>>(), Arg.Any<Dictionary<string, string>>(), Arg.Any<ITemplateProvider>())
+            .Returns(files);
+
+        var promptBuilder = Substitute.For<IPromptBuilderService>();
+        promptBuilder.BuildGenerationPrompt(Arg.Any<GenerationSchema>(), Arg.Any<ProjectType>(), Arg.Any<GenerationPersonalization?>(), Arg.Any<string>())
+            .Returns("Generate code.");
+
+        var llm = Substitute.For<ILlmClient>();
+        var delivery = Substitute.For<IDeliveryService>();
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var inFlight = new InFlightGenerationRegistry();
+        var queue = Channel.CreateUnbounded<GenerationContext>();
+
+        var sut = new GenerationOrchestrator(
+            templates,
+            reconstruction,
+            llm,
+            promptBuilder,
+            Substitute.For<IInjectionEngine>(),
+            delivery,
+            new TierGatingService(),
+            new MockFileSystem(),
+            new ConfigurationBuilder().Build(),
+            queue.Writer,
+            inFlight,
+            NullLogger<GenerationOrchestrator>.Instance,
+            credentialResolver: null,
+            refunder);
+
+        return new Fixture(sut, llm, delivery, refunder, inFlight, queue);
+    }
+
+    private static GenerateRequest Request(int tier) => new()
+    {
+        GenerationId = Guid.NewGuid().ToString(),
+        Mode = "simple",
+        Tier = tier,
+        Prompt = "Build an app",
+    };
+
+    private static void LlmThrows(Fixture f, Exception ex) =>
+        f.Llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(ex);
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task PaidBuild_FailsWithACategoryThatOffersNoRetry_IsRefunded(int tier)
+    {
+        var f = Build();
+        LlmThrows(f, new InvalidOperationException("template bug"));
+        var request = Request(tier);
+
+        var response = await f.Sut.EnqueueAsync(request);
+
+        response.Status.Should().Be("failed");
+        Received.InOrder(() =>
+        {
+            // The failed status is written first: the refund must never be the only record.
+            f.Delivery.UpdateStatusAsync(
+                request.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+                ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+            f.Refunder.TryRefundAsync(
+                request.GenerationId, tier, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task PaidBuild_RefundRunsOnATokenTheStoppingHostCannotCancel()
+    {
+        var f = Build();
+        LlmThrows(f, new InvalidOperationException("template bug"));
+        using var stopping = new CancellationTokenSource();
+        var request = Request(tier: 2);
+
+        await f.Sut.EnqueueAsync(request, stopping.Token);
+
+        await f.Refunder.Received(1).TryRefundAsync(
+            request.GenerationId, 2, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+    }
+
+    public static TheoryData<Exception> RetryableFailures() => new()
+    {
+        new HttpRequestException("upstream failed"),          // network
+        new TimeoutException("llm timed out"),                // network
+        new LlmRateLimitException("slow down"),               // rate_limit
+        new MalformedLlmOutputException("no file blocks"),    // schema
+    };
+
+    [Theory]
+    [MemberData(nameof(RetryableFailures))]
+    public async Task PaidBuild_FailsWithACategoryTheCustomerCanRetry_IsNotRefunded(Exception failure)
+    {
+        // A refund here takes the transaction out of 'completed', and the payment gate then
+        // answers 402 to the Retry the result page is showing.
+        var f = Build();
+        LlmThrows(f, failure);
+        var request = Request(tier: 2);
+
+        var response = await f.Sut.EnqueueAsync(request);
+
+        response.Status.Should().Be("failed");
+        ErrorCategorizer.OffersRetry(ErrorCategorizer.Categorize(failure)).Should().BeTrue();
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task CancelledByTheCallersToken_IsAnInterruption_NotAFailure()
+    {
+        // The host stopping (a deploy) cancels the token mid-codegen. Writing 'failed' made every
+        // deploy fail the builds in flight; a refund here would refund them too.
+        var f = Build();
+        using var stopping = new CancellationTokenSource();
+        f.Llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<LlmResponse>>(_ =>
+            {
+                stopping.Cancel();
+                throw new OperationCanceledException(stopping.Token);
+            });
+        var request = Request(tier: 2);
+
+        var response = await f.Sut.EnqueueAsync(request, stopping.Token);
+
+        response.Status.Should().NotBe("failed");
+        await f.Delivery.DidNotReceive().UpdateStatusAsync(
+            Arg.Any<string>(), GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+        f.InFlight.Contains(request.GenerationId).Should().BeFalse("the reconciler has to see the row to re-enqueue it");
+        f.Queue.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CancellationThatIsNotTheCallers_IsStillAFailure()
+    {
+        // An HttpClient timeout surfaces as TaskCanceledException with the caller's token still
+        // live. That is a real failure of this attempt: failed, network, retryable, no refund.
+        var f = Build();
+        LlmThrows(f, new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));
+        var request = Request(tier: 2);
+
+        var response = await f.Sut.EnqueueAsync(request, CancellationToken.None);
+
+        response.Status.Should().Be("failed");
+        await f.Delivery.Received(1).UpdateStatusAsync(
+            request.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            ErrorCategorizer.Network, Arg.Any<CancellationToken>());
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+}

@@ -230,7 +230,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, Bu
     // Matching only the message line — which is all FrontendErrorRegex can do on its own —
     // hands the repair loop "Type error: Type 'string' is not assignable to type 'number'."
     // with no file and no line. The LLM cannot fix that, so all three retries burn and
-    // TryIssueCompileGuaranteeRefundAsync refunds a paying customer. The surrounding
+    // the Compile Guarantee refunds a paying customer. The surrounding
     // context is therefore stitched back on here.
 
     /// <summary>Cap on reassembled frontend errors, so one bad file cannot crowd the retry prompt out.</summary>

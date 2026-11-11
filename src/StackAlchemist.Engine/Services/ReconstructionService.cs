@@ -154,8 +154,9 @@ public sealed partial class ReconstructionService : IReconstructionService
     /// It reports rather than throws, and the difference is the customer's money. The repair
     /// loop already has a defined failure mode — retries exhaust, the build stays red, and the
     /// Compile Guarantee refunds a paid generation. Throwing here would abort the job on the
-    /// spot through the worker's generic catch, which marks it Failed WITHOUT ever reaching the
-    /// refund branch: the customer would lose both the app and the money. Dropping the block and
+    /// spot through the worker's generic catch, with the remaining repair attempts unused. That
+    /// catch refunds only a failure the customer cannot retry, so most throws from here would
+    /// leave a failed build and no refund. Dropping the block and
     /// naming it in the log leaves that path intact, and the retry prompt states the tree roots
     /// up front so the next attempt has what it needs to get the path right.
     ///
