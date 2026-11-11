@@ -71,6 +71,62 @@ public sealed class StripeWebhookTests
     }
 
     [Fact]
+    public async Task ChargePartiallyRefunded_LeavesTheTransactionAndTheGenerationAlone()
+    {
+        // Stripe sends charge.refunded for a partial refund too, with Refunded = false.
+        var (sut, billing, _) = BuildSut();
+
+        var stripeEvent = new Event
+        {
+            Id = "evt_partial_1",
+            Type = "charge.refunded",
+            Data = new EventData
+            {
+                Object = new Charge { Id = "ch_p", PaymentIntentId = "pi_p", Refunded = false, Amount = 59900, AmountRefunded = 5000 },
+            },
+        };
+
+        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Reason.Should().Be("partial_refund");
+        result.Retry.Should().BeFalse();
+        await billing.DidNotReceiveWithAnyArgs().UpdateTransactionsAsync(default, default!, default!, default!, default, default);
+        await billing.DidNotReceiveWithAnyArgs().CancelUndeliveredGenerationAsync(default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData("charge.refunded")]
+    [InlineData("charge.dispute.created")]
+    [InlineData("payment_intent.payment_failed")]
+    [InlineData("checkout.session.async_payment_failed")]
+    public async Task StatusWriteThrows_TakesTheEventBackOutAndRequestsRetry(string eventType)
+    {
+        // The event is recorded before the write. Left recorded, Stripe's redelivery would be
+        // skipped as a duplicate and the status never written.
+        var (sut, billing, _) = BuildSut();
+        billing.UpdateTransactionsAsync(default, default!, default!, default!, default, default)
+            .ReturnsForAnyArgs(Task.FromException<string?>(new InvalidOperationException("transaction status update failed")));
+
+        IHasObject payload = eventType switch
+        {
+            "charge.refunded" => new Charge { Id = "ch_t", PaymentIntentId = "pi_t", Refunded = true },
+            "charge.dispute.created" => new Dispute { ChargeId = "ch_t", PaymentIntentId = "pi_t" },
+            "payment_intent.payment_failed" => new PaymentIntent { Id = "pi_t" },
+            _ => new Session { Id = "cs_t" },
+        };
+        var stripeEvent = new Event { Id = "evt_throw_1", Type = eventType, Data = new EventData { Object = payload } };
+
+        var result = await sut.HandleAsync(stripeEvent, CancellationToken.None);
+
+        result.Processed.Should().BeFalse();
+        result.Reason.Should().Be("status_write_failed");
+        result.Retry.Should().BeTrue();
+        await billing.Received(1).DeleteEventAsync("evt_throw_1", CancellationToken.None);
+        await billing.DidNotReceiveWithAnyArgs().CancelUndeliveredGenerationAsync(default!, default!, default);
+    }
+
+    [Fact]
     public async Task CheckoutAsyncPaymentFailed_MarksTransactionFailed()
     {
         var (sut, billing, orchestrator) = BuildSut();

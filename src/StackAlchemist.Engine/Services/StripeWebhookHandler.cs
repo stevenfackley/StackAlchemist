@@ -53,14 +53,26 @@ public sealed partial class StripeWebhookHandler(
             }
         }
 
-        return stripeEvent.Type switch
+        try
         {
-            "checkout.session.async_payment_failed"=> await HandleCheckoutFailedAsync(stripeEvent, ct),
-            "payment_intent.payment_failed"        => await HandlePaymentIntentFailedAsync(stripeEvent, ct),
-            "charge.refunded"                      => await HandleChargeRefundedAsync(stripeEvent, ct),
-            "charge.dispute.created"               => await HandleDisputeOpenedAsync(stripeEvent, ct),
-            _                                       => new StripeWebhookResult(false, $"unhandled:{stripeEvent.Type}"),
-        };
+            return stripeEvent.Type switch
+            {
+                "checkout.session.async_payment_failed"=> await HandleCheckoutFailedAsync(stripeEvent, ct),
+                "payment_intent.payment_failed"        => await HandlePaymentIntentFailedAsync(stripeEvent, ct),
+                "charge.refunded"                      => await HandleChargeRefundedAsync(stripeEvent, ct),
+                "charge.dispute.created"               => await HandleDisputeOpenedAsync(stripeEvent, ct),
+                _                                       => new StripeWebhookResult(false, $"unhandled:{stripeEvent.Type}"),
+            };
+        }
+        catch (Exception ex) when (billing is not null)
+        {
+            // The event is already recorded, so Stripe's redelivery would be skipped as a duplicate
+            // and the status write lost for good. Take the record back out, then ask for the retry.
+            // Not on ct, for the same reason as the checkout compensation below.
+            LogStatusWriteFailed(logger, ex, stripeEvent.Id, stripeEvent.Type);
+            await billing.DeleteEventAsync(stripeEvent.Id, CancellationToken.None);
+            return new StripeWebhookResult(false, "status_write_failed", Retry: true);
+        }
     }
 
     // ── checkout.session.completed ─────────────────────────────────────────────
@@ -228,6 +240,15 @@ public sealed partial class StripeWebhookHandler(
         if (string.IsNullOrWhiteSpace(paymentIntentId))
             return new StripeWebhookResult(false, "missing_payment_intent");
 
+        // Stripe sends charge.refunded for a partial refund too. The customer has still paid for
+        // the build, so the transaction stays 'completed': the build goes ahead, and the
+        // Compile Guarantee can still refund the rest if it fails.
+        if (!charge.Refunded)
+        {
+            LogStripeChargePartiallyRefunded(logger, charge.Id, paymentIntentId);
+            return new StripeWebhookResult(false, "partial_refund");
+        }
+
         if (billing is not null)
         {
             // Mark the transaction refunded and look up the linked generation_id
@@ -299,4 +320,10 @@ public sealed partial class StripeWebhookHandler(
 
     [LoggerMessage(EventId = 311, Level = LogLevel.Error, Message = "Enqueue failed after checkout for event {EventId} (generation {GenerationId}) — compensating stripe_events delete + retry")]
     private static partial void LogCheckoutEnqueueFailed(ILogger logger, Exception ex, string eventId, string generationId);
+
+    [LoggerMessage(EventId = 313, Level = LogLevel.Error, Message = "Status write failed for Stripe event {EventId} ({EventType}) — compensating stripe_events delete + retry")]
+    private static partial void LogStatusWriteFailed(ILogger logger, Exception ex, string eventId, string eventType);
+
+    [LoggerMessage(EventId = 314, Level = LogLevel.Information, Message = "Stripe charge {ChargeId} partially refunded (intent={IntentId}) — transaction left as it is")]
+    private static partial void LogStripeChargePartiallyRefunded(ILogger logger, string chargeId, string? intentId);
 }

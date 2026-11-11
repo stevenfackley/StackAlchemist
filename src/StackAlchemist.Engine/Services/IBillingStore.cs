@@ -59,7 +59,7 @@ public interface IBillingStore
     /// <summary>Insert into stripe_events; Duplicate on conflict; Unavailable when the store cannot be reached (never throws).</summary>
     Task<EventRecord> TryRecordEventAsync(string eventId, string eventType, CancellationToken ct);
 
-    /// <summary>Compensation for a failed enqueue after a successful checkout RPC. Swallows and logs failures.</summary>
+    /// <summary>Takes a recorded event back out after its side effect failed, so Stripe's redelivery is not skipped as a duplicate. Swallows and logs failures.</summary>
     Task DeleteEventAsync(string eventId, CancellationToken ct);
 
     /// <summary>
@@ -71,7 +71,10 @@ public interface IBillingStore
         string eventId, string eventType, string sessionId, string? paymentIntentId,
         string generationId, int tier, long amount, CancellationToken ct);
 
-    /// <summary>Status overwrite on every transaction matching key = value. Returns the first row's generation_id when asked. Swallows and logs failures.</summary>
+    /// <summary>
+    /// Sets the status on every transaction matching key = value; 'failed' applies only to a row still 'pending'.
+    /// Returns the first row's generation_id when asked. Throws on failure so the caller can ask Stripe to retry.
+    /// </summary>
     Task<string?> UpdateTransactionsAsync(TransactionKey key, string value, string status, string eventId, bool returnGenerationId, CancellationToken ct);
 
     /// <summary>generations: status='failed' unless already 'success'. Swallows and logs failures.</summary>
