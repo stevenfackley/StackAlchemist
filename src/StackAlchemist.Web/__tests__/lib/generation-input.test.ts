@@ -56,11 +56,26 @@ describe("validateSchema", () => {
   it("refuses two fields with the same name in one entity, but not across entities", () => {
     const total = { name: "Total", type: "decimal", pk: false };
     expect(validateSchema(schemaOf({ name: "Invoice", fields: [total, { ...total, name: "total" }] }))).toBe(
-      'Invoice has two fields named "total". Give each field its own name.'
+      'Invoice has two fields that would both be built as "total". Give each field its own name.'
     );
     expect(
       validateSchema(schemaOf({ name: "Invoice", fields: [total] }, { name: "Quote", fields: [total] }))
     ).toBeNull();
+  });
+
+  // The Engine sanitises field names the same way as entity names, with the
+  // fallback "Field". Each pair becomes one C# property, and the build fails.
+  it.each([
+    ["email", "e-mail"],
+    ["first name", "firstname"],
+    ["#", "?"],
+    ["2fa", "fa"],
+  ])("refuses fields %j and %j, which the Engine would build as one property", (first, second) => {
+    const field = (name: string) => ({ name, type: "string", pk: false });
+
+    expect(validateSchema(schemaOf({ name: "Customer", fields: [field(first), field(second)] }))).toMatch(
+      /^Customer has two fields that would both be built as "/
+    );
   });
 
   it("refuses names longer than 64 characters", () => {

@@ -352,18 +352,34 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
     expect(store.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ prompt: "a recipe app" }));
   });
 
-  it("refuses another checkout once ten are waiting unpaid", async () => {
+  it("refuses another checkout once ten were started unpaid in the last hour", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(USER);
     store.countUnpaidPendingGenerations.mockResolvedValue(10);
+    const before = Date.now();
 
     const result = await createPendingGeneration("advanced", 2, undefined, VALID_SCHEMA);
 
     expect(result).toEqual({
       success: false,
-      error: "You have several checkouts that were started and not finished. Please try again tomorrow, or contact support.",
+      error: "You have started several checkouts in the last hour without finishing one. Please try again in an hour, or contact support.",
     });
-    expect(store.countUnpaidPendingGenerations).toHaveBeenCalledWith(USER.id);
+    // Counted over the last hour only: an abandoned row lives about a day, and
+    // counting all of them would lock a customer out until tomorrow.
+    const [userId, since] = store.countUnpaidPendingGenerations.mock.calls[0];
+    expect(userId).toBe(USER.id);
+    expect(before - since.getTime()).toBeGreaterThanOrEqual(60 * 60 * 1000);
+    expect(before - since.getTime()).toBeLessThan(60 * 60 * 1000 + 5_000);
     expect(store.insertGeneration).not.toHaveBeenCalled();
+  });
+
+  it("allows a checkout while fewer than ten were started in the last hour", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(USER);
+    store.countUnpaidPendingGenerations.mockResolvedValue(9);
+    store.insertGeneration.mockResolvedValue({ id: "gen-pending-4" } as never);
+
+    const result = await createPendingGeneration("advanced", 2, undefined, VALID_SCHEMA);
+
+    expect(result).toEqual({ success: true, generationId: "gen-pending-4" });
   });
 
   it("still creates the row when the unpaid count cannot be read", async () => {

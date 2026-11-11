@@ -12,13 +12,15 @@ const MAX_SCHEMA_BYTES = 100 * 1024;
 const MAX_PERSONALIZATION_BYTES = 16 * 1024;
 
 /**
- * The identifier the Engine makes of an entity name
- * (TemplateValueSanitizer.SanitizeIdentifier): only A-Z, a-z, 0-9 and "_"
- * survive, and it starts at the first letter. Two names that differ only in what
- * is stripped ("User" and "User-") become the same class, file and table.
+ * The identifier the Engine makes of an entity or field name
+ * (TemplateValueSanitizer.SanitizeIdentifier, called from BuildVariables with
+ * the fallbacks "Entity" and "Field"): only A-Z, a-z, 0-9 and "_" survive, and
+ * it starts at the first letter. Two names that differ only in what is stripped
+ * ("User" and "User-", "email" and "e-mail") become one class or one property,
+ * and the build fails on the duplicate.
  */
-function engineIdentifier(name: string): string {
-  return name.replace(/[^A-Za-z0-9_]/g, "").replace(/^[^A-Za-z]+/, "") || "Entity";
+function engineIdentifier(name: string, fallback: "Entity" | "Field"): string {
+  return name.replace(/[^A-Za-z0-9_]/g, "").replace(/^[^A-Za-z]+/, "") || fallback;
 }
 
 function byteLength(value: unknown): number {
@@ -41,7 +43,7 @@ export function validateSchema(schema: GenerationSchema): string | null {
       return `Entity names can be at most ${MAX_NAME_LENGTH} characters.`;
     }
 
-    const identifier = engineIdentifier(name);
+    const identifier = engineIdentifier(name, "Entity");
     if (seen.has(identifier.toLowerCase())) {
       return `Two entities would both be built as "${identifier}". Give each entity its own name.`;
     }
@@ -56,10 +58,11 @@ export function validateSchema(schema: GenerationSchema): string | null {
       if (fieldName.length > MAX_NAME_LENGTH) {
         return `Field names can be at most ${MAX_NAME_LENGTH} characters.`;
       }
-      if (fieldNames.has(fieldName.toLowerCase())) {
-        return `${name} has two fields named "${fieldName}". Give each field its own name.`;
+      const fieldIdentifier = engineIdentifier(fieldName, "Field");
+      if (fieldNames.has(fieldIdentifier.toLowerCase())) {
+        return `${name} has two fields that would both be built as "${fieldIdentifier}". Give each field its own name.`;
       }
-      fieldNames.add(fieldName.toLowerCase());
+      fieldNames.add(fieldIdentifier.toLowerCase());
     }
   }
 

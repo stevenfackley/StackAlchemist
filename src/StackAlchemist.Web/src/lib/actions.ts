@@ -194,10 +194,13 @@ export async function saveProfileSettings(
 const FREE_TIER_MONTHLY_LIMIT = 5;
 
 /**
- * Paid rows one account may have waiting for a checkout. Each click on Checkout
- * makes a row; an abandoned one is failed by the Engine about a day later.
+ * Unpaid checkout rows one account may create in an hour. Each click on
+ * Checkout makes a row, so a customer who cancels at Stripe or hits an error and
+ * tries again adds one each time. Counted over an hour, not over the day an
+ * abandoned row lives, so that customer is never locked out until tomorrow.
  */
 const MAX_UNFINISHED_CHECKOUTS = 10;
+const UNFINISHED_CHECKOUT_WINDOW_MS = 60 * 60 * 1000;
 
 /**
  * The submit actions start the Engine straight away, so they build the free tier
@@ -284,13 +287,16 @@ async function createGenerationRow(
     // count that cannot be read must not stop a customer from paying.
     let unfinished = 0;
     try {
-      unfinished = await getDataStore().countUnpaidPendingGenerations(user.id);
+      unfinished = await getDataStore().countUnpaidPendingGenerations(
+        user.id,
+        new Date(Date.now() - UNFINISHED_CHECKOUT_WINDOW_MS)
+      );
     } catch (error) {
       console.error(`[${tag}] Pending count failed:`, error);
     }
     if (unfinished >= MAX_UNFINISHED_CHECKOUTS) {
       return {
-        error: "You have several checkouts that were started and not finished. Please try again tomorrow, or contact support.",
+        error: "You have started several checkouts in the last hour without finishing one. Please try again in an hour, or contact support.",
       };
     }
   }

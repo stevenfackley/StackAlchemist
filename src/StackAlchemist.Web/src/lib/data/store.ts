@@ -44,8 +44,8 @@ export interface DataStore {
   ensureProfile(profile: { id: string; email: string }): Promise<void>;
   /** Same predicate as the enforce_free_generation_quota trigger: tier 0, not failed, created this calendar month (UTC). */
   countFreeGenerationsThisMonth(userId: string, monthStartUtc: Date): Promise<number>;
-  /** The caller's paid-tier rows still `pending`: created for a checkout that has not been paid (or not yet picked up). */
-  countUnpaidPendingGenerations(userId: string): Promise<number>;
+  /** The caller's paid-tier rows created since `since` and still `pending`: made for a checkout that has not been paid (or not yet picked up). */
+  countUnpaidPendingGenerations(userId: string, since: Date): Promise<number>;
   /** Returns the row as stored: status `pending`, `attempt_count` 0, column defaults applied. */
   insertGeneration(gen: NewGeneration): Promise<Generation>;
   /**

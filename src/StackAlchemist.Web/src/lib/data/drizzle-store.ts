@@ -76,10 +76,11 @@ export class DrizzleStore implements DataStore {
     } catch (e) { throw new DataStoreError("generations count failed", driverError(e)); }
   }
 
-  async countUnpaidPendingGenerations(userId: string): Promise<number> {
+  async countUnpaidPendingGenerations(userId: string, since: Date): Promise<number> {
     try {
       const [{ n }] = await this.db.select({ n: count() }).from(generations).where(and(
         eq(generations.user_id, userId), gt(generations.tier, 0), eq(generations.status, "pending"),
+        gte(generations.created_at, since.toISOString()),
       ));
       return n;
     } catch (e) { throw new DataStoreError("generations count failed", driverError(e)); }
