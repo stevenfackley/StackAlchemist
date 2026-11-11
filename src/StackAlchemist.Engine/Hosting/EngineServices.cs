@@ -212,6 +212,7 @@ public static class EngineServices
 
         // ── Orchestrator ──────────────────────────────────────────────────────────────
         services.AddSingleton<IGenerationOrchestrator, GenerationOrchestrator>();
+        services.AddSingleton<IGenerationDispatcher, BackgroundGenerationDispatcher>();
 
         return services;
     }
@@ -221,7 +222,7 @@ public static class EngineServices
     {
         // Factories, because the billing store is optional and DI does not inject a missing service as null.
         services.AddSingleton<IStripeWebhookHandler>(sp => new StripeWebhookHandler(
-            sp.GetRequiredService<IGenerationOrchestrator>(), sp.GetService<IBillingStore>(),
+            sp.GetRequiredService<IGenerationDispatcher>(), sp.GetService<IBillingStore>(),
             sp.GetRequiredService<IEmailService>(), sp.GetRequiredService<ILogger<StripeWebhookHandler>>()));
 
         // ── Payment check in front of /api/generate ───────────────────────────────────

@@ -38,7 +38,7 @@ public static class GenerationEndpoints
 
     private static async Task<IResult> GenerateAsync(
         GenerateRequest request,
-        IGenerationOrchestrator orchestrator,
+        IGenerationDispatcher dispatcher,
         IDeliveryService delivery,
         IPaidGenerationGate paidGate,
         IConfiguration config,
@@ -77,25 +77,10 @@ public static class GenerationEndpoints
                     statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        // Dispatch codegen to the background on the app-lifetime token — NOT the request's
-        // CancellationToken (which binds to HttpContext.RequestAborted). A client or CF-tunnel
-        // disconnect must not cancel an in-flight generation: a one-shot whole-app LLM call can
-        // outlast the ~100s proxy timeout, and the frontend tracks progress by polling the generation
-        // row, not this HTTP response. So we fire-and-forget and return Accepted immediately. Safe
-        // because every engine service is registered AddSingleton (no scoped disposal at request
-        // end). EnqueueAsync owns its own failure handling (marks the row failed); the catch here
-        // only guards against an unexpected throw before that runs.
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await orchestrator.EnqueueAsync(request, lifetime.ApplicationStopping);
-            }
-            catch (Exception ex)
-            {
-                logger.GenerationDispatchFailed(ex, request.GenerationId);
-            }
-        });
+        // Codegen runs in the background, not on this request: a client or CF-tunnel disconnect
+        // must not cancel a generation (a whole-app LLM call can outlast the ~100s proxy timeout),
+        // and the frontend tracks progress by polling the row, not this response.
+        dispatcher.Dispatch(request);
 
         return Results.Accepted(
             $"/api/generate/{request.GenerationId}",

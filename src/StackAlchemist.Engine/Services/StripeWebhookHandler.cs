@@ -12,7 +12,7 @@ public interface IStripeWebhookHandler
 /// <summary>
 /// Outcome of a webhook delivery. <see cref="Retry"/> tells the endpoint to return a
 /// 5xx so Stripe redelivers the event — set when a side effect failed in a way a
-/// redelivery can fix (idempotency log unavailable, RPC failure, enqueue failure).
+/// redelivery can fix (idempotency log unavailable, RPC failure, a failed status write).
 /// </summary>
 public sealed record StripeWebhookResult(bool Processed, string? Reason = null, bool Retry = false);
 
@@ -25,7 +25,7 @@ public sealed record StripeWebhookResult(bool Processed, string? Reason = null, 
 /// configured) means no idempotency log, and every event proceeds without one.
 /// </summary>
 public sealed partial class StripeWebhookHandler(
-    IGenerationOrchestrator orchestrator,
+    IGenerationDispatcher dispatcher,
     IBillingStore? billing,
     IEmailService emailService,
     ILogger<StripeWebhookHandler> logger) : IStripeWebhookHandler
@@ -68,7 +68,8 @@ public sealed partial class StripeWebhookHandler(
         {
             // The event is already recorded, so Stripe's redelivery would be skipped as a duplicate
             // and the status write lost for good. Take the record back out, then ask for the retry.
-            // Not on ct, for the same reason as the checkout compensation below.
+            // Not on ct: the write may have failed because the request was aborted, and a delete
+            // skipped on an already-cancelled token would leave the event recorded.
             LogStatusWriteFailed(logger, ex, stripeEvent.Id, stripeEvent.Type);
             await billing.DeleteEventAsync(stripeEvent.Id, CancellationToken.None);
             return new StripeWebhookResult(false, "status_write_failed", Retry: true);
@@ -140,45 +141,24 @@ public sealed partial class StripeWebhookHandler(
             projectType = outcome.ProjectType ?? projectType;
             schema = outcome.Schema;
             personalization = outcome.Personalization;
+        }
 
-            try
-            {
-                await orchestrator.EnqueueAsync(new GenerateRequest
-                {
-                    GenerationId    = generationId,
-                    Mode            = mode,
-                    Tier            = tier,
-                    ProjectType     = projectType,
-                    Prompt          = prompt,
-                    Schema          = schema,
-                    Personalization = personalization,
-                }, ct);
-            }
-            catch (Exception ex)
-            {
-                // Compensate: un-record the event so Stripe's redelivery gets a fresh
-                // is_new=true from the RPC instead of short-circuiting as a duplicate.
-                // Not on ct: the enqueue may have failed because the request was aborted,
-                // and a compensation that skips on an already-cancelled token loses the checkout.
-                LogCheckoutEnqueueFailed(logger, ex, stripeEvent.Id, generationId);
-                await billing.DeleteEventAsync(stripeEvent.Id, CancellationToken.None);
-                return new StripeWebhookResult(false, "enqueue_failed", Retry: true);
-            }
-        }
-        else
+        // The build starts in the background and is not awaited. For tiers 2 and 3 it includes
+        // minutes of LLM code generation, and Stripe expects its answer in seconds: awaited on this
+        // request, the build was cancelled when the delivery timed out, and the redelivery then
+        // reported "duplicate". The payment is already recorded above, so a build that fails to
+        // start leaves a paid pending row, which the reconciler re-enqueues once it goes stale.
+        // With no billing store (local dev) there is no idempotency log and no such safety net.
+        dispatcher.Dispatch(new GenerateRequest
         {
-            // No billing store (local dev): no idempotency log, enqueue directly.
-            await orchestrator.EnqueueAsync(new GenerateRequest
-            {
-                GenerationId    = generationId,
-                Mode            = mode,
-                Tier            = tier,
-                ProjectType     = projectType,
-                Prompt          = prompt,
-                Schema          = schema,
-                Personalization = personalization,
-            }, ct);
-        }
+            GenerationId    = generationId,
+            Mode            = mode,
+            Tier            = tier,
+            ProjectType     = projectType,
+            Prompt          = prompt,
+            Schema          = schema,
+            Personalization = personalization,
+        });
 
         var customerEmail = session.CustomerDetails?.Email ?? session.CustomerEmail;
         if (!string.IsNullOrWhiteSpace(customerEmail))
@@ -317,9 +297,6 @@ public sealed partial class StripeWebhookHandler(
 
     [LoggerMessage(EventId = 310, Level = LogLevel.Error, Message = "process_checkout_completed RPC failed for event {EventId} (generation {GenerationId}) — returning retry to Stripe")]
     private static partial void LogCheckoutRpcFailed(ILogger logger, Exception ex, string eventId, string generationId);
-
-    [LoggerMessage(EventId = 311, Level = LogLevel.Error, Message = "Enqueue failed after checkout for event {EventId} (generation {GenerationId}) — compensating stripe_events delete + retry")]
-    private static partial void LogCheckoutEnqueueFailed(ILogger logger, Exception ex, string eventId, string generationId);
 
     [LoggerMessage(EventId = 313, Level = LogLevel.Error, Message = "Status write failed for Stripe event {EventId} ({EventType}) — compensating stripe_events delete + retry")]
     private static partial void LogStatusWriteFailed(ILogger logger, Exception ex, string eventId, string eventType);

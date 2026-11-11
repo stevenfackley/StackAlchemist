@@ -22,7 +22,8 @@ public class GenerationOrchestratorTests
 
     private static (GenerationOrchestrator Sut, ILlmClient Llm, Channel<GenerationContext> Queue, MockFileSystem Fs) BuildSut(
         IDeliveryService? deliveryOverride = null,
-        ILlmCredentialResolver? resolver = null)
+        ILlmCredentialResolver? resolver = null,
+        IInFlightGenerationRegistry? inFlight = null)
     {
         var fs = new MockFileSystem();
         var queue = Channel.CreateUnbounded<GenerationContext>();
@@ -75,11 +76,32 @@ public class GenerationOrchestratorTests
             fs,
             EmptyConfig(),
             queue.Writer,
-            new InFlightGenerationRegistry(),
+            inFlight ?? new InFlightGenerationRegistry(),
             NullLogger<GenerationOrchestrator>.Instance,
             resolver);
 
         return (sut, llm, queue, fs);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_RowReadThrows_ReleasesTheIdSoTheReconcilerCanSeeTheRow()
+    {
+        // The throw is before anything started, so the row is still pending. An id left in the
+        // registry would make the reconciler skip that row until the process restarts, and for a
+        // paid row the reconciler is what restarts a build that failed to start.
+        var generationId = Guid.NewGuid().ToString();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationSnapshotAsync(generationId, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("store unreachable"));
+        var inFlight = new InFlightGenerationRegistry();
+        var (sut, _, queue, _) = BuildSut(delivery, inFlight: inFlight);
+
+        var act = () => sut.EnqueueAsync(new GenerateRequest { GenerationId = generationId, Mode = "advanced", Tier = 2 });
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        inFlight.Contains(generationId).Should().BeFalse();
+        queue.Reader.TryRead(out _).Should().BeFalse();
+        delivery.ReceivedCalls().Should().ContainSingle("the row read is the only store call: no status was written");
     }
 
     private static GenerationSnapshot Snapshot(string id, int tier, string status = "pending") =>
