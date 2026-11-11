@@ -124,6 +124,8 @@ export interface GenerationErrorPanelProps {
   /** Called when the user clicks Retry. If absent, the retry button is hidden. */
   onRetry?: () => void;
   isRetrying?: boolean;
+  /** Why the last click on Retry did not start a build, shown under the buttons. */
+  retryError?: string | null;
   /** data-testid forwarded to the root element */
   testId?: string;
 }
@@ -135,6 +137,7 @@ export function GenerationErrorPanel({
   generationId: generationIdProp,
   onRetry,
   isRetrying = false,
+  retryError,
   testId,
 }: GenerationErrorPanelProps) {
   const category = generation?.error_category ?? categoryProp ?? null;
@@ -197,6 +200,12 @@ export function GenerationErrorPanel({
           </Link>
         ))}
       </div>
+
+      {retryError && !isRetrying && (
+        <p role="alert" className="max-w-md text-center text-sm text-rose-300">
+          {retryError}
+        </p>
+      )}
     </div>
   );
 }

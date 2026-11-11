@@ -25,6 +25,7 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
       : initialGeneration
   );
   const [isPending, startTransition] = useTransition();
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   // ── Status watcher ──────────────────────────────────────────────────────────
   // Polls getGeneration every 3s while the tab is visible (paused when hidden,
@@ -39,8 +40,16 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
 
   // ── Retry handler ──────────────────────────────────────────────────────────
   function handleRetry() {
+    setRetryError(null);
     startTransition(async () => {
-      const result = await retryGeneration(generationId);
+      let result: Awaited<ReturnType<typeof retryGeneration>>;
+      try {
+        result = await retryGeneration(generationId);
+      } catch {
+        // The action itself did not answer: offline, or the site is mid-deploy.
+        result = { success: false };
+      }
+
       if (result.success) {
         // Reset local state to pending so progress bar reappears
         setGeneration((g) => ({
@@ -48,6 +57,10 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
           status: "pending",
           error_message: null,
         }));
+      } else {
+        // Without this the spinner stops and nothing else changes: a retry refused
+        // for a refunded payment or an expired session looked like a dead button.
+        setRetryError(result.error ?? "The retry could not be started. Please try again in a moment.");
       }
     });
   }
@@ -84,6 +97,7 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
             generation={generation}
             onRetry={handleRetry}
             isRetrying={isPending}
+            retryError={retryError}
           />
         )}
 

@@ -107,6 +107,25 @@ describe("GenerationErrorPanel — retry state", () => {
     expect(screen.getByRole("button", { name: /retrying/i })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /^retry$/i })).toBeNull();
   });
+
+  it("says why the last retry did not start, and keeps the Retry button", () => {
+    render(
+      <GenerationErrorPanel
+        errorMessage="fail"
+        onRetry={vi.fn()}
+        retryError="This build has no completed payment."
+      />
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("This build has no completed payment.");
+    expect(screen.getByRole("button", { name: /^retry$/i })).toBeEnabled();
+  });
+
+  it("hides the previous retry's message while the next retry is running", () => {
+    render(
+      <GenerationErrorPanel errorMessage="fail" onRetry={vi.fn()} isRetrying={true} retryError="Please sign in to retry a build." />
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
 
 describe("GenerationErrorPanel — internal category", () => {
