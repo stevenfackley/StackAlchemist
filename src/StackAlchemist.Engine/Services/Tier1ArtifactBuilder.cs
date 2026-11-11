@@ -43,7 +43,12 @@ public static class Tier1ArtifactBuilder
             return sb.ToString();
         }
 
-        var entityLookup = variables.Entities.ToDictionary(e => e.Name, StringComparer.Ordinal);
+        // Not ToDictionary: template names are sanitised identifiers, so two schema entities
+        // ("User" and "User-") can arrive here under one name, and a duplicate key threw. That
+        // failed a build the customer had already paid for. The first one wins.
+        var entityLookup = new Dictionary<string, TemplateEntity>(StringComparer.Ordinal);
+        foreach (var templateEntity in variables.Entities)
+            entityLookup.TryAdd(templateEntity.Name, templateEntity);
 
         foreach (var entity in schema.Entities)
         {
