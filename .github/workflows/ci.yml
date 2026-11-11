@@ -249,9 +249,18 @@ jobs:
         working-directory: src/StackAlchemist.Web
         run: npm ci
 
+      # --with-deps installs Chromium's system libraries with apt. When the runner cannot reach
+      # Ubuntu's mirrors (2026-11-11: hours of "Temporary failure resolving archive.ubuntu.com"
+      # on every branch, no GitHub incident), fall back to the browser alone: the hosted image
+      # already ships Chrome and its libraries. The tests then run as usual, and a missing
+      # library would fail them, not hide.
       - name: Install Playwright Browsers
         working-directory: src/StackAlchemist.Web
-        run: npx playwright install --with-deps chromium
+        run: |
+          if ! npx playwright install --with-deps chromium; then
+            echo "::warning::apt could not install Chromium's system packages; using the image's libraries"
+            npx playwright install chromium
+          fi
 
       - name: Run Playwright Smoke Tests
         working-directory: src/StackAlchemist.Web
