@@ -45,6 +45,42 @@ public class Tier1ArtifactBuilderTests
     }
 
     [Fact]
+    public void Build_WhenTwoEntitiesShareASanitisedName_DocumentsBothInsteadOfThrowing()
+    {
+        // "User" and "User-" both sanitise to "User", so the template variables carry the name twice.
+        var schema = new GenerationSchema
+        {
+            Entities =
+            [
+                new SchemaEntity { Name = "User", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+                new SchemaEntity { Name = "User-", Fields = [new SchemaField { Name = "Id", Type = "uuid", Pk = true }] },
+            ],
+        };
+
+        var result = Tier1ArtifactBuilder.Build(schema, MakeVariables("User", "User"));
+
+        result["api-docs.md"].Should().Contain("## User\n".ReplaceLineEndings()).And.Contain("## User-");
+    }
+
+    [Theory]
+    [InlineData("Order Item", "orderitems")]
+    [InlineData("User-", "users")]
+    [InlineData("2nd Address", "ndaddresss")]
+    [InlineData("!!!", "entitys")]
+    public void Build_DocumentsTheRouteTheGeneratedProductServes(string entityName, string routeSegment)
+    {
+        // The product's routes are built from the sanitised name, so the docs must be too:
+        // "Order Item" is served at /api/v1/orderitems, never at "/api/v1/order items".
+        var schema = new GenerationSchema { Entities = [new SchemaEntity { Name = entityName }] };
+
+        var docs = Tier1ArtifactBuilder.Build(schema, MakeVariables())["api-docs.md"];
+
+        docs.Should().Contain($"`GET /api/v1/{routeSegment}`")
+            .And.Contain($"`DELETE /api/v1/{routeSegment}/{{id}}`")
+            .And.NotContain($"/api/v1/{entityName.ToLowerInvariant()}s`");
+    }
+
+    [Fact]
     public void Build_WithNullSchema_TreatsAsEmptySchema()
     {
         var result = Tier1ArtifactBuilder.Build(null, MakeVariables());
