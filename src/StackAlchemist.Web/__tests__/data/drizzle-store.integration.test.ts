@@ -24,12 +24,14 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
     await sql`insert into stackalchemist.profiles (id, email) values (${alice}, 'alice@example.test'), (${bob}, 'bob@example.test')`;
   });
   beforeEach(async () => {
+    await sql`delete from stackalchemist.transactions where user_id in (${alice}, ${bob})`;
     await sql`delete from stackalchemist.generations where user_id in (${alice}, ${bob})`;
   });
   afterAll(async () => {
     try {
       // sql is unassigned when beforeAll threw before connecting.
       if (sql) {
+        await sql`delete from stackalchemist.transactions where user_id in (${alice}, ${bob})`;
         await sql`delete from stackalchemist.generations where user_id in (${alice}, ${bob})`;
         await sql`delete from stackalchemist.profiles where id in (${alice}, ${bob})`;
       }
@@ -109,6 +111,109 @@ describe.skipIf(!url)("DrizzleStore against real Postgres", () => {
   it("retry only flips failed rows", async () => {
     const g = await gen(alice);
     expect(await store.resetForRetry(g.id, alice)).toBe(false);
+  });
+
+  it("each retry is counted on the row, and the fourth is refused", async () => {
+    const g = await gen(alice);
+    for (let used = 1; used <= 3; used++) {
+      await sql`update stackalchemist.generations set status = 'failed', error_message = 'boom' where id = ${g.id}`;
+      expect(await store.resetForRetry(g.id, alice)).toBe(true);
+      const row = await store.getGenerationForUser(g.id, alice);
+      // The owner's retries are counted on their own: the Engine's restart budget is untouched.
+      expect(row).toMatchObject({ status: "pending", retry_count: used, attempt_count: 0, error_message: null });
+    }
+
+    await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, alice)).toBe(false);
+    // Refused means untouched: still failed, and the count has not moved.
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ status: "failed", retry_count: 3 });
+  });
+
+  it("automatic restarts by the Engine do not use up the owner's retries", async () => {
+    const g = await gen(alice);
+    // Three re-enqueues by the reconciler, then a failure.
+    await sql`update stackalchemist.generations set status = 'failed', attempt_count = 3 where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, alice)).toBe(true);
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ retry_count: 1, attempt_count: 3 });
+  });
+
+  it("a refused retry (someone else's row) spends nothing", async () => {
+    const g = await gen(alice);
+    await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, bob)).toBe(false);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(0);
+  });
+
+  it("a retry that started nothing is given back, to its owner only, and never below zero", async () => {
+    const g = await gen(alice);
+    await sql`update stackalchemist.generations set status = 'failed' where id = ${g.id}`;
+    expect(await store.resetForRetry(g.id, alice)).toBe(true);
+
+    await store.uncountRetry(g.id, bob);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(1);
+
+    await store.uncountRetry(g.id, alice);
+    // Only the count moves: the row stays pending for the Engine's reconciler to start.
+    expect(await store.getGenerationForUser(g.id, alice)).toMatchObject({ retry_count: 0, status: "pending" });
+
+    await store.uncountRetry(g.id, alice);
+    expect((await store.getGenerationForUser(g.id, alice))?.retry_count).toBe(0);
+    await expect(store.uncountRetry("not-a-uuid", alice)).resolves.toBeUndefined();
+  });
+
+  describe("payment_status on the owner's row", () => {
+    const pay = (generationId: string, userId: string, status: string) =>
+      sql`insert into stackalchemist.transactions (user_id, generation_id, tier, amount, status) values (${userId}, ${generationId}, 1, 29900, ${status})`;
+
+    it("is null for a build with no transaction", async () => {
+      const g = await gen(alice);
+      const row = await store.getGenerationForUser(g.id, alice);
+      expect(row).not.toBeNull();
+      expect(row!.payment_status).toBeNull();
+    });
+
+    it.each(["completed", "refund_pending", "refunded", "disputed", "pending", "failed"])(
+      "is the transaction's status: %s",
+      async (status) => {
+        const g = await gen(alice);
+        await pay(g.id, alice, status);
+        expect((await store.getGenerationForUser(g.id, alice))?.payment_status).toBe(status);
+      }
+    );
+
+    it("a completed payment wins over an abandoned checkout and over an earlier refund", async () => {
+      // What the Engine's payment gate looks for: any completed transaction means the build is paid.
+      const g = await gen(alice);
+      await pay(g.id, alice, "pending");
+      await pay(g.id, alice, "refunded");
+      await pay(g.id, alice, "completed");
+      expect((await store.getGenerationForUser(g.id, alice))?.payment_status).toBe("completed");
+    });
+
+    it("a refund outranks a dispute and an abandoned checkout", async () => {
+      const g = await gen(alice);
+      await pay(g.id, alice, "pending");
+      await pay(g.id, alice, "disputed");
+      await pay(g.id, alice, "refund_pending");
+      expect((await store.getGenerationForUser(g.id, alice))?.payment_status).toBe("refund_pending");
+    });
+
+    it("reads only this build's transactions", async () => {
+      const mine = await gen(alice);
+      const other = await gen(alice);
+      await pay(other.id, alice, "completed");
+      expect((await store.getGenerationForUser(mine.id, alice))?.payment_status).toBeNull();
+    });
+
+    it("the row still carries every generation column", async () => {
+      const g = await gen(alice);
+      await pay(g.id, alice, "completed");
+      const row = await store.getGenerationForUser(g.id, alice);
+      expect(row).toMatchObject({
+        id: g.id, user_id: alice, tier: 1, status: "pending", attempt_count: 0, retry_count: 0, prompt: "p",
+      });
+      expect(row!.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+    });
   });
 
   it("free-tier quota: the trigger rejects the sixth non-failed tier-0 build this month", async () => {

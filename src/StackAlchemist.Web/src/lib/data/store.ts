@@ -54,15 +54,25 @@ export interface DataStore {
    * decided 2026-09-30, phase B decision 3). Someone else's id, an unknown id
    * and a malformed id or owner id all return null, the same answer, so the
    * read is not an existence oracle. There is deliberately no unscoped by-id
-   * read in this interface.
+   * read in this interface. The row carries `payment_status`: the status of
+   * the payment behind the build (null when it has no transaction).
    */
   getGenerationForUser(id: string, userId: string): Promise<Generation | null>;
   /**
-   * Atomic compare-and-set, scoped in SQL: only the owner's failed row flips
-   * back to pending. Returns whether a row changed, so of two concurrent
-   * retries exactly one gets `true`.
+   * Atomic compare-and-set, scoped in SQL: only the owner's failed row with a
+   * retry left (`retry_count` under MAX_RETRIES) flips back to pending, and
+   * the retry is counted in the same write. Returns whether a row changed, so
+   * of two concurrent retries exactly one gets `true` and one retry is spent.
+   * Counted before the Engine is called: the compare-and-set is what stops two
+   * tabs from both starting a build.
    */
   resetForRetry(id: string, userId: string): Promise<boolean>;
+  /**
+   * Gives back the retry that `resetForRetry` counted, when the Engine refused
+   * the build for good (402: no completed payment) and will never run it. Never
+   * goes below zero.
+   */
+  uncountRetry(id: string, userId: string): Promise<void>;
   /**
    * The caller's rows ordered by `created_at` descending, as list summaries:
    * the large columns (schema, build log, preview files) are not read. `total`

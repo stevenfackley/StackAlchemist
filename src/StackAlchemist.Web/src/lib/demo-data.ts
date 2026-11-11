@@ -109,6 +109,7 @@ export function buildDemoGeneration(id: string, tier: Tier = 0): Generation {
     error_message: null,
     error_category: null,
     attempt_count: 0,
+    retry_count: 0,
     created_at: now,
     updated_at: now,
     completed_at: now,

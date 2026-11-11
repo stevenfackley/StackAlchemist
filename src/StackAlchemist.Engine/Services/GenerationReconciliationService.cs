@@ -13,7 +13,7 @@ namespace StackAlchemist.Engine.Services;
 /// failing the row), (2) list stale non-terminal rows, (3) skip rows this instance is
 /// actively processing, (4) leave unpaid paid-tier checkouts alone (and fail them once
 /// their Checkout Session can no longer be paid), (5) re-enqueue pending/generating_code
-/// rows under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
+/// rows, and late-stage rows a restart cut off, under budget via a CAS claim, (6) conditionally fail the rest with a cause-specific
 /// message, and refund the ones that were paid for. A row whose stored schema no longer parses is failed at step (5) instead: it can
 /// never be rebuilt, and skipping it left it stale on every tick, forever (#425).
 ///
@@ -34,7 +34,8 @@ public sealed partial class GenerationReconciliationService(
 {
     private const int DefaultStaleMinutes = 15;
     private const int DefaultIntervalMinutes = 5;
-    private const int DefaultMaxAttempts = 3; // matches the frontend's attempt_count < 3 retry gate
+    // Automatic restarts per row. Not the customer's retries: those are retry_count, gated by the web.
+    private const int DefaultMaxAttempts = 3;
     private static readonly TimeSpan MaxBufferedWriteAge = TimeSpan.FromHours(1);
 
     // A Checkout Session can be paid for at most 24 hours after creation; an hour of slack covers
@@ -44,11 +45,27 @@ public sealed partial class GenerationReconciliationService(
     // Construction time ≈ process start (singleton hosted service, built at host boot).
     private readonly DateTimeOffset _processStartedUtc = timeProvider.GetUtcNow();
 
-    // Statuses safe to re-fire from the top of the pipeline: no on-disk artifacts to
-    // lose yet. Later states (building/packing/uploading) reference a temp directory
-    // that died with the old process, and extracting_schema is driven by a frontend
-    // HTTP call we cannot replay — those fail with a clear message instead.
+    // Statuses safe to re-fire from the top of the pipeline whenever they go stale: nothing is
+    // on disk yet. extracting_schema is driven by a frontend HTTP call we cannot replay, so it
+    // fails with a clear message instead.
     private static readonly HashSet<string> RequeueableStatuses = ["pending", "generating_code", "generating"];
+
+    // Later stages hold a temp directory that died with the old process, but the row still has
+    // the prompt and schema, so the build can be run again from the top. Only paid tiers get
+    // this far, and failing the row would refund a sale the customer still wants. Re-fired only
+    // when the row was last touched before this process started, i.e. a restart (every merge
+    // deploys prod) cut the job off. A late-stage row that went stale while this process was
+    // alive was dropped by the worker itself, with an outcome this sweep cannot know: that one
+    // is failed, not rebuilt.
+    private static readonly HashSet<string> RestartRequeueableStatuses = ["building", "packing", "uploading"];
+
+    // Statuses only a running job writes. A row in one of these, last touched before this
+    // process started, was being worked on by the process a restart replaced: nothing else can
+    // be running it (prod recreates the one Engine container, old one stopped first), so the
+    // boot pass restarts it at once instead of leaving the customer watching a frozen page for
+    // the stale window.
+    private static readonly HashSet<string> InProgressStatuses =
+        ["generating_code", "generating", "building", "packing", "uploading"];
 
     internal const string UnreadableRowMessage =
         "This generation could not be resumed: its saved schema or settings could not be read. "
@@ -64,6 +81,9 @@ public sealed partial class GenerationReconciliationService(
         }
 
         var intervalMinutes = configuration.GetValue("Generation:ReconcileIntervalMinutes", DefaultIntervalMinutes);
+
+        // Boot pass: restart, with no stale window, the builds the restart itself cut off.
+        await RunOnceSafeAsync(TimeSpan.Zero, stoppingToken, restartOrphansOnly: true);
 
         // Immediate startup sweep (preserves the old service's behavior), then periodic.
         await RunOnceSafeAsync(TimeSpan.FromMinutes(staleMinutes), stoppingToken);
@@ -82,11 +102,11 @@ public sealed partial class GenerationReconciliationService(
         }
     }
 
-    private async Task RunOnceSafeAsync(TimeSpan staleWindow, CancellationToken ct)
+    private async Task RunOnceSafeAsync(TimeSpan staleWindow, CancellationToken ct, bool restartOrphansOnly = false)
     {
         try
         {
-            await RunOnceAsync(staleWindow, ct);
+            await RunOnceAsync(staleWindow, ct, restartOrphansOnly);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -95,7 +115,11 @@ public sealed partial class GenerationReconciliationService(
         }
     }
 
-    internal async Task RunOnceAsync(TimeSpan staleWindow, CancellationToken ct)
+    /// <param name="restartOrphansOnly">
+    /// The boot pass: with <paramref name="staleWindow"/> zero, only re-enqueue rows a run was
+    /// working on when the previous process stopped. It never fails or refunds a row.
+    /// </param>
+    internal async Task RunOnceAsync(TimeSpan staleWindow, CancellationToken ct, bool restartOrphansOnly = false)
     {
         await FlushPendingWritesAsync(ct);
 
@@ -118,6 +142,14 @@ public sealed partial class GenerationReconciliationService(
             // paid back a customer whose build was delivered. A write that ages out of the buffer
             // is dropped, and the row then comes back to this sweep.
             if (pendingWrites.HasPendingFor(row.Id))
+                continue;
+
+            // The boot pass takes only what the restart itself cut off: a row a run was working
+            // on (so not pending, which may be a checkout or a request still on its way in) and
+            // last touched before this process existed. Everything else waits for the regular
+            // sweep and its stale window.
+            if (restartOrphansOnly
+                && !(InProgressStatuses.Contains(row.Status) && row.UpdatedAt < _processStartedUtc))
                 continue;
 
             // Only a completed payment may start, or restart, a paid tier. No billing store
@@ -146,16 +178,27 @@ public sealed partial class GenerationReconciliationService(
             // After the payment gate on purpose: an unpaid row waits on its checkout like any other.
             if (row.IsUnreadable)
             {
+                // Failing rows is the regular sweep's job; the boot pass only restarts builds.
+                if (restartOrphansOnly)
+                    continue;
+
+                // Internal, not schema: a schema failure offers Retry, and a retry of this row
+                // re-sends the same data the Engine cannot read. With nothing to retry, a paid
+                // row is refunded, on the same terms as the stalled rows below.
                 LogFailingUnreadableRow(logger, row.Id, row.Status);
-                await deliveryService.TryFailStaleRowAsync(
-                    row, staleWindow, UnreadableRowMessage, ErrorCategorizer.Schema, ct);
+                var unreadableFailed = await deliveryService.TryFailStaleRowAsync(
+                    row, staleWindow, UnreadableRowMessage, ErrorCategorizer.Internal, ct);
+                await RefundIfPaidAsync(row, unreadableFailed);
                 continue;
             }
 
             // payment == Unpaid past this point means a started paid row whose payment is no
             // longer completed: refunded or disputed while it was in flight. It is never rebuilt
             // (that would deliver a refunded build); it falls through and is failed.
-            if (RequeueableStatuses.Contains(row.Status) && row.AttemptCount < maxAttempts && payment == Payment.Paid)
+            var canRunAgain = RequeueableStatuses.Contains(row.Status)
+                || (RestartRequeueableStatuses.Contains(row.Status) && row.UpdatedAt < _processStartedUtc);
+
+            if (canRunAgain && row.AttemptCount < maxAttempts && payment == Payment.Paid)
             {
                 if (!await deliveryService.TryClaimForRequeueAsync(row, staleWindow, ct))
                     continue; // another instance/tick won the claim, or the row progressed
@@ -174,6 +217,10 @@ public sealed partial class GenerationReconciliationService(
                 continue;
             }
 
+            // Out of budget or no longer paid: the regular sweep fails it, with its stale window.
+            if (restartOrphansOnly)
+                continue;
+
             var message = row.AttemptCount >= maxAttempts
                 ? $"Generation failed after {maxAttempts} attempts."
                 : row.UpdatedAt < _processStartedUtc
@@ -183,17 +230,24 @@ public sealed partial class GenerationReconciliationService(
             var failed = await deliveryService.TryFailStaleRowAsync(
                 row, staleWindow, message, ErrorCategorizer.Internal, ct);
 
-            // A paid build this sweep has just ended: out of attempts, or stranded in a late
-            // stage by a restart. The category offers the customer no Retry, so the payment goes
-            // back. Only when this sweep won the write: a row that moved on is not ours to
-            // refund. The unpaid checkout above never reaches here, and the refund service
-            // refunds a completed transaction only.
-            // Not on ct: the row is already failed, and a host that starts stopping now would
-            // cancel the refund with nothing left to try it again.
-            if (failed && refunder is not null && FailedBuildRefunder.ShouldRefund(row.Tier, ErrorCategorizer.Internal))
-            {
-                await refunder.TryRefundAsync(row.Id, row.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
-            }
+            await RefundIfPaidAsync(row, failed);
+        }
+    }
+
+    /// <summary>
+    /// Refunds a paid build this sweep has just ended as <c>internal</c>: out of attempts, dropped
+    /// in a late stage, or unreadable. That category offers the customer no Retry, so the payment
+    /// goes back. Only when this sweep won the write: a row that moved on is not ours to refund.
+    /// An unpaid checkout never reaches here, and the refund service refunds a completed
+    /// transaction only. Not on the sweep's token: the row is already failed, and a host that
+    /// starts stopping now would cancel the refund with nothing left to try it again.
+    /// </summary>
+    private async Task RefundIfPaidAsync(GenerationSnapshot row, bool failedByThisSweep)
+    {
+        if (failedByThisSweep && refunder is not null
+            && FailedBuildRefunder.ShouldRefund(row.Tier, ErrorCategorizer.Internal))
+        {
+            await refunder.TryRefundAsync(row.Id, row.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
         }
     }
 

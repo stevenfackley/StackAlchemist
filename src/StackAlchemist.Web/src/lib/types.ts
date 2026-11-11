@@ -69,6 +69,16 @@ export interface GenerationSchema {
   endpoints: Endpoint[];
 }
 
+// ─── Payment Status ──────────────────────────────────────────────────────────
+// Mirrors transactions_status_check in src/db/schema.ts.
+export type PaymentStatus =
+  | "pending"
+  | "completed"
+  | "failed"
+  | "refund_pending"
+  | "refunded"
+  | "disputed";
+
 // ─── Generation Record ───────────────────────────────────────────────────────
 export interface Generation {
   id: string;
@@ -92,10 +102,20 @@ export interface Generation {
   build_log: string | null;
   error_message: string | null;
   error_category: GenerationErrorCategory | null;
+  /** How many times the Engine's reconciler has re-enqueued the row (a restart cut the build off). */
   attempt_count: number;
+  /** How many times the owner has pressed Retry. The customer's retries, and nothing else. */
+  retry_count: number;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  /**
+   * Not a column: the status of the payment behind this build, read with the
+   * row for its owner. When a build has several transactions, a completed one
+   * wins (it is what the Engine's payment gate looks for). null = no
+   * transaction; undefined = not loaded (demo data, test fixtures).
+   */
+  payment_status?: PaymentStatus | null;
 }
 
 /**

@@ -25,4 +25,11 @@ public sealed record GenerationSnapshot(
     /// rather than skipping it on every tick (StackAlchemist#425).
     /// </summary>
     public bool IsUnreadable { get; init; }
+
+    /// <summary>
+    /// How many times the owner has pressed Retry (<c>retry_count</c>). Kept apart from
+    /// <see cref="AttemptCount"/>, the reconciler's restart budget: a deploy that restarts a
+    /// build must not spend one of the customer's retries.
+    /// </summary>
+    public int RetryCount { get; init; }
 }

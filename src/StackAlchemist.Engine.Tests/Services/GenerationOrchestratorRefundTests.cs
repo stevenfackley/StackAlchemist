@@ -48,7 +48,14 @@ public sealed class GenerationOrchestratorRefundTests
 
         var llm = Substitute.For<ILlmClient>();
         var delivery = Substitute.For<IDeliveryService>();
+        // The refund call is observed on a substitute; the decision is the real rule, reading the
+        // same delivery service the orchestrator uses.
         var refunder = Substitute.For<IFailedBuildRefunder>();
+        var rule = new FailedBuildRefunder(
+            Substitute.For<IRefundService>(), delivery, Substitute.For<IEmailService>(),
+            NullLogger<FailedBuildRefunder>.Instance);
+        refunder.ShouldRefundAsync(default!, default, default!).ReturnsForAnyArgs(call =>
+            rule.ShouldRefundAsync(call.ArgAt<string>(0), call.ArgAt<int>(1), call.ArgAt<string>(2)));
         var inFlight = new InFlightGenerationRegistry();
         var queue = Channel.CreateUnbounded<GenerationContext>();
 
@@ -146,17 +153,49 @@ public sealed class GenerationOrchestratorRefundTests
     }
 
     [Fact]
-    public async Task PaidBuild_RetryableFailureAtTheAttemptLimit_IsRefunded()
+    public async Task PaidBuild_RetryableFailureWithEveryRetryUsed_IsRefunded()
     {
-        // The reconciler has re-enqueued this row three times. The result page will show Retry
-        // for a network failure, but the web refuses a retry at attempt_count 3.
+        // The customer has pressed Retry three times. A network failure is retryable, but the
+        // web refuses a fourth retry, so there is nothing left for them to press.
+        var f = Build();
+        LlmThrows(f, new HttpRequestException("upstream failed"));
+        var request = Request(tier: 2);
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(FailedBuildRefunder.RetryLimit);
+
+        await f.Sut.EnqueueAsync(request);
+
+        await f.Refunder.Received(1).TryRefundAsync(
+            request.GenerationId, 2, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PaidBuild_RestartedThreeTimesByDeploys_StillHasItsRetries_AndIsNotRefunded()
+    {
+        // attempt_count is the reconciler's restart budget. Counting it against the customer
+        // refunded a build they could still retry, and told them they had used retries they had not.
+        var f = Build();
+        LlmThrows(f, new HttpRequestException("upstream failed"));
+        var request = Request(tier: 2);
+        // The restart budget is a different column; the customer's own count is 0.
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>()).Returns(0);
+
+        await f.Sut.EnqueueAsync(request);
+
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task PaidBuild_RetryCountIsReadAtTheFailure_NotFromTheRowReadAtTheStart()
+    {
+        // The row read at the start of the run fails (the store blinks). The count is read again,
+        // on its own, at the failure; a count taken from the start-of-run read would be "none used".
         var f = Build();
         LlmThrows(f, new HttpRequestException("upstream failed"));
         var request = Request(tier: 2);
         f.Delivery.GetGenerationSnapshotAsync(request.GenerationId, Arg.Any<CancellationToken>())
-            .Returns(new GenerationSnapshot(
-                request.GenerationId, "pending", 2, "simple", null, null, null, null,
-                FailedBuildRefunder.RetryAttemptLimit, DateTimeOffset.UtcNow));
+            .Returns((GenerationSnapshot?)null);
+        f.Delivery.GetRetryCountAsync(request.GenerationId, Arg.Any<CancellationToken>()).Returns(3);
 
         await f.Sut.EnqueueAsync(request);
 

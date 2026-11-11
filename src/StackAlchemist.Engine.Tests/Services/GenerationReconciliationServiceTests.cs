@@ -11,9 +11,12 @@ public sealed class GenerationReconciliationServiceTests
 {
     private static readonly TimeSpan StaleWindow = TimeSpan.FromMinutes(15);
 
+    /// <summary>A clock that stands still until a test moves it, as a running process's does not.</summary>
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => now;
+        private DateTimeOffset _now = now;
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan by) => _now += by;
     }
 
     private static IConfiguration Config(int maxAttempts = 3) =>
@@ -31,7 +34,7 @@ public sealed class GenerationReconciliationServiceTests
         PendingWriteBuffer Buffer)
         BuildSut(
             DateTimeOffset? processStart = null, int maxAttempts = 3, IBillingStore? billing = null,
-            IFailedBuildRefunder? refunder = null)
+            IFailedBuildRefunder? refunder = null, FixedTimeProvider? clock = null)
     {
         var delivery = Substitute.For<IDeliveryService>();
         var orchestrator = Substitute.For<IGenerationOrchestrator>();
@@ -43,7 +46,7 @@ public sealed class GenerationReconciliationServiceTests
             registry,
             buffer,
             Config(maxAttempts),
-            new FixedTimeProvider(processStart ?? DateTimeOffset.UtcNow),
+            clock ?? new FixedTimeProvider(processStart ?? DateTimeOffset.UtcNow),
             NullLogger<GenerationReconciliationService>.Instance,
             billing,
             refunder);
@@ -78,7 +81,7 @@ public sealed class GenerationReconciliationServiceTests
     [InlineData("pending")]
     [InlineData("generating_code")]
     [InlineData("building")]
-    public async Task RunOnce_UnreadableRow_IsFailedWithASchemaCategory_NeverRequeued(string status)
+    public async Task RunOnce_UnreadableRow_IsFailedAsInternal_NeverRequeued(string status)
     {
         var (sut, delivery, orchestrator, _, _) = BuildSut();
         var row = UnreadableRow(status: status);
@@ -89,7 +92,7 @@ public sealed class GenerationReconciliationServiceTests
         await delivery.Received(1).TryFailStaleRowAsync(
             row, StaleWindow,
             Arg.Is<string>(m => m.Contains("could not be read")),
-            ErrorCategorizer.Schema,
+            ErrorCategorizer.Internal,
             Arg.Any<CancellationToken>());
         await delivery.DidNotReceive().TryClaimForRequeueAsync(
             Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
@@ -108,7 +111,7 @@ public sealed class GenerationReconciliationServiceTests
         await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
 
         await delivery.Received(1).TryFailStaleRowAsync(
-            unreadable, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Schema, Arg.Any<CancellationToken>());
+            unreadable, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
         await orchestrator.Received(1).EnqueueAsync(
             Arg.Is<GenerateRequest>(r => r.GenerationId == "gen-healthy"), Arg.Any<CancellationToken>());
     }
@@ -161,7 +164,7 @@ public sealed class GenerationReconciliationServiceTests
 
         await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).TryFailStaleRowAsync(
-            row, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Schema, Arg.Any<CancellationToken>());
+            row, StaleWindow, Arg.Any<string>(), ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
     }
 
     // ── #421: unpaid paid-tier checkouts are never built ─────────────────────────
@@ -306,13 +309,58 @@ public sealed class GenerationReconciliationServiceTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task RunOnce_LateStageRow_FailsWithRestartMessage()
+    [Theory]
+    [InlineData("building")]
+    [InlineData("packing")]
+    [InlineData("uploading")]
+    public async Task RunOnce_LateStageRowCutOffByARestart_IsRunAgainFromTheTop(string status)
     {
-        // Row last updated BEFORE this process started → the engine restarted on it.
+        // Row last updated BEFORE this process started: a restart (every merge deploys prod) cut
+        // the job off. The temp directory is gone but the row has the prompt and schema, so the
+        // build runs again. Failing it would refund a sale the customer still wants.
         var processStart = DateTimeOffset.UtcNow;
         var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: status, updatedAt: processStart.AddMinutes(-30));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
+            .Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == row.Id && r.Tier == row.Tier && r.Schema == row.Schema),
+            Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_LateStageRowCutOffByARestart_WhosePaymentIsNoLongerCompleted_IsFailedNotRebuilt()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((EligibleTransaction?)null);
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart, billing: billing);
         var row = StaleRow(status: "building", updatedAt: processStart.AddMinutes(-30));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.Received(1).TryFailStaleRowAsync(
+            row, StaleWindow, Arg.Is<string>(m => m.Contains("restarted")), ErrorCategorizer.Internal,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_SchemaExtractionCutOffByARestart_FailsWithRestartMessage()
+    {
+        // extracting_schema is driven by a browser request this sweep cannot replay.
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: "extracting_schema", updatedAt: processStart.AddMinutes(-30), tier: 0);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
             .Returns([row]);
 
@@ -330,15 +378,19 @@ public sealed class GenerationReconciliationServiceTests
     [Fact]
     public async Task RunOnce_LateStageRowAfterProcessStart_FailsWithTimeoutMessage()
     {
-        // Row updated AFTER this process started → it stalled while the engine was alive.
+        // Row updated AFTER this process started → it stalled while the engine was alive. The
+        // worker dropped it with an outcome this sweep cannot know, so it is not run again.
         var processStart = DateTimeOffset.UtcNow.AddHours(-2);
-        var (sut, delivery, _, _, _) = BuildSut(processStart);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
         var row = StaleRow(status: "uploading", updatedAt: processStart.AddHours(1));
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>())
             .Returns([row]);
 
         await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
 
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
         await delivery.Received(1).TryFailStaleRowAsync(
             row, StaleWindow,
             Arg.Is<string>(m => m.Contains("stalled")),
@@ -455,14 +507,17 @@ public sealed class GenerationReconciliationServiceTests
             .Returns(won);
 
     [Theory]
-    [InlineData("building", 0)]         // stranded in a late stage by a restart
-    [InlineData("uploading", 0)]
-    [InlineData("generating_code", 3)]  // out of attempts
-    public async Task RunOnce_PaidRowTheSweepFails_IsRefunded(string status, int attemptCount)
+    [InlineData("building", 3, -30)]        // cut off by a restart, and out of attempts
+    [InlineData("generating_code", 3, -30)] // out of attempts
+    [InlineData("uploading", 0, 30)]        // dropped in a late stage while this process was alive
+    public async Task RunOnce_PaidRowTheSweepFails_IsRefunded(string status, int attemptCount, int updatedMinutesFromProcessStart)
     {
         var refunder = Substitute.For<IFailedBuildRefunder>();
-        var (sut, delivery, orchestrator, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(id: "gen-paid-dead", status: status, attemptCount: attemptCount, tier: 2);
+        var processStart = DateTimeOffset.UtcNow.AddHours(-2);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart, refunder: refunder);
+        var row = StaleRow(
+            id: "gen-paid-dead", status: status, attemptCount: attemptCount, tier: 2,
+            updatedAt: processStart.AddMinutes(updatedMinutesFromProcessStart));
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row);
 
@@ -484,7 +539,7 @@ public sealed class GenerationReconciliationServiceTests
         // starts stopping in between cancels the refund, and nothing ever tries it again.
         var refunder = Substitute.For<IFailedBuildRefunder>();
         var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(status: "building", tier: 2);
+        var row = StaleRow(status: "building", attemptCount: 3, tier: 2);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row);
         using var sweep = new CancellationTokenSource();
@@ -518,6 +573,147 @@ public sealed class GenerationReconciliationServiceTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
         await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunOnce_PaidUnreadableRow_IsRefunded_BecauseARetryCannotHelpIt()
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync("gen-unreadable", Arg.Any<CancellationToken>())
+            .Returns(new EligibleTransaction("tx-1", "pi_1"));
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, _, _, _) = BuildSut(billing: billing, refunder: refunder);
+        var row = UnreadableRow(status: "generating_code", tier: 2);
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await refunder.Received(1).TryRefundAsync(
+            "gen-unreadable", 2, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+    }
+
+    // ── The process-start time is fixed at construction; "now" moves on ─────────
+
+    [Fact]
+    public async Task RunOnce_LateStageRowDroppedByThisProcess_IsStillFailedHoursLater()
+    {
+        // The row was touched an hour after this process started, then abandoned. Two hours on
+        // it is older than "now" by a wide margin, and it must still not be run again: what
+        // matters is whether THIS process was alive when it was last touched, and that instant
+        // is taken once, at construction. A comparison against the current time would rebuild
+        // every late-stage row there is.
+        var processStart = DateTimeOffset.UtcNow.AddHours(-3);
+        var clock = new FixedTimeProvider(processStart);
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var (sut, delivery, orchestrator, _, _) = BuildSut(refunder: refunder, clock: clock);
+        var row = StaleRow(status: "building", updatedAt: processStart.AddHours(1));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        FailStaleWins(delivery, row);
+
+        clock.Advance(TimeSpan.FromHours(3));
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await refunder.Received(1).TryRefundAsync(row.Id, 2, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunOnce_LateStageRowCutOffByARestart_IsStillRunAgainHoursLater()
+    {
+        var processStart = DateTimeOffset.UtcNow.AddHours(-3);
+        var clock = new FixedTimeProvider(processStart);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(clock: clock);
+        var row = StaleRow(status: "building", updatedAt: processStart.AddMinutes(-5));
+        delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, StaleWindow, Arg.Any<CancellationToken>()).Returns(true);
+
+        clock.Advance(TimeSpan.FromHours(3));
+        await sut.RunOnceAsync(StaleWindow, CancellationToken.None);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == row.Id), Arg.Any<CancellationToken>());
+    }
+
+    // ── The boot pass: restart at once what the restart itself cut off ──────────
+
+    [Theory]
+    [InlineData("generating_code")]
+    [InlineData("generating")]
+    [InlineData("building")]
+    [InlineData("packing")]
+    [InlineData("uploading")]
+    public async Task BootPass_RowARunWasWorkingOnWhenTheProcessStopped_IsRestartedWithNoStaleWindow(string status)
+    {
+        // Without this the customer watches a frozen page for the 15-minute stale window after
+        // every deploy before the reconciler picks the build back up.
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: status, updatedAt: processStart.AddSeconds(-20));
+        delivery.GetStaleNonTerminalAsync(TimeSpan.Zero, Arg.Any<CancellationToken>()).Returns([row]);
+        delivery.TryClaimForRequeueAsync(row, TimeSpan.Zero, Arg.Any<CancellationToken>()).Returns(true);
+
+        await sut.RunOnceAsync(TimeSpan.Zero, CancellationToken.None, restartOrphansOnly: true);
+
+        await orchestrator.Received(1).EnqueueAsync(
+            Arg.Is<GenerateRequest>(r => r.GenerationId == row.Id), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("pending")]            // a checkout, or a request still on its way in: not ours to start
+    [InlineData("extracting_schema")]  // driven by a browser request
+    public async Task BootPass_RowNoRunWasWorkingOn_IsLeftForTheRegularSweep(string status)
+    {
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: status, updatedAt: processStart.AddSeconds(-20), tier: 0);
+        delivery.GetStaleNonTerminalAsync(TimeSpan.Zero, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(TimeSpan.Zero, CancellationToken.None, restartOrphansOnly: true);
+
+        delivery.ReceivedCalls().Should().ContainSingle("only the listing: nothing is claimed, failed or refunded");
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BootPass_RowTouchedByThisProcess_IsLeftAlone()
+    {
+        var processStart = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart);
+        var row = StaleRow(status: "building", updatedAt: processStart.AddSeconds(30));
+        delivery.GetStaleNonTerminalAsync(TimeSpan.Zero, Arg.Any<CancellationToken>()).Returns([row]);
+
+        await sut.RunOnceAsync(TimeSpan.Zero, CancellationToken.None, restartOrphansOnly: true);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryClaimForRequeueAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(3, true)]   // out of restart budget
+    [InlineData(0, false)]  // payment no longer completed
+    public async Task BootPass_NeverFailsOrRefundsARow_ThatIsTheRegularSweepsJob(int attemptCount, bool paid)
+    {
+        var billing = Substitute.For<IBillingStore>();
+        billing.FindCompletedTransactionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(paid ? new EligibleTransaction("tx-1", "pi_1") : null);
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        var processStart = DateTimeOffset.UtcNow;
+        var (sut, delivery, orchestrator, _, _) = BuildSut(processStart, billing: billing, refunder: refunder);
+        var row = StaleRow(status: "building", attemptCount: attemptCount, updatedAt: processStart.AddSeconds(-20));
+        var unreadable = UnreadableRow(id: "gen-unreadable-boot", status: "building", tier: 2, updatedAt: processStart.AddSeconds(-20));
+        delivery.GetStaleNonTerminalAsync(TimeSpan.Zero, Arg.Any<CancellationToken>()).Returns([row, unreadable]);
+
+        await sut.RunOnceAsync(TimeSpan.Zero, CancellationToken.None, restartOrphansOnly: true);
+
+        await orchestrator.DidNotReceive().EnqueueAsync(Arg.Any<GenerateRequest>(), Arg.Any<CancellationToken>());
+        await delivery.DidNotReceive().TryFailStaleRowAsync(
+            Arg.Any<GenerationSnapshot>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
     }
 
     // ── A started paid row is rebuilt only while its payment is still completed ──
@@ -593,7 +789,7 @@ public sealed class GenerationReconciliationServiceTests
         // on a lost write would refund a build that may be about to deliver.
         var refunder = Substitute.For<IFailedBuildRefunder>();
         var (sut, delivery, _, _, _) = BuildSut(refunder: refunder);
-        var row = StaleRow(status: "building", tier: 2);
+        var row = StaleRow(status: "building", attemptCount: 3, tier: 2);
         delivery.GetStaleNonTerminalAsync(StaleWindow, Arg.Any<CancellationToken>()).Returns([row]);
         FailStaleWins(delivery, row, won: false);
 

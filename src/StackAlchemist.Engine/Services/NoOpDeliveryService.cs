@@ -31,6 +31,9 @@ public sealed partial class NoOpDeliveryService : IDeliveryService
     public Task<GenerationSnapshot?> GetGenerationSnapshotAsync(string generationId, CancellationToken ct) =>
         Task.FromResult<GenerationSnapshot?>(null);
 
+    public Task<int?> GetRetryCountAsync(string generationId, CancellationToken ct) =>
+        Task.FromResult<int?>(null);
+
     public Task CompletePreviewAsync(
         string generationId,
         IReadOnlyDictionary<string, string> files,

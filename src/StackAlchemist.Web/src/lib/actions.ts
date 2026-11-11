@@ -8,6 +8,7 @@ import { getSessionUser, type SessionUser } from "./session";
 import { buildDemoGeneration } from "./demo-data";
 import { postToEngine } from "./engine-client";
 import { validatePersonalization, validateSchema } from "./generation-input";
+import { MAX_RETRIES } from "./generation-outcome";
 import { safeReturnTo } from "./proxy-utils";
 import { hasEngineConfig, hasDataStoreConfig, hasStripeConfig, isDemoMode } from "./runtime-config";
 import type {
@@ -537,7 +538,8 @@ export async function getGeneration(generationId: string, demoTier?: Tier) {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    retryGeneration
-   Asks the Engine to retry a failed generation (up to 3 attempts).
+   Asks the Engine to retry a failed generation. Each retry is counted on the
+   row (resetForRetry), up to MAX_RETRIES.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function retryGeneration(
   generationId: string
@@ -573,8 +575,11 @@ export async function retryGeneration(
     return { success: false, error: "Generation not found." };
   }
 
-  if (gen.attempt_count >= 3) {
-    return { success: false, error: "Maximum retry attempts (3) reached. Please start a new generation." };
+  if (gen.retry_count >= MAX_RETRIES) {
+    return {
+      success: false,
+      error: `You have used all ${MAX_RETRIES} retries for this build. Please start a new one.`,
+    };
   }
 
   if (gen.status !== "failed") {
@@ -608,9 +613,15 @@ export async function retryGeneration(
     },
     user.id
   );
-  // 402: a paid build with no completed payment behind it (refunded, disputed).
-  // The Engine has failed the row again with this same message.
+  // 402: a paid build with no completed payment behind it (refunded, disputed). The
+  // Engine has failed the row again and will never build it, so this press started
+  // nothing: give the retry back.
   if (res?.status === 402) {
+    try {
+      await getDataStore().uncountRetry(generationId, user.id);
+    } catch (err) {
+      console.error("[retryGeneration] Could not give the retry back:", err);
+    }
     const body = await res.json().catch(() => ({}));
     return {
       success: false,
@@ -618,6 +629,21 @@ export async function retryGeneration(
     };
   }
 
+  // 400: the Engine refused the input (a prompt over its limit) and failed the row.
+  // The same input fails the same way every time, so the retry stays counted:
+  // giving it back would offer a Retry that can never work.
+  if (res?.status === 400) {
+    const body = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: typeof body.error === "string" ? body.error : "This build could not be retried.",
+    };
+  }
+
+  // Accepted, or no clear answer (Engine unreachable or busy, a timeout after it may
+  // have accepted, payment state unreadable). The retry stays counted either way: the
+  // row is pending, and if the Engine did not take it, its reconciler starts it once
+  // it goes stale. The page shows it as in progress, which it is.
   return { success: true };
 }
 

@@ -158,7 +158,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         var id = await fx.SeedGenerationAsync(status: "pending", tier: 2, attempts: 1);
         // personalization_json is written by the web app, in its camelCase TypeScript shape.
         await fx.ExecuteAsync(
-            "update stackalchemist.generations set prompt = $1, project_type = 'PythonReact', personalization_json = $2::jsonb where id = $3",
+            "update stackalchemist.generations set prompt = $1, project_type = 'PythonReact', retry_count = 2, personalization_json = $2::jsonb where id = $3",
             "a CRM for dog groomers",
             """
             {"businessDescription":"Dog grooming","projectName":"Groomr","tagline":"Clean dogs",
@@ -203,6 +203,8 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         snapshot.Prompt.Should().Be("a CRM for dog groomers");
         snapshot.ProjectType.Should().Be(ProjectType.PythonReact);
         snapshot.AttemptCount.Should().Be(1);
+        // The owner's retries, read apart from the reconciler's attempt_count.
+        snapshot.RetryCount.Should().Be(2);
         snapshot.UpdatedAt.Should().BeCloseTo(await DatabaseNow(), TimeSpan.FromMinutes(1));
         snapshot.Schema.Should().BeEquivalentTo(schema);
         snapshot.Personalization.Should().NotBeNull();
@@ -215,6 +217,22 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
 
         (await sut.GetGenerationSnapshotAsync(Guid.NewGuid().ToString(), Ct)).Should().BeNull();
         (await sut.GetGenerationSnapshotAsync("demo-not-a-uuid", Ct)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetRetryCountAsync_reads_the_count_even_when_the_rows_json_does_not_fit()
+    {
+        if (!fx.Available) return;
+        var id = await fx.SeedGenerationAsync(status: "failed", tier: 2, attempts: 3);
+        // A schema the snapshot reader rejects (#425): the count must not depend on it.
+        await fx.ExecuteAsync(
+            "update stackalchemist.generations set retry_count = 2, schema_json = $1::jsonb where id = $2",
+            """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", id);
+        var sut = Sut();
+
+        (await sut.GetRetryCountAsync(id.ToString(), Ct)).Should().Be(2, "retry_count, not attempt_count");
+        (await sut.GetRetryCountAsync(Guid.NewGuid().ToString(), Ct)).Should().BeNull();
+        (await sut.GetRetryCountAsync("demo-not-a-uuid", Ct)).Should().BeNull();
     }
 
     [Fact]
@@ -247,7 +265,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
         try
         {
             await fx.ExecuteAsync(
-                "update stackalchemist.generations set schema_json = $1::jsonb where id = $2",
+                "update stackalchemist.generations set retry_count = 3, schema_json = $1::jsonb where id = $2",
                 """{"entities":[{"name":"x","fields":[{"name":"id"}]}]}""", bad);
             await fx.SetUpdatedAtAsync(bad, OneHour);
             var good = await fx.SeedGenerationAsync(status: "building");
@@ -263,6 +281,7 @@ public sealed class PostgresDeliveryServiceTests(PostgresFixture fx)
                 "#425: a dropped row stayed stale and was skipped on every tick, forever");
             unreadable.Status.Should().Be("building");
             unreadable.AttemptCount.Should().Be(1);
+            unreadable.RetryCount.Should().Be(3);
             unreadable.Schema.Should().BeNull();
             unreadable.UpdatedAt.Should().BeBefore(await DatabaseNow() - StaleWindow);
             log.Count(512).Should().BeGreaterThanOrEqualTo(1, "the unreadable row is logged by id");
