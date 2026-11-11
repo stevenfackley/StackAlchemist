@@ -3,7 +3,8 @@
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import type { Generation } from "@/lib/types";
-import { TIER_NAMES, isFreeGeneration } from "./status";
+import { tierName } from "@/lib/tiers";
+import { isFreeGeneration } from "./status";
 
 interface GenerateHeaderProps {
   generation: Generation;
@@ -31,7 +32,7 @@ export function GenerateHeader({ generation, generationId, isComplete, isFailed 
               </span>
             ) : (
               <span className="rounded-full bg-accent/10 border border-accent/30 px-2 py-0.5 font-mono text-[10px] text-accent uppercase tracking-widest shrink-0">
-                {TIER_NAMES[generation.tier]}
+                {tierName(generation.tier)}
               </span>
             )}
             <span className="font-mono text-xs text-slate-500 truncate hidden sm:block">

@@ -20,6 +20,7 @@ const DASHBOARD_PAGE_SIZE = 20;
 import { ByokSettingsForm } from "./ByokSettingsForm";
 import { GenerationsLiveRefresher } from "./GenerationsLiveRefresher";
 import { SectionErrorBoundary } from "@/components/error-boundary";
+import { tierName } from "@/lib/tiers";
 import type { Generation, GenerationSummary } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -35,12 +36,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /* ─── Tier helpers ───────────────────────────────────────────────────────── */
-const TIER_NAMES: Record<number, string> = {
-  0: "Spark",
-  1: "Blueprint",
-  2: "Boilerplate",
-  3: "Infrastructure",
-};
 const TIER_COLORS: Record<number, string> = {
   0: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
   1: "text-accent border-accent/30 bg-accent/10",
@@ -115,7 +110,7 @@ function StatusBadge({ status }: { status: Generation["status"] }) {
 
 /* ─── Generation row ─────────────────────────────────────────────────────── */
 function GenerationRow({ gen }: { gen: GenerationSummary }) {
-  const tierName = TIER_NAMES[gen.tier] ?? "Unknown";
+  const name = tierName(gen.tier);
   const tierClasses = TIER_COLORS[gen.tier] ?? TIER_COLORS[0];
   const isComplete = gen.status === "success";
   const isFree = gen.tier === 0;
@@ -127,7 +122,7 @@ function GenerationRow({ gen }: { gen: GenerationSummary }) {
         <span
           className={`inline-flex items-center font-mono text-[10px] uppercase tracking-widest border rounded-full px-2 py-0.5 ${tierClasses}`}
         >
-          {tierName}
+          {name}
         </span>
         <span className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">
           {gen.mode}

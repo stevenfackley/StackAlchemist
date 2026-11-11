@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { TIERS } from "@/lib/tiers";
 
 // Keep these lists identical in substance to /pricing — both are claims about
 // what the engine emits, and the two pages disagreeing is how a false one
@@ -8,9 +9,9 @@ const PRICING_TIERS = [
   {
     id: "blueprint",
     tier: "Tier 1",
-    name: "Blueprint",
+    name: TIERS[1].name,
     tagline: "The Architecture",
-    price: 299,
+    price: TIERS[1].priceUsd,
     description: "Your data model and API contract, written down. No code — the documents you hand to a stakeholder or the engineer who will build it. Stack-agnostic.",
     features: [
       "schema.json — normalized entity-relationship model",
@@ -25,9 +26,9 @@ const PRICING_TIERS = [
   {
     id: "boilerplate",
     tier: "Tier 2",
-    name: "Boilerplate",
+    name: TIERS[2].name,
     tagline: "The Foundation",
-    price: 599,
+    price: TIERS[2].priceUsd,
     description: "A download-ready source repository shaped around your schema. Both halves go through their real compilers before it ships — or we correct and rebuild, up to three times.",
     features: [
       ".NET 10 minimal API (records, Dapper repos, endpoints)",
@@ -43,9 +44,9 @@ const PRICING_TIERS = [
   {
     id: "infrastructure",
     tier: "Tier 3",
-    name: "Infrastructure",
+    name: TIERS[3].name,
     tagline: "The Kingdom",
-    price: 999,
+    price: TIERS[3].priceUsd,
     description: "The Boilerplate repository plus the infrastructure to put it in a cloud. Two IaC paths, a Kubernetes chart, and a runbook a junior engineer could ship from.",
     features: [
       "Everything in Boilerplate",

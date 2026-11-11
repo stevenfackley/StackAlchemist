@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2 } from "lucide-react";
+import { TIERS, tierPriceLabel } from "@/lib/tiers";
 import type { Tier } from "@/lib/types";
 import type { FreeQuotaStatus } from "@/lib/actions";
 import { cn } from "@/lib/utils";
@@ -11,16 +12,16 @@ export function StepTier({ selectedTier, setSelectedTier, quota }: {
   setSelectedTier: (t: Tier) => void;
   quota: FreeQuotaStatus | null;
 }) {
-  const tiers: { id: Tier; name: string; price: string; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
+  const tiers: { id: Tier; items: string[]; recommended?: boolean; isFree?: boolean }[] = [
     {
       // Tier 0 renders a fixed demo template with no LLM call — it is not built
       // from the schema in this wizard. Say so here, where the choice is made.
-      id: 0, name: "SPARK", price: "Free", isFree: true,
+      id: 0, isFree: true,
       items: ["Fixed demo app — not your schema", "Runs live in your browser", "No download"],
     },
-    { id: 1, name: "BLUEPRINT", price: "$299", items: ["schema.json", "api-docs.md (CRUD contract)", "No code"] },
-    { id: 2, name: "BOILERPLATE", price: "$599", items: ["Full source from your schema", "Both halves compiled", "build-report.json"], recommended: true },
-    { id: 3, name: "INFRASTRUCTURE", price: "$999", items: ["Boilerplate features", "AWS CDK + Terraform", "Helm Chart", "Deployment Runbook"] },
+    { id: 1, items: ["schema.json", "api-docs.md (CRUD contract)", "No code"] },
+    { id: 2, items: ["Full source from your schema", "Both halves compiled", "build-report.json"], recommended: true },
+    { id: 3, items: ["Boilerplate features", "AWS CDK + Terraform", "Helm Chart", "Deployment Runbook"] },
   ];
   return (
     <div data-testid="advanced-step-5-tier-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -46,8 +47,8 @@ export function StepTier({ selectedTier, setSelectedTier, quota }: {
           )}
           <Stack gap="sm">
             <div>
-              <h3 className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-ink">{t.name}</h3>
-              <p className={cn("mt-1 font-mono text-xl font-bold", t.isFree ? "text-success" : "text-accent")}>{t.price}</p>
+              <h3 className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-ink">{TIERS[t.id].name.toUpperCase()}</h3>
+              <p className={cn("mt-1 font-mono text-xl font-bold", t.isFree ? "text-success" : "text-accent")}>{tierPriceLabel(t.id)}</p>
               {t.isFree && quota && (
                 <p className={cn("mt-0.5 font-mono text-[0.625rem]", quota.remaining === 0 ? "text-yellow-400" : "text-ink-faint")}>
                   {quota.remaining === 0
