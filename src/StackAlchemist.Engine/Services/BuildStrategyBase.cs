@@ -85,9 +85,10 @@ public abstract partial class BuildStrategyBase(ILogger logger, BuildStrategyOpt
         // child blocks on its write, so stdout never closes. `npm ci` on the V2-DotNet-NextJs
         // tree writes ~10 KB of peer-dependency warnings to stderr and hung here indefinitely.
         // The reads are not cancellable on purpose: they end when the child (or the kill below)
-        // closes the pipes, so output is never torn mid-stream.
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        // closes the pipes, so output is never torn mid-stream. Bounded, because the child runs
+        // generated code and could otherwise print the Engine out of memory.
+        var stdoutTask = BoundedOutput.ReadToEndAsync(process.StandardOutput);
+        var stderrTask = BoundedOutput.ReadToEndAsync(process.StandardError);
         try
         {
             await Task.WhenAll(stdoutTask, stderrTask).WaitAsync(ct);

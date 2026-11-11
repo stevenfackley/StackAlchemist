@@ -42,11 +42,17 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, Bu
         var transcript = new StringBuilder();
         var steps = new List<BuildStepResult>();
 
+        // Read before any build command runs. From the first command on, generated code (an
+        // MSBuild target, an npm lifecycle script) owns this tree and can swap package.json for a
+        // FIFO or a link to /dev/zero. The Engine reads as root, with no deadline: a read after
+        // that point could hang the compile worker or run the Engine out of memory.
+        var hasTypecheck = HasScript(Path.Combine(projectDirectory, "nextjs", "package.json"), TypecheckScript);
+
         var dotnetResult = await BuildDotNetAsync(projectDirectory, transcript, steps, ct);
         if (!dotnetResult.IsSuccess)
             return Fail(dotnetResult, transcript, steps);
 
-        var nextResult = await BuildNextJsAsync(projectDirectory, transcript, steps, ct);
+        var nextResult = await BuildNextJsAsync(projectDirectory, hasTypecheck, transcript, steps, ct);
         if (!nextResult.IsSuccess)
             return Fail(nextResult, transcript, steps);
 
@@ -81,6 +87,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, Bu
 
     private async Task<BuildResult> BuildNextJsAsync(
         string projectDirectory,
+        bool hasTypecheck,
         StringBuilder transcript,
         List<BuildStepResult> steps,
         CancellationToken ct)
@@ -134,7 +141,7 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, Bu
         // Mirrors PythonReactBuildStrategy's `tsc --noEmit` leg. Runs before `next build`
         // because tsc's diagnostics name every offending file at once, whereas `next build`
         // aborts on the first type error — one round-trip of repair context instead of N.
-        if (HasScript(packageJsonPath, TypecheckScript))
+        if (hasTypecheck)
         {
             var typecheckResult = await RunStepAsync(
                 BuildHalf.NextJs, $"npm run {TypecheckScript}", NpmExecutable, $"run {TypecheckScript}",
@@ -160,6 +167,10 @@ public partial class DotNetBuildStrategy(ILogger<DotNetBuildStrategy> logger, Bu
     /// </summary>
     private bool HasScript(string packageJsonPath, string scriptName)
     {
+        // A .NET-only archive has no frontend, so no script; not worth a warning.
+        if (!File.Exists(packageJsonPath))
+            return false;
+
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(packageJsonPath));

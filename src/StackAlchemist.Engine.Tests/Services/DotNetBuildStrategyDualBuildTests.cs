@@ -55,6 +55,27 @@ public sealed class DotNetBuildStrategyDualBuildTests : IDisposable
     }
 
     [Fact]
+    public async Task PackageJsonIsReadBeforeAnyBuildCommandRuns()
+    {
+        // Build commands run generated code as the build user, in this tree. One of them can
+        // replace package.json with something the Engine (root in the container) must not read:
+        // a FIFO, or a link to /dev/zero. So the typecheck decision is taken from the file as
+        // the Engine wrote it, and the file is not read again.
+        WritePackageJson(withTypecheck: true);
+        var packageJson = Path.Combine(_root, "nextjs", "package.json");
+        var strategy = new StubbedStrategy
+        {
+            // Stands in for the swap: read after this, the file says there is no typecheck script.
+            OnCommand = _ => File.WriteAllText(packageJson, """{ "name": "stub", "scripts": { "build": "next build" } }"""),
+        };
+
+        var result = await strategy.ExecuteBuildAsync(_root);
+
+        result.IsSuccess.Should().BeTrue();
+        strategy.Commands.Should().Contain("npm run typecheck");
+    }
+
+    [Fact]
     public async Task NextJsBuildFails_FailsTheWholeBuild()
     {
         // The exact regression the dual build exists to prevent: .NET compiles, the frontend
@@ -270,6 +291,9 @@ public sealed class DotNetBuildStrategyDualBuildTests : IDisposable
         /// <summary>Arguments substring → zero-exit response with custom output.</summary>
         public Dictionary<string, StubResponse> Responses { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>Runs as each command starts, with its text: what the command does to the tree.</summary>
+        public Action<string>? OnCommand { get; init; }
+
         protected override Task<BuildResult> RunProcessAsync(
             string fileName,
             string arguments,
@@ -280,6 +304,7 @@ public sealed class DotNetBuildStrategyDualBuildTests : IDisposable
             // (and the recorded step's Command) would call it.
             var tool = fileName.Contains("npm", StringComparison.OrdinalIgnoreCase) ? "npm" : "dotnet";
             Commands.Add($"{tool} {arguments}");
+            OnCommand?.Invoke($"{tool} {arguments}");
 
             var stub = Failures.FirstOrDefault(kvp => arguments.Contains(kvp.Key, StringComparison.Ordinal)).Value
                 ?? Responses.FirstOrDefault(kvp => arguments.Contains(kvp.Key, StringComparison.Ordinal)).Value
