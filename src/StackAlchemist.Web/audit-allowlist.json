@@ -9,5 +9,13 @@
     "This file is not a way to silence a fixable finding. If `npm audit` can",
     "resolve it with an override or an upgrade, do that instead."
   ],
-  "allow": []
+  "allow": [
+    {
+      "advisory": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "scope": "dev",
+      "expires": "2026-12-17",
+      "reason": "picomatch ReDoS via single-branch repeated extglobs; every released version (<=4.0.7, latest on npm) is affected and there is no patched release. Reached only through devDependencies: vite and vitest (-> picomatch / tinyglobby -> fdir) and eslint-config-next (-> @next/eslint-plugin-next -> fast-glob -> micromatch). `npm audit --omit=dev` reports nothing for it. Needs an attacker-controlled glob pattern in the build/lint toolchain."
+    }
+  ]
 }
