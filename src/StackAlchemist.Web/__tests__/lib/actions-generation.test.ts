@@ -367,8 +367,10 @@ describe("actions.ts — createPendingGeneration (configured)", () => {
     // counting all of them would lock a customer out until tomorrow.
     const [userId, since] = store.countUnpaidPendingGenerations.mock.calls[0];
     expect(userId).toBe(USER.id);
-    expect(before - since.getTime()).toBeGreaterThanOrEqual(60 * 60 * 1000);
-    expect(before - since.getTime()).toBeLessThan(60 * 60 * 1000 + 5_000);
+    // The action reads the clock after `before`, so its window starts at or after
+    // `before` minus the hour: the gap is the hour less however long the call took.
+    expect(before - since.getTime()).toBeLessThanOrEqual(60 * 60 * 1000);
+    expect(before - since.getTime()).toBeGreaterThan(60 * 60 * 1000 - 5_000);
     expect(store.insertGeneration).not.toHaveBeenCalled();
   });
 
