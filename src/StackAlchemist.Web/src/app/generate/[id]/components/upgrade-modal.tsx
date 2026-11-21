@@ -20,7 +20,7 @@ export function UpgradeModal({ generation, onClose }: { generation: Generation; 
         generation.id,
         tier,
         generation.prompt ?? undefined,
-        "DotNetNextJs",
+        generation.project_type,
         generation.mode,
         `/generate/${generation.id}`
       );
