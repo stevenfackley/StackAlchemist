@@ -166,6 +166,10 @@ public sealed class FailedBuildRefunderTests
     }
 
     [Fact]
+    public void CompileGuaranteeEmail_NamesHowManyCorrectionsWereTried() =>
+        EmailTemplates.RefundIssued(2).Html.Should().Contain("still failed to compile after 3 automatic correction attempts");
+
+    [Fact]
     public async Task Issued_BuildCouldNotFinish_DoesNotClaimTheBuildFailedToCompile()
     {
         _refund.RefundFailedGenerationAsync("gen-1", Arg.Any<CancellationToken>()).Returns(RefundOutcome.Issued);

@@ -97,6 +97,46 @@ public class CompileWorkerRetryTests
     }
 
     [Fact]
+    public async Task WithBuildPassingOnTheLastCorrection_IsDeliveredNotFailed()
+    {
+        // Three failures, then a pass on the fourth build: the last correction the budget allows.
+        // The loop's own bound and the state machine's must agree on that budget for this job to
+        // be built a fourth time at all.
+        var outputDir = MakeTempOutputDir();
+        var job = MakeJob(outputDir);
+
+        var failing = Task.FromResult(new BuildResult { ExitCode = 1, StandardOutput = "", ErrorOutput = "error CS9999: nope" });
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns(failing, failing, failing,
+                Task.FromResult(new BuildResult { ExitCode = 0, StandardOutput = "Build succeeded.", ErrorOutput = "" }));
+        compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>()).Returns(["CS9999: nope"]);
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
+            .Returns("retry-prompt");
+
+        var llm = Substitute.For<ILlmClient>();
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new LlmResponse("[[FILE:dotnet/Models/Product.cs]]\npublic record Product;\n[[END_FILE]]", 10, 5, "v1-stub-retry"));
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://r2.test/fake-presigned");
+        var refund = Substitute.For<IRefundService>();
+
+        var (_, capturedJob) = await RunWorkerAsync(
+            job, compile, llm, new ReconstructionService(), r2,
+            Substitute.For<IDeliveryService>(), Substitute.For<IEmailService>(), refund);
+
+        capturedJob.State.Should().Be(GenerationState.Success);
+        capturedJob.RetryCount.Should().Be(3);
+        await compile.Received(4).ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>());
+        // The repair prompt is asked for with the attempt number of each correction.
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 1, Arg.Any<IReadOnlyCollection<string>>());
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 2, Arg.Any<IReadOnlyCollection<string>>());
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 3, Arg.Any<IReadOnlyCollection<string>>());
+        await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
+    }
+
+    [Fact]
     public async Task WithBuildAlwaysFailing_ExhaustsRetriesAndMarksFailed()
     {
         var outputDir = MakeTempOutputDir();

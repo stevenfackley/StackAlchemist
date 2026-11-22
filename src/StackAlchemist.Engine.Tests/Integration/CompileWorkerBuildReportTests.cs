@@ -65,6 +65,8 @@ public sealed class CompileWorkerBuildReportTests
         root.GetProperty("status").GetString().Should().Be("verified");
         root.GetProperty("generationId").GetString().Should().Be(job.GenerationId);
         root.GetProperty("attemptsUsed").GetInt32().Should().Be(1);
+        // The automatic-correction budget the build ran under.
+        root.GetProperty("maxAttempts").GetInt32().Should().Be(3);
 
         var halves = root.GetProperty("halves").EnumerateArray()
             .ToDictionary(h => h.GetProperty("half").GetString()!, h => h.GetProperty("status").GetString());
