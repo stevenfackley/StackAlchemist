@@ -50,7 +50,7 @@ public static class GenerationEndpoints
         if (PromptTooLongMessage(config, request.Prompt) is { } tooLong)
         {
             await delivery.UpdateStatusAsync(
-                request.GenerationId, "failed", lifetime.ApplicationStopping, tooLong, ErrorCategorizer.Schema);
+                request.GenerationId, GenerationStatus.Failed, lifetime.ApplicationStopping, tooLong, ErrorCategorizer.Schema);
             return Results.BadRequest(new { error = tooLong });
         }
 
@@ -64,7 +64,7 @@ public static class GenerationEndpoints
                 // Failing the row takes it out of pending, where it would otherwise sit until the
                 // reconciler gave up on it a day later.
                 await delivery.UpdateStatusAsync(
-                    request.GenerationId, "failed", lifetime.ApplicationStopping,
+                    request.GenerationId, GenerationStatus.Failed, lifetime.ApplicationStopping,
                     PaidGenerationGate.UnpaidMessage, ErrorCategorizer.Internal);
                 return Results.Json(
                     new { error = PaidGenerationGate.UnpaidMessage },
@@ -87,7 +87,7 @@ public static class GenerationEndpoints
             new GenerateResponse
             {
                 JobId = request.GenerationId,
-                Status = "generating_code",
+                Status = GenerationStatus.GeneratingCode,
                 ProjectType = request.ProjectType,
             });
     }
@@ -118,7 +118,7 @@ public static class GenerationEndpoints
         {
             // Failing the row matters: it un-sticks pending and refunds the free-quota
             // slot (the quota trigger excludes failed rows).
-            await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, tooLong, ErrorCategorizer.Schema);
+            await delivery.UpdateStatusAsync(request.GenerationId, GenerationStatus.Failed, ct, tooLong, ErrorCategorizer.Schema);
             return Results.BadRequest(new { error = tooLong });
         }
 
@@ -172,13 +172,13 @@ public static class GenerationEndpoints
         catch (Exception ex) when (ex is TruncatedLlmResponseException or SchemaExtractionException)
         {
             logger.SchemaExtractFailed(request.GenerationId, ex.Message);
-            await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message, ErrorCategorizer.Schema);
+            await delivery.UpdateStatusAsync(request.GenerationId, GenerationStatus.Failed, ct, ex.Message, ErrorCategorizer.Schema);
             return Results.BadRequest(new { error = ex.Message });
         }
         catch (SchemaValidationException ex)
         {
             logger.SchemaValidationFailed(request.GenerationId, ex.Message);
-            await delivery.UpdateStatusAsync(request.GenerationId, "failed", ct, ex.Message, ErrorCategorizer.Schema);
+            await delivery.UpdateStatusAsync(request.GenerationId, GenerationStatus.Failed, ct, ex.Message, ErrorCategorizer.Schema);
             return Results.BadRequest(new { error = ex.Message });
         }
         catch (Exception ex)
@@ -188,7 +188,7 @@ public static class GenerationEndpoints
             // a cancelled/aborted request must still record its terminal state.
             logger.SchemaExtractFailed(request.GenerationId, ex.Message);
             await delivery.UpdateStatusAsync(
-                request.GenerationId, "failed", CancellationToken.None, ex.Message, ErrorCategorizer.Categorize(ex));
+                request.GenerationId, GenerationStatus.Failed, CancellationToken.None, ex.Message, ErrorCategorizer.Categorize(ex));
             return Results.Problem("Schema extraction failed unexpectedly.");
         }
     }

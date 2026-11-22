@@ -65,6 +65,8 @@ public sealed class CompileWorkerBuildReportTests
         root.GetProperty("status").GetString().Should().Be("verified");
         root.GetProperty("generationId").GetString().Should().Be(job.GenerationId);
         root.GetProperty("attemptsUsed").GetInt32().Should().Be(1);
+        // The automatic-correction budget the build ran under.
+        root.GetProperty("maxAttempts").GetInt32().Should().Be(3);
 
         var halves = root.GetProperty("halves").EnumerateArray()
             .ToDictionary(h => h.GetProperty("half").GetString()!, h => h.GetProperty("status").GetString());
@@ -222,6 +224,7 @@ public sealed class CompileWorkerBuildReportTests
         var queue = Channel.CreateUnbounded<GenerationContext>();
         await queue.Writer.WriteAsync(job);
         queue.Writer.Complete();
+        var email = Substitute.For<IEmailService>();
 
         var worker = new CompileWorkerService(
             queue.Reader,
@@ -230,8 +233,9 @@ public sealed class CompileWorkerBuildReportTests
             new ReconstructionService(),
             r2,
             delivery,
-            Substitute.For<IEmailService>(),
-            Substitute.For<IRefundService>(),
+            email,
+            new FailedBuildRefunder(
+                Substitute.For<IRefundService>(), delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

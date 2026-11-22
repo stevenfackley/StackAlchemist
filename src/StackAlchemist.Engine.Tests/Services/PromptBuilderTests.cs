@@ -61,6 +61,7 @@ public class PromptBuilderTests
         retryPrompt.Should().Contain("CS1002");
         retryPrompt.Should().Contain("CS0246");
         retryPrompt.Should().Contain("Fix");  // "Fix ALL build errors"
+        retryPrompt.Should().Contain("This is retry attempt 1 of 3.");
     }
 
     [Fact]

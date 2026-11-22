@@ -94,6 +94,93 @@ public class CompileWorkerRetryTests
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
+
+        // Every state the job passed through reached the row, in order, and only the last one
+        // carries the link.
+        StatusWrites(delivery).Should().Equal(
+            (GenerationState.Building, null),
+            (GenerationState.Generating, null),
+            (GenerationState.Building, null),
+            (GenerationState.Packing, null),
+            (GenerationState.Uploading, null),
+            (GenerationState.Success, "https://r2.test/fake-presigned"));
+    }
+
+    [Fact]
+    public async Task BlueprintJob_WritesPackingUploadingSuccess()
+    {
+        // Tier 1 reaches the worker already packing: no build, no correction.
+        var outputDir = MakeTempOutputDir();
+        var job = new GenerationContext
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 1,
+            ProjectType = ProjectType.DotNetNextJs,
+            OutputDirectory = outputDir,
+            State = GenerationState.Packing,
+        };
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://r2.test/blueprint");
+        var delivery = Substitute.For<IDeliveryService>();
+
+        var (_, capturedJob) = await RunWorkerAsync(
+            job, Substitute.For<ICompileService>(), Substitute.For<ILlmClient>(), new ReconstructionService(), r2,
+            delivery, Substitute.For<IEmailService>());
+
+        capturedJob.State.Should().Be(GenerationState.Success);
+        StatusWrites(delivery).Should().Equal(
+            (GenerationState.Packing, null),
+            (GenerationState.Uploading, null),
+            (GenerationState.Success, "https://r2.test/blueprint"));
+    }
+
+    /// <summary>Each state-typed status write the worker made, with its download link, in order.</summary>
+    private static List<(GenerationState State, string? DownloadUrl)> StatusWrites(IDeliveryService delivery) =>
+        [.. delivery.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IDeliveryService.UpdateStatusAsync)
+                && call.GetArguments()[1] is GenerationState)
+            .Select(call => ((GenerationState)call.GetArguments()[1]!, (string?)call.GetArguments()[2]))];
+
+    [Fact]
+    public async Task WithBuildPassingOnTheLastCorrection_IsDeliveredNotFailed()
+    {
+        // Three failures, then a pass on the fourth build: the last correction the budget allows.
+        // The loop's own bound and the state machine's must agree on that budget for this job to
+        // be built a fourth time at all.
+        var outputDir = MakeTempOutputDir();
+        var job = MakeJob(outputDir);
+
+        var failing = Task.FromResult(new BuildResult { ExitCode = 1, StandardOutput = "", ErrorOutput = "error CS9999: nope" });
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns(failing, failing, failing,
+                Task.FromResult(new BuildResult { ExitCode = 0, StandardOutput = "Build succeeded.", ErrorOutput = "" }));
+        compile.ExtractBuildErrors(Arg.Any<string>(), Arg.Any<ProjectType>()).Returns(["CS9999: nope"]);
+        compile.BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), Arg.Any<int>(), Arg.Any<IReadOnlyCollection<string>>())
+            .Returns("retry-prompt");
+
+        var llm = Substitute.For<ILlmClient>();
+        llm.GenerateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LlmCallOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new LlmResponse("[[FILE:dotnet/Models/Product.cs]]\npublic record Product;\n[[END_FILE]]", 10, 5, "v1-stub-retry"));
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://r2.test/fake-presigned");
+        var refund = Substitute.For<IRefundService>();
+
+        var (_, capturedJob) = await RunWorkerAsync(
+            job, compile, llm, new ReconstructionService(), r2,
+            Substitute.For<IDeliveryService>(), Substitute.For<IEmailService>(), refund);
+
+        capturedJob.State.Should().Be(GenerationState.Success);
+        capturedJob.RetryCount.Should().Be(3);
+        await compile.Received(4).ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>());
+        // The repair prompt is asked for with the attempt number of each correction.
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 1, Arg.Any<IReadOnlyCollection<string>>());
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 2, Arg.Any<IReadOnlyCollection<string>>());
+        compile.Received(1).BuildRetryContext(Arg.Any<string>(), Arg.Any<List<string>>(), 3, Arg.Any<IReadOnlyCollection<string>>());
+        await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
     }
 
     [Fact]
@@ -132,7 +219,7 @@ public class CompileWorkerRetryTests
 
         // After 3 retries exhausted, the job is terminal Failed.
         capturedJob.State.Should().Be(GenerationState.Failed);
-        capturedJob.RetryCount.Should().Be(3, "MaxRetries=3 in CompileWorkerService");
+        capturedJob.RetryCount.Should().Be(3, "GenerationStateMachine.MaxBuildRetries is 3");
         capturedJob.BuildErrorHistory.Should().HaveCount(4, "initial attempt + 3 retries = 4 build attempts");
         capturedJob.ErrorMessage.Should().NotBeNull().And.Contain("Build failed after 3 retries");
 
@@ -350,7 +437,8 @@ public class CompileWorkerRetryTests
             r2,
             delivery,
             email,
-            refund ?? Substitute.For<IRefundService>(),
+            new FailedBuildRefunder(
+                refund ?? Substitute.For<IRefundService>(), delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

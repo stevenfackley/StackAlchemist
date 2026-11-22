@@ -16,6 +16,7 @@ import { AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import type { Generation, Tier } from "@/lib/types";
 import { createCheckoutSession } from "@/lib/actions";
+import { UpgradeModal as RealUpgradeModal } from "@/app/generate/[id]/components/upgrade-modal";
 
 const PAID_TIERS = [
   { id: 1 as Tier, name: "Blueprint", price: "$299", tagline: "Schema + API docs" },
@@ -105,5 +106,31 @@ describe("UpgradeModal (Modal-wrapped)", () => {
     render(<UpgradeModal generation={stubGen} onClose={() => {}} />);
     await userEvent.click(screen.getByTestId("upgrade-tier-1"));
     expect(await screen.findByTestId("upgrade-error")).toBeInTheDocument();
+  });
+});
+
+describe("UpgradeModal checkout request", () => {
+  it("sends the project type of the build being upgraded", async () => {
+    const checkout = vi.mocked(createCheckoutSession);
+    checkout.mockClear();
+    const pythonGen = {
+      id: "gen-py",
+      prompt: "a FastAPI app",
+      mode: "simple",
+      project_type: "PythonReact",
+    } as Generation;
+
+    render(<RealUpgradeModal generation={pythonGen} onClose={() => {}} />);
+    await userEvent.click(screen.getByTestId("upgrade-tier-2"));
+
+    expect(checkout).toHaveBeenCalledWith(
+      "gen-py",
+      2,
+      "a FastAPI app",
+      "PythonReact",
+      "simple",
+      "/generate/gen-py"
+    );
+    expect(await screen.findByText("test error")).toBeInTheDocument();
   });
 });

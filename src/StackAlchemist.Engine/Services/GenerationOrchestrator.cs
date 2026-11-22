@@ -29,7 +29,6 @@ public sealed partial class GenerationOrchestrator(
     IPromptBuilderService promptBuilder,
     IInjectionEngine injectionEngine,
     IDeliveryService deliveryService,
-    ITierGatingService tierGating,
     IFileSystem fileSystem,
     IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
@@ -119,7 +118,7 @@ public sealed partial class GenerationOrchestrator(
         {
             // Persist in-progress status immediately so the row never sits at "pending"
             // if codegen throws below. DB CHECK enum is "generating_code" (not "generating").
-            await deliveryService.UpdateStatusAsync(request.GenerationId, "generating_code", ct);
+            await deliveryService.UpdateStatusAsync(request.GenerationId, GenerationStatus.GeneratingCode, ct);
 
             var variables = BuildVariables(request);
 
@@ -143,7 +142,7 @@ public sealed partial class GenerationOrchestrator(
                 return new GenerateResponse
                 {
                     JobId = request.GenerationId,
-                    Status = context.State.ToString().ToLowerInvariant(),
+                    Status = GenerationStatus.ToWire(context.State),
                     ProjectType = request.ProjectType,
                 };
             }
@@ -151,7 +150,7 @@ public sealed partial class GenerationOrchestrator(
             // Tier 1 (Blueprint) — skip LLM/codegen entirely; emit schema.json + api-docs.md
             // and route the job straight to Packing so the worker only zips and uploads.
             // This is the gate that keeps Tier-1 customers from triggering paid Anthropic calls.
-            if (!tierGating.ShouldTriggerCodeGeneration(request.Tier))
+            if (!TierCatalog.GeneratesCode(request.Tier))
             {
                 var blueprintFiles = Tier1ArtifactBuilder.Build(request.Schema, variables);
                 var blueprintDir = WriteFilesToDisk(request.GenerationId, blueprintFiles);
@@ -168,7 +167,7 @@ public sealed partial class GenerationOrchestrator(
                 return new GenerateResponse
                 {
                     JobId = request.GenerationId,
-                    Status = context.State.ToString().ToLowerInvariant(),
+                    Status = GenerationStatus.ToWire(context.State),
                     ProjectType = request.ProjectType,
                 };
             }
@@ -238,12 +237,8 @@ public sealed partial class GenerationOrchestrator(
                 // the result page offers no Retry for, or every retry used) leaves them charged
                 // with nothing to press. Any other failure is not refunded: the customer can
                 // retry, and a refund would make that retry answer 402.
-                if (refunder is not null
-                    && await refunder.ShouldRefundAsync(request.GenerationId, request.Tier, category))
-                {
-                    await refunder.TryRefundAsync(
-                        request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
-                }
+                if (refunder is not null)
+                    await refunder.RefundIfOwedAsync(request.GenerationId, request.Tier, category);
             }
             finally
             {
@@ -256,7 +251,7 @@ public sealed partial class GenerationOrchestrator(
         return new GenerateResponse
         {
             JobId = request.GenerationId,
-            Status = context.State.ToString().ToLowerInvariant(),
+            Status = GenerationStatus.ToWire(context.State),
             ProjectType = request.ProjectType,
         };
     }
@@ -357,7 +352,7 @@ public sealed partial class GenerationOrchestrator(
         TemplateVariables variables,
         Dictionary<string, string> finalFiles)
     {
-        if (request.Tier != 3)
+        if (!TierCatalog.IncludesInfrastructure(request.Tier))
         {
             return;
         }

@@ -41,14 +41,14 @@ public sealed class PaidGenerationGate(
     public async Task<PaymentCheck> CheckAsync(string generationId, int requestedTier, CancellationToken ct)
     {
         var tier = requestedTier;
-        if (tier <= 0)
+        if (!TierCatalog.IsPaid(tier))
         {
             // Only a tier-0 request needs the row: a paid request is checked whatever the row says.
             var snapshot = await deliveryService.GetGenerationSnapshotAsync(generationId, ct);
             tier = Math.Max(tier, snapshot?.Tier ?? 0);
         }
 
-        if (tier <= 0 || billing is null)
+        if (!TierCatalog.IsPaid(tier) || billing is null)
             return PaymentCheck.Allowed;
 
         try
