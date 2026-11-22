@@ -67,7 +67,6 @@ public sealed class GenerationOrchestratorRefundTests
             promptBuilder,
             Substitute.For<IInjectionEngine>(),
             delivery,
-            new TierGatingService(),
             new MockFileSystem(),
             new ConfigurationBuilder().Build(),
             queue.Writer,

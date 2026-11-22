@@ -29,7 +29,6 @@ public sealed partial class GenerationOrchestrator(
     IPromptBuilderService promptBuilder,
     IInjectionEngine injectionEngine,
     IDeliveryService deliveryService,
-    ITierGatingService tierGating,
     IFileSystem fileSystem,
     IConfiguration configuration,
     ChannelWriter<GenerationContext> jobQueue,
@@ -151,7 +150,7 @@ public sealed partial class GenerationOrchestrator(
             // Tier 1 (Blueprint) — skip LLM/codegen entirely; emit schema.json + api-docs.md
             // and route the job straight to Packing so the worker only zips and uploads.
             // This is the gate that keeps Tier-1 customers from triggering paid Anthropic calls.
-            if (!tierGating.ShouldTriggerCodeGeneration(request.Tier))
+            if (!TierCatalog.GeneratesCode(request.Tier))
             {
                 var blueprintFiles = Tier1ArtifactBuilder.Build(request.Schema, variables);
                 var blueprintDir = WriteFilesToDisk(request.GenerationId, blueprintFiles);
@@ -353,7 +352,7 @@ public sealed partial class GenerationOrchestrator(
         TemplateVariables variables,
         Dictionary<string, string> finalFiles)
     {
-        if (request.Tier != 3)
+        if (!TierCatalog.IncludesInfrastructure(request.Tier))
         {
             return;
         }

@@ -80,7 +80,7 @@ public sealed partial class FailedBuildRefunder(
     /// then refuses the retry.
     /// </summary>
     public static bool ShouldRefund(int tier, string errorCategory) =>
-        tier >= 1
+        TierCatalog.IsPaid(tier)
         && (errorCategory == ErrorCategorizer.Build || !ErrorCategorizer.OffersRetry(errorCategory));
 
     /// <summary>
@@ -94,7 +94,7 @@ public sealed partial class FailedBuildRefunder(
 
     public async Task<bool> ShouldRefundAsync(string generationId, int tier, string errorCategory)
     {
-        if (tier < 1)
+        if (!TierCatalog.IsPaid(tier))
             return false;
         if (ShouldRefund(tier, errorCategory))
             return true;

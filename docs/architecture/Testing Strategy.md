@@ -112,7 +112,7 @@ Selectors use `data-testid` for flow-critical assertions.
 
 ### 4.5 Tier gating, Stripe webhook, BYOK
 
-- `TierGatingServiceTests`: which tiers get which pipeline.
+- `TierCatalogTests`: which tiers are paid, get generated code or the infrastructure templates, and what each is charged.
 - `StripeWebhookTests` and `PostgresBillingStoreTests`: signature-verified webhook handling, `checkout.session.completed` through `process_checkout_completed`, idempotency, failure and refund events, and redelivery when a side effect fails.
 - `ByokKeyProtectorTests` and `ByokRoutingTests`: key encryption round trip and routing of a user's own key to the right provider only.
 

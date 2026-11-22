@@ -138,7 +138,6 @@ public static class EngineServices
 
         // ── Core engine services ─────────────────────────────────────────────────────
         services.AddSingleton<IReconstructionService, ReconstructionService>();
-        services.AddSingleton<ITierGatingService, TierGatingService>();
         services.AddSingleton<ISchemaExtractionService, SchemaExtractionService>();
         services.AddSingleton<IPromptBuilderService, PromptBuilderService>();
 

@@ -45,7 +45,7 @@ public static class DownloadEndpoints
 
         // Only a delivered paid build has an archive. A free preview never uploads one, and a failed
         // or refunded build must not be handed a link to whatever an earlier attempt left behind.
-        if (snapshot is not { Status: "success", Tier: >= 1 })
+        if (snapshot is not { Status: "success" } || !TierCatalog.IsPaid(snapshot.Tier))
             return NoDownload();
 
         return Results.Ok(new { url = r2.CreateDownloadUrl(generationId, LinkLifetime) });

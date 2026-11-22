@@ -14,6 +14,24 @@ public sealed record PaidTier(long Cents, string Name, string Description);
 /// </summary>
 public static class TierCatalog
 {
+    /// <summary>
+    /// Whether the tier is bought (1 and up) rather than the free Spark preview (0). The payment
+    /// gate, the reconciler's payment check, the refund rule and the download link all ask this.
+    /// </summary>
+    public static bool IsPaid(int tier) => tier >= 1;
+
+    /// <summary>
+    /// Whether the tier gets LLM-generated source, built before delivery (2 and up). Tier 1, the
+    /// Blueprint, is <c>schema.json</c> and <c>api-docs.md</c> and makes no LLM call.
+    /// </summary>
+    public static bool GeneratesCode(int tier) => tier >= 2;
+
+    /// <summary>
+    /// Whether the tier ships the <c>Tier3-Infrastructure</c> templates (AWS CDK, Terraform, a Helm
+    /// chart and a deployment guide): tier 3 only.
+    /// </summary>
+    public static bool IncludesInfrastructure(int tier) => tier == 3;
+
     public static bool TryGetPaidTier(int tier, ProjectType projectType, out PaidTier paidTier)
     {
         var stack = StackName(projectType);

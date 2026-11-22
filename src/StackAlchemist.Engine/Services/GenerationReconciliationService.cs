@@ -155,7 +155,7 @@ public sealed partial class GenerationReconciliationService(
             // Only a completed payment may start, or restart, a paid tier. No billing store
             // (local dev): a pending paid row can never be paid, and a started one is left to
             // run, as PaidGenerationGate and the webhook do.
-            var payment = row.Tier > 0 && (billing is not null || row.Status == "pending")
+            var payment = TierCatalog.IsPaid(row.Tier) && (billing is not null || row.Status == "pending")
                 ? await CheckPaymentAsync(row.Id, ct)
                 : Payment.Paid;
 

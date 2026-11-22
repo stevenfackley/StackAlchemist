@@ -116,12 +116,6 @@ public class LlmRefusalException : Exception
     public string? Category { get; }
 }
 
-/// <summary>Thrown when a tier value outside the range 1–3 is supplied.</summary>
-public class InvalidTierException : Exception
-{
-    public InvalidTierException(string message) : base(message) { }
-}
-
 /// <summary>
 /// Thrown when a generation is routed to a BYOK-only provider (OpenAI / OpenRouter) but no usable
 /// API key could be resolved — either none was stored, or the stored ciphertext failed to decrypt.
