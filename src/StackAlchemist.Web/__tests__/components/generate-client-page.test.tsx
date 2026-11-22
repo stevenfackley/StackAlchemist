@@ -1,3 +1,4 @@
+import { Profiler } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Generation, PaymentStatus, Tier } from "@/lib/types";
@@ -107,23 +108,50 @@ describe("GenerateClientPage — watching a failed paid build for its refund", (
     vi.useRealTimers();
     // The page last saw the payment in place. It was refunded since: the Engine answers 402.
     vi.mocked(retryGeneration).mockResolvedValue({ success: false, error: "This build has no completed payment." });
-    vi.mocked(getGeneration).mockResolvedValue(failedGeneration("refunded", { error_category: "network" }));
+    // The re-read answers only when the test says so, so each step below is a fixed point.
+    let deliverRow!: (row: Generation) => void;
+    vi.mocked(getGeneration).mockReturnValueOnce(
+      new Promise<Generation>((resolve) => {
+        deliverRow = resolve;
+      })
+    );
+    // What every commit put on screen: the payment note and the refusal.
+    const commits: Array<{ outcome: string | null; alert: string | null }> = [];
     render(
-      <GenerateClientPage
-        initialGeneration={failedGeneration("completed", { error_category: "network" })}
-        generationId="gen-1"
-      />
+      <Profiler
+        id="page"
+        onRender={() =>
+          commits.push({
+            outcome: screen.queryByTestId("payment-outcome")?.getAttribute("data-outcome") ?? null,
+            alert: screen.queryByRole("alert")?.textContent ?? null,
+          })
+        }
+      >
+        <GenerateClientPage
+          initialGeneration={failedGeneration("completed", { error_category: "network" })}
+          generationId="gen-1"
+        />
+      </Profiler>
     );
     expect(screen.getByTestId("payment-outcome")).toHaveAttribute("data-outcome", "kept");
 
     fireEvent.click(screen.getByRole("button", { name: /^retry$/i }));
 
+    // Refused, and the row is being read again: the page is still retrying, not yet explaining.
+    await waitFor(() => expect(getGeneration).toHaveBeenCalledWith("gen-1"));
+    expect(screen.getByRole("button", { name: /retrying/i })).toBeDisabled();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    deliverRow(failedGeneration("refunded", { error_category: "network" }));
+
     await waitFor(() =>
       expect(screen.getByTestId("payment-outcome")).toHaveAttribute("data-outcome", "refunded")
     );
-    expect(getGeneration).toHaveBeenCalledWith("gen-1");
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent("This build has no completed payment.");
+    // The fresh row and the reason arrive in one commit. Set after an await, the row used to
+    // commit on its own first: Retry and spinner gone, payment refunded, nothing said about why.
+    expect(commits.filter((c) => c.outcome === "refunded" && c.alert === null)).toEqual([]);
   });
 
   it("watches a build that is still in progress, as before", () => {
