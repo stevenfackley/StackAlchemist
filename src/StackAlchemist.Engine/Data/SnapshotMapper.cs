@@ -25,7 +25,7 @@ public static class SnapshotMapper
         DateTimeOffset? updatedAt) =>
         new(
             id,
-            status ?? "pending",
+            status ?? GenerationStatus.Pending,
             tier ?? 0,
             mode,
             prompt,
@@ -48,7 +48,7 @@ public static class SnapshotMapper
         DateTimeOffset? updatedAt) =>
         new(
             id,
-            status ?? "pending",
+            status ?? GenerationStatus.Pending,
             tier ?? 0,
             Mode: null,
             Prompt: null,

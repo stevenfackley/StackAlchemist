@@ -118,7 +118,7 @@ public sealed partial class GenerationOrchestrator(
         {
             // Persist in-progress status immediately so the row never sits at "pending"
             // if codegen throws below. DB CHECK enum is "generating_code" (not "generating").
-            await deliveryService.UpdateStatusAsync(request.GenerationId, "generating_code", ct);
+            await deliveryService.UpdateStatusAsync(request.GenerationId, GenerationStatus.GeneratingCode, ct);
 
             var variables = BuildVariables(request);
 
@@ -142,7 +142,7 @@ public sealed partial class GenerationOrchestrator(
                 return new GenerateResponse
                 {
                     JobId = request.GenerationId,
-                    Status = context.State.ToString().ToLowerInvariant(),
+                    Status = GenerationStatus.ToWire(context.State),
                     ProjectType = request.ProjectType,
                 };
             }
@@ -167,7 +167,7 @@ public sealed partial class GenerationOrchestrator(
                 return new GenerateResponse
                 {
                     JobId = request.GenerationId,
-                    Status = context.State.ToString().ToLowerInvariant(),
+                    Status = GenerationStatus.ToWire(context.State),
                     ProjectType = request.ProjectType,
                 };
             }
@@ -251,7 +251,7 @@ public sealed partial class GenerationOrchestrator(
         return new GenerateResponse
         {
             JobId = request.GenerationId,
-            Status = context.State.ToString().ToLowerInvariant(),
+            Status = GenerationStatus.ToWire(context.State),
             ProjectType = request.ProjectType,
         };
     }

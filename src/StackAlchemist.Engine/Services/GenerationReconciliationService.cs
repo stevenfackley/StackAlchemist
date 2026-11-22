@@ -48,7 +48,10 @@ public sealed partial class GenerationReconciliationService(
     // Statuses safe to re-fire from the top of the pipeline whenever they go stale: nothing is
     // on disk yet. extracting_schema is driven by a frontend HTTP call we cannot replay, so it
     // fails with a clear message instead.
-    private static readonly HashSet<string> RequeueableStatuses = ["pending", "generating_code", "generating"];
+    // Each set below must sit inside GenerationStatus.NonTerminal, the rows this sweep is given at
+    // all (a test checks it).
+    internal static readonly HashSet<string> RequeueableStatuses =
+        [GenerationStatus.Pending, GenerationStatus.GeneratingCode, GenerationStatus.Generating];
 
     // Later stages hold a temp directory that died with the old process, but the row still has
     // the prompt and schema, so the build can be run again from the top. Only paid tiers get
@@ -57,15 +60,19 @@ public sealed partial class GenerationReconciliationService(
     // deploys prod) cut the job off. A late-stage row that went stale while this process was
     // alive was dropped by the worker itself, with an outcome this sweep cannot know: that one
     // is failed, not rebuilt.
-    private static readonly HashSet<string> RestartRequeueableStatuses = ["building", "packing", "uploading"];
+    internal static readonly HashSet<string> RestartRequeueableStatuses =
+        [GenerationStatus.Building, GenerationStatus.Packing, GenerationStatus.Uploading];
 
     // Statuses only a running job writes. A row in one of these, last touched before this
     // process started, was being worked on by the process a restart replaced: nothing else can
     // be running it (prod recreates the one Engine container, old one stopped first), so the
     // boot pass restarts it at once instead of leaving the customer watching a frozen page for
     // the stale window.
-    private static readonly HashSet<string> InProgressStatuses =
-        ["generating_code", "generating", "building", "packing", "uploading"];
+    internal static readonly HashSet<string> InProgressStatuses =
+    [
+        GenerationStatus.GeneratingCode, GenerationStatus.Generating, GenerationStatus.Building,
+        GenerationStatus.Packing, GenerationStatus.Uploading,
+    ];
 
     internal const string UnreadableRowMessage =
         "This generation could not be resumed: its saved schema or settings could not be read. "
@@ -155,7 +162,7 @@ public sealed partial class GenerationReconciliationService(
             // Only a completed payment may start, or restart, a paid tier. No billing store
             // (local dev): a pending paid row can never be paid, and a started one is left to
             // run, as PaidGenerationGate and the webhook do.
-            var payment = TierCatalog.IsPaid(row.Tier) && (billing is not null || row.Status == "pending")
+            var payment = TierCatalog.IsPaid(row.Tier) && (billing is not null || row.Status == GenerationStatus.Pending)
                 ? await CheckPaymentAsync(row.Id, ct)
                 : Payment.Paid;
 
@@ -165,7 +172,7 @@ public sealed partial class GenerationReconciliationService(
 
             // A paid tier that is still pending has not started. Unpaid: wait while the checkout
             // can still complete, then fail the row.
-            if (row.Status == "pending" && payment == Payment.Unpaid)
+            if (row.Status == GenerationStatus.Pending && payment == Payment.Unpaid)
             {
                 if (timeProvider.GetUtcNow() - row.UpdatedAt > UnpaidCheckoutLifetime)
                 {

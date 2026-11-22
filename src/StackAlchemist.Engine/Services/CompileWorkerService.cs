@@ -149,11 +149,7 @@ public sealed partial class CompileWorkerService(
                 await deliveryService.AppendBuildLogAsync(
                     job.GenerationId, "BUILD SUCCEEDED", ct);
                 // Building → Packing
-                job.State = GenerationStateMachine.Transition(
-                    job.State, GenerationEvent.BuildPassed, job);
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Packing, ct: ct);
+                await AdvanceAsync(job, GenerationEvent.BuildPassed, ct);
 
                 await PackUploadAndNotifyAsync(job, ct);
                 return;
@@ -208,8 +204,10 @@ public sealed partial class CompileWorkerService(
             Meters.BuildRetried.Add(1, BuildJobTags(job));
 
             // ── Retry: re-call LLM with error context ─────────────────────────
+            // Generating, which the row stores as "generating", not the "generating_code" the
+            // orchestrator wrote when the generation started.
             await deliveryService.UpdateStatusAsync(
-                job.GenerationId, GenerationState.Generating, ct: ct);
+                job.GenerationId, job.State, ct: ct);
 
             // job.Prompt is the user's natural-language brief — it says nothing about where
             // files go, so without the tree roots this is the one prompt in the pipeline that
@@ -319,19 +317,10 @@ public sealed partial class CompileWorkerService(
         job.DownloadUrl = downloadUrl;
 
         // Packing → Uploading
-        job.State = GenerationStateMachine.Transition(
-            job.State, GenerationEvent.ZipCreated, job);
-
-        await deliveryService.UpdateStatusAsync(
-            job.GenerationId, GenerationState.Uploading, ct: ct);
+        await AdvanceAsync(job, GenerationEvent.ZipCreated, ct);
 
         // Uploading → Success
-        job.State = GenerationStateMachine.Transition(
-            job.State, GenerationEvent.UploadedToR2, job);
-
-        await deliveryService.UpdateStatusAsync(
-            job.GenerationId, GenerationState.Success,
-            downloadUrl: downloadUrl, ct: ct);
+        await AdvanceAsync(job, GenerationEvent.UploadedToR2, ct, downloadUrl);
 
         Meters.Succeeded.Add(1, BuildJobTags(job));
         Meters.DurationMs.Record(
@@ -380,6 +369,17 @@ public sealed partial class CompileWorkerService(
         {
             LogBuildReportWriteFailed(logger, ex, job.GenerationId);
         }
+    }
+
+    /// <summary>
+    /// Moves the job on by <paramref name="trigger"/> and writes the state it lands in, so the row
+    /// cannot be told a different state from the one the job is in.
+    /// </summary>
+    private async Task AdvanceAsync(
+        GenerationContext job, GenerationEvent trigger, CancellationToken ct, string? downloadUrl = null)
+    {
+        job.State = GenerationStateMachine.Transition(job.State, trigger, job);
+        await deliveryService.UpdateStatusAsync(job.GenerationId, job.State, downloadUrl: downloadUrl, ct: ct);
     }
 
     private Task FailMissingOutputDir(GenerationContext job, CancellationToken ct) =>
