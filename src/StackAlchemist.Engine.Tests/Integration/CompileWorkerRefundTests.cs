@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
+using StackAlchemist.Engine.Tests.Fixtures;
 
 namespace StackAlchemist.Engine.Tests.Integration;
 
@@ -309,12 +310,239 @@ public class CompileWorkerRefundTests
         await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
     }
 
+    // ── What each way of failing records, and when it pays the customer back ──
+    //
+    // One test per way a build ends failed in the worker: the failed status written (message,
+    // category, and the worker's own token), the meters, whether the payment goes back, with
+    // which email, on which token, and whether the decision read the customer's retry count.
+
+    private static CancellationToken WorkersToken() => Arg.Is<CancellationToken>(t => t.CanBeCanceled);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task RetriesExhausted_IsRecordedAsABuildFailure_AndRefundedUnderTheCompileGuarantee(int tier)
+    {
+        using var meters = new GenerationMeterCapture();
+        var job = MakeJob(tier, meters.Mode);
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationOwnerEmailAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns("owner@example.com");
+        var email = Substitute.For<IEmailService>();
+        var refund = Substitute.For<IRefundService>();
+        refund.RefundFailedGenerationAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(RefundOutcome.Issued);
+
+        await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
+
+        // The first build and three corrected ones, then failed.
+        await compile.Received(4).ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>());
+        job.State.Should().Be(GenerationState.Failed);
+        job.ErrorMessage.Should().Be("Build failed after 3 retries. Last errors:\nCS9999: persistent failure");
+
+        Received.InOrder(() =>
+        {
+            delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+                Arg.Is<string?>(message => message == job.ErrorMessage), Arg.Is<string?>(c => c == ErrorCategorizer.Build),
+                WorkersToken());
+            refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+        });
+        await refund.Received(1).RefundFailedGenerationAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await email.Received(1).SendAsync(
+            "owner@example.com", EmailTemplates.RefundIssued(tier).Subject, EmailTemplates.RefundIssued(tier).Html,
+            Arg.Any<CancellationToken>());
+        // The Compile Guarantee does not depend on how many retries the customer has pressed.
+        await delivery.DidNotReceiveWithAnyArgs().GetRetryCountAsync(default!, default);
+
+        meters.TagSets("generation.build_retried").Should().Equal(
+            Enumerable.Repeat($"project_type=DotNetNextJs;tier={tier}", 3));
+        meters.TagSets("generation.failed").Should().Equal($"project_type=DotNetNextJs;stage=build_retries_exhausted;tier={tier}");
+        meters.Total("generation.failed").Should().Be(1);
+        // Tagged by outcome alone, like a delivered build's duration.
+        meters.TagSets("generation.duration_ms").Should().Equal($"outcome=failed;project_type=DotNetNextJs;tier={tier}");
+    }
+
+    [Fact]
+    public async Task RetriesExhausted_WithEveryCustomerRetryAlsoUsed_IsStillTheCompileGuaranteeRefund()
+    {
+        var job = MakeJob(tier: 2);
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetRetryCountAsync(job.GenerationId, Arg.Any<CancellationToken>()).Returns(FailedBuildRefunder.RetryLimit);
+        delivery.GetGenerationOwnerEmailAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns("owner@example.com");
+        var email = Substitute.For<IEmailService>();
+        var refund = Substitute.For<IRefundService>();
+        refund.RefundFailedGenerationAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(RefundOutcome.Issued);
+
+        await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
+
+        await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+        await email.Received(1).SendAsync(
+            "owner@example.com", EmailTemplates.RefundIssued(2).Subject, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WorkerThrows_IsRecordedWithTheExceptionsMessageAndCategory_OnTheWorkersToken()
+    {
+        using var meters = new GenerationMeterCapture();
+        var job = MakeJob(tier: 2, meters.Mode);
+        var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        var refund = Substitute.For<IRefundService>();
+
+        await RunWorkerAsync(
+            job, CompileThatThrows(new InvalidOperationException("chown exited 1")), llm, reconstruction, r2,
+            delivery, Substitute.For<IEmailService>(), refund);
+
+        job.State.Should().Be(GenerationState.Failed);
+        job.ErrorMessage.Should().Be("chown exited 1");
+        Received.InOrder(() =>
+        {
+            delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+                Arg.Is<string?>(message => message == "chown exited 1"), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
+                WorkersToken());
+            refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+        });
+        // A category with no Retry needs no row to decide.
+        await delivery.DidNotReceiveWithAnyArgs().GetRetryCountAsync(default!, default);
+
+        meters.TagSets("generation.failed").Should().Equal("project_type=DotNetNextJs;stage=worker_unhandled;tier=2");
+        meters.Total("generation.failed").Should().Be(1);
+        meters.TagSets("generation.duration_ms").Should().Equal("outcome=failed;project_type=DotNetNextJs;stage=worker_unhandled;tier=2");
+    }
+
+    [Fact]
+    public async Task WorkerThrows_RetryableCategory_ReadsTheRetryCountOnATokenTheStoppingHostCannotCancel()
+    {
+        var job = MakeJob(tier: 2);
+        var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetRetryCountAsync(job.GenerationId, Arg.Any<CancellationToken>()).Returns(1);
+
+        await RunWorkerAsync(
+            job, CompileThatThrows(new HttpRequestException("registry unreachable")), llm, reconstruction, r2,
+            delivery, Substitute.For<IEmailService>(), Substitute.For<IRefundService>());
+
+        await delivery.Received(1).GetRetryCountAsync(job.GenerationId, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task MissingOutputDirectory_IsRecordedAsInternal_AndRefundedAsABuildThatCouldNotFinish()
+    {
+        using var meters = new GenerationMeterCapture();
+        var job = MakeJob(tier: 3, meters.Mode);
+        job.OutputDirectory = null;
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.GetGenerationOwnerEmailAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns("owner@example.com");
+        var email = Substitute.For<IEmailService>();
+        var refund = Substitute.For<IRefundService>();
+        refund.RefundFailedGenerationAsync(job.GenerationId, Arg.Any<CancellationToken>())
+            .Returns(RefundOutcome.Issued);
+
+        await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, email, refund);
+
+        job.State.Should().Be(GenerationState.Failed);
+        job.ErrorMessage.Should().Be("No output directory set on the generation context.");
+        await compile.DidNotReceiveWithAnyArgs().ExecuteBuildAsync(default!, default, default);
+        Received.InOrder(() =>
+        {
+            delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+                Arg.Is<string?>(message => message == job.ErrorMessage), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
+                WorkersToken());
+            refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+        });
+        await email.Received(1).SendAsync(
+            "owner@example.com", EmailTemplates.RefundIssuedForUnfinishedBuild(3).Subject, Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+        await delivery.DidNotReceiveWithAnyArgs().GetRetryCountAsync(default!, default);
+
+        meters.TagSets("generation.failed").Should().Equal("project_type=DotNetNextJs;stage=missing_output_dir;tier=3");
+        meters.Total("generation.failed").Should().Be(1);
+        meters.TagSets("generation.duration_ms").Should().Equal("outcome=failed;project_type=DotNetNextJs;stage=missing_output_dir;tier=3");
+    }
+
+    [Fact]
+    public async Task MissingOutputDirectory_OnTheBlueprintPath_IsRecordedAndRefundedTheSameWay()
+    {
+        // Tier 1 reaches the worker already packing, with no build to run.
+        var job = MakeJob(tier: 1);
+        job.OutputDirectory = null;
+        job.State = GenerationState.Packing;
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        var refund = Substitute.For<IRefundService>();
+
+        await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund);
+
+        job.State.Should().Be(GenerationState.Failed);
+        await delivery.Received(1).UpdateStatusAsync(
+            job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+            Arg.Is<string?>(message => message == "No output directory set on the generation context."),
+            Arg.Is<string?>(c => c == ErrorCategorizer.Internal), WorkersToken());
+        await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task MissingOutputDirectory_Tier0_IsRecordedButNotRefunded()
+    {
+        var job = MakeJob(tier: 0);
+        job.OutputDirectory = null;
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        var refund = Substitute.For<IRefundService>();
+
+        await RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund);
+
+        await delivery.Received(1).UpdateStatusAsync(
+            job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+        await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task FailedStatusWriteThrows_NothingIsRefunded()
+    {
+        // The refund comes after the failed status, never instead of it: when that write fails,
+        // the row is left in progress for the reconciler, which fails and refunds it itself.
+        // What happens today: the throw lands in the loop's catch, which counts a second failure
+        // and tries the write again; that throws too and ends the worker.
+        using var meters = new GenerationMeterCapture();
+        var job = MakeJob(tier: 2, meters.Mode);
+        var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        var delivery = Substitute.For<IDeliveryService>();
+        delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("db down"));
+        var refund = Substitute.For<IRefundService>();
+
+        var run = () => RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund);
+
+        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("db down");
+        await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
+        await delivery.Received(2).UpdateStatusAsync(
+            job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        meters.TagSets("generation.failed").Should().Equal(
+            "project_type=DotNetNextJs;stage=build_retries_exhausted;tier=2",
+            "project_type=DotNetNextJs;stage=worker_unhandled;tier=2");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static GenerationContext MakeJob(int tier) => new()
+    private static GenerationContext MakeJob(int tier, string mode = "advanced") => new()
     {
         GenerationId = "refund-" + Guid.NewGuid(),
-        Mode = "advanced",
+        Mode = mode,
         Tier = tier,
         ProjectType = ProjectType.DotNetNextJs,
         Prompt = "Build a Product CRUD app",

@@ -7,6 +7,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using StackAlchemist.Engine.Models;
 using StackAlchemist.Engine.Services;
+using StackAlchemist.Engine.Tests.Fixtures;
 
 namespace StackAlchemist.Engine.Tests.Services;
 
@@ -111,6 +112,52 @@ public sealed class GenerationOrchestratorRefundTests
             f.Refunder.TryRefundAsync(
                 request.GenerationId, tier, RefundReason.BuildCouldNotFinish, Arg.Any<CancellationToken>());
         });
+    }
+
+    [Fact]
+    public async Task Failure_IsRecordedWithTheExceptionsMessage_OnATokenTheStoppingHostCannotCancel()
+    {
+        using var meters = new GenerationMeterCapture();
+        var f = Build();
+        LlmThrows(f, new InvalidOperationException("template bug"));
+        using var stopping = new CancellationTokenSource();
+        var request = new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = meters.Mode,
+            Tier = 2,
+            Prompt = "Build an app",
+        };
+
+        await f.Sut.EnqueueAsync(request, stopping.Token);
+
+        await f.Delivery.Received(1).UpdateStatusAsync(
+            request.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+            Arg.Is<string?>(message => message == "template bug"), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
+            CancellationToken.None);
+        await f.Refunder.Received(1).TryRefundAsync(
+            request.GenerationId, 2, RefundReason.BuildCouldNotFinish, CancellationToken.None);
+
+        meters.TagSets("generation.failed").Should().Equal("project_type=DotNetNextJs;stage=orchestration;tier=2");
+        meters.Total("generation.failed").Should().Be(1);
+        meters.TagSets("generation.duration_ms").Should().Equal("outcome=failed;project_type=DotNetNextJs;stage=orchestration;tier=2");
+    }
+
+    [Fact]
+    public async Task Tier0_FailureIsRecordedButNeverRefunded()
+    {
+        var f = Build();
+        f.Delivery.CompletePreviewAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("preview write failed"));
+        var request = Request(tier: 0);
+
+        var response = await f.Sut.EnqueueAsync(request);
+
+        response.Status.Should().Be("failed");
+        await f.Delivery.Received(1).UpdateStatusAsync(
+            request.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            ErrorCategorizer.Internal, Arg.Any<CancellationToken>());
+        await f.Refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
     }
 
     [Fact]
