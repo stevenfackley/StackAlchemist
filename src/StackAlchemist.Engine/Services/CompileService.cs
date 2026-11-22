@@ -53,7 +53,7 @@ public sealed partial class CompileService(
         IReadOnlyCollection<string>? treeRoots = null)
     {
         var context = $"""
-            The previous code generation attempt failed to compile. This is retry attempt {retryAttempt} of 3.
+            The previous code generation attempt failed to compile. This is retry attempt {retryAttempt} of {GenerationStateMachine.MaxBuildRetries}.
 
             ## Build Errors from Previous Attempts
 

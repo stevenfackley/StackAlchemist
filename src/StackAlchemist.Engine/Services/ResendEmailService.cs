@@ -131,7 +131,7 @@ public static class EmailTemplates
 
     public static (string Subject, string Html) RefundIssued(int tier) =>
         ("Your StackAlchemist build failed — refund initiated",
-         "<p>Your generated project still failed to compile after 3 automatic correction " +
+         $"<p>Your generated project still failed to compile after {GenerationStateMachine.MaxBuildRetries} automatic correction " +
          $"attempts, so per the Compile Guarantee we've initiated a full refund for your tier {tier} purchase.</p>" +
          "<p>No dispute needed on your end — the refund will appear on your original payment method " +
          "within 5–10 business days.</p>" +

@@ -172,7 +172,7 @@ public class CompileWorkerRetryTests
 
         // After 3 retries exhausted, the job is terminal Failed.
         capturedJob.State.Should().Be(GenerationState.Failed);
-        capturedJob.RetryCount.Should().Be(3, "MaxRetries=3 in CompileWorkerService");
+        capturedJob.RetryCount.Should().Be(3, "GenerationStateMachine.MaxBuildRetries is 3");
         capturedJob.BuildErrorHistory.Should().HaveCount(4, "initial attempt + 3 retries = 4 build attempts");
         capturedJob.ErrorMessage.Should().NotBeNull().And.Contain("Build failed after 3 retries");
 

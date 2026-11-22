@@ -22,8 +22,6 @@ public sealed partial class CompileWorkerService(
     IInFlightGenerationRegistry inFlight,
     ILogger<CompileWorkerService> logger) : BackgroundService
 {
-    private const int MaxRetries = 3;
-
     /// <summary>How much raw transcript to fall back on when no error matcher fired.</summary>
     private const int RawLogTailChars = 4_000;
 
@@ -104,7 +102,10 @@ public sealed partial class CompileWorkerService(
             return;
         }
 
-        while (job.State == GenerationState.Building && job.RetryCount <= MaxRetries)
+        // The state machine's budget, not a copy of it: only its BuildFailed transition ends this
+        // loop in Failed, so a bound that disagreed would leave a job still building, with no
+        // failed status and no refund.
+        while (job.State == GenerationState.Building && job.RetryCount <= GenerationStateMachine.MaxBuildRetries)
         {
             if (job.OutputDirectory is null)
             {
@@ -190,15 +191,15 @@ public sealed partial class CompileWorkerService(
 
             if (newState == GenerationState.Failed)
             {
-                LogJobFailedPermanently(logger, job.GenerationId, MaxRetries);
+                LogJobFailedPermanently(logger, job.GenerationId, GenerationStateMachine.MaxBuildRetries);
 
                 // Compile Guarantee: the build category is how a paid tier (1-3) gets its
-                // automatic refund when the build is still failing after MaxRetries corrections.
+                // automatic refund when the build is still failing after every correction.
                 // Best-effort: the refunder never throws, so a refund failure cannot crash the
                 // worker loop or reverse the Failed status. The duration is tagged by outcome
                 // alone, like a delivered build's.
                 await FailJobAsync(
-                    job, $"Build failed after {MaxRetries} retries. Last errors:\n{errorSummary}",
+                    job, $"Build failed after {GenerationStateMachine.MaxBuildRetries} retries. Last errors:\n{errorSummary}",
                     ErrorCategorizer.Build, stage: "build_retries_exhausted", ct, tagDurationWithStage: false);
 
                 return;
@@ -370,7 +371,7 @@ public sealed partial class CompileWorkerService(
 
         try
         {
-            var report = BuildReportWriter.Create(job, MaxRetries, DateTimeOffset.UtcNow);
+            var report = BuildReportWriter.Create(job, GenerationStateMachine.MaxBuildRetries, DateTimeOffset.UtcNow);
             await BuildReportWriter.WriteAsync(job.OutputDirectory, report, ct);
             await deliveryService.AppendBuildLogAsync(
                 job.GenerationId, BuildReportWriter.ToLogSummary(report), ct);

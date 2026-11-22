@@ -263,7 +263,7 @@ public sealed partial class PromptBuilderService(ILogger<PromptBuilderService>? 
     public string BuildRetryPrompt(string originalPrompt, IReadOnlyList<string> errorHistory, int retryAttempt)
     {
         var header = $"""
-            The previous code generation attempt failed to compile. This is retry attempt {retryAttempt} of 3.
+            The previous code generation attempt failed to compile. This is retry attempt {retryAttempt} of {GenerationStateMachine.MaxBuildRetries}.
 
             ## Build Errors from Previous Attempts
 
