@@ -19,15 +19,65 @@ public sealed class FailedBuildRefunderTests
     [InlineData(1, ErrorCategorizer.Internal, true)]
     [InlineData(2, ErrorCategorizer.Internal, true)]
     [InlineData(3, ErrorCategorizer.Internal, true)]
+    [InlineData(2, ErrorCategorizer.Quota, true)]
+    // The Compile Guarantee: still failing after every automatic correction. The result page
+    // offers a paid build no Retry for it either (failureOutcome in lib/generation-outcome.ts).
+    [InlineData(1, ErrorCategorizer.Build, true)]
+    [InlineData(2, ErrorCategorizer.Build, true)]
+    [InlineData(3, ErrorCategorizer.Build, true)]
     // The result page shows Retry for these; a refund would make that Retry answer 402.
     [InlineData(2, ErrorCategorizer.Network, false)]
     [InlineData(2, ErrorCategorizer.RateLimit, false)]
     [InlineData(2, ErrorCategorizer.Schema, false)]
-    [InlineData(2, ErrorCategorizer.Build, false)]
     // Nothing was paid.
     [InlineData(0, ErrorCategorizer.Internal, false)]
+    [InlineData(0, ErrorCategorizer.Build, false)]
     public void ShouldRefund_PaidTierAndACategoryWithNoRetry(int tier, string category, bool expected) =>
         FailedBuildRefunder.ShouldRefund(tier, category).Should().Be(expected);
+
+    [Fact]
+    public async Task ShouldRefundAsync_TheCompileGuaranteeDoesNotDependOnTheCustomersRetries()
+    {
+        _delivery.GetRetryCountAsync("gen-1", Arg.Any<CancellationToken>()).Returns(0);
+
+        (await Sut().ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Build)).Should().BeTrue();
+        (await Sut().ShouldRefundAsync("gen-1", 0, ErrorCategorizer.Build)).Should().BeFalse();
+        await _delivery.DidNotReceiveWithAnyArgs().GetRetryCountAsync(default!, default);
+    }
+
+    [Theory]
+    [InlineData(ErrorCategorizer.Build, RefundReason.CompileRetriesExhausted)]
+    [InlineData(ErrorCategorizer.Internal, RefundReason.BuildCouldNotFinish)]
+    [InlineData(ErrorCategorizer.Quota, RefundReason.BuildCouldNotFinish)]
+    [InlineData(ErrorCategorizer.Network, RefundReason.BuildCouldNotFinish)]
+    [InlineData(ErrorCategorizer.Schema, RefundReason.BuildCouldNotFinish)]
+    [InlineData(ErrorCategorizer.RateLimit, RefundReason.BuildCouldNotFinish)]
+    public void ReasonFor_OnlyABuildFailureSendsTheCompileGuaranteeEmail(string category, RefundReason expected) =>
+        FailedBuildRefunder.ReasonFor(category).Should().Be(expected);
+
+    // ── The one call a failure site makes ────────────────────────────────────
+
+    [Fact]
+    public async Task RefundIfOwedAsync_RefundsWithTheCategorysReason_OnATokenNoCallerCanCancel()
+    {
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        refunder.ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Build).Returns(true);
+
+        await refunder.RefundIfOwedAsync("gen-1", 2, ErrorCategorizer.Build);
+
+        await refunder.Received(1).TryRefundAsync("gen-1", 2, RefundReason.CompileRetriesExhausted, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RefundIfOwedAsync_RefundsNothingTheRuleDoesNotOwe()
+    {
+        var refunder = Substitute.For<IFailedBuildRefunder>();
+        refunder.ShouldRefundAsync("gen-1", 2, ErrorCategorizer.Network).Returns(false);
+
+        await refunder.RefundIfOwedAsync("gen-1", 2, ErrorCategorizer.Network);
+
+        await refunder.DidNotReceiveWithAnyArgs().TryRefundAsync(default!, default, default, default);
+    }
 
     [Theory]
     // Every retry used: the web refuses another, so the customer has nothing left to press.

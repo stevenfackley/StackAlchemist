@@ -239,8 +239,8 @@ public static class EngineServices
             sp.GetService<IBillingStore>(), sp.GetRequiredService<IConfiguration>(),
             sp.GetRequiredService<RefundService>(), sp.GetRequiredService<ILogger<StripeRefundService>>()));
 
-        // Refund + email for a paid build that ended with no retry left. The orchestrator and the
-        // reconciler take it as an optional dependency; the compile worker builds its own.
+        // Refund + email for a paid build that ended with no retry left. The compile worker
+        // requires it; the orchestrator and the reconciler take it as an optional dependency.
         services.AddSingleton<IFailedBuildRefunder>(sp => new FailedBuildRefunder(
             sp.GetRequiredService<IRefundService>(), sp.GetRequiredService<IDeliveryService>(),
             sp.GetRequiredService<IEmailService>(), sp.GetRequiredService<ILogger<FailedBuildRefunder>>()));

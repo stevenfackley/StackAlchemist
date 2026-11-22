@@ -45,6 +45,9 @@ public static class WorkerServices
         services.AddSingleton<IRefundService>(sp => new StripeRefundService(
             sp.GetService<IBillingStore>(), sp.GetRequiredService<IConfiguration>(),
             sp.GetRequiredService<RefundService>(), sp.GetRequiredService<ILogger<StripeRefundService>>()));
+        services.AddSingleton<IFailedBuildRefunder>(sp => new FailedBuildRefunder(
+            sp.GetRequiredService<IRefundService>(), sp.GetRequiredService<IDeliveryService>(),
+            sp.GetRequiredService<IEmailService>(), sp.GetRequiredService<ILogger<FailedBuildRefunder>>()));
 
         services.AddHttpClient(AnthropicLlmClient.HttpClientName, client =>
         {

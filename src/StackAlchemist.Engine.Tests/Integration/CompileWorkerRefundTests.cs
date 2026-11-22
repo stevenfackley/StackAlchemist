@@ -614,7 +614,7 @@ public class CompileWorkerRefundTests
             r2,
             delivery,
             email,
-            refund,
+            new FailedBuildRefunder(refund, delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

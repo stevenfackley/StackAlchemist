@@ -222,6 +222,7 @@ public sealed class CompileWorkerBuildReportTests
         var queue = Channel.CreateUnbounded<GenerationContext>();
         await queue.Writer.WriteAsync(job);
         queue.Writer.Complete();
+        var email = Substitute.For<IEmailService>();
 
         var worker = new CompileWorkerService(
             queue.Reader,
@@ -230,8 +231,9 @@ public sealed class CompileWorkerBuildReportTests
             new ReconstructionService(),
             r2,
             delivery,
-            Substitute.For<IEmailService>(),
-            Substitute.For<IRefundService>(),
+            email,
+            new FailedBuildRefunder(
+                Substitute.For<IRefundService>(), delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

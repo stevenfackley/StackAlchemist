@@ -18,7 +18,7 @@ public sealed partial class CompileWorkerService(
     IR2UploadService r2UploadService,
     IDeliveryService deliveryService,
     IEmailService emailService,
-    IRefundService refundService,
+    IFailedBuildRefunder refunder,
     IInFlightGenerationRegistry inFlight,
     ILogger<CompileWorkerService> logger) : BackgroundService
 {
@@ -26,8 +26,6 @@ public sealed partial class CompileWorkerService(
 
     /// <summary>How much raw transcript to fall back on when no error matcher fired.</summary>
     private const int RawLogTailChars = 4_000;
-
-    private readonly FailedBuildRefunder _refunder = new(refundService, deliveryService, emailService, logger);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -57,31 +55,11 @@ public sealed partial class CompileWorkerService(
             catch (Exception ex)
             {
                 LogJobUnhandledError(logger, ex, job.GenerationId);
-                job.State = GenerationState.Failed;
-                job.ErrorMessage = ex.Message;
-
-                Meters.Failed.Add(1, BuildJobTags(job, stage: "worker_unhandled"));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, stage: "worker_unhandled", outcome: "failed"));
-
-                var category = ErrorCategorizer.Categorize(ex);
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Failed,
-                    errorMessage: ex.Message,
-                    errorCategory: category,
-                    ct: stoppingToken);
 
                 // A paid build that died here with no retry left for the customer (a category
-                // the result page offers no Retry for, or every retry used) leaves them charged
-                // with nothing to press. Not on stoppingToken: the row is already failed, and
-                // a host that starts stopping now would cancel the refund with nothing left to
-                // try it again.
-                if (await _refunder.ShouldRefundAsync(job.GenerationId, job.Tier, category))
-                {
-                    await _refunder.TryRefundAsync(
-                        job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
-                }
+                // the result page offers no Retry for, or every retry used) is refunded.
+                await FailJobAsync(
+                    job, ex.Message, ErrorCategorizer.Categorize(ex), stage: "worker_unhandled", stoppingToken);
             }
             finally
             {
@@ -212,32 +190,16 @@ public sealed partial class CompileWorkerService(
 
             if (newState == GenerationState.Failed)
             {
-                job.ErrorMessage =
-                    $"Build failed after {MaxRetries} retries. Last errors:\n{errorSummary}";
-
                 LogJobFailedPermanently(logger, job.GenerationId, MaxRetries);
 
-                Meters.Failed.Add(1, BuildJobTags(job, stage: "build_retries_exhausted"));
-                Meters.DurationMs.Record(
-                    (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-                    BuildJobTags(job, outcome: "failed"));
-
-                await deliveryService.UpdateStatusAsync(
-                    job.GenerationId, GenerationState.Failed,
-                    errorMessage: job.ErrorMessage,
-                    errorCategory: ErrorCategorizer.Build,
-                    ct: ct);
-
-                // Compile Guarantee: paid tiers (1-3) get an automatic refund when the
-                // build is still failing after MaxRetries corrections. Best-effort: the
-                // refunder never throws, so a refund failure cannot crash the worker loop or
-                // reverse the Failed status written above. Not on ct, for the same reason as
-                // the refund in ExecuteAsync's catch.
-                if (job.Tier >= 1)
-                {
-                    await _refunder.TryRefundAsync(
-                        job.GenerationId, job.Tier, RefundReason.CompileRetriesExhausted, CancellationToken.None);
-                }
+                // Compile Guarantee: the build category is how a paid tier (1-3) gets its
+                // automatic refund when the build is still failing after MaxRetries corrections.
+                // Best-effort: the refunder never throws, so a refund failure cannot crash the
+                // worker loop or reverse the Failed status. The duration is tagged by outcome
+                // alone, like a delivered build's.
+                await FailJobAsync(
+                    job, $"Build failed after {MaxRetries} retries. Last errors:\n{errorSummary}",
+                    ErrorCategorizer.Build, stage: "build_retries_exhausted", ct, tagDurationWithStage: false);
 
                 return;
             }
@@ -419,27 +381,42 @@ public sealed partial class CompileWorkerService(
         }
     }
 
-    private async Task FailMissingOutputDir(GenerationContext job, CancellationToken ct)
+    private Task FailMissingOutputDir(GenerationContext job, CancellationToken ct) =>
+        FailJobAsync(
+            job, "No output directory set on the generation context.",
+            ErrorCategorizer.Internal, stage: "missing_output_dir", ct);
+
+    /// <summary>
+    /// Every way a job ends failed in this worker: records the failure meters, writes the failed
+    /// status on <paramref name="ct"/>, then refunds the build when the failure leaves the
+    /// customer no retry (<see cref="FailedBuildRefunder.ShouldRefund"/>; the refund itself
+    /// never rides <paramref name="ct"/>). Nothing is refunded when the status write throws.
+    /// </summary>
+    /// <param name="stage">Tags the failure count, and the duration unless
+    /// <paramref name="tagDurationWithStage"/> is false.</param>
+    private async Task FailJobAsync(
+        GenerationContext job,
+        string errorMessage,
+        string errorCategory,
+        string stage,
+        CancellationToken ct,
+        bool tagDurationWithStage = true)
     {
         job.State = GenerationState.Failed;
-        job.ErrorMessage = "No output directory set on the generation context.";
+        job.ErrorMessage = errorMessage;
 
-        Meters.Failed.Add(1, BuildJobTags(job, stage: "missing_output_dir"));
+        Meters.Failed.Add(1, BuildJobTags(job, stage: stage));
         Meters.DurationMs.Record(
             (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
-            BuildJobTags(job, stage: "missing_output_dir", outcome: "failed"));
+            BuildJobTags(job, stage: tagDurationWithStage ? stage : null, outcome: "failed"));
 
         await deliveryService.UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed,
-            errorMessage: job.ErrorMessage,
-            errorCategory: ErrorCategorizer.Internal,
+            errorMessage: errorMessage,
+            errorCategory: errorCategory,
             ct: ct);
 
-        if (FailedBuildRefunder.ShouldRefund(job.Tier, ErrorCategorizer.Internal))
-        {
-            await _refunder.TryRefundAsync(
-                job.GenerationId, job.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
-        }
+        await refunder.RefundIfOwedAsync(job.GenerationId, job.Tier, errorCategory);
     }
 
     /// <summary>

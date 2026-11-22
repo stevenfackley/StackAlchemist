@@ -25,11 +25,32 @@ public interface IFailedBuildRefunder
 
     /// <summary>
     /// Whether a paid build that has just failed with this category leaves its customer no
-    /// retry: the category offers none, or the owner has used every retry. Reads the row's
-    /// retry count now, at the failure, not when the run started. Never throws; when the
-    /// count cannot be read the answer is false and nothing is refunded on a guess.
+    /// retry: the build ran out of automatic corrections, the category offers none, or the owner
+    /// has used every retry. Reads the row's retry count now, at the failure, not when the run
+    /// started, and only when the category alone does not decide. Never throws; when the count
+    /// cannot be read the answer is false and nothing is refunded on a guess.
     /// </summary>
     Task<bool> ShouldRefundAsync(string generationId, int tier, string errorCategory);
+}
+
+public static class FailedBuildRefunderExtensions
+{
+    /// <summary>
+    /// What a failure site calls once the failed status is written: refunds the build when
+    /// <see cref="IFailedBuildRefunder.ShouldRefundAsync"/> says the customer has no retry left,
+    /// with the email <see cref="FailedBuildRefunder.ReasonFor"/> picks. Never on a caller's
+    /// token: the row is already failed, and a host that starts stopping now would cancel the
+    /// refund with nothing left to try it again. Never throws.
+    /// </summary>
+    public static async Task RefundIfOwedAsync(
+        this IFailedBuildRefunder refunder, string generationId, int tier, string errorCategory)
+    {
+        if (await refunder.ShouldRefundAsync(generationId, tier, errorCategory))
+        {
+            await refunder.TryRefundAsync(
+                generationId, tier, FailedBuildRefunder.ReasonFor(errorCategory), CancellationToken.None);
+        }
+    }
 }
 
 /// <inheritdoc />
@@ -48,21 +69,34 @@ public sealed partial class FailedBuildRefunder(
     public const int RetryLimit = 3;
 
     /// <summary>
-    /// The rule for a failure outside the build-retry loop: refund a paid tier only when the
-    /// customer has no retry left. This overload covers the half that needs no row: a category
-    /// the result page offers no Retry for. <see cref="ShouldRefundAsync"/> adds the other half,
-    /// every retry used. Refunding a failure the customer can retry would turn it into a lost
-    /// sale: the refund takes the transaction out of <c>completed</c>, and
-    /// <see cref="PaidGenerationGate"/> then refuses the retry.
+    /// The refund rule: a paid tier is refunded when its failure leaves the customer no retry.
+    /// This overload is the half that needs no row: a build that still failed after every
+    /// automatic correction (<see cref="ErrorCategorizer.Build"/>, the Compile Guarantee), or a
+    /// category the result page offers no Retry for. <see cref="ShouldRefundAsync"/> adds the
+    /// other half, every retry used. The result page mirrors both halves
+    /// (<c>failureOutcome</c> in <c>lib/generation-outcome.ts</c>; a web test checks the build
+    /// case). Refunding a failure the customer can retry would turn it into a lost sale: the
+    /// refund takes the transaction out of <c>completed</c>, and <see cref="PaidGenerationGate"/>
+    /// then refuses the retry.
     /// </summary>
     public static bool ShouldRefund(int tier, string errorCategory) =>
-        tier >= 1 && !ErrorCategorizer.OffersRetry(errorCategory);
+        tier >= 1
+        && (errorCategory == ErrorCategorizer.Build || !ErrorCategorizer.OffersRetry(errorCategory));
+
+    /// <summary>
+    /// Which email a refund for this failure sends: the Compile Guarantee one for a build that
+    /// still failed after every automatic correction, the could-not-finish one for anything else.
+    /// </summary>
+    public static RefundReason ReasonFor(string errorCategory) =>
+        errorCategory == ErrorCategorizer.Build
+            ? RefundReason.CompileRetriesExhausted
+            : RefundReason.BuildCouldNotFinish;
 
     public async Task<bool> ShouldRefundAsync(string generationId, int tier, string errorCategory)
     {
         if (tier < 1)
             return false;
-        if (!ErrorCategorizer.OffersRetry(errorCategory))
+        if (ShouldRefund(tier, errorCategory))
             return true;
 
         try

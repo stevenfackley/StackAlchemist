@@ -350,7 +350,8 @@ public class CompileWorkerRetryTests
             r2,
             delivery,
             email,
-            refund ?? Substitute.For<IRefundService>(),
+            new FailedBuildRefunder(
+                refund ?? Substitute.For<IRefundService>(), delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
             NullLogger<CompileWorkerService>.Instance);
 

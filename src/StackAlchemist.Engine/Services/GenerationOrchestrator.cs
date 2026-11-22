@@ -238,12 +238,8 @@ public sealed partial class GenerationOrchestrator(
                 // the result page offers no Retry for, or every retry used) leaves them charged
                 // with nothing to press. Any other failure is not refunded: the customer can
                 // retry, and a refund would make that retry answer 402.
-                if (refunder is not null
-                    && await refunder.ShouldRefundAsync(request.GenerationId, request.Tier, category))
-                {
-                    await refunder.TryRefundAsync(
-                        request.GenerationId, request.Tier, RefundReason.BuildCouldNotFinish, CancellationToken.None);
-                }
+                if (refunder is not null)
+                    await refunder.RefundIfOwedAsync(request.GenerationId, request.Tier, category);
             }
             finally
             {

@@ -135,6 +135,26 @@ describe("the Engine's copy of these rules", () => {
     expect(engineNoRetry).toEqual(webNoRetry);
   });
 
+  it("FailedBuildRefunder.ShouldRefund refunds the categories a paid build gets no Retry for", () => {
+    // Retryable for a free build, but never offered to a paid one: the Compile Guarantee refunds
+    // a paid build that still fails after every automatic correction, and the page says so.
+    const rule = /static bool ShouldRefund\(int tier, string errorCategory\) =>([^;]*);/.exec(engine("FailedBuildRefunder.cs"));
+    expect(rule).not.toBeNull();
+    const source = engine("ErrorCategorizer.cs");
+    const engineAlwaysRefunded = [...rule![1].matchAll(/errorCategory == ErrorCategorizer\.(\w+)/g)]
+      .map(([, name]) => new RegExp(`const string ${name} = "([a-z_]+)"`).exec(source)?.[1])
+      .sort();
+
+    const webAlwaysRefunded = GENERATION_ERROR_CATEGORIES
+      .filter((category) =>
+        failureOutcome(failed({ tier: 0, error_category: category })).canRetry
+        && !failureOutcome(failed({ payment_status: "completed", error_category: category, retry_count: 0 })).canRetry)
+      .sort();
+
+    expect(webAlwaysRefunded).toEqual(["build"]);
+    expect(engineAlwaysRefunded).toEqual(webAlwaysRefunded);
+  });
+
   it("FailedBuildRefunder.RetryLimit is MAX_RETRIES", () => {
     const match = /const int RetryLimit = (\d+);/.exec(engine("FailedBuildRefunder.cs"));
     expect(Number(match?.[1])).toBe(MAX_RETRIES);
