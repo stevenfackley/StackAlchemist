@@ -94,7 +94,54 @@ public class CompileWorkerRetryTests
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
+
+        // Every state the job passed through reached the row, in order, and only the last one
+        // carries the link.
+        StatusWrites(delivery).Should().Equal(
+            (GenerationState.Building, null),
+            (GenerationState.Generating, null),
+            (GenerationState.Building, null),
+            (GenerationState.Packing, null),
+            (GenerationState.Uploading, null),
+            (GenerationState.Success, "https://r2.test/fake-presigned"));
     }
+
+    [Fact]
+    public async Task BlueprintJob_WritesPackingUploadingSuccess()
+    {
+        // Tier 1 reaches the worker already packing: no build, no correction.
+        var outputDir = MakeTempOutputDir();
+        var job = new GenerationContext
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "advanced",
+            Tier = 1,
+            ProjectType = ProjectType.DotNetNextJs,
+            OutputDirectory = outputDir,
+            State = GenerationState.Packing,
+        };
+        var r2 = Substitute.For<IR2UploadService>();
+        r2.UploadZipAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://r2.test/blueprint");
+        var delivery = Substitute.For<IDeliveryService>();
+
+        var (_, capturedJob) = await RunWorkerAsync(
+            job, Substitute.For<ICompileService>(), Substitute.For<ILlmClient>(), new ReconstructionService(), r2,
+            delivery, Substitute.For<IEmailService>());
+
+        capturedJob.State.Should().Be(GenerationState.Success);
+        StatusWrites(delivery).Should().Equal(
+            (GenerationState.Packing, null),
+            (GenerationState.Uploading, null),
+            (GenerationState.Success, "https://r2.test/blueprint"));
+    }
+
+    /// <summary>Each state-typed status write the worker made, with its download link, in order.</summary>
+    private static List<(GenerationState State, string? DownloadUrl)> StatusWrites(IDeliveryService delivery) =>
+        [.. delivery.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IDeliveryService.UpdateStatusAsync)
+                && call.GetArguments()[1] is GenerationState)
+            .Select(call => ((GenerationState)call.GetArguments()[1]!, (string?)call.GetArguments()[2]))];
 
     [Fact]
     public async Task WithBuildPassingOnTheLastCorrection_IsDeliveredNotFailed()

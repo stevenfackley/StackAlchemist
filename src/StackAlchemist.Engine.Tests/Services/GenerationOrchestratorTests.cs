@@ -107,6 +107,29 @@ public class GenerationOrchestratorTests
         new(id, status, tier, "advanced", null, null, null, null, 0, DateTimeOffset.UtcNow);
 
     [Fact]
+    public async Task EnqueueAsync_WritesGeneratingCode_TheRowsNameForAStartedGeneration()
+    {
+        // Not "generating": that is the name the build-repair loop writes for the same state.
+        var delivery = Substitute.For<IDeliveryService>();
+        var (sut, _, _, _) = BuildSut(delivery);
+        var request = new GenerateRequest
+        {
+            GenerationId = Guid.NewGuid().ToString(),
+            Mode = "simple",
+            Tier = 2,
+            Prompt = "Build a task manager",
+        };
+
+        await sut.EnqueueAsync(request);
+
+        await delivery.Received(1).UpdateStatusAsync(
+            request.GenerationId, "generating_code", Arg.Any<CancellationToken>(), Arg.Any<string?>(), Arg.Any<string?>());
+        await delivery.DidNotReceive().UpdateStatusAsync(
+            Arg.Any<string>(), Arg.Any<GenerationState>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task EnqueueAsync_OnSuccess_ReturnsBuildingAndWritesQueue()
     {
         var (sut, _, queue, _) = BuildSut();
