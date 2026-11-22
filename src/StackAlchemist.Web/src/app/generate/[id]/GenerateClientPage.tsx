@@ -57,6 +57,12 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
   });
 
   // ── Retry handler ──────────────────────────────────────────────────────────
+  // State set after an `await` inside a transition is not part of that transition: it commits
+  // on its own, ahead of isPending turning false. Here that committed the re-read row (Retry
+  // gone, payment refunded) while the refusal was still hidden behind the spinner state, so
+  // the page showed neither the spinner nor the reason. Every update after an await is
+  // therefore wrapped in startTransition again, and lands in the same commit as the end of
+  // the pending state.
   function handleRetry() {
     setRetryError(null);
     setRefundWatchOver(false);
@@ -71,26 +77,34 @@ export function GenerateClientPage({ initialGeneration, generationId }: Props) {
 
       if (result.success) {
         // Reset local state to pending so progress bar reappears
-        setGeneration((g) => ({
-          ...g,
-          status: "pending",
-          error_message: null,
-        }));
-      } else {
-        // Without this the spinner stops and nothing else changes: a retry refused
-        // for a refunded payment or an expired session looked like a dead button.
-        setRetryError(result.error ?? "The retry could not be started. Please try again in a moment.");
-
-        // A refusal usually means the row is not what this page last saw (the payment was
-        // refunded or disputed since). Read it again, so the page stops offering a Retry and
-        // saying the payment is in place right next to the reason it was refused.
-        try {
-          const fresh = await getGeneration(generationId);
-          if (fresh) setGeneration(fresh);
-        } catch {
-          // The message above stands; the next page load shows the current state.
-        }
+        startTransition(() =>
+          setGeneration((g) => ({
+            ...g,
+            status: "pending",
+            error_message: null,
+          }))
+        );
+        return;
       }
+
+      // Without this the spinner stops and nothing else changes: a retry refused
+      // for a refunded payment or an expired session looked like a dead button.
+      const refusal = result.error ?? "The retry could not be started. Please try again in a moment.";
+
+      // A refusal usually means the row is not what this page last saw (the payment was
+      // refunded or disputed since). Read it again, so the page stops offering a Retry and
+      // saying the payment is in place right next to the reason it was refused.
+      let fresh: Generation | null = null;
+      try {
+        fresh = await getGeneration(generationId);
+      } catch {
+        // The message stands; the next page load shows the current state.
+      }
+
+      startTransition(() => {
+        setRetryError(refusal);
+        if (fresh) setGeneration(fresh);
+      });
     });
   }
 
