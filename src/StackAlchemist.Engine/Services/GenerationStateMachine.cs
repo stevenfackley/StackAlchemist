@@ -4,7 +4,14 @@ namespace StackAlchemist.Engine.Services;
 
 public static class GenerationStateMachine
 {
-    private const int MaxRetries = 3;
+    /// <summary>
+    /// How many automatic corrections a failing build gets (the Compile Guarantee's budget): on
+    /// the failure after the last one, <see cref="GenerationEvent.BuildFailed"/> goes to
+    /// <see cref="GenerationState.Failed"/>. The compile worker's loop, the repair prompts, the
+    /// build report and the refund email all read this one number. Not the customer's own
+    /// retries (<see cref="FailedBuildRefunder.RetryLimit"/>).
+    /// </summary>
+    public const int MaxBuildRetries = 3;
 
     private static readonly HashSet<GenerationState> TerminalStates =
         [GenerationState.Success, GenerationState.Failed];
@@ -35,7 +42,7 @@ public static class GenerationStateMachine
         // Special handling for BuildFailed — retry or fail
         if (current == GenerationState.Building && trigger == GenerationEvent.BuildFailed)
         {
-            if (context is not null && context.RetryCount < MaxRetries)
+            if (context is not null && context.RetryCount < MaxBuildRetries)
             {
                 context.RetryCount++;
                 return GenerationState.Generating;

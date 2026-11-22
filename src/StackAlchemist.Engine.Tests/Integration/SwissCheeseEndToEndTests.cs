@@ -238,7 +238,6 @@ public class SwissCheeseEndToEndTests
             promptBuilder,
             injectionEngine,
             delivery,
-            new TierGatingService(),
             fs,
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Generation:UseSwissCheese"] = "true" })

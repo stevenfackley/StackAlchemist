@@ -52,10 +52,10 @@ public sealed partial class PostgresDeliveryService(
         "select id, status, tier, mode, prompt, project_type, schema_json, personalization_json, attempt_count, updated_at, retry_count " +
         "from stackalchemist.generations";
 
-    // "Every status except the two terminal ones (success, failed)" — a restart can orphan a job
-    // mid-packing/uploading just as easily as mid-build.
-    private const string NonTerminalStatuses =
-        "('pending', 'extracting_schema', 'generating_code', 'generating', 'building', 'packing', 'uploading')";
+    // GenerationStatus.NonTerminal as a SQL list. Built from the set, so a status added there is
+    // swept too: one missing here is a row the reconciler never sees.
+    internal static readonly string NonTerminalStatuses =
+        "(" + string.Join(", ", GenerationStatus.NonTerminal.Select(status => $"'{status}'")) + ")";
 
     public async Task UpdateStatusAsync(
         string generationId,
@@ -67,7 +67,7 @@ public sealed partial class PostgresDeliveryService(
     {
         var payload = new Dictionary<string, object?>
         {
-            ["status"] = state.ToString().ToLowerInvariant(),
+            ["status"] = GenerationStatus.ToWire(state),
             ["updated_at"] = DateTime.UtcNow.ToString("O"),
         };
 
@@ -110,14 +110,14 @@ public sealed partial class PostgresDeliveryService(
         if (errorCategory is not null)
             payload["error_category"] = errorCategory;
 
-        if (status is "success" or "failed")
+        if (GenerationStatus.IsTerminal(status))
             payload["completed_at"] = DateTime.UtcNow.ToString("O");
 
         await PatchGenerationAsync(
             generationId,
             payload,
             ct,
-            critical: status is "success" or "failed");
+            critical: GenerationStatus.IsTerminal(status));
     }
 
     public async Task CompletePreviewAsync(
@@ -133,7 +133,7 @@ public sealed partial class PostgresDeliveryService(
         var payload = new Dictionary<string, object?>
         {
             ["preview_files_json"] = files,
-            ["status"] = "success",
+            ["status"] = GenerationStatus.Success,
             ["updated_at"] = nowIso,
             ["completed_at"] = nowIso,
         };
@@ -279,7 +279,7 @@ public sealed partial class PostgresDeliveryService(
     {
         var payload = new Dictionary<string, object?>
         {
-            ["status"] = "pending",
+            ["status"] = GenerationStatus.Pending,
             ["attempt_count"] = row.AttemptCount + 1,
             ["error_message"] = null,
             ["error_category"] = null,
@@ -297,7 +297,7 @@ public sealed partial class PostgresDeliveryService(
     {
         var payload = new Dictionary<string, object?>
         {
-            ["status"] = "failed",
+            ["status"] = GenerationStatus.Failed,
             ["error_message"] = errorMessage,
             ["error_category"] = errorCategory,
             ["completed_at"] = DateTime.UtcNow.ToString("O"),

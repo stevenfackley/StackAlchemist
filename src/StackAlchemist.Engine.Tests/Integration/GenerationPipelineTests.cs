@@ -369,7 +369,6 @@ public class GenerationPipelineTests
             promptBuilder,
             injectionEngine,
             delivery ?? Substitute.For<IDeliveryService>(),
-            new TierGatingService(),
             fs,
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
