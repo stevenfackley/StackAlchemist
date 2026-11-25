@@ -54,10 +54,20 @@ public sealed partial class CompileWorkerService(
             {
                 LogJobUnhandledError(logger, ex, job.GenerationId);
 
-                // A paid build that died here with no retry left for the customer (a category
-                // the result page offers no Retry for, or every retry used) is refunded.
-                await FailJobAsync(
-                    job, ex.Message, ErrorCategorizer.Categorize(ex), stage: "worker_unhandled", stoppingToken);
+                try
+                {
+                    // A paid build that died here with no retry left for the customer (a category
+                    // the result page offers no Retry for, or every retry used) is refunded.
+                    await FailJobAsync(
+                        job, ex.Message, ErrorCategorizer.Categorize(ex), stage: "worker_unhandled");
+                }
+                catch (Exception writeEx)
+                {
+                    // The failed status could not be written. Letting that out of the loop ended
+                    // the worker, and every job still queued with it. The row keeps the status it
+                    // has and the reconciler settles it once it is stale.
+                    LogFailedStatusNotRecorded(logger, writeEx, job.GenerationId);
+                }
             }
             finally
             {
@@ -92,7 +102,7 @@ public sealed partial class CompileWorkerService(
         {
             if (job.OutputDirectory is null)
             {
-                await FailMissingOutputDir(job, ct);
+                await FailMissingOutputDir(job);
                 return;
             }
 
@@ -109,7 +119,7 @@ public sealed partial class CompileWorkerService(
         {
             if (job.OutputDirectory is null)
             {
-                await FailMissingOutputDir(job, ct);
+                await FailMissingOutputDir(job);
                 return;
             }
 
@@ -196,7 +206,7 @@ public sealed partial class CompileWorkerService(
                 // alone, like a delivered build's.
                 await FailJobAsync(
                     job, $"Build failed after {GenerationStateMachine.MaxBuildRetries} retries. Last errors:\n{errorSummary}",
-                    ErrorCategorizer.Build, stage: "build_retries_exhausted", ct, tagDurationWithStage: false);
+                    ErrorCategorizer.Build, stage: "build_retries_exhausted", tagDurationWithStage: false);
 
                 return;
             }
@@ -382,16 +392,16 @@ public sealed partial class CompileWorkerService(
         await deliveryService.UpdateStatusAsync(job.GenerationId, job.State, downloadUrl: downloadUrl, ct: ct);
     }
 
-    private Task FailMissingOutputDir(GenerationContext job, CancellationToken ct) =>
+    private Task FailMissingOutputDir(GenerationContext job) =>
         FailJobAsync(
             job, "No output directory set on the generation context.",
-            ErrorCategorizer.Internal, stage: "missing_output_dir", ct);
+            ErrorCategorizer.Internal, stage: "missing_output_dir");
 
     /// <summary>
     /// Every way a job ends failed in this worker: records the failure meters, writes the failed
-    /// status on <paramref name="ct"/>, then refunds the build when the failure leaves the
-    /// customer no retry (<see cref="FailedBuildRefunder.ShouldRefund"/>; the refund itself
-    /// never rides <paramref name="ct"/>). Nothing is refunded when the status write throws.
+    /// status, then refunds the build when the failure leaves the customer no retry
+    /// (<see cref="FailedBuildRefunder.ShouldRefund"/>). Neither the write nor the refund rides
+    /// the host's stopping token. Nothing is refunded when the status write throws.
     /// </summary>
     /// <param name="stage">Tags the failure count, and the duration unless
     /// <paramref name="tagDurationWithStage"/> is false.</param>
@@ -400,7 +410,6 @@ public sealed partial class CompileWorkerService(
         string errorMessage,
         string errorCategory,
         string stage,
-        CancellationToken ct,
         bool tagDurationWithStage = true)
     {
         job.State = GenerationState.Failed;
@@ -411,11 +420,14 @@ public sealed partial class CompileWorkerService(
             (DateTimeOffset.UtcNow - job.StartedAt).TotalMilliseconds,
             BuildJobTags(job, stage: tagDurationWithStage ? stage : null, outcome: "failed"));
 
+        // CancellationToken.None, as the orchestrator's failed write: a host that starts stopping
+        // right now must still record it. On the stopping token the write was dropped, while the
+        // refund below, which never rode that token, still went out.
         await deliveryService.UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed,
             errorMessage: errorMessage,
             errorCategory: errorCategory,
-            ct: ct);
+            ct: CancellationToken.None);
 
         await refunder.RefundIfOwedAsync(job.GenerationId, job.Tier, errorCategory);
     }
@@ -478,6 +490,10 @@ public sealed partial class CompileWorkerService(
 
     [LoggerMessage(EventId = 614, Level = LogLevel.Error, Message = "Generation {Id} was delivered, but a step after delivery threw (owner lookup or completion email); the row stays success")]
     private static partial void LogPostDeliveryStepFailed(ILogger logger, Exception ex, string id);
+
+    // 616, not 615: FailedBuildRefunder has 615.
+    [LoggerMessage(EventId = 616, Level = LogLevel.Error, Message = "Could not record generation {Id} as failed; its row keeps the status it has and is left for the reconciler")]
+    private static partial void LogFailedStatusNotRecorded(ILogger logger, Exception ex, string id);
 
     [LoggerMessage(EventId = 611, Level = LogLevel.Warning, Message = "Could not write build-report.json for generation {Id} — archive ships without it")]
     private static partial void LogBuildReportWriteFailed(ILogger logger, Exception ex, string id);

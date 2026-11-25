@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackAlchemist.Engine.Models;
@@ -279,6 +280,51 @@ public class CompileWorkerRefundTests
     }
 
     [Fact]
+    public async Task HostStopsAsTheJobFails_TheFailedStatusIsStillWritten_ThenTheRefund()
+    {
+        // A deploy stops the host just as a paid build dies for a reason of its own, which is not
+        // the cancellation. The refund has never ridden the stopping token. The failed status
+        // used to, and the store drops a write whose token is cancelled: the customer was paid
+        // back for a build the row still called in progress.
+        var job = MakeJob(tier: 2);
+        var (_, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
+        using var stopping = new CancellationTokenSource();
+        var compile = Substitute.For<ICompileService>();
+        compile.ExecuteBuildAsync(Arg.Any<string>(), Arg.Any<ProjectType>(), Arg.Any<CancellationToken>())
+            .Returns<Task<BuildResult>>(_ =>
+            {
+                stopping.Cancel();
+                throw new InvalidOperationException("chown exited 1");
+            });
+        var delivery = Substitute.For<IDeliveryService>();
+        var failedStatusReachedTheRow = false;
+        delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                failedStatusReachedTheRow = !call.Arg<CancellationToken>().IsCancellationRequested;
+                return Task.CompletedTask;
+            });
+        var refund = Substitute.For<IRefundService>();
+
+        await RunWorkerAsync(
+            job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund,
+            stopping.Token, keepQueueOpen: true);
+
+        job.State.Should().Be(GenerationState.Failed);
+        failedStatusReachedTheRow.Should().BeTrue();
+        Received.InOrder(() =>
+        {
+            delivery.UpdateStatusAsync(
+                job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
+                Arg.Is<string?>(message => message == "chown exited 1"), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
+                CancellationToken.None);
+            refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
+        });
+    }
+
+    [Fact]
     public async Task CompletionEmailThrowsAfterDelivery_TheBuildStaysDeliveredAndIsNotRefunded()
     {
         // Everything up to and including the success write worked: the customer has the archive.
@@ -313,10 +359,9 @@ public class CompileWorkerRefundTests
     // ── What each way of failing records, and when it pays the customer back ──
     //
     // One test per way a build ends failed in the worker: the failed status written (message,
-    // category, and the worker's own token), the meters, whether the payment goes back, with
-    // which email, on which token, and whether the decision read the customer's retry count.
-
-    private static CancellationToken WorkersToken() => Arg.Is<CancellationToken>(t => t.CanBeCanceled);
+    // category, and on no token, so a stopping host cannot cancel it), the meters, whether the
+    // payment goes back, with which email, on which token, and whether the decision read the
+    // customer's retry count.
 
     [Theory]
     [InlineData(1)]
@@ -347,7 +392,7 @@ public class CompileWorkerRefundTests
             delivery.UpdateStatusAsync(
                 job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
                 Arg.Is<string?>(message => message == job.ErrorMessage), Arg.Is<string?>(c => c == ErrorCategorizer.Build),
-                WorkersToken());
+                CancellationToken.None);
             refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
         });
         await refund.Received(1).RefundFailedGenerationAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -387,7 +432,7 @@ public class CompileWorkerRefundTests
     }
 
     [Fact]
-    public async Task WorkerThrows_IsRecordedWithTheExceptionsMessageAndCategory_OnTheWorkersToken()
+    public async Task WorkerThrows_IsRecordedWithTheExceptionsMessageAndCategory_OnNoToken()
     {
         using var meters = new GenerationMeterCapture();
         var job = MakeJob(tier: 2, meters.Mode);
@@ -406,7 +451,7 @@ public class CompileWorkerRefundTests
             delivery.UpdateStatusAsync(
                 job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
                 Arg.Is<string?>(message => message == "chown exited 1"), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
-                WorkersToken());
+                CancellationToken.None);
             refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
         });
         // A category with no Retry needs no row to decide.
@@ -457,7 +502,7 @@ public class CompileWorkerRefundTests
             delivery.UpdateStatusAsync(
                 job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
                 Arg.Is<string?>(message => message == job.ErrorMessage), Arg.Is<string?>(c => c == ErrorCategorizer.Internal),
-                WorkersToken());
+                CancellationToken.None);
             refund.RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
         });
         await email.Received(1).SendAsync(
@@ -487,7 +532,7 @@ public class CompileWorkerRefundTests
         await delivery.Received(1).UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed, Arg.Is<string?>(url => url == null),
             Arg.Is<string?>(message => message == "No output directory set on the generation context."),
-            Arg.Is<string?>(c => c == ErrorCategorizer.Internal), WorkersToken());
+            Arg.Is<string?>(c => c == ErrorCategorizer.Internal), CancellationToken.None);
         await refund.Received(1).RefundFailedGenerationAsync(job.GenerationId, CancellationToken.None);
     }
 
@@ -509,14 +554,16 @@ public class CompileWorkerRefundTests
     }
 
     [Fact]
-    public async Task FailedStatusWriteThrows_NothingIsRefunded()
+    public async Task FailedStatusWriteThrows_NothingIsRefunded_AndTheWorkerGoesOnToTheNextJob()
     {
         // The refund comes after the failed status, never instead of it: when that write fails,
         // the row is left in progress for the reconciler, which fails and refunds it itself.
-        // What happens today: the throw lands in the loop's catch, which counts a second failure
-        // and tries the write again; that throws too and ends the worker.
+        // The throw lands in the loop's catch, which counts a second failure and tries the write
+        // again. That throws too. It used to end the worker, and with it every job still queued:
+        // now it is logged and the worker takes the next job.
         using var meters = new GenerationMeterCapture();
         var job = MakeJob(tier: 2, meters.Mode);
+        var next = MakeJob(tier: 0);
         var (compile, llm, reconstruction, r2) = MakeAlwaysFailingBuildMocks();
         var delivery = Substitute.For<IDeliveryService>();
         delivery.UpdateStatusAsync(
@@ -524,10 +571,12 @@ public class CompileWorkerRefundTests
                 Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("db down"));
         var refund = Substitute.For<IRefundService>();
+        var log = new EventRecorder();
 
-        var run = () => RunWorkerAsync(job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund);
+        await RunWorkerAsync(
+            job, compile, llm, reconstruction, r2, delivery, Substitute.For<IEmailService>(), refund,
+            next: next, logger: log);
 
-        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("db down");
         await refund.DidNotReceiveWithAnyArgs().RefundFailedGenerationAsync(default!, default);
         await delivery.Received(2).UpdateStatusAsync(
             job.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
@@ -535,6 +584,15 @@ public class CompileWorkerRefundTests
         meters.TagSets("generation.failed").Should().Equal(
             "project_type=DotNetNextJs;stage=build_retries_exhausted;tier=2",
             "project_type=DotNetNextJs;stage=worker_unhandled;tier=2");
+
+        var notRecorded = log.Events.Should().ContainSingle(e => e.EventId == 616).Subject;
+        notRecorded.Level.Should().Be(LogLevel.Error);
+        notRecorded.Exception.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Be("db down");
+
+        next.State.Should().Be(GenerationState.Failed);
+        await delivery.Received(1).UpdateStatusAsync(
+            next.GenerationId, GenerationState.Failed, Arg.Any<string?>(), Arg.Any<string?>(),
+            ErrorCategorizer.Build, Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -598,10 +656,14 @@ public class CompileWorkerRefundTests
         IEmailService email,
         IRefundService refund,
         CancellationToken stopping = default,
-        bool keepQueueOpen = false)
+        bool keepQueueOpen = false,
+        GenerationContext? next = null,
+        ILogger<CompileWorkerService>? logger = null)
     {
         var queue = Channel.CreateUnbounded<GenerationContext>();
         await queue.Writer.WriteAsync(job);
+        if (next is not null)
+            await queue.Writer.WriteAsync(next);
         // A stopping host has an open queue: the worker ends because its token is cancelled.
         if (!keepQueueOpen)
             queue.Writer.Complete();
@@ -616,7 +678,7 @@ public class CompileWorkerRefundTests
             email,
             new FailedBuildRefunder(refund, delivery, email, NullLogger<FailedBuildRefunder>.Instance),
             new InFlightGenerationRegistry(),
-            NullLogger<CompileWorkerService>.Instance);
+            logger ?? NullLogger<CompileWorkerService>.Instance);
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stopping);
         await worker.StartAsync(linked.Token);
@@ -630,5 +692,19 @@ public class CompileWorkerRefundTests
         }
 
         return job;
+    }
+
+    /// <summary>Records the level, EventId and exception of every log call.</summary>
+    private sealed class EventRecorder : ILogger<CompileWorkerService>
+    {
+        public List<(LogLevel Level, int EventId, Exception? Exception)> Events { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Events.Add((logLevel, eventId.Id, exception));
     }
 }
